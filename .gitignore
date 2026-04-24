@@ -1,0 +1,29 @@
+# Secrets — never commit
+.env
+.env.local
+.env.*.local
+
+# Node
+node_modules/
+dist/
+build/
+.vite/
+
+# Java / Gradle
+.gradle/
+backend/build/
+backend/.gradle/
+*.class
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Orchestrator scratch (kept local, not committed)
+.agents/
+PROJECT.md
