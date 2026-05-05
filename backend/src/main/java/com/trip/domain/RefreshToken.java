@@ -88,4 +88,20 @@ public class RefreshToken {
             issuedAt = OffsetDateTime.now();
         }
     }
+
+    /**
+     * Defensive override: explicitly excludes {@code tokenHash} so the secret material
+     * never lands in logs or diagnostics. If a future change adopts Lombok {@code @Data}
+     * or an IDE-generated {@code toString()}, this method must be preserved.
+     */
+    @Override
+    public String toString() {
+        return "RefreshToken{"
+            + "id=" + id
+            + ", userId=" + userId
+            + ", expiresAt=" + expiresAt
+            + ", revokedAt=" + revokedAt
+            + ", replacedBy=" + replacedBy
+            + '}';
+    }
 }

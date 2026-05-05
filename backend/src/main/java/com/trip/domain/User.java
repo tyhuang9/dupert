@@ -18,6 +18,12 @@ public class User {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    /**
+     * The user's email, stored pre-normalized: callers MUST pass values that have been
+     * run through {@link com.trip.service.auth.EmailNormalizer#normalize(String)}
+     * (lowercased + trimmed, {@code Locale.ROOT}) before insert. The functional
+     * {@code LOWER(email)} unique index in V1 is defense-in-depth.
+     */
     @Column(name = "email", nullable = false, length = 254)
     private String email;
 
