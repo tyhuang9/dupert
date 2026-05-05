@@ -1,7 +1,8 @@
 package com.trip.web.dto;
 
 /**
- * Response body for successful {@code /api/auth/register} and {@code /api/auth/login}.
+ * Response body for successful {@code /api/auth/register}, {@code /api/auth/login},
+ * and {@code /api/auth/refresh}.
  *
  * <p>The refresh token is <strong>not</strong> in this body — it lives only in the
  * {@code refresh_token} {@code HttpOnly} cookie. Including it here would defeat the
@@ -19,11 +20,4 @@ public record AuthResponse(
     int expiresInSeconds,
     UserSummary user
 ) {
-
-    public record UserSummary(
-        long id,
-        String email,
-        String displayName
-    ) {
-    }
 }

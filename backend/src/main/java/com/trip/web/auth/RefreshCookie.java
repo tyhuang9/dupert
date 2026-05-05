@@ -35,7 +35,7 @@ import jakarta.servlet.http.HttpServletResponse;
 @Component
 public class RefreshCookie {
 
-    static final String COOKIE_NAME = "refresh_token";
+    public static final String COOKIE_NAME = "refresh_token";
     static final String COOKIE_PATH = "/api/auth";
     static final Duration COOKIE_MAX_AGE = Duration.ofDays(30);
 

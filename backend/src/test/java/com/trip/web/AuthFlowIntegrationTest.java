@@ -1,6 +1,8 @@
 package com.trip.web;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -26,6 +28,8 @@ import com.trip.repo.UserRepository;
 import com.trip.service.auth.JwtService;
 import com.trip.web.dto.LoginRequest;
 import com.trip.web.dto.RegisterRequest;
+
+import jakarta.servlet.http.Cookie;
 
 /**
  * End-to-end auth flow against a real Postgres (Neon, dev branch via {@code DATABASE_URL}).
@@ -115,5 +119,71 @@ class AuthFlowIntegrationTest {
         Optional<User> loaded = userRepository.findByEmailIgnoreCase(testEmail);
         assertThat(loaded).isPresent();
         assertThat(loaded.get().getDisplayName()).isEqualTo("Integration Test");
+    }
+
+    /**
+     * Full chunk-2c happy path: register → login → /me → /refresh → /me with new
+     * access token → logout → /me with old access token still works (until expiry —
+     * access tokens aren't revocable mid-flight; see PROJECT.md §5) → /refresh fails
+     * because the cookie chain is gone.
+     */
+    @Test
+    void fullSessionLifecycleAcrossRefreshAndLogout() throws Exception {
+        testEmail = "auth-it-" + UUID.randomUUID() + "@example.com";
+
+        // 1. Register and capture the refresh cookie.
+        MvcResult registered = mvc.perform(post("/api/auth/register")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(
+                    new RegisterRequest(testEmail, "password1234", "Lifecycle Test"))))
+            .andExpect(status().isOk())
+            .andReturn();
+        Cookie registerCookie = registered.getResponse().getCookie("refresh_token");
+        assertThat(registerCookie).isNotNull();
+        String firstAccessToken = objectMapper.readTree(
+            registered.getResponse().getContentAsString()).get("accessToken").asText();
+
+        // 2. /me with the bearer.
+        mvc.perform(get("/api/auth/me").header("Authorization", "Bearer " + firstAccessToken))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.email").value(testEmail));
+
+        // 3. Refresh — rotates the cookie and mints a new access token.
+        MvcResult refreshed = mvc.perform(post("/api/auth/refresh").cookie(registerCookie))
+            .andExpect(status().isOk())
+            .andReturn();
+        Cookie rotatedCookie = refreshed.getResponse().getCookie("refresh_token");
+        assertThat(rotatedCookie).isNotNull();
+        assertThat(rotatedCookie.getValue()).isNotEqualTo(registerCookie.getValue());
+        String secondAccessToken = objectMapper.readTree(
+            refreshed.getResponse().getContentAsString()).get("accessToken").asText();
+        assertThat(jwtService.verifyAccessToken(secondAccessToken)).isPresent();
+
+        // 4. /me with the new access token.
+        mvc.perform(get("/api/auth/me").header("Authorization", "Bearer " + secondAccessToken))
+            .andExpect(status().isOk());
+
+        // 5. Logout — revokes the rotated cookie's refresh row, sets Max-Age=0 on the
+        //    response cookie.
+        mvc.perform(post("/api/auth/logout").cookie(rotatedCookie))
+            .andExpect(status().isNoContent());
+
+        // 6. The old access token still works because access tokens are short-lived
+        //    bearer artefacts and not revocable mid-flight (PROJECT.md §5). Documented
+        //    expected behaviour: the user is "logged out" only in the sense that they
+        //    can't get a new access token after the current one expires.
+        mvc.perform(get("/api/auth/me").header("Authorization", "Bearer " + secondAccessToken))
+            .andExpect(status().isOk());
+
+        // Step 7: presenting the just-logged-out cookie to /refresh hits the
+        // "revoked token" branch of rotate(), which fires chain revocation.
+        mvc.perform(post("/api/auth/refresh").cookie(rotatedCookie))
+            .andExpect(status().isUnauthorized());
+
+        // 8. DELETE /me cleans up everything; the @AfterEach cleanup becomes a no-op.
+        mvc.perform(delete("/api/auth/me")
+                .header("Authorization", "Bearer " + secondAccessToken))
+            .andExpect(status().isNoContent());
+        assertThat(userRepository.findByEmailIgnoreCase(testEmail)).isEmpty();
     }
 }

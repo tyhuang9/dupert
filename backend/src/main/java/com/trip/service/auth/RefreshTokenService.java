@@ -139,6 +139,32 @@ public class RefreshTokenService {
         repo.revokeAllForUser(userId, OffsetDateTime.now());
     }
 
+    /**
+     * Revoke a single refresh token identified by its raw value (the cookie payload).
+     * Used by {@code POST /api/auth/logout}, which is intentionally a no-op when the
+     * cookie is absent, malformed, or already-revoked — the response is the same 204
+     * either way to avoid leaking validity status.
+     *
+     * <p>Hashes the token, looks up the row, and stamps {@code revoked_at} only if the
+     * row exists and is not already revoked. Does NOT walk the rotation chain — logout
+     * only retires the token the caller possesses, leaving any pre-rotation siblings
+     * (already revoked) and post-rotation children (none should exist for a token still
+     * in use, but logging out an old one is benign) untouched.
+     */
+    @Transactional
+    public void revokeByRawToken(String rawToken) {
+        if (rawToken == null || rawToken.isBlank()) {
+            return;
+        }
+        String hash = sha256Hex(rawToken);
+        repo.findByTokenHash(hash).ifPresent(entity -> {
+            if (entity.getRevokedAt() == null) {
+                entity.revoke(OffsetDateTime.now());
+                repo.save(entity);
+            }
+        });
+    }
+
     // ------------------------------------------------------------------
     // internals
     // ------------------------------------------------------------------
