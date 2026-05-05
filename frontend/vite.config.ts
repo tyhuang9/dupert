@@ -6,6 +6,19 @@ import babel from '@rolldown/plugin-babel'
 export default defineConfig({
   plugins: [
     react(),
-    babel({ presets: [reactCompilerPreset()] })
+    babel({ presets: [reactCompilerPreset()] }),
   ],
+  server: {
+    port: 3000,
+    proxy: {
+      // Same-origin API proxy during dev: frontend code can call `/api/...`
+      // without worrying about CORS, and the Spring Boot backend on :8000 gets
+      // the request verbatim.
+      '/api': {
+        target: 'http://localhost:8000',
+        changeOrigin: false,
+        secure: false,
+      },
+    },
+  },
 })

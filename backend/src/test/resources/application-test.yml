@@ -1,0 +1,32 @@
+# Test profile — no real datasource, no Flyway. Piece 2 introduces integration tests
+# with a testcontainer or H2; Piece 1 only exercises filters + Spring Security wiring,
+# which doesn't need a DB at all.
+
+spring:
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
+      - org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration
+      - org.springframework.boot.autoconfigure.orm.jpa.JpaRepositoriesAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.jpa.JpaRepositoriesAutoConfiguration
+      - org.flywaydb.autoconfigure.FlywayAutoConfiguration
+
+app:
+  frontend-origin: http://localhost:3000
+  jwt-secret: 00000000000000000000000000000000000000000000000000000000000000aa
+  log-email-pepper: 000000000000000000000000000000aa
+
+secure:
+  hsts:
+    enabled: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: never

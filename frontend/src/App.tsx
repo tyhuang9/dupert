@@ -1,122 +1,107 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
+import { BrowserRouter, Navigate, Route, Routes, useParams } from 'react-router-dom'
 import './App.css'
 
-function App() {
-  const [count, setCount] = useState(0)
+/**
+ * Piece 1 placeholder routing. Every route renders a minimal "TODO" page so we
+ * can verify the router is wired and the production build emits the expected
+ * bundle. Later pieces replace each component with its real implementation:
+ *
+ *   Piece 2 — LoginPage, RegisterPage
+ *   Piece 3 — TripsPage, TripPage
+ *   Piece 5 — AcceptInvitePage, GuestOnboardingPage
+ */
 
+function TodoPage({ title, piece }: { title: string; piece: number }) {
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
-
-      <div className="ticks"></div>
-
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
+    <main style={{ maxWidth: 640, margin: '4rem auto', padding: '0 1rem' }}>
+      <h1>{title}</h1>
+      <p>
+        This route is a placeholder. It will be implemented in <strong>Piece {piece}</strong>.
+      </p>
+    </main>
   )
 }
 
-export default App
+function LoginPage() {
+  return <TodoPage title="Log in" piece={2} />
+}
+
+function RegisterPage() {
+  return <TodoPage title="Register" piece={2} />
+}
+
+function TripsListPage() {
+  return <TodoPage title="Your trips" piece={3} />
+}
+
+function NewTripPage() {
+  return <TodoPage title="New trip" piece={3} />
+}
+
+function TripWorkspacePage() {
+  const { publicId, day } = useParams()
+  return (
+    <main style={{ maxWidth: 640, margin: '4rem auto', padding: '0 1rem' }}>
+      <h1>Trip workspace</h1>
+      <p>
+        Placeholder — publicId=<code>{publicId}</code>
+        {day ? (
+          <>
+            {' '}
+            day=<code>{day}</code>
+          </>
+        ) : null}
+      </p>
+      <p>Implemented in Piece 3 (shell) and Piece 6 (map + drag-and-drop).</p>
+    </main>
+  )
+}
+
+function MembersPage() {
+  const { publicId } = useParams()
+  return (
+    <main style={{ maxWidth: 640, margin: '4rem auto', padding: '0 1rem' }}>
+      <h1>Members & share links</h1>
+      <p>
+        Placeholder for trip <code>{publicId}</code>. Implemented in Piece 5.
+      </p>
+    </main>
+  )
+}
+
+function AcceptInvitePage() {
+  return <TodoPage title="Accept invite" piece={5} />
+}
+
+function GuestOnboardingPage() {
+  return <TodoPage title="Guest onboarding" piece={5} />
+}
+
+function NotFoundPage() {
+  return <TodoPage title="404 — Not found" piece={1} />
+}
+
+function ForbiddenPage() {
+  return <TodoPage title="403 — Forbidden" piece={1} />
+}
+
+export default function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<Navigate to="/trips" replace />} />
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterPage />} />
+        <Route path="/trips" element={<TripsListPage />} />
+        <Route path="/trips/new" element={<NewTripPage />} />
+        <Route path="/trips/:publicId" element={<TripWorkspacePage />} />
+        <Route path="/trips/:publicId/d/:day" element={<TripWorkspacePage />} />
+        <Route path="/trips/:publicId/members" element={<MembersPage />} />
+        <Route path="/share/:token" element={<AcceptInvitePage />} />
+        <Route path="/share/:token/guest" element={<GuestOnboardingPage />} />
+        <Route path="/403" element={<ForbiddenPage />} />
+        <Route path="*" element={<NotFoundPage />} />
+      </Routes>
+    </BrowserRouter>
+  )
+}

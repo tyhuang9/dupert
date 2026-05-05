@@ -1,0 +1,78 @@
+spring:
+  application:
+    name: trip-planner-backend
+  profiles:
+    default: dev
+  datasource:
+    # DATABASE_URL is expected in the format postgresql://USER:PASSWORD@HOST/DB?... (as Neon provides).
+    # Spring/JDBC wants `jdbc:postgresql://...` with user/password pulled into separate props; the
+    # easiest way is to let the user paste the raw Neon URL and we transform it here.
+    url: ${DATABASE_URL:}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        jdbc.time_zone: UTC
+        format_sql: false
+  flyway:
+    enabled: true
+    baseline-on-migrate: false
+    locations: classpath:db/migration
+  jackson:
+    deserialization:
+      fail-on-unknown-properties: true
+    default-property-inclusion: non_null
+    mapper:
+      default-view-inclusion: false
+  mvc:
+    throw-exception-if-no-handler-found: true
+  web:
+    resources:
+      add-mappings: false
+
+server:
+  port: 8000
+  error:
+    include-message: never
+    include-stacktrace: never
+    include-binding-errors: never
+    include-exception: false
+  tomcat:
+    max-http-form-post-size: 1MB
+
+# App-specific configuration.
+app:
+  # CORS allowlist. Comma-separated list of exact origins. Required.
+  frontend-origin: ${APP_FRONTEND_ORIGIN:}
+  # JWT HS256 secret. Required — must be >= 32 bytes after decode. No default in prod.
+  jwt-secret: ${JWT_SECRET:}
+  # Hex pepper used to SHA-256-hash emails before they end up in logs.
+  log-email-pepper: ${LOG_EMAIL_PEPPER:}
+
+# Security knobs (toggled on in prod, off in dev).
+secure:
+  hsts:
+    enabled: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: never
+  health:
+    defaults:
+      enabled: true
+
+logging:
+  level:
+    root: INFO
+    org.springframework.security: INFO
+    com.trip: INFO
