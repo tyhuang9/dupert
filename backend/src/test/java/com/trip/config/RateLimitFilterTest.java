@@ -1,0 +1,63 @@
+package com.trip.config;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
+import org.junit.jupiter.api.Test;
+
+import jakarta.servlet.http.HttpServletRequest;
+
+/**
+ * Unit tests for {@link RateLimitFilter#clientIp(HttpServletRequest, boolean)}. The
+ * trust-proxy gate is the load-bearing piece — without it a directly-exposed
+ * deployment would let any caller spoof their rate-limit key via
+ * {@code X-Forwarded-For}.
+ */
+class RateLimitFilterTest {
+
+    @Test
+    void ignoresXForwardedForWhenTrustProxyDisabled() {
+        HttpServletRequest req = mock(HttpServletRequest.class);
+        when(req.getHeader("X-Forwarded-For")).thenReturn("1.2.3.4");
+        when(req.getRemoteAddr()).thenReturn("10.0.0.1");
+
+        assertThat(RateLimitFilter.clientIp(req, false)).isEqualTo("10.0.0.1");
+    }
+
+    @Test
+    void honorsXForwardedForWhenTrustProxyEnabled() {
+        HttpServletRequest req = mock(HttpServletRequest.class);
+        when(req.getHeader("X-Forwarded-For")).thenReturn("1.2.3.4");
+        when(req.getRemoteAddr()).thenReturn("10.0.0.1");
+
+        assertThat(RateLimitFilter.clientIp(req, true)).isEqualTo("1.2.3.4");
+    }
+
+    @Test
+    void honorsFirstEntryOfXForwardedForWhenTrustProxyEnabled() {
+        HttpServletRequest req = mock(HttpServletRequest.class);
+        when(req.getHeader("X-Forwarded-For")).thenReturn("1.2.3.4, 5.6.7.8, 9.9.9.9");
+        when(req.getRemoteAddr()).thenReturn("10.0.0.1");
+
+        assertThat(RateLimitFilter.clientIp(req, true)).isEqualTo("1.2.3.4");
+    }
+
+    @Test
+    void fallsBackToRemoteAddrWhenHeaderMissingEvenWithTrustProxy() {
+        HttpServletRequest req = mock(HttpServletRequest.class);
+        when(req.getHeader("X-Forwarded-For")).thenReturn(null);
+        when(req.getRemoteAddr()).thenReturn("10.0.0.1");
+
+        assertThat(RateLimitFilter.clientIp(req, true)).isEqualTo("10.0.0.1");
+    }
+
+    @Test
+    void fallsBackToRemoteAddrWhenHeaderBlankEvenWithTrustProxy() {
+        HttpServletRequest req = mock(HttpServletRequest.class);
+        when(req.getHeader("X-Forwarded-For")).thenReturn("   ");
+        when(req.getRemoteAddr()).thenReturn("10.0.0.1");
+
+        assertThat(RateLimitFilter.clientIp(req, true)).isEqualTo("10.0.0.1");
+    }
+}

@@ -51,6 +51,13 @@ app:
   jwt-secret: ${JWT_SECRET:}
   # Hex pepper used to SHA-256-hash emails before they end up in logs.
   log-email-pepper: ${LOG_EMAIL_PEPPER:}
+  # Cookie attributes. `secure` is overridden to true in prod profiles. Leave false here
+  # so dev browsers (http://localhost) actually receive the cookie.
+  cookies:
+    secure: false
+  # Honor X-Forwarded-For for client-IP resolution. Default false; flip to true only
+  # behind a proxy that overwrites (not appends) the header (Fly, Vercel).
+  trust-proxy: false
 
 # Security knobs (toggled on in prod, off in dev).
 secure:

@@ -5,6 +5,7 @@ import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -96,6 +97,22 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ErrorResponse> handleDenied(AccessDeniedException ex) {
         return respond(HttpStatus.FORBIDDEN, "forbidden", "Access denied.", null);
+    }
+
+    /**
+     * Defense-in-depth for race conditions on unique-key inserts (e.g., two concurrent
+     * registrations of the same email squeak past the {@code existsBy} check). The DB
+     * constraint catches the second insert; we map it to a generic 409 so the client
+     * sees the same shape as the application-level conflict path.
+     */
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ErrorResponse> handleDataIntegrityViolation(
+            DataIntegrityViolationException ex) {
+        String cid = MDC.get(CorrelationIdFilter.MDC_KEY);
+        // Log at WARN: a race here is rare but operationally interesting. Never include
+        // the request body or any user-supplied value in the log line.
+        log.warn("Data integrity violation (correlationId={}): {}", cid, ex.getClass().getSimpleName());
+        return respond(HttpStatus.CONFLICT, "conflict", "Conflict with existing resource.", null);
     }
 
     @ExceptionHandler(Exception.class)

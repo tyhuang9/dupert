@@ -16,7 +16,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+
+import com.trip.repo.RefreshTokenRepository;
+import com.trip.repo.UserRepository;
 
 /**
  * Piece 1 smoke tests. Focus: security headers, CORS allowlist, sanitized errors,
@@ -35,6 +39,16 @@ class SmokeTest {
 
     @Autowired
     MockMvc mvc;
+
+    // The chunk-2b @Service annotations on JwtService and RefreshTokenService pull
+    // UserRepository and RefreshTokenRepository into the bean graph. The test profile
+    // excludes JPA auto-config, so we mock the repos to satisfy the constructor-injected
+    // dependencies without spinning up a datasource.
+    @MockitoBean
+    UserRepository userRepository;
+
+    @MockitoBean
+    RefreshTokenRepository refreshTokenRepository;
 
     @Test
     void healthEndpointReturns200() throws Exception {

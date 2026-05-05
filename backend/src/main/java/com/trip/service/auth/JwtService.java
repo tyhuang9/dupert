@@ -8,6 +8,9 @@ import java.util.Optional;
 
 import javax.crypto.SecretKey;
 
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
 import com.trip.config.AppProperties;
 
 import io.jsonwebtoken.Claims;
@@ -31,12 +34,8 @@ import io.jsonwebtoken.security.Keys;
  *   <li>Verification swallows every {@link JwtException} and returns {@link Optional#empty()};
  *       callers never see signature/expiry/format details and never need to catch.</li>
  * </ul>
- *
- * <p>This class is intentionally <i>not</i> annotated with {@code @Service}. Chunk 2b will
- * register it as a bean once the full controller wiring lands; until then it stays a
- * plain POJO so the existing test profile (which excludes the JPA datasource
- * autoconfig) keeps passing.
  */
+@Service
 public class JwtService {
 
     static final String ISSUER = "trip-planner";
@@ -46,6 +45,7 @@ public class JwtService {
 
     private final SecretKey signingKey;
 
+    @Autowired
     public JwtService(AppProperties appProperties) {
         this.signingKey = deriveKey(appProperties.getJwtSecret());
     }
@@ -69,6 +69,14 @@ public class JwtService {
                 "JWT secret must decode to at least 32 bytes (got " + bytes.length + ")");
         }
         return Keys.hmacShaKeyFor(bytes);
+    }
+
+    /**
+     * Access-token lifetime in seconds. The value is a property of the issuer, so the
+     * controller reads it from here rather than maintaining its own duplicate constant.
+     */
+    public long getAccessTokenTtlSeconds() {
+        return ACCESS_TOKEN_TTL.toSeconds();
     }
 
     public String issueAccessToken(Long userId) {

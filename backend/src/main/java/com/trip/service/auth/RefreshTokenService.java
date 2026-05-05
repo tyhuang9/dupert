@@ -10,6 +10,8 @@ import java.util.Base64;
 import java.util.HexFormat;
 import java.util.Optional;
 
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.trip.domain.RefreshToken;
@@ -36,11 +38,8 @@ import com.trip.repo.RefreshTokenRepository;
  * parameters in that case, so the public methods here intentionally omit them; 2b/2c
  * can add them when (and if) a V2 migration introduces the columns.
  *
- * <p>Like {@link JwtService}, this class is intentionally <i>not</i> annotated with
- * {@code @Service}. Chunk 2b will register it as a bean alongside the JPA datasource;
- * keeping it a plain POJO here means the existing test profile (which excludes the
- * datasource autoconfig and therefore JPA repos) keeps passing.
  */
+@Service
 public class RefreshTokenService {
 
     static final Duration REFRESH_TOKEN_TTL = Duration.ofDays(30);
@@ -49,6 +48,7 @@ public class RefreshTokenService {
     private final RefreshTokenRepository repo;
     private final SecureRandom random;
 
+    @Autowired
     public RefreshTokenService(RefreshTokenRepository repo) {
         this(repo, new SecureRandom());
     }
