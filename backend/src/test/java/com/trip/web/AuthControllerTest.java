@@ -35,6 +35,7 @@ import com.trip.repo.UserRepository;
 import com.trip.service.auth.JwtService;
 import com.trip.service.auth.RefreshTokenService;
 import com.trip.service.auth.RefreshTokenService.IssuedRefreshToken;
+import com.trip.service.auth.password.BreachedPasswordChecker;
 import com.trip.web.dto.LoginRequest;
 import com.trip.web.dto.RegisterRequest;
 
@@ -82,11 +83,16 @@ class AuthControllerTest {
     @MockitoBean
     PasswordEncoder passwordEncoder;
 
+    @MockitoBean
+    BreachedPasswordChecker breachedPasswordChecker;
+
     @BeforeEach
     void wireDefaults() {
         when(passwordEncoder.encode(anyString())).thenReturn("hashed");
         when(jwtService.issueAccessToken(any())).thenReturn("jwt-access-token");
         when(jwtService.getAccessTokenTtlSeconds()).thenReturn(900L);
+        // Default: not breached. Tests that need the breached path override per-test.
+        when(breachedPasswordChecker.isBreached(anyString())).thenReturn(false);
     }
 
     @Test
@@ -168,6 +174,42 @@ class AuthControllerTest {
         verify(userRepository).save(captor.capture());
         org.assertj.core.api.Assertions.assertThat(captor.getValue().getDisplayName())
             .isEqualTo("Alice");
+    }
+
+    @Test
+    void registerBreachedPasswordReturns400AndPersistsNothing() throws Exception {
+        when(userRepository.existsByEmailIgnoreCase("breached@example.com")).thenReturn(false);
+        when(breachedPasswordChecker.isBreached("password1234")).thenReturn(true);
+
+        mvc.perform(post("/api/auth/register")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(
+                    new RegisterRequest("breached@example.com", "password1234", "Alice"))))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.error").value("password_breached"));
+
+        // No user persisted, no refresh token issued, no JWT minted — the load-bearing
+        // assertion that the breached path is a hard stop before any side effects.
+        verify(userRepository, org.mockito.Mockito.never()).save(any(User.class));
+        verify(refreshTokenService, org.mockito.Mockito.never()).issueFor(any(User.class));
+        verify(jwtService, org.mockito.Mockito.never()).issueAccessToken(any());
+    }
+
+    @Test
+    void registerNotBreachedFollowsHappyPath() throws Exception {
+        when(userRepository.existsByEmailIgnoreCase("ok@example.com")).thenReturn(false);
+        when(breachedPasswordChecker.isBreached("password1234")).thenReturn(false);
+        User saved = userWith(99L, "ok@example.com", "Ok");
+        when(userRepository.save(any(User.class))).thenReturn(saved);
+        when(refreshTokenService.issueFor(any(User.class)))
+            .thenReturn(new IssuedRefreshToken("rt", refreshTokenEntity(99L)));
+
+        mvc.perform(post("/api/auth/register")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(
+                    new RegisterRequest("ok@example.com", "password1234", "Ok"))))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.user.id").value(99));
     }
 
     @Test

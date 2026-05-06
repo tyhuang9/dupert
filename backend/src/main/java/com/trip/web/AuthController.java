@@ -22,6 +22,7 @@ import com.trip.service.auth.EmailNormalizer;
 import com.trip.service.auth.JwtService;
 import com.trip.service.auth.RefreshTokenService;
 import com.trip.service.auth.RefreshTokenService.IssuedRefreshToken;
+import com.trip.service.auth.password.BreachedPasswordChecker;
 import com.trip.web.auth.DisplayNameSanitizer;
 import com.trip.web.auth.RefreshCookie;
 import com.trip.web.dto.AuthResponse;
@@ -72,17 +73,20 @@ public class AuthController {
     private final JwtService jwtService;
     private final RefreshTokenService refreshTokenService;
     private final RefreshCookie refreshCookie;
+    private final BreachedPasswordChecker breachedPasswordChecker;
 
     public AuthController(UserRepository userRepository,
                           PasswordEncoder passwordEncoder,
                           JwtService jwtService,
                           RefreshTokenService refreshTokenService,
-                          RefreshCookie refreshCookie) {
+                          RefreshCookie refreshCookie,
+                          BreachedPasswordChecker breachedPasswordChecker) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
         this.refreshTokenService = refreshTokenService;
         this.refreshCookie = refreshCookie;
+        this.breachedPasswordChecker = breachedPasswordChecker;
         this.dummyHash = passwordEncoder.encode("dummy-password-for-anti-enumeration");
     }
 
@@ -100,6 +104,14 @@ public class AuthController {
         if (userRepository.existsByEmailIgnoreCase(email)) {
             return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(Map.of("error", "email_taken"));
+        }
+
+        // HIBP breached-password check. Fail-open by contract: a HIBP outage MUST NOT
+        // block legitimate registrations (length + letter-digit + bcrypt + rate limits
+        // carry the security weight in that window).
+        if (breachedPasswordChecker.isBreached(body.password())) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                .body(Map.of("error", "password_breached"));
         }
 
         String passwordHash = passwordEncoder.encode(body.password());

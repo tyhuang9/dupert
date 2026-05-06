@@ -18,6 +18,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
@@ -26,6 +27,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.trip.domain.User;
 import com.trip.repo.UserRepository;
 import com.trip.service.auth.JwtService;
+import com.trip.service.auth.password.BreachedPasswordChecker;
 import com.trip.web.dto.LoginRequest;
 import com.trip.web.dto.RegisterRequest;
 
@@ -65,6 +67,13 @@ class AuthFlowIntegrationTest {
 
     @Autowired
     JwtService jwtService;
+
+    /**
+     * Mocked so the integration test never actually contacts HIBP. The real fail-open
+     * path is covered by unit tests; here we just want a green register flow.
+     */
+    @MockitoBean
+    BreachedPasswordChecker breachedPasswordChecker;
 
     private String testEmail;
 
