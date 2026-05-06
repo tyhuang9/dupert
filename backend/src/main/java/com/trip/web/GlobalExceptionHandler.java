@@ -19,6 +19,7 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 import org.springframework.web.servlet.NoHandlerFoundException;
 
 import com.trip.config.CorrelationIdFilter;
+import com.trip.web.exception.NotFoundException;
 
 import jakarta.validation.ConstraintViolationException;
 
@@ -86,6 +87,19 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(NoHandlerFoundException.class)
     public ResponseEntity<ErrorResponse> handleNoHandler(NoHandlerFoundException ex) {
+        return respond(HttpStatus.NOT_FOUND, "not_found", "Resource not found.", null);
+    }
+
+    /**
+     * Application-thrown 404. The exception's message is for logs only — the response
+     * body is identical to {@link NoHandlerFoundException}'s mapping so a non-member of
+     * a trip can't distinguish "doesn't exist" from "exists but I'm not on it" (see
+     * PROJECT.md §5 and {@link com.trip.service.trip.TripAccessGuard}).
+     */
+    @ExceptionHandler(NotFoundException.class)
+    public ResponseEntity<ErrorResponse> handleNotFound(NotFoundException ex) {
+        String cid = MDC.get(CorrelationIdFilter.MDC_KEY);
+        log.debug("NotFound (correlationId={}): {}", cid, ex.getMessage());
         return respond(HttpStatus.NOT_FOUND, "not_found", "Resource not found.", null);
     }
 

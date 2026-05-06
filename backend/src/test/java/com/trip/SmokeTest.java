@@ -20,6 +20,8 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import com.trip.repo.RefreshTokenRepository;
+import com.trip.repo.TripMemberRepository;
+import com.trip.repo.TripRepository;
 import com.trip.repo.UserRepository;
 
 /**
@@ -49,6 +51,15 @@ class SmokeTest {
 
     @MockitoBean
     RefreshTokenRepository refreshTokenRepository;
+
+    // TripAccessGuard (@Service) is component-scanned and pulls TripRepository +
+    // TripMemberRepository into the bean graph; test profile excludes JPA auto-config,
+    // so we mock these repos for the same reason as the auth ones above.
+    @MockitoBean
+    TripRepository tripRepository;
+
+    @MockitoBean
+    TripMemberRepository tripMemberRepository;
 
     @Test
     void healthEndpointReturns200() throws Exception {

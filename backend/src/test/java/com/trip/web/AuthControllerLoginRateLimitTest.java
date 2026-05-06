@@ -27,6 +27,8 @@ import org.springframework.test.web.servlet.MockMvc;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.trip.domain.RefreshToken;
 import com.trip.domain.User;
+import com.trip.repo.TripMemberRepository;
+import com.trip.repo.TripRepository;
 import com.trip.repo.UserRepository;
 import com.trip.service.auth.JwtService;
 import com.trip.service.auth.RefreshTokenService;
@@ -74,6 +76,14 @@ class AuthControllerLoginRateLimitTest {
 
     @MockitoBean
     BreachedPasswordChecker breachedPasswordChecker;
+
+    // TripAccessGuard component-scans the trip repos; the test profile excludes JPA
+    // auto-config, so we mock them like the auth repos above.
+    @MockitoBean
+    TripRepository tripRepository;
+
+    @MockitoBean
+    TripMemberRepository tripMemberRepository;
 
     @BeforeEach
     void wireDefaults() {
