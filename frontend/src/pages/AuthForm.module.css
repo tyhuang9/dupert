@@ -1,0 +1,180 @@
+/*
+ * Shared styles for LoginPage and RegisterPage. CSS Modules — class
+ * names are scoped so consumers reference `styles.shell`, etc. Visual
+ * design is intentionally modest: Pieces 6/8 will iterate on this once
+ * the rest of the app's look-and-feel lands.
+ */
+
+.shell {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1rem;
+  background-color: #f5f6f8;
+}
+
+.card {
+  width: 100%;
+  max-width: 24rem;
+  background-color: #ffffff;
+  border: 1px solid #e2e4e8;
+  border-radius: 0.5rem;
+  padding: 2rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.title {
+  margin: 0 0 0.25rem;
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.subtitle {
+  margin: 0 0 1.5rem;
+  color: #555;
+  font-size: 0.95rem;
+}
+
+.banner {
+  margin-bottom: 1rem;
+  padding: 0.75rem 1rem;
+  border-radius: 0.375rem;
+  background-color: #fdecec;
+  border: 1px solid #f1b6b6;
+  color: #8a1f1f;
+  font-size: 0.9rem;
+}
+
+.bannerWarning {
+  margin-bottom: 1rem;
+  padding: 0.75rem 1rem;
+  border-radius: 0.375rem;
+  background-color: #fff7e0;
+  border: 1px solid #e8c468;
+  /* #6b4a00 on #fff7e0 is ~7.6:1, comfortably above 4.5:1. */
+  color: #6b4a00;
+  font-size: 0.9rem;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.label {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #1f2328;
+}
+
+.input {
+  padding: 0.5rem 0.75rem;
+  min-height: 2.75rem;
+  font-size: 1rem;
+  border: 1px solid #c9ccd2;
+  border-radius: 0.375rem;
+  background-color: #ffffff;
+  color: #1f2328;
+  transition: border-color 0.15s ease;
+}
+
+.input:focus-visible {
+  outline: 2px solid #3a58d6;
+  outline-offset: 1px;
+  border-color: #3a58d6;
+  box-shadow: 0 0 0 3px rgba(58, 88, 214, 0.18);
+}
+
+.input[aria-invalid='true'] {
+  border-color: #c92626;
+}
+
+.input:disabled {
+  background-color: #f5f6f8;
+  color: #777;
+}
+
+.hint {
+  font-size: 0.8rem;
+  color: #555;
+}
+
+.fieldError {
+  font-size: 0.8rem;
+  color: #c92626;
+}
+
+.submit {
+  margin-top: 0.5rem;
+  padding: 0.625rem 1rem;
+  font-size: 1rem;
+  font-weight: 600;
+  border: none;
+  border-radius: 0.375rem;
+  background-color: #3a58d6;
+  color: #ffffff;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.submit:hover:not(:disabled) {
+  background-color: #2e47b5;
+}
+
+.submit:focus-visible {
+  outline: 2px solid #1f2328;
+  outline-offset: 2px;
+}
+
+.submit:disabled {
+  background-color: #a8b4f5;
+  cursor: not-allowed;
+}
+
+.altLink {
+  margin-top: 1.25rem;
+  font-size: 0.9rem;
+  color: #555;
+  text-align: center;
+}
+
+.altLink a {
+  color: #3a58d6;
+  text-decoration: none;
+}
+
+.altLink a:hover {
+  text-decoration: underline;
+}
+
+.altLink a:focus-visible {
+  outline: 2px solid #3a58d6;
+  outline-offset: 2px;
+  text-decoration: underline;
+}
+
+.spinner {
+  display: inline-block;
+  width: 0.875em;
+  height: 0.875em;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+  margin-right: 0.5rem;
+  vertical-align: -0.125em;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

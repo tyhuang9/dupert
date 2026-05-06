@@ -1,0 +1,160 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { AxiosError, AxiosHeaders } from 'axios'
+import { RegisterPage } from './RegisterPage'
+import { AuthContext, type AuthContextValue } from '../auth/authContextValue'
+import { useAuthStore } from '../auth/authStore'
+
+function makeAuth(overrides: Partial<AuthContextValue> = {}): AuthContextValue {
+  return {
+    user: null,
+    isAuthenticated: false,
+    isInitializing: false,
+    login: vi.fn(async () => ({ id: 1, email: 'a@b.com', displayName: 'A' })),
+    register: vi.fn(async () => ({ id: 1, email: 'a@b.com', displayName: 'A' })),
+    logout: vi.fn(async () => {}),
+    deleteAccount: vi.fn(async () => {}),
+    ...overrides,
+  }
+}
+
+function renderRegister(ctx: AuthContextValue, initialPath = '/register') {
+  return render(
+    <AuthContext.Provider value={ctx}>
+      <MemoryRouter initialEntries={[initialPath]}>
+        <Routes>
+          <Route path="/register" element={<RegisterPage />} />
+          <Route
+            path="/trips"
+            element={<div data-testid="post-register">POST REGISTER</div>}
+          />
+        </Routes>
+      </MemoryRouter>
+    </AuthContext.Provider>,
+  )
+}
+
+function makeAxiosError(status: number, data: unknown): AxiosError {
+  return new AxiosError('err', String(status), undefined, {}, {
+    status,
+    data,
+    statusText: '',
+    headers: new AxiosHeaders(),
+    config: { headers: new AxiosHeaders() },
+  })
+}
+
+beforeEach(() => {
+  useAuthStore.getState().clearSession()
+})
+
+afterEach(() => {
+  vi.restoreAllMocks()
+})
+
+describe('<RegisterPage>', () => {
+  it('renders the email, password, and display name fields', () => {
+    renderRegister(makeAuth())
+    expect(screen.getByLabelText(/email/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/^password$/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/display name/i)).toBeInTheDocument()
+  })
+
+  it('shows a length error when the password is too short on submit', async () => {
+    const ctx = makeAuth()
+    renderRegister(ctx)
+
+    const user = userEvent.setup()
+    await user.type(screen.getByLabelText(/email/i), 'me@example.com')
+    await user.type(screen.getByLabelText(/^password$/i), 'short1')
+    await user.type(screen.getByLabelText(/display name/i), 'Me')
+    await user.click(screen.getByRole('button', { name: /create account/i }))
+
+    expect(
+      await screen.findByText(/password must be at least 12 characters/i),
+    ).toBeInTheDocument()
+    expect(ctx.register).not.toHaveBeenCalled()
+  })
+
+  it('flags a password without a digit', async () => {
+    const ctx = makeAuth()
+    renderRegister(ctx)
+
+    const user = userEvent.setup()
+    await user.type(screen.getByLabelText(/email/i), 'me@example.com')
+    await user.type(
+      screen.getByLabelText(/^password$/i),
+      'no-digits-here-just-letters',
+    )
+    await user.type(screen.getByLabelText(/display name/i), 'Me')
+    await user.click(screen.getByRole('button', { name: /create account/i }))
+
+    expect(
+      await screen.findByText(/password must include a letter and a digit/i),
+    ).toBeInTheDocument()
+    expect(ctx.register).not.toHaveBeenCalled()
+  })
+
+  it('flags a password without a letter', async () => {
+    const ctx = makeAuth()
+    renderRegister(ctx)
+
+    const user = userEvent.setup()
+    await user.type(screen.getByLabelText(/email/i), 'me@example.com')
+    await user.type(screen.getByLabelText(/^password$/i), '123456789012345')
+    await user.type(screen.getByLabelText(/display name/i), 'Me')
+    await user.click(screen.getByRole('button', { name: /create account/i }))
+
+    expect(
+      await screen.findByText(/password must include a letter and a digit/i),
+    ).toBeInTheDocument()
+    expect(ctx.register).not.toHaveBeenCalled()
+  })
+
+  it('submits a valid form and navigates to /trips', async () => {
+    const ctx = makeAuth()
+    renderRegister(ctx)
+
+    const user = userEvent.setup()
+    await user.type(screen.getByLabelText(/email/i), 'me@example.com')
+    await user.type(screen.getByLabelText(/^password$/i), 'super-secret-1234')
+    await user.type(screen.getByLabelText(/display name/i), 'Me')
+    await user.click(screen.getByRole('button', { name: /create account/i }))
+
+    expect(ctx.register).toHaveBeenCalledWith({
+      email: 'me@example.com',
+      password: 'super-secret-1234',
+      displayName: 'Me',
+    })
+    await waitFor(() => {
+      expect(screen.getByTestId('post-register')).toBeInTheDocument()
+    })
+  })
+
+  it('shows a field error on email when the server returns email_taken', async () => {
+    const ctx = makeAuth({
+      register: vi.fn(async () => {
+        throw makeAxiosError(409, { error: 'email_taken' })
+      }),
+    })
+    renderRegister(ctx)
+
+    const user = userEvent.setup()
+    await user.type(screen.getByLabelText(/email/i), 'me@example.com')
+    await user.type(screen.getByLabelText(/^password$/i), 'super-secret-1234')
+    await user.type(screen.getByLabelText(/display name/i), 'Me')
+    await user.click(screen.getByRole('button', { name: /create account/i }))
+
+    expect(
+      await screen.findByText(/account with this email already exists/i),
+    ).toBeInTheDocument()
+  })
+
+  it('caps display name input at 50 characters via maxLength', () => {
+    renderRegister(makeAuth())
+    const input = screen.getByLabelText(/display name/i) as HTMLInputElement
+    expect(input.maxLength).toBe(50)
+  })
+})

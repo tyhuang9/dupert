@@ -1,14 +1,15 @@
-import { BrowserRouter, Navigate, Route, Routes, useParams } from 'react-router-dom'
+import { BrowserRouter, Link, Navigate, Route, Routes, useParams } from 'react-router-dom'
 import './App.css'
+import LoginPage from './pages/LoginPage'
+import RegisterPage from './pages/RegisterPage'
+import TripsPage from './pages/TripsPage'
+import { RequireAuth } from './auth/RequireAuth'
 
 /**
- * Piece 1 placeholder routing. Every route renders a minimal "TODO" page so we
- * can verify the router is wired and the production build emits the expected
- * bundle. Later pieces replace each component with its real implementation:
- *
- *   Piece 2 — LoginPage, RegisterPage
- *   Piece 3 — TripsPage, TripPage
- *   Piece 5 — AcceptInvitePage, GuestOnboardingPage
+ * Router for chunk 2e. Public auth routes (`/login`, `/register`) sit
+ * outside the guard; everything else nests under `<RequireAuth>` so an
+ * unauthenticated visit redirects to `/login?return=...`. Most of the
+ * routes inside the guard are still placeholders for Pieces 3–5.
  */
 
 function TodoPage({ title, piece }: { title: string; piece: number }) {
@@ -20,18 +21,6 @@ function TodoPage({ title, piece }: { title: string; piece: number }) {
       </p>
     </main>
   )
-}
-
-function LoginPage() {
-  return <TodoPage title="Log in" piece={2} />
-}
-
-function RegisterPage() {
-  return <TodoPage title="Register" piece={2} />
-}
-
-function TripsListPage() {
-  return <TodoPage title="Your trips" piece={3} />
 }
 
 function NewTripPage() {
@@ -61,7 +50,7 @@ function MembersPage() {
   const { publicId } = useParams()
   return (
     <main style={{ maxWidth: 640, margin: '4rem auto', padding: '0 1rem' }}>
-      <h1>Members & share links</h1>
+      <h1>Members &amp; share links</h1>
       <p>
         Placeholder for trip <code>{publicId}</code>. Implemented in Piece 5.
       </p>
@@ -77,29 +66,45 @@ function GuestOnboardingPage() {
   return <TodoPage title="Guest onboarding" piece={5} />
 }
 
-function NotFoundPage() {
-  return <TodoPage title="404 — Not found" piece={1} />
-}
-
 function ForbiddenPage() {
   return <TodoPage title="403 — Forbidden" piece={1} />
+}
+
+function NotFoundPage() {
+  return (
+    <main style={{ maxWidth: 640, margin: '4rem auto', padding: '0 1rem' }}>
+      <h1>404 — Not found</h1>
+      <p>
+        We couldn&apos;t find what you were looking for.{' '}
+        <Link to="/">Go home</Link>.
+      </p>
+    </main>
+  )
 }
 
 export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<Navigate to="/trips" replace />} />
+        {/* Public routes — auth pages and share-accept landing flows */}
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
-        <Route path="/trips" element={<TripsListPage />} />
-        <Route path="/trips/new" element={<NewTripPage />} />
-        <Route path="/trips/:publicId" element={<TripWorkspacePage />} />
-        <Route path="/trips/:publicId/d/:day" element={<TripWorkspacePage />} />
-        <Route path="/trips/:publicId/members" element={<MembersPage />} />
         <Route path="/share/:token" element={<AcceptInvitePage />} />
         <Route path="/share/:token/guest" element={<GuestOnboardingPage />} />
+        <Route path="/404" element={<NotFoundPage />} />
         <Route path="/403" element={<ForbiddenPage />} />
+
+        {/* Authenticated routes — wrapped in RequireAuth */}
+        <Route element={<RequireAuth />}>
+          <Route path="/" element={<Navigate to="/trips" replace />} />
+          <Route path="/trips" element={<TripsPage />} />
+          <Route path="/trips/new" element={<NewTripPage />} />
+          <Route path="/trips/:publicId" element={<TripWorkspacePage />} />
+          <Route path="/trips/:publicId/d/:day" element={<TripWorkspacePage />} />
+          <Route path="/trips/:publicId/members" element={<MembersPage />} />
+        </Route>
+
+        {/* Catch-all */}
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
     </BrowserRouter>
