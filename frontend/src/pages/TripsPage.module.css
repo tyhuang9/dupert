@@ -1,0 +1,47 @@
+.shell {
+  max-width: 640px;
+  margin: var(--space-12) auto;
+  padding: 0 var(--space-4);
+  color: var(--color-text);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-8);
+  gap: var(--space-4);
+}
+
+.heading {
+  margin: 0;
+  font-size: var(--font-size-lg);
+  line-height: var(--line-height-tight);
+  color: var(--color-text);
+}
+
+.logout {
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  border: 1px solid var(--color-surface-border);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  cursor: pointer;
+  transition: background-color var(--transition-base);
+}
+
+.logout:hover:not(:disabled) {
+  background-color: var(--color-surface-2);
+}
+
+.logout:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.logout:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}

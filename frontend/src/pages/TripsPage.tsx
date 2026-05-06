@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth'
 import { usePageTitle } from '../utils/usePageTitle'
+import styles from './TripsPage.module.css'
 
 /**
  * Placeholder for Piece 3. Mainly here so chunk 2e has somewhere to land
@@ -28,27 +29,14 @@ export function TripsPage() {
   }
 
   return (
-    <main style={{ maxWidth: 640, margin: '4rem auto', padding: '0 1rem' }}>
-      <header
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          marginBottom: '2rem',
-        }}
-      >
-        <h1 style={{ margin: 0 }}>{user?.displayName ?? 'Welcome'}</h1>
+    <main className={styles.shell}>
+      <header className={styles.header}>
+        <h1 className={styles.heading}>{user?.displayName ?? 'Welcome'}</h1>
         <button
           type="button"
           onClick={onLogout}
           disabled={loggingOut}
-          style={{
-            padding: '0.5rem 1rem',
-            border: '1px solid #c9ccd2',
-            borderRadius: '0.375rem',
-            background: '#ffffff',
-            cursor: loggingOut ? 'not-allowed' : 'pointer',
-          }}
+          className={styles.logout}
         >
           {loggingOut ? 'Logging out…' : 'Log out'}
         </button>

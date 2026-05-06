@@ -66,8 +66,9 @@ export function LoginPage() {
   }
 
   const topMessage = errorInfo?.topMessage ?? null
-  const bannerClass =
-    errorInfo?.severity === 'warning' ? styles.bannerWarning : styles.banner
+  const isWarning = errorInfo?.severity === 'warning'
+  const bannerClass = isWarning ? styles.bannerWarning : styles.banner
+  const bannerIcon = isWarning ? '⚠' : '✕'
 
   return (
     <main className={styles.shell}>
@@ -77,7 +78,10 @@ export function LoginPage() {
 
         {topMessage ? (
           <div className={bannerClass} role="alert">
-            <strong>Error:</strong> {topMessage}
+            <span className={styles.bannerIcon} aria-hidden="true">
+              {bannerIcon}
+            </span>
+            <span>{topMessage}</span>
           </div>
         ) : null}
 
@@ -143,7 +147,12 @@ export function LoginPage() {
             disabled={isSubmitting}
           >
             {isSubmitting && (
-              <span className={styles.spinner} aria-hidden="true" />
+              <>
+                <span className={styles.spinner} aria-hidden="true" />
+                <span className={styles.spinnerFallback} aria-hidden="true">
+                  Loading…
+                </span>
+              </>
             )}
             {isSubmitting ? 'Signing in…' : 'Sign in'}
           </button>
