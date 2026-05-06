@@ -3,7 +3,9 @@ package com.trip.web;
 import java.util.Map;
 import java.util.Optional;
 
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -16,6 +18,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.util.WebUtils;
 
+import com.trip.config.AppProperties;
+import com.trip.config.RateLimitFilter;
+import com.trip.config.RateLimitRegistry;
 import com.trip.domain.User;
 import com.trip.repo.UserRepository;
 import com.trip.service.auth.EmailNormalizer;
@@ -30,6 +35,8 @@ import com.trip.web.dto.LoginRequest;
 import com.trip.web.dto.RegisterRequest;
 import com.trip.web.dto.UserSummary;
 
+import io.github.bucket4j.Bucket;
+import io.github.bucket4j.ConsumptionProbe;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -74,19 +81,25 @@ public class AuthController {
     private final RefreshTokenService refreshTokenService;
     private final RefreshCookie refreshCookie;
     private final BreachedPasswordChecker breachedPasswordChecker;
+    private final RateLimitRegistry rateLimitRegistry;
+    private final boolean trustProxy;
 
     public AuthController(UserRepository userRepository,
                           PasswordEncoder passwordEncoder,
                           JwtService jwtService,
                           RefreshTokenService refreshTokenService,
                           RefreshCookie refreshCookie,
-                          BreachedPasswordChecker breachedPasswordChecker) {
+                          BreachedPasswordChecker breachedPasswordChecker,
+                          RateLimitRegistry rateLimitRegistry,
+                          AppProperties appProperties) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
         this.refreshTokenService = refreshTokenService;
         this.refreshCookie = refreshCookie;
         this.breachedPasswordChecker = breachedPasswordChecker;
+        this.rateLimitRegistry = rateLimitRegistry;
+        this.trustProxy = appProperties.isTrustProxy();
         this.dummyHash = passwordEncoder.encode("dummy-password-for-anti-enumeration");
     }
 
@@ -122,8 +135,20 @@ public class AuthController {
 
     @PostMapping("/login")
     public ResponseEntity<?> login(@Valid @RequestBody LoginRequest body,
+                                   HttpServletRequest request,
                                    HttpServletResponse response) {
         String email = EmailNormalizer.normalize(body.email());
+
+        // Inner per-(ip, email) rate-limit layer. Consumed BEFORE the user lookup and
+        // bcrypt for two reasons: (1) the cap must apply to unknown emails too, or a
+        // credential-stuffing attacker probing nonexistent accounts gets unlimited
+        // attempts; (2) consuming after bcrypt would leak email existence by timing.
+        // The outer per-IP filter is still in front; both must have capacity.
+        ResponseEntity<?> limited = enforcePerIdentityLimit(request, email);
+        if (limited != null) {
+            return limited;
+        }
+
         var maybeUser = userRepository.findByEmailIgnoreCase(email);
 
         // Always run bcrypt — against the real hash if the user exists, otherwise the
@@ -139,6 +164,29 @@ public class AuthController {
         }
 
         return ResponseEntity.ok(issueTokens(maybeUser.get(), response));
+    }
+
+    /**
+     * Tries to consume one token from the per-{@code (ip, normalizedEmail)} bucket.
+     * Returns {@code null} on success (caller proceeds), or a fully-built 429
+     * {@link ResponseEntity} matching {@link RateLimitFilter}'s outer-layer body and
+     * {@code Retry-After} header on exhaustion. Indistinguishability between the two
+     * layers is the load-bearing invariant — same status, same body, same header.
+     */
+    private ResponseEntity<?> enforcePerIdentityLimit(HttpServletRequest request, String normalizedEmail) {
+        String ip = RateLimitFilter.clientIp(request, trustProxy);
+        String discriminator = ip + ":" + normalizedEmail;
+        Bucket bucket = rateLimitRegistry.resolve(
+            RateLimitRegistry.Named.AUTH_LOGIN_PER_IDENTITY, discriminator);
+        ConsumptionProbe probe = bucket.tryConsumeAndReturnRemaining(1);
+        if (probe.isConsumed()) {
+            return null;
+        }
+        long retryAfterSeconds = Math.max(1L, probe.getNanosToWaitForRefill() / 1_000_000_000L);
+        return ResponseEntity.status(429)
+            .header(HttpHeaders.RETRY_AFTER, Long.toString(retryAfterSeconds))
+            .contentType(MediaType.APPLICATION_JSON)
+            .body(Map.of("error", "rate_limited"));
     }
 
     /**

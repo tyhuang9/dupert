@@ -45,8 +45,24 @@ public class RateLimitRegistry {
      * {@link Supplier} so a fresh {@link Bucket} is built per key.
      */
     public enum Named {
-        /** 5 login attempts per 15 minutes. */
+        /**
+         * 5 login attempts per 15 minutes, keyed on client IP only. Outer per-IP backstop
+         * enforced by {@link RateLimitFilter}; defeats brute-force from one host across
+         * many accounts (the email-rotation evasion shape against the per-identity cap).
+         * See sibling {@link #AUTH_LOGIN_PER_IDENTITY} for the inner per-(ip, email) layer.
+         */
         AUTH_LOGIN(() -> Bucket.builder()
+            .addLimit(Bandwidth.builder().capacity(5).refillGreedy(5, Duration.ofMinutes(15)).build())
+            .build()),
+
+        /**
+         * 5 login attempts per 15 minutes, keyed on {@code (ip, normalizedEmail)}.
+         * Inner per-identity layer enforced by {@code AuthController.login}; rejects a
+         * focused brute-force against a specific account from a specific host. Same
+         * numerical limit as {@link #AUTH_LOGIN} but distinct keying so the two ceilings
+         * are tunable independently.
+         */
+        AUTH_LOGIN_PER_IDENTITY(() -> Bucket.builder()
             .addLimit(Bandwidth.builder().capacity(5).refillGreedy(5, Duration.ofMinutes(15)).build())
             .build()),
 

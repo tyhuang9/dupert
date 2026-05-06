@@ -22,27 +22,28 @@ import jakarta.servlet.http.HttpServletResponse;
  *
  * <p>Policies (PROJECT.md §5):
  * <ul>
- *   <li>{@code POST /api/auth/login} — 5 attempts per 15 minutes per remote IP. The
- *       spec also calls for keying by {@code (ip, normalizedEmail)}, but reading the
- *       email from the body here would require buffering — see implementation notes
- *       below. We fall back to per-IP, with the same threshold; tightening to
- *       {@code (ip, email)} is a follow-up.</li>
+ *   <li>{@code POST /api/auth/login} — 5 attempts per 15 minutes per remote IP. This is
+ *       the <b>outer</b> layer of a two-layer model: the controller adds an inner
+ *       per-{@code (ip, normalizedEmail)} bucket (see {@code AuthController.login}),
+ *       so a focused attack on one account is rejected by the inner cap while the
+ *       outer cap here defeats email-rotation attacks where an attacker churns through
+ *       random emails to evade the per-identity cap.</li>
  *   <li>{@code POST /api/auth/register} — 10 per hour per remote IP.</li>
  * </ul>
  *
  * <p>On exhaustion the response is {@code 429 Too Many Requests} with body
  * {@code {"error":"rate_limited"}} and a {@code Retry-After} header in seconds. We
  * write the JSON body manually because the controller advice never gets a chance to
- * run — the filter rejects the request before dispatch.
+ * run — the filter rejects the request before dispatch. The controller's inner
+ * per-identity check emits the identical response shape so a probing attacker can't
+ * tell which layer fired from the response alone.
  *
- * <p><b>Why per-IP for login (v1).</b> The Bucket4j filter sits ahead of Spring's
- * dispatcher, so reading the request body here would consume the {@link
+ * <p><b>Why per-IP at this layer.</b> The filter sits ahead of Spring's dispatcher, so
+ * reading the request body here would consume the {@link
  * jakarta.servlet.ServletInputStream} and break {@code @RequestBody} downstream.
- * Wrapping in {@code ContentCachingRequestWrapper} works but adds a buffering layer to
- * <em>every</em> request, which is more invasive than the current security model
- * justifies. Plain per-IP keying still rejects the dominant brute-force shape (one
- * attacker against many accounts from one host); the comment above documents the
- * intended tightening.
+ * Buffering via {@code ContentCachingRequestWrapper} would add overhead to every
+ * request. Instead, the inner per-(ip, email) check runs in the controller after the
+ * body is parsed.
  */
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE + 20)
@@ -50,7 +51,12 @@ public class RateLimitFilter extends OncePerRequestFilter {
 
     private static final String LOGIN_PATH = "/api/auth/login";
     private static final String REGISTER_PATH = "/api/auth/register";
-    private static final String RATE_LIMITED_BODY = "{\"error\":\"rate_limited\"}";
+    /**
+     * Shared with {@code AuthController}'s inner per-(ip, email) check so the two
+     * layers emit byte-identical 429 bodies — a probing attacker cannot distinguish
+     * "outer per-IP cap fired" from "inner per-identity cap fired".
+     */
+    public static final String RATE_LIMITED_BODY = "{\"error\":\"rate_limited\"}";
 
     private final RateLimitRegistry registry;
     private final boolean trustProxy;
@@ -109,10 +115,11 @@ public class RateLimitFilter extends OncePerRequestFilter {
      * append) this header before flipping the flag — Fly's edge does this by default;
      * Vercel does as well.
      *
-     * <p>Package-private so {@code RateLimitFilterTest} can drive the resolver
-     * directly without spinning up a filter chain.
+     * <p>Public so {@code AuthController} (the inner per-(ip, email) layer) and
+     * {@code RateLimitFilterTest} can both drive the resolver directly without
+     * spinning up a filter chain.
      */
-    static String clientIp(HttpServletRequest request, boolean trustProxy) {
+    public static String clientIp(HttpServletRequest request, boolean trustProxy) {
         if (trustProxy) {
             String forwarded = request.getHeader("X-Forwarded-For");
             if (forwarded != null && !forwarded.isBlank()) {
