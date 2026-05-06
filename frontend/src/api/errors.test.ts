@@ -84,6 +84,15 @@ describe('parseApiError', () => {
     expect(result.fieldErrors.displayName).toBe('must not be blank')
   })
 
+  it('maps password_breached (400) to a field error on password with no banner', () => {
+    const result = parseApiError(
+      makeAxiosError(400, { error: 'password_breached' }),
+    )
+    expect(result.topMessage).toBeNull()
+    expect(result.fieldErrors.password).toMatch(/known data breach/i)
+    expect(result.severity).toBe('error')
+  })
+
   it('maps invalid_display_name (400) to a displayName field error', () => {
     const result = parseApiError(
       makeAxiosError(400, { error: 'invalid_display_name' }),

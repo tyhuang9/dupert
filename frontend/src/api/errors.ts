@@ -7,7 +7,8 @@ import axios, { type AxiosError } from 'axios'
  *   { error: string, message: string, correlationId: string, fieldErrors: [{field, message}]? }
  *
  * AuthController also returns flat `{ "error": "<slug>" }` bodies for some 4xx codes
- * (`invalid_credentials`, `email_taken`, `invalid_display_name`, `unauthenticated`).
+ * (`invalid_credentials`, `email_taken`, `invalid_display_name`, `password_breached`,
+ * `unauthenticated`).
  *
  * `parseApiError` normalizes both into a single shape suitable for forms:
  *   - `topMessage`  — a short banner string (or null when only field errors apply).
@@ -134,6 +135,19 @@ export function parseApiError(err: unknown): ParsedApiError {
         fieldErrors: {
           ...fieldErrors,
           displayName: 'Please choose a different display name.',
+        },
+        severity: 'error',
+      }
+    }
+    if (code === 'password_breached') {
+      // Same shape as `email_taken`: targeted field error, no top banner,
+      // so the form doesn't double up a generic message above the field.
+      return {
+        topMessage: null,
+        fieldErrors: {
+          ...fieldErrors,
+          password:
+            'This password appears in a known data breach. Please choose a different one.',
         },
         severity: 'error',
       }

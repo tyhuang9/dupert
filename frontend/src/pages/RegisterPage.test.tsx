@@ -152,6 +152,30 @@ describe('<RegisterPage>', () => {
     ).toBeInTheDocument()
   })
 
+  it('shows a field error on password when the server returns password_breached', async () => {
+    const registerMock = vi.fn(async () => {
+      throw makeAxiosError(400, { error: 'password_breached' })
+    })
+    const ctx = makeAuth({ register: registerMock })
+    renderRegister(ctx)
+
+    const user = userEvent.setup()
+    await user.type(screen.getByLabelText(/email/i), 'me@example.com')
+    await user.type(screen.getByLabelText(/^password$/i), 'super-secret-1234')
+    await user.type(screen.getByLabelText(/display name/i), 'Me')
+    await user.click(screen.getByRole('button', { name: /create account/i }))
+
+    expect(
+      await screen.findByText(
+        /this password appears in a known data breach/i,
+      ),
+    ).toBeInTheDocument()
+    expect(registerMock).toHaveBeenCalledTimes(1)
+    expect(screen.queryByTestId('post-register')).not.toBeInTheDocument()
+    // No banner — targeted field error only.
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
   it('caps display name input at 50 characters via maxLength', () => {
     renderRegister(makeAuth())
     const input = screen.getByLabelText(/display name/i) as HTMLInputElement
