@@ -96,7 +96,6 @@ export function LoginPage() {
               className={styles.input}
               type="email"
               autoComplete="username"
-              autoFocus
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}

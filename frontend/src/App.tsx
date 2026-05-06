@@ -14,19 +14,17 @@ import { RouteAnnouncer } from './components/RouteAnnouncer'
  * routes inside the guard are still placeholders for Pieces 3–5.
  */
 
-function TodoPage({ title, piece }: { title: string; piece: number }) {
+function TodoPage({ title }: { title: string }) {
   return (
     <main style={{ maxWidth: 640, margin: '4rem auto', padding: '0 1rem' }}>
       <h1>{title}</h1>
-      <p>
-        This route is a placeholder. It will be implemented in <strong>Piece {piece}</strong>.
-      </p>
+      <p>This page isn&apos;t ready yet — check back soon.</p>
     </main>
   )
 }
 
 function NewTripPage() {
-  return <TodoPage title="New trip" piece={3} />
+  return <TodoPage title="New trip" />
 }
 
 function TripWorkspacePage() {
@@ -35,15 +33,16 @@ function TripWorkspacePage() {
     <main style={{ maxWidth: 640, margin: '4rem auto', padding: '0 1rem' }}>
       <h1>Trip workspace</h1>
       <p>
-        Placeholder — publicId=<code>{publicId}</code>
+        Trip <code>{publicId}</code>
         {day ? (
           <>
             {' '}
-            day=<code>{day}</code>
+            (day <code>{day}</code>)
           </>
         ) : null}
+        .
       </p>
-      <p>Implemented in Piece 3 (shell) and Piece 6 (map + drag-and-drop).</p>
+      <p>This page isn&apos;t ready yet — check back soon.</p>
     </main>
   )
 }
@@ -54,22 +53,23 @@ function MembersPage() {
     <main style={{ maxWidth: 640, margin: '4rem auto', padding: '0 1rem' }}>
       <h1>Members &amp; share links</h1>
       <p>
-        Placeholder for trip <code>{publicId}</code>. Implemented in Piece 5.
+        Trip <code>{publicId}</code>. This page isn&apos;t ready yet — check
+        back soon.
       </p>
     </main>
   )
 }
 
 function AcceptInvitePage() {
-  return <TodoPage title="Accept invite" piece={5} />
+  return <TodoPage title="Accept invite" />
 }
 
 function GuestOnboardingPage() {
-  return <TodoPage title="Guest onboarding" piece={5} />
+  return <TodoPage title="Guest onboarding" />
 }
 
 function ForbiddenPage() {
-  return <TodoPage title="403 — Forbidden" piece={1} />
+  return <TodoPage title="403 — Forbidden" />
 }
 
 function NotFoundPage() {

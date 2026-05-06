@@ -12,7 +12,7 @@ import styles from './TripsPage.module.css'
 export function TripsPage() {
   usePageTitle('Trips – TripPlanner')
 
-  const { user, logout } = useAuth()
+  const { logout } = useAuth()
   const navigate = useNavigate()
   const [loggingOut, setLoggingOut] = useState(false)
 
@@ -31,18 +31,18 @@ export function TripsPage() {
   return (
     <main id="main" className={styles.shell}>
       <header className={styles.header}>
-        <h1 className={styles.heading}>{user?.displayName ?? 'Welcome'}</h1>
+        <h1 className={styles.heading}>My trips</h1>
         <button
           type="button"
           onClick={onLogout}
           disabled={loggingOut}
           className={styles.logout}
         >
-          {loggingOut ? 'Logging out…' : 'Log out'}
+          {loggingOut ? 'Signing out…' : 'Sign out'}
         </button>
       </header>
 
-      <p>Trips list (Piece 3)</p>
+      <p>Your trips will appear here.</p>
     </main>
   )
 }

@@ -164,12 +164,14 @@
 
 .altLink a {
   color: var(--color-primary);
-  text-decoration: none;
+  /* Underline by default so the link is identifiable without color
+     perception (WCAG 1.4.1 — Use of Color). */
+  text-decoration: underline;
   transition: color var(--transition-base);
 }
 
 .altLink a:hover {
-  text-decoration: underline;
+  text-decoration-thickness: 2px;
 }
 
 .altLink a:focus-visible {

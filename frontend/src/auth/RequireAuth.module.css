@@ -30,15 +30,12 @@
 }
 
 /* Animations of indeterminate progress are a known vestibular trigger;
-   reduce-motion users get a static text affordance instead of the spin. */
+   reduce-motion users get a static (non-spinning) ring instead of the spin.
+   We deliberately do NOT use `content: 'Loading…'` here — the component
+   already renders an sr-only "Loading…" inside role="status", and AT that
+   reads pseudo-element text would announce it twice. */
 @media (prefers-reduced-motion: reduce) {
   .loading::before {
-    content: 'Loading…';
-    width: auto;
-    height: auto;
-    border: none;
     animation: none;
-    color: var(--color-text-muted);
-    font-size: var(--font-size-sm);
   }
 }

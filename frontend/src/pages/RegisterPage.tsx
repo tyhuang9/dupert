@@ -177,7 +177,7 @@ export function RegisterPage() {
   return (
     <main id="main" className={styles.shell}>
       <div className={styles.card}>
-        <h1 className={styles.title}>Create your account</h1>
+        <h1 className={styles.title}>Create account</h1>
         <p className={styles.subtitle}>Plan trips together with TripPlanner.</p>
 
         {topMessage ? (
@@ -200,7 +200,6 @@ export function RegisterPage() {
               className={styles.input}
               type="email"
               autoComplete="username"
-              autoFocus
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
