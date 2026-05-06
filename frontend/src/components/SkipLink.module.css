@@ -1,0 +1,19 @@
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 9998;
+  background: var(--color-primary);
+  color: var(--color-primary-fg);
+  padding: var(--space-3);
+  text-decoration: none;
+  border-radius: var(--radius-md);
+  transition: left var(--transition-base);
+}
+
+.skip-link:focus-visible {
+  left: 0;
+  z-index: 9999;
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}

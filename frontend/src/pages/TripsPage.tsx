@@ -29,7 +29,7 @@ export function TripsPage() {
   }
 
   return (
-    <main className={styles.shell}>
+    <main id="main" className={styles.shell}>
       <header className={styles.header}>
         <h1 className={styles.heading}>{user?.displayName ?? 'Welcome'}</h1>
         <button

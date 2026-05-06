@@ -4,6 +4,8 @@ import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
 import TripsPage from './pages/TripsPage'
 import { RequireAuth } from './auth/RequireAuth'
+import { SkipLink } from './components/SkipLink'
+import { RouteAnnouncer } from './components/RouteAnnouncer'
 
 /**
  * Router for chunk 2e. Public auth routes (`/login`, `/register`) sit
@@ -85,6 +87,8 @@ function NotFoundPage() {
 export default function App() {
   return (
     <BrowserRouter>
+      <SkipLink />
+      <RouteAnnouncer />
       <Routes>
         {/* Public routes — auth pages and share-accept landing flows */}
         <Route path="/login" element={<LoginPage />} />

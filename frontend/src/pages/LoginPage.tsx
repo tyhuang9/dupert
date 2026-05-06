@@ -71,7 +71,7 @@ export function LoginPage() {
   const bannerIcon = isWarning ? '⚠' : '✕'
 
   return (
-    <main className={styles.shell}>
+    <main id="main" className={styles.shell}>
       <div className={styles.card}>
         <h1 className={styles.title}>Sign in</h1>
         <p className={styles.subtitle}>Welcome back to TripPlanner.</p>

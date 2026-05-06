@@ -175,7 +175,7 @@ export function RegisterPage() {
   const bannerIcon = isWarning ? '⚠' : '✕'
 
   return (
-    <main className={styles.shell}>
+    <main id="main" className={styles.shell}>
       <div className={styles.card}>
         <h1 className={styles.title}>Create your account</h1>
         <p className={styles.subtitle}>Plan trips together with TripPlanner.</p>
