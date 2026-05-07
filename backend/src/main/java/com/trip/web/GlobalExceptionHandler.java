@@ -20,6 +20,7 @@ import org.springframework.web.servlet.NoHandlerFoundException;
 
 import com.trip.config.CorrelationIdFilter;
 import com.trip.web.exception.NotFoundException;
+import com.trip.web.exception.ValidationException;
 
 import jakarta.validation.ConstraintViolationException;
 
@@ -96,6 +97,19 @@ public class GlobalExceptionHandler {
      * a trip can't distinguish "doesn't exist" from "exists but I'm not on it" (see
      * PROJECT.md §5 and {@link com.trip.service.trip.TripAccessGuard}).
      */
+    /**
+     * Application-thrown 400 for cross-field / business-rule validation that Bean
+     * Validation can't express on a single field. The slug ({@link ValidationException#slug()})
+     * is the stable machine-readable code the frontend switches on; the exception's
+     * message stays in logs only.
+     */
+    @ExceptionHandler(ValidationException.class)
+    public ResponseEntity<ErrorResponse> handleApplicationValidation(ValidationException ex) {
+        String cid = MDC.get(CorrelationIdFilter.MDC_KEY);
+        log.debug("ValidationException (correlationId={}, slug={}): {}", cid, ex.slug(), ex.getMessage());
+        return respond(HttpStatus.BAD_REQUEST, ex.slug(), "Request failed validation.", null);
+    }
+
     @ExceptionHandler(NotFoundException.class)
     public ResponseEntity<ErrorResponse> handleNotFound(NotFoundException ex) {
         String cid = MDC.get(CorrelationIdFilter.MDC_KEY);

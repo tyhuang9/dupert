@@ -1,5 +1,7 @@
 package com.trip.repo;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -19,4 +21,6 @@ import com.trip.domain.Trip;
 public interface TripRepository extends JpaRepository<Trip, Long> {
 
     Optional<Trip> findByPublicId(String publicId);
+
+    List<Trip> findAllByIdInOrderByCreatedAtDesc(Collection<Long> ids);
 }
