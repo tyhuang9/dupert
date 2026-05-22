@@ -4,6 +4,7 @@ import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
 import TripsPage from './pages/TripsPage'
 import NewTripPage from './pages/NewTripPage'
+import TripWorkspacePage from './pages/TripWorkspacePage'
 import { RequireAuth } from './auth/RequireAuth'
 import { SkipLink } from './components/SkipLink'
 import { RouteAnnouncer } from './components/RouteAnnouncer'
@@ -19,26 +20,6 @@ function TodoPage({ title }: { title: string }) {
   return (
     <main style={{ maxWidth: 640, margin: '4rem auto', padding: '0 1rem' }}>
       <h1>{title}</h1>
-      <p>This page isn&apos;t ready yet — check back soon.</p>
-    </main>
-  )
-}
-
-function TripWorkspacePage() {
-  const { publicId, day } = useParams()
-  return (
-    <main style={{ maxWidth: 640, margin: '4rem auto', padding: '0 1rem' }}>
-      <h1>Trip workspace</h1>
-      <p>
-        Trip <code>{publicId}</code>
-        {day ? (
-          <>
-            {' '}
-            (day <code>{day}</code>)
-          </>
-        ) : null}
-        .
-      </p>
       <p>This page isn&apos;t ready yet — check back soon.</p>
     </main>
   )
