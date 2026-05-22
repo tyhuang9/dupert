@@ -43,6 +43,7 @@ const TOP_MESSAGE_BY_CODE: Record<string, string | null> = {
   malformed_request: 'Something went wrong. Please try again.',
   unauthenticated: 'Your session expired. Please sign in again.',
   conflict: 'That action conflicts with existing data.',
+  invalid_date_range: 'Choose a valid date range.',
 }
 
 function isAxiosError(err: unknown): err is AxiosError<BackendErrorBody> {

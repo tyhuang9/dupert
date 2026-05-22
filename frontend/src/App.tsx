@@ -3,6 +3,7 @@ import './App.css'
 import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
 import TripsPage from './pages/TripsPage'
+import NewTripPage from './pages/NewTripPage'
 import { RequireAuth } from './auth/RequireAuth'
 import { SkipLink } from './components/SkipLink'
 import { RouteAnnouncer } from './components/RouteAnnouncer'
@@ -21,10 +22,6 @@ function TodoPage({ title }: { title: string }) {
       <p>This page isn&apos;t ready yet — check back soon.</p>
     </main>
   )
-}
-
-function NewTripPage() {
-  return <TodoPage title="New trip" />
 }
 
 function TripWorkspacePage() {
