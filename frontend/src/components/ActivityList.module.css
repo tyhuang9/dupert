@@ -1,0 +1,17 @@
+.list {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.emptyState {
+  padding: var(--space-4);
+  border: 1px dashed var(--color-surface-border);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface-2);
+  color: var(--color-text-muted);
+}
+
+.emptyState p {
+  margin: 0;
+  font-size: var(--font-size-sm);
+}

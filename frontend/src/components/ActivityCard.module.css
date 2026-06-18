@@ -1,0 +1,119 @@
+.card {
+  padding: var(--space-4);
+  border: 1px solid var(--color-surface-border);
+  border-radius: var(--radius-lg);
+  background-color: var(--color-surface);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-tight);
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.iconButton {
+  width: 2.5rem;
+  height: 2.5rem;
+  border: 1px solid var(--color-surface-border);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-surface);
+  color: var(--color-text);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+}
+
+.iconButton:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.iconButton:hover,
+.iconButton:focus-visible {
+  border-color: var(--color-border-focus);
+  background-color: var(--color-surface-2);
+}
+
+.iconButton:disabled:hover {
+  border-color: var(--color-surface-border);
+  background-color: var(--color-surface);
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}
+
+.category {
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--radius-full);
+  background-color: var(--color-surface-2);
+}
+
+.time {
+  font-variant-numeric: tabular-nums;
+}
+
+.notes,
+.location,
+.address,
+.attribution {
+  margin: 0;
+  font-size: var(--font-size-sm);
+}
+
+.location {
+  color: var(--color-text);
+}
+
+.address {
+  color: var(--color-text-muted);
+}
+
+.moveControls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.moveLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+
+.moveLabel input {
+  max-width: 10rem;
+  padding: var(--space-2);
+  border: 1px solid var(--color-surface-border);
+  border-radius: var(--radius-sm);
+  background-color: var(--color-surface-2);
+  color: var(--color-text);
+}
+
+.attribution {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
