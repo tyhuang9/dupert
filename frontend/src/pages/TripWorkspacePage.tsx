@@ -18,6 +18,7 @@ import styles from './TripWorkspacePage.module.css'
 import { ActivityForm } from '../components/ActivityForm'
 import { ActivityList } from '../components/ActivityList'
 import { DayNoteEditor } from '../components/DayNoteEditor'
+import { TripMap } from '../components/TripMap'
 import type { Activity, CreateActivityRequest } from '../types/activity'
 
 function isNotFoundError(err: unknown): boolean {
@@ -324,7 +325,10 @@ export function TripWorkspacePage() {
             </div>
             <div className={styles.panel}>
               <h2 className={styles.panelTitle}>Map</h2>
-              <p className={styles.panelBody}>Map and routing land in Piece 6.</p>
+              <TripMap
+                activities={allActivities}
+                destination={tripQuery.data.destination}
+              />
             </div>
           </section>
         </>

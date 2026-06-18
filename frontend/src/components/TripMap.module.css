@@ -1,0 +1,35 @@
+.mapShell {
+  position: relative;
+  min-height: 24rem;
+  overflow: hidden;
+  border: 1px solid var(--color-surface-border);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface-2);
+}
+
+.marker {
+  width: 1.75rem;
+  height: 1.75rem;
+  border: 2px solid var(--color-surface);
+  border-radius: 999px;
+  background-color: var(--color-primary);
+  color: var(--color-primary-fg);
+  font-size: var(--font-size-xs);
+  font-weight: 800;
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+}
+
+.fallback {
+  display: grid;
+  align-content: center;
+  min-height: 24rem;
+  padding: var(--space-5);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-base);
+}
+
+.fallback p {
+  margin: 0;
+}
