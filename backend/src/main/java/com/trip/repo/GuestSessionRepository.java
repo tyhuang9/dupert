@@ -18,4 +18,6 @@ public interface GuestSessionRepository extends JpaRepository<GuestSession, Long
      * Find a guest session by its id.
      */
     Optional<GuestSession> findById(Long id);
+
+    Optional<GuestSession> findByTokenHash(String tokenHash);
 }

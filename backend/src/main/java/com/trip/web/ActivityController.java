@@ -23,6 +23,7 @@ import com.trip.web.dto.activity.CreateActivityRequest;
 import com.trip.web.dto.activity.UpdateActivityRequest;
 import com.trip.web.dto.activity.MoveActivityRequest;
 import com.trip.web.dto.activity.ReorderActivitiesRequest;
+import com.trip.web.auth.AuthenticationActors;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Pattern;
@@ -68,8 +69,8 @@ public class ActivityController {
             @RequestParam(name = "dayDate") LocalDate dayDate,
             @Valid @RequestBody CreateActivityRequest body,
             Authentication authentication) {
-        Long userId = requireUserId(authentication);
-        ActivityResponse created = activityService.createActivity(publicId, userId, dayDate, body);
+        ActivityResponse created = activityService.createActivity(
+            publicId, AuthenticationActors.requireTripActor(authentication), dayDate, body);
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
@@ -86,8 +87,8 @@ public class ActivityController {
     public ResponseEntity<List<ActivityResponse>> listActivities(
             @PathVariable @Pattern(regexp = PUBLIC_ID_PATTERN) String publicId,
             Authentication authentication) {
-        Long userId = requireUserId(authentication);
-        List<ActivityResponse> activities = activityService.listActivities(publicId, userId);
+        List<ActivityResponse> activities = activityService.listActivities(
+            publicId, AuthenticationActors.requireTripActor(authentication));
         return ResponseEntity.ok(activities);
     }
 
@@ -112,8 +113,8 @@ public class ActivityController {
             @PathVariable long activityId,
             @Valid @RequestBody UpdateActivityRequest body,
             Authentication authentication) {
-        Long userId = requireUserId(authentication);
-        ActivityResponse updated = activityService.updateActivity(activityId, userId, publicId, body);
+        ActivityResponse updated = activityService.updateActivity(
+            activityId, AuthenticationActors.requireTripActor(authentication), publicId, body);
         return ResponseEntity.ok(updated);
     }
 
@@ -132,8 +133,8 @@ public class ActivityController {
             @PathVariable @Pattern(regexp = PUBLIC_ID_PATTERN) String publicId,
             @PathVariable long activityId,
             Authentication authentication) {
-        Long userId = requireUserId(authentication);
-        activityService.deleteActivity(activityId, userId, publicId);
+        activityService.deleteActivity(
+            activityId, AuthenticationActors.requireTripActor(authentication), publicId);
         return ResponseEntity.noContent().build();
     }
 
@@ -158,8 +159,8 @@ public class ActivityController {
             @PathVariable LocalDate dayDate,
             @Valid @RequestBody ReorderActivitiesRequest body,
             Authentication authentication) {
-        Long userId = requireUserId(authentication);
-        activityService.reorderActivitiesForDay(publicId, dayDate, userId, body);
+        activityService.reorderActivitiesForDay(
+            publicId, dayDate, AuthenticationActors.requireTripActor(authentication), body);
         return ResponseEntity.noContent().build();
     }
 
@@ -179,24 +180,8 @@ public class ActivityController {
             @RequestParam @Pattern(regexp = PUBLIC_ID_PATTERN) String publicId,
             @Valid @RequestBody MoveActivityRequest body,
             Authentication authentication) {
-        Long userId = requireUserId(authentication);
-        ActivityResponse updated = activityService.moveActivity(activityId, userId, publicId, body);
+        ActivityResponse updated = activityService.moveActivity(
+            activityId, AuthenticationActors.requireTripActor(authentication), publicId, body);
         return ResponseEntity.ok(updated);
-    }
-
-    /**
-     * Extract and validate the user id from the authentication principal.
-     */
-    private static Long requireUserId(Authentication authentication) {
-        if (authentication == null || !authentication.isAuthenticated()) {
-            throw new org.springframework.security.authentication.AuthenticationCredentialsNotFoundException(
-                "no authenticated principal");
-        }
-        Object principal = authentication.getPrincipal();
-        if (principal instanceof Long id) {
-            return id;
-        }
-        throw new org.springframework.security.authentication.AuthenticationCredentialsNotFoundException(
-            "principal is not a user id");
     }
 }

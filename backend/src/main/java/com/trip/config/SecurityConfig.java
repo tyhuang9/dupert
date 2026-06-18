@@ -14,6 +14,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import com.trip.web.auth.JwtAuthenticationFilter;
+import com.trip.web.auth.GuestAuthenticationFilter;
 
 import org.springframework.http.HttpStatus;
 
@@ -42,7 +43,8 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http,
                                            UrlBasedCorsConfigurationSource corsSource,
-                                           JwtAuthenticationFilter jwtAuthFilter)
+                                           JwtAuthenticationFilter jwtAuthFilter,
+                                           GuestAuthenticationFilter guestAuthenticationFilter)
             throws Exception {
 
         http
@@ -55,6 +57,7 @@ public class SecurityConfig {
             // Run the JWT translator before the username/password filter slot so a valid
             // bearer becomes the request's authentication before authorization runs.
             .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
+            .addFilterAfter(guestAuthenticationFilter, JwtAuthenticationFilter.class)
             // The OncePerRequestFilters (headers, CSP, correlation id, rate-limit) are
             // picked up automatically because they're @Component + @Order annotated.
             .exceptionHandling(ex -> ex

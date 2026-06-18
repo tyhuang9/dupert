@@ -14,6 +14,7 @@ import com.trip.domain.User;
 import com.trip.repo.ActivityRepository;
 import com.trip.repo.UserRepository;
 import com.trip.service.trip.ResolvedTrip;
+import com.trip.service.trip.TripActor;
 import com.trip.service.trip.TripAccessGuard;
 import com.trip.domain.TripRole;
 import com.trip.repo.GuestSessionRepository;
@@ -78,7 +79,13 @@ public class ActivityService {
     @Transactional
     public ActivityResponse createActivity(String publicId, Long userId, LocalDate dayDate,
                                            CreateActivityRequest request) {
-        ResolvedTrip resolved = tripAccessGuard.resolveForUserAtLeast(publicId, userId, TripRole.EDITOR);
+        return createActivity(publicId, TripActor.user(userId), dayDate, request);
+    }
+
+    @Transactional
+    public ActivityResponse createActivity(String publicId, TripActor actor, LocalDate dayDate,
+                                           CreateActivityRequest request) {
+        ResolvedTrip resolved = tripAccessGuard.resolveForActorAtLeast(publicId, actor, TripRole.EDITOR);
         Long tripId = resolved.trip().getId();
 
         // Validate the day is within the trip's date range
@@ -110,17 +117,11 @@ public class ActivityService {
         activity.setLat(request.lat());
         activity.setLng(request.lng());
         activity.setOrderIndex(nextIndex);
-        activity.setCreatedByUserId(userId);
-        activity.setUpdatedByUserId(userId);
+        attributeCreated(activity, actor, resolved);
+        attributeUpdated(activity, actor, resolved);
 
         Activity saved = activityRepository.save(activity);
-
-        // Load display names for the response
-        String createdByName = userRepository.findById(userId)
-            .map(User::getDisplayName)
-            .orElse(null);
-
-        return ActivityResponse.of(saved, createdByName, createdByName);
+        return buildActivityResponse(saved);
     }
 
     /**
@@ -133,7 +134,12 @@ public class ActivityService {
      */
     @Transactional(readOnly = true)
     public List<ActivityResponse> listActivities(String publicId, Long userId) {
-        ResolvedTrip resolved = tripAccessGuard.resolveForUser(publicId, userId);
+        return listActivities(publicId, TripActor.user(userId));
+    }
+
+    @Transactional(readOnly = true)
+    public List<ActivityResponse> listActivities(String publicId, TripActor actor) {
+        ResolvedTrip resolved = tripAccessGuard.resolveForActor(publicId, actor);
         Long tripId = resolved.trip().getId();
 
         List<Activity> activities = activityRepository.findAllInDateRange(
@@ -160,8 +166,14 @@ public class ActivityService {
     @Transactional
     public ActivityResponse updateActivity(Long activityId, Long userId, String publicId,
                                            UpdateActivityRequest request) {
+        return updateActivity(activityId, TripActor.user(userId), publicId, request);
+    }
+
+    @Transactional
+    public ActivityResponse updateActivity(Long activityId, TripActor actor, String publicId,
+                                           UpdateActivityRequest request) {
         // First verify access to the trip
-        ResolvedTrip resolved = tripAccessGuard.resolveForUserAtLeast(publicId, userId, TripRole.EDITOR);
+        ResolvedTrip resolved = tripAccessGuard.resolveForActorAtLeast(publicId, actor, TripRole.EDITOR);
 
         // Then load the activity and verify it belongs to the accessed trip
         Activity activity = activityRepository.findById(activityId)
@@ -204,7 +216,7 @@ public class ActivityService {
             activity.setLng(request.lng());
         }
 
-        activity.setUpdatedByUserId(userId);
+        attributeUpdated(activity, actor, resolved);
         Activity updated = activityRepository.save(activity);
 
         return buildActivityResponse(updated);
@@ -221,7 +233,12 @@ public class ActivityService {
      */
     @Transactional
     public void deleteActivity(Long activityId, Long userId, String publicId) {
-        ResolvedTrip resolved = tripAccessGuard.resolveForUserAtLeast(publicId, userId, TripRole.EDITOR);
+        deleteActivity(activityId, TripActor.user(userId), publicId);
+    }
+
+    @Transactional
+    public void deleteActivity(Long activityId, TripActor actor, String publicId) {
+        ResolvedTrip resolved = tripAccessGuard.resolveForActorAtLeast(publicId, actor, TripRole.EDITOR);
 
         Activity activity = activityRepository.findById(activityId)
             .orElseThrow(() -> new NotFoundException("activity not found: id=" + activityId));
@@ -244,9 +261,9 @@ public class ActivityService {
                 .map(User::getDisplayName)
                 .orElse(null);
         } else if (activity.getCreatedByGuestSessionId() != null) {
-            // For guests, we don't have a persisted display name; this will be null
-            // The frontend handles display of guest-created items (UI enhancement in later pieces)
-            createdByName = null;
+            createdByName = guestSessionRepository.findById(activity.getCreatedByGuestSessionId())
+                .map(GuestSession::getDisplayName)
+                .orElse(null);
         }
 
         String updatedByName = null;
@@ -255,7 +272,9 @@ public class ActivityService {
                 .map(User::getDisplayName)
                 .orElse(null);
         } else if (activity.getUpdatedByGuestSessionId() != null) {
-            updatedByName = null;
+            updatedByName = guestSessionRepository.findById(activity.getUpdatedByGuestSessionId())
+                .map(GuestSession::getDisplayName)
+                .orElse(null);
         }
 
         return ActivityResponse.of(activity, createdByName, updatedByName);
@@ -284,7 +303,13 @@ public class ActivityService {
     @Transactional
     public void reorderActivitiesForDay(String publicId, LocalDate dayDate, Long userId,
                                         ReorderActivitiesRequest request) {
-        ResolvedTrip resolved = tripAccessGuard.resolveForUserAtLeast(publicId, userId, TripRole.EDITOR);
+        reorderActivitiesForDay(publicId, dayDate, TripActor.user(userId), request);
+    }
+
+    @Transactional
+    public void reorderActivitiesForDay(String publicId, LocalDate dayDate, TripActor actor,
+                                        ReorderActivitiesRequest request) {
+        ResolvedTrip resolved = tripAccessGuard.resolveForActorAtLeast(publicId, actor, TripRole.EDITOR);
         Long tripId = resolved.trip().getId();
 
         // Validate the day is within the trip's date range
@@ -322,7 +347,7 @@ public class ActivityService {
         for (Long id : requestedIds) {
             Activity activity = activityById.get(id);
             activity.setOrderIndex(nextIndex);
-            activity.setUpdatedByUserId(userId);
+            attributeUpdated(activity, actor, resolved);
             activityRepository.save(activity);
             nextIndex++;
         }
@@ -331,7 +356,7 @@ public class ActivityService {
         for (Activity a : currentDayActivities) {
             if (!uniqueRequestedIds.contains(a.getId())) {
                 a.setOrderIndex(nextIndex);
-                a.setUpdatedByUserId(userId);
+                attributeUpdated(a, actor, resolved);
                 activityRepository.save(a);
                 nextIndex++;
             }
@@ -356,7 +381,13 @@ public class ActivityService {
     @Transactional
     public ActivityResponse moveActivity(Long activityId, Long userId, String publicId,
                                          MoveActivityRequest request) {
-        ResolvedTrip resolved = tripAccessGuard.resolveForUserAtLeast(publicId, userId, TripRole.EDITOR);
+        return moveActivity(activityId, TripActor.user(userId), publicId, request);
+    }
+
+    @Transactional
+    public ActivityResponse moveActivity(Long activityId, TripActor actor, String publicId,
+                                         MoveActivityRequest request) {
+        ResolvedTrip resolved = tripAccessGuard.resolveForActorAtLeast(publicId, actor, TripRole.EDITOR);
         Long tripId = resolved.trip().getId();
 
         // Validate the destination day is within the trip's date range
@@ -440,9 +471,29 @@ public class ActivityService {
             activity.setOrderIndex(Math.min(targetIndex, destDayActivities.size()));
         }
 
-        activity.setUpdatedByUserId(userId);
+        attributeUpdated(activity, actor, resolved);
         Activity updated = activityRepository.save(activity);
 
         return buildActivityResponse(updated);
+    }
+
+    private static void attributeCreated(Activity activity, TripActor actor, ResolvedTrip resolved) {
+        if (actor.isUser()) {
+            activity.setCreatedByUserId(actor.userId());
+            activity.setCreatedByGuestSessionId(null);
+        } else {
+            activity.setCreatedByUserId(null);
+            activity.setCreatedByGuestSessionId(resolved.guestSessionId());
+        }
+    }
+
+    private static void attributeUpdated(Activity activity, TripActor actor, ResolvedTrip resolved) {
+        if (actor.isUser()) {
+            activity.setUpdatedByUserId(actor.userId());
+            activity.setUpdatedByGuestSessionId(null);
+        } else {
+            activity.setUpdatedByUserId(null);
+            activity.setUpdatedByGuestSessionId(resolved.guestSessionId());
+        }
     }
 }

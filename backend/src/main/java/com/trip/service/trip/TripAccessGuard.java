@@ -1,15 +1,23 @@
 package com.trip.service.trip;
 
+import java.time.OffsetDateTime;
 import java.util.Optional;
 
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.trip.domain.GuestSession;
+import com.trip.domain.ShareLink;
 import com.trip.domain.Trip;
 import com.trip.domain.TripMember;
 import com.trip.domain.TripRole;
+import com.trip.repo.GuestSessionRepository;
+import com.trip.repo.ShareLinkRepository;
 import com.trip.repo.TripMemberRepository;
 import com.trip.repo.TripRepository;
+import com.trip.service.share.ShareTokenService;
 import com.trip.web.exception.NotFoundException;
 
 /**
@@ -29,11 +37,20 @@ public class TripAccessGuard {
 
     private final TripRepository tripRepository;
     private final TripMemberRepository tripMemberRepository;
+    private final GuestSessionRepository guestSessionRepository;
+    private final ShareLinkRepository shareLinkRepository;
+    private final ShareTokenService shareTokenService;
 
     public TripAccessGuard(TripRepository tripRepository,
-                           TripMemberRepository tripMemberRepository) {
+                           TripMemberRepository tripMemberRepository,
+                           GuestSessionRepository guestSessionRepository,
+                           ShareLinkRepository shareLinkRepository,
+                           ShareTokenService shareTokenService) {
         this.tripRepository = tripRepository;
         this.tripMemberRepository = tripMemberRepository;
+        this.guestSessionRepository = guestSessionRepository;
+        this.shareLinkRepository = shareLinkRepository;
+        this.shareTokenService = shareTokenService;
     }
 
     /**
@@ -71,5 +88,56 @@ public class TripAccessGuard {
                     + " needs=" + minimumRole);
         }
         return resolved;
+    }
+
+    @Transactional(readOnly = true)
+    public ResolvedTrip resolveForActor(String publicId, TripActor actor) {
+        if (actor.isUser()) {
+            return resolveForUser(publicId, actor.userId());
+        }
+        if (actor.isGuest()) {
+            return resolveForGuest(publicId, actor.guestSessionToken());
+        }
+        throw new AuthenticationCredentialsNotFoundException("no trip actor");
+    }
+
+    @Transactional(readOnly = true)
+    public ResolvedTrip resolveForActorAtLeast(String publicId, TripActor actor, TripRole minimumRole) {
+        if (actor.isUser()) {
+            return resolveForUserAtLeast(publicId, actor.userId(), minimumRole);
+        }
+        if (actor.isGuest()) {
+            ResolvedTrip resolved = resolveForGuest(publicId, actor.guestSessionToken());
+            if (resolved.role().rank() < minimumRole.rank()) {
+                throw new AccessDeniedException("guest role too low");
+            }
+            return resolved;
+        }
+        throw new AuthenticationCredentialsNotFoundException("no trip actor");
+    }
+
+    @Transactional(readOnly = true)
+    public ResolvedTrip resolveForGuest(String publicId, String rawGuestToken) {
+        if (rawGuestToken == null || rawGuestToken.isBlank()) {
+            throw new AuthenticationCredentialsNotFoundException("missing guest token");
+        }
+        String hash = shareTokenService.sha256Hex(rawGuestToken);
+        GuestSession guestSession = guestSessionRepository.findByTokenHash(hash)
+            .orElseThrow(() -> new AuthenticationCredentialsNotFoundException("invalid guest token"));
+        ShareLink shareLink = shareLinkRepository.findById(guestSession.getShareLinkId())
+            .orElseThrow(() -> new AuthenticationCredentialsNotFoundException("missing share link"));
+        OffsetDateTime now = OffsetDateTime.now();
+        if (shareLink.getRevokedAt() != null) {
+            throw new AuthenticationCredentialsNotFoundException("revoked guest share link");
+        }
+        if (shareLink.getExpiresAt() != null && !shareLink.getExpiresAt().isAfter(now)) {
+            throw new AuthenticationCredentialsNotFoundException("expired guest share link");
+        }
+        Trip trip = tripRepository.findByPublicId(publicId)
+            .orElseThrow(() -> new NotFoundException("trip not found: publicId=" + publicId));
+        if (!trip.getId().equals(shareLink.getTripId())) {
+            throw new NotFoundException("guest token does not grant this trip");
+        }
+        return new ResolvedTrip(trip, shareLink.getRole(), guestSession.getId());
     }
 }

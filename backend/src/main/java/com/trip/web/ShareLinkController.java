@@ -15,6 +15,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.trip.service.share.ShareLinkService;
+import com.trip.web.auth.AuthenticationActors;
+import com.trip.web.auth.GuestSessionCookie;
+import com.trip.web.dto.share.AcceptGuestShareLinkRequest;
+import com.trip.web.dto.share.AcceptGuestShareLinkResponse;
 import com.trip.web.dto.share.AcceptShareLinkResponse;
 import com.trip.web.dto.share.CreateShareLinkRequest;
 import com.trip.web.dto.share.CreateShareLinkResponse;
@@ -22,6 +26,7 @@ import com.trip.web.dto.share.ShareLinkResponse;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Pattern;
+import jakarta.servlet.http.HttpServletResponse;
 
 @RestController
 @Validated
@@ -31,9 +36,12 @@ public class ShareLinkController {
     static final String SHARE_TOKEN_PATTERN = "[A-Za-z0-9_-]{20,200}";
 
     private final ShareLinkService shareLinkService;
+    private final GuestSessionCookie guestSessionCookie;
 
-    public ShareLinkController(ShareLinkService shareLinkService) {
+    public ShareLinkController(ShareLinkService shareLinkService,
+                               GuestSessionCookie guestSessionCookie) {
         this.shareLinkService = shareLinkService;
+        this.guestSessionCookie = guestSessionCookie;
     }
 
     @PostMapping("/api/trips/{publicId}/share-links")
@@ -41,7 +49,7 @@ public class ShareLinkController {
             @PathVariable @Pattern(regexp = PUBLIC_ID_PATTERN) String publicId,
             @Valid @RequestBody CreateShareLinkRequest body,
             Authentication authentication) {
-        Long userId = requireUserId(authentication);
+        Long userId = AuthenticationActors.requireUserId(authentication);
         return ResponseEntity.status(HttpStatus.CREATED)
             .body(shareLinkService.create(publicId, userId, body));
     }
@@ -50,7 +58,7 @@ public class ShareLinkController {
     public ResponseEntity<List<ShareLinkResponse>> list(
             @PathVariable @Pattern(regexp = PUBLIC_ID_PATTERN) String publicId,
             Authentication authentication) {
-        Long userId = requireUserId(authentication);
+        Long userId = AuthenticationActors.requireUserId(authentication);
         return ResponseEntity.ok(shareLinkService.list(publicId, userId));
     }
 
@@ -59,7 +67,7 @@ public class ShareLinkController {
             @PathVariable @Pattern(regexp = PUBLIC_ID_PATTERN) String publicId,
             @PathVariable Long linkId,
             Authentication authentication) {
-        Long userId = requireUserId(authentication);
+        Long userId = AuthenticationActors.requireUserId(authentication);
         shareLinkService.revoke(publicId, userId, linkId);
         return ResponseEntity.noContent().build();
     }
@@ -68,20 +76,18 @@ public class ShareLinkController {
     public ResponseEntity<AcceptShareLinkResponse> acceptForUser(
             @PathVariable @Pattern(regexp = SHARE_TOKEN_PATTERN) String token,
             Authentication authentication) {
-        Long userId = requireUserId(authentication);
+        Long userId = AuthenticationActors.requireUserId(authentication);
         return ResponseEntity.ok(shareLinkService.acceptForUser(token, userId));
     }
 
-    private static Long requireUserId(Authentication authentication) {
-        if (authentication == null || !authentication.isAuthenticated()) {
-            throw new org.springframework.security.authentication.AuthenticationCredentialsNotFoundException(
-                "no authenticated principal");
-        }
-        Object principal = authentication.getPrincipal();
-        if (principal instanceof Long id) {
-            return id;
-        }
-        throw new org.springframework.security.authentication.AuthenticationCredentialsNotFoundException(
-            "principal is not a user id");
+    @PostMapping("/api/share/{token}/guest")
+    public ResponseEntity<AcceptGuestShareLinkResponse> acceptForGuest(
+            @PathVariable @Pattern(regexp = SHARE_TOKEN_PATTERN) String token,
+            @Valid @RequestBody AcceptGuestShareLinkRequest body,
+            HttpServletResponse response) {
+        ShareLinkService.AcceptedGuestSession accepted =
+            shareLinkService.acceptForGuest(token, body.displayName());
+        guestSessionCookie.addToResponse(response, accepted.rawGuestToken());
+        return ResponseEntity.ok(accepted.response());
     }
 }

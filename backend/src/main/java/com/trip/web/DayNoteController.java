@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.trip.service.daynote.DayNoteService;
+import com.trip.web.auth.AuthenticationActors;
 import com.trip.web.dto.daynote.DayNoteResponse;
 import com.trip.web.dto.daynote.UpdateDayNoteRequest;
 
@@ -60,8 +61,8 @@ public class DayNoteController {
             @PathVariable @Pattern(regexp = PUBLIC_ID_PATTERN) String publicId,
             @PathVariable LocalDate dayDate,
             Authentication authentication) {
-        Long userId = requireUserId(authentication);
-        DayNoteResponse note = dayNoteService.getDayNote(publicId, dayDate, userId);
+        DayNoteResponse note = dayNoteService.getDayNote(
+            publicId, dayDate, AuthenticationActors.requireTripActor(authentication));
         return ResponseEntity.ok(note);
     }
 
@@ -78,8 +79,8 @@ public class DayNoteController {
     public ResponseEntity<List<DayNoteResponse>> listDayNotes(
             @PathVariable @Pattern(regexp = PUBLIC_ID_PATTERN) String publicId,
             Authentication authentication) {
-        Long userId = requireUserId(authentication);
-        List<DayNoteResponse> notes = dayNoteService.listDayNotes(publicId, userId);
+        List<DayNoteResponse> notes = dayNoteService.listDayNotes(
+            publicId, AuthenticationActors.requireTripActor(authentication));
         return ResponseEntity.ok(notes);
     }
 
@@ -103,24 +104,8 @@ public class DayNoteController {
             @PathVariable LocalDate dayDate,
             @Valid @RequestBody UpdateDayNoteRequest body,
             Authentication authentication) {
-        Long userId = requireUserId(authentication);
-        DayNoteResponse updated = dayNoteService.updateDayNote(publicId, dayDate, userId, body);
+        DayNoteResponse updated = dayNoteService.updateDayNote(
+            publicId, dayDate, AuthenticationActors.requireTripActor(authentication), body);
         return ResponseEntity.ok(updated);
-    }
-
-    /**
-     * Extract and validate the user id from the authentication principal.
-     */
-    private static Long requireUserId(Authentication authentication) {
-        if (authentication == null || !authentication.isAuthenticated()) {
-            throw new org.springframework.security.authentication.AuthenticationCredentialsNotFoundException(
-                "no authenticated principal");
-        }
-        Object principal = authentication.getPrincipal();
-        if (principal instanceof Long id) {
-            return id;
-        }
-        throw new org.springframework.security.authentication.AuthenticationCredentialsNotFoundException(
-            "principal is not a user id");
     }
 }

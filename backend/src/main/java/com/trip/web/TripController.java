@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.trip.service.trip.TripService;
+import com.trip.web.auth.AuthenticationActors;
 import com.trip.web.dto.trip.CreateTripRequest;
 import com.trip.web.dto.trip.TripResponse;
 import com.trip.web.dto.trip.UpdateTripRequest;
@@ -53,14 +54,14 @@ public class TripController {
     @PostMapping
     public ResponseEntity<TripResponse> create(@Valid @RequestBody CreateTripRequest body,
                                                Authentication authentication) {
-        Long userId = requireUserId(authentication);
+        Long userId = AuthenticationActors.requireUserId(authentication);
         TripResponse created = tripService.createTrip(userId, body);
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
     @GetMapping
     public ResponseEntity<List<TripResponse>> list(Authentication authentication) {
-        Long userId = requireUserId(authentication);
+        Long userId = AuthenticationActors.requireUserId(authentication);
         return ResponseEntity.ok(tripService.listTripsForUser(userId));
     }
 
@@ -68,8 +69,8 @@ public class TripController {
     public ResponseEntity<TripResponse> get(
             @PathVariable @Pattern(regexp = PUBLIC_ID_PATTERN) String publicId,
             Authentication authentication) {
-        Long userId = requireUserId(authentication);
-        return ResponseEntity.ok(tripService.getTrip(publicId, userId));
+        return ResponseEntity.ok(tripService.getTrip(
+            publicId, AuthenticationActors.requireTripActor(authentication)));
     }
 
     @PatchMapping("/{publicId}")
@@ -77,35 +78,16 @@ public class TripController {
             @PathVariable @Pattern(regexp = PUBLIC_ID_PATTERN) String publicId,
             @Valid @RequestBody UpdateTripRequest body,
             Authentication authentication) {
-        Long userId = requireUserId(authentication);
-        return ResponseEntity.ok(tripService.updateTrip(publicId, userId, body));
+        return ResponseEntity.ok(tripService.updateTrip(
+            publicId, AuthenticationActors.requireTripActor(authentication), body));
     }
 
     @DeleteMapping("/{publicId}")
     public ResponseEntity<Void> delete(
             @PathVariable @Pattern(regexp = PUBLIC_ID_PATTERN) String publicId,
             Authentication authentication) {
-        Long userId = requireUserId(authentication);
+        Long userId = AuthenticationActors.requireUserId(authentication);
         tripService.deleteTrip(publicId, userId);
         return ResponseEntity.noContent().build();
-    }
-
-    /**
-     * Mirrors {@link AuthController}'s principal extraction. The route requires
-     * {@code authenticated()} in {@link com.trip.config.SecurityConfig}, so reaching
-     * here without a Long principal would be a Spring Security misconfiguration; we
-     * 401 defensively rather than NPE.
-     */
-    private static Long requireUserId(Authentication authentication) {
-        if (authentication == null || !authentication.isAuthenticated()) {
-            throw new org.springframework.security.authentication.AuthenticationCredentialsNotFoundException(
-                "no authenticated principal");
-        }
-        Object principal = authentication.getPrincipal();
-        if (principal instanceof Long id) {
-            return id;
-        }
-        throw new org.springframework.security.authentication.AuthenticationCredentialsNotFoundException(
-            "principal is not a user id");
     }
 }

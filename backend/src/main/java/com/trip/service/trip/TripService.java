@@ -93,14 +93,24 @@ public class TripService {
 
     @Transactional(readOnly = true)
     public TripResponse getTrip(String publicId, Long userId) {
-        ResolvedTrip resolved = tripAccessGuard.resolveForUser(publicId, userId);
+        return getTrip(publicId, TripActor.user(userId));
+    }
+
+    @Transactional(readOnly = true)
+    public TripResponse getTrip(String publicId, TripActor actor) {
+        ResolvedTrip resolved = tripAccessGuard.resolveForActor(publicId, actor);
         return TripResponse.of(resolved.trip(), resolved.role());
     }
 
     @Transactional
     public TripResponse updateTrip(String publicId, Long userId, UpdateTripRequest request) {
+        return updateTrip(publicId, TripActor.user(userId), request);
+    }
+
+    @Transactional
+    public TripResponse updateTrip(String publicId, TripActor actor, UpdateTripRequest request) {
         ResolvedTrip resolved =
-            tripAccessGuard.resolveForUserAtLeast(publicId, userId, TripRole.EDITOR);
+            tripAccessGuard.resolveForActorAtLeast(publicId, actor, TripRole.EDITOR);
         Trip trip = resolved.trip();
 
         if (request.name() != null) {

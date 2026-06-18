@@ -21,6 +21,9 @@ public class GuestSession {
     @Column(name = "share_link_id", nullable = false)
     private Long shareLinkId;
 
+    @Column(name = "token_hash", length = 64, updatable = false)
+    private String tokenHash;
+
     @Column(name = "display_name", nullable = false, length = 200)
     private String displayName;
 
@@ -35,7 +38,12 @@ public class GuestSession {
     }
 
     public GuestSession(Long shareLinkId, String displayName) {
+        this(shareLinkId, null, displayName);
+    }
+
+    public GuestSession(Long shareLinkId, String tokenHash, String displayName) {
         this.shareLinkId = shareLinkId;
+        this.tokenHash = tokenHash;
         this.displayName = displayName;
     }
 
@@ -45,6 +53,10 @@ public class GuestSession {
 
     public Long getShareLinkId() {
         return shareLinkId;
+    }
+
+    public String getTokenHash() {
+        return tokenHash;
     }
 
     public String getDisplayName() {

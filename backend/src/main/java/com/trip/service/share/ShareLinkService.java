@@ -7,21 +7,25 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.trip.config.AppProperties;
+import com.trip.domain.GuestSession;
 import com.trip.domain.ShareLink;
 import com.trip.domain.Trip;
 import com.trip.domain.TripMember;
 import com.trip.domain.TripRole;
+import com.trip.repo.GuestSessionRepository;
 import com.trip.repo.ShareLinkRepository;
 import com.trip.repo.TripMemberRepository;
 import com.trip.repo.TripRepository;
 import com.trip.service.trip.ResolvedTrip;
 import com.trip.service.trip.TripAccessGuard;
 import com.trip.web.dto.share.AcceptShareLinkResponse;
+import com.trip.web.dto.share.AcceptGuestShareLinkResponse;
 import com.trip.web.dto.share.CreateShareLinkRequest;
 import com.trip.web.dto.share.CreateShareLinkResponse;
 import com.trip.web.dto.share.ShareLinkResponse;
 import com.trip.web.exception.NotFoundException;
 import com.trip.web.exception.ValidationException;
+import com.trip.web.auth.DisplayNameSanitizer;
 
 /**
  * Share-link write/read operations for Piece 5.
@@ -37,6 +41,7 @@ public class ShareLinkService {
     static final int TOKEN_GENERATION_ATTEMPTS = 5;
 
     private final ShareLinkRepository shareLinkRepository;
+    private final GuestSessionRepository guestSessionRepository;
     private final TripRepository tripRepository;
     private final TripMemberRepository tripMemberRepository;
     private final TripAccessGuard tripAccessGuard;
@@ -44,12 +49,14 @@ public class ShareLinkService {
     private final String frontendOrigin;
 
     public ShareLinkService(ShareLinkRepository shareLinkRepository,
+                            GuestSessionRepository guestSessionRepository,
                             TripRepository tripRepository,
                             TripMemberRepository tripMemberRepository,
                             TripAccessGuard tripAccessGuard,
                             ShareTokenService shareTokenService,
                             AppProperties appProperties) {
         this.shareLinkRepository = shareLinkRepository;
+        this.guestSessionRepository = guestSessionRepository;
         this.tripRepository = tripRepository;
         this.tripMemberRepository = tripMemberRepository;
         this.tripAccessGuard = tripAccessGuard;
@@ -106,6 +113,23 @@ public class ShareLinkService {
         return new AcceptShareLinkResponse(trip.getPublicId(), effectiveRole);
     }
 
+    @Transactional
+    public AcceptedGuestSession acceptForGuest(String rawToken, String requestedDisplayName) {
+        ShareLink link = findUsableLink(rawToken);
+        if (!link.isAllowAnonymous()) {
+            throw new NotFoundException("share link does not allow anonymous guests: id=" + link.getId());
+        }
+        Trip trip = tripRepository.findById(link.getTripId())
+            .orElseThrow(() -> new NotFoundException("trip not found for share link: id=" + link.getId()));
+        String displayName = sanitizeGuestDisplayName(requestedDisplayName);
+        GeneratedToken guestToken = generateUniqueGuestSessionToken();
+        GuestSession guestSession = new GuestSession(link.getId(), guestToken.hash(), displayName);
+        guestSessionRepository.save(guestSession);
+        return new AcceptedGuestSession(
+            guestToken.raw(),
+            new AcceptGuestShareLinkResponse(trip.getPublicId(), link.getRole(), displayName));
+    }
+
     private TripRole upsertMembership(Long tripId, Long userId, TripRole invitedRole) {
         return tripMemberRepository.findByIdTripIdAndIdUserId(tripId, userId)
             .map(existing -> {
@@ -155,6 +179,25 @@ public class ShareLinkService {
         throw new IllegalStateException("exhausted share token generation retries");
     }
 
+    private GeneratedToken generateUniqueGuestSessionToken() {
+        for (int attempt = 0; attempt < TOKEN_GENERATION_ATTEMPTS; attempt++) {
+            String raw = shareTokenService.generateRawToken();
+            String hash = shareTokenService.sha256Hex(raw);
+            if (guestSessionRepository.findByTokenHash(hash).isEmpty()) {
+                return new GeneratedToken(raw, hash);
+            }
+        }
+        throw new IllegalStateException("exhausted guest token generation retries");
+    }
+
+    private static String sanitizeGuestDisplayName(String displayName) {
+        String sanitized = DisplayNameSanitizer.sanitize(displayName);
+        if (sanitized == null || sanitized.isBlank()) {
+            throw new ValidationException("invalid_display_name", "displayName cannot be blank");
+        }
+        return sanitized;
+    }
+
     private String shareUrl(String rawToken) {
         String trimmedOrigin = frontendOrigin == null ? "" : frontendOrigin.strip();
         if (trimmedOrigin.isEmpty()) {
@@ -167,5 +210,8 @@ public class ShareLinkService {
     }
 
     private record GeneratedToken(String raw, String hash) {
+    }
+
+    public record AcceptedGuestSession(String rawGuestToken, AcceptGuestShareLinkResponse response) {
     }
 }

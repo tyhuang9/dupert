@@ -8,6 +8,7 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -28,6 +29,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.trip.domain.GuestSession;
 import com.trip.domain.ShareLink;
 import com.trip.domain.Trip;
 import com.trip.domain.TripMember;
@@ -113,6 +115,7 @@ class ShareLinkControllerTest {
         when(tripMemberRepository.findByIdTripIdAndIdUserId(TRIP_PK, ALICE_ID))
             .thenReturn(Optional.of(new TripMember(TRIP_PK, ALICE_ID, TripRole.OWNER)));
         when(shareLinkRepository.findByTokenHash(any())).thenReturn(Optional.empty());
+        when(guestSessionRepository.findByTokenHash(any())).thenReturn(Optional.empty());
     }
 
     @Test
@@ -309,6 +312,68 @@ class ShareLinkControllerTest {
     void acceptWithoutBearerReturns401() throws Exception {
         mvc.perform(post("/api/share/" + RAW_TOKEN + "/accept"))
             .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void acceptForGuestSetsOpaqueCookieAndSanitizesDisplayName() throws Exception {
+        ShareLink shareLink = link(501L, TRIP_PK, shareTokenService.sha256Hex(RAW_TOKEN),
+            TripRole.VIEWER, true, ALICE_ID, null);
+        when(shareLinkRepository.findByTokenHash(shareTokenService.sha256Hex(RAW_TOKEN)))
+            .thenReturn(Optional.of(shareLink));
+        when(tripRepository.findById(TRIP_PK)).thenReturn(Optional.of(trip));
+
+        mvc.perform(post("/api/share/" + RAW_TOKEN + "/guest")
+                .contentType("application/json")
+                .content(objectMapper.writeValueAsString(Map.of(
+                    "displayName", "  Guest\u202E\nAlice  "))))
+            .andExpect(status().isOk())
+            .andExpect(header().string("Set-Cookie", org.hamcrest.Matchers.allOf(
+                org.hamcrest.Matchers.containsString("guest_session="),
+                org.hamcrest.Matchers.containsString("HttpOnly"),
+                org.hamcrest.Matchers.containsString("Path=/api"),
+                org.hamcrest.Matchers.containsString("SameSite=Strict"))))
+            .andExpect(jsonPath("$.publicId").value(TRIP_PUBLIC_ID))
+            .andExpect(jsonPath("$.role").value("VIEWER"))
+            .andExpect(jsonPath("$.displayName").value("GuestAlice"));
+
+        ArgumentCaptor<GuestSession> guest = ArgumentCaptor.forClass(GuestSession.class);
+        verify(guestSessionRepository).save(guest.capture());
+        assertThat(guest.getValue().getShareLinkId()).isEqualTo(501L);
+        assertThat(guest.getValue().getDisplayName()).isEqualTo("GuestAlice");
+        assertThat(guest.getValue().getTokenHash()).hasSize(64);
+    }
+
+    @Test
+    void acceptForGuestRejectsMemberOnlyLink() throws Exception {
+        ShareLink shareLink = link(501L, TRIP_PK, shareTokenService.sha256Hex(RAW_TOKEN),
+            TripRole.VIEWER, false, ALICE_ID, null);
+        when(shareLinkRepository.findByTokenHash(shareTokenService.sha256Hex(RAW_TOKEN)))
+            .thenReturn(Optional.of(shareLink));
+
+        mvc.perform(post("/api/share/" + RAW_TOKEN + "/guest")
+                .contentType("application/json")
+                .content(objectMapper.writeValueAsString(Map.of("displayName", "Guest Alice"))))
+            .andExpect(status().isNotFound())
+            .andExpect(jsonPath("$.error").value("not_found"));
+
+        verify(guestSessionRepository, never()).save(any(GuestSession.class));
+    }
+
+    @Test
+    void acceptForGuestRejectsDisplayNameThatSanitizesBlank() throws Exception {
+        ShareLink shareLink = link(501L, TRIP_PK, shareTokenService.sha256Hex(RAW_TOKEN),
+            TripRole.VIEWER, true, ALICE_ID, null);
+        when(shareLinkRepository.findByTokenHash(shareTokenService.sha256Hex(RAW_TOKEN)))
+            .thenReturn(Optional.of(shareLink));
+        when(tripRepository.findById(TRIP_PK)).thenReturn(Optional.of(trip));
+
+        mvc.perform(post("/api/share/" + RAW_TOKEN + "/guest")
+                .contentType("application/json")
+                .content(objectMapper.writeValueAsString(Map.of("displayName", "\u202E\u2066"))))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.error").value("invalid_display_name"));
+
+        verify(guestSessionRepository, never()).save(any(GuestSession.class));
     }
 
     @Test

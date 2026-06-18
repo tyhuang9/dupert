@@ -7,10 +7,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.trip.domain.DayNote;
+import com.trip.domain.GuestSession;
 import com.trip.domain.User;
 import com.trip.repo.DayNoteRepository;
+import com.trip.repo.GuestSessionRepository;
 import com.trip.repo.UserRepository;
 import com.trip.service.trip.ResolvedTrip;
+import com.trip.service.trip.TripActor;
 import com.trip.service.trip.TripAccessGuard;
 import com.trip.domain.TripRole;
 import com.trip.web.dto.daynote.DayNoteResponse;
@@ -35,13 +38,16 @@ public class DayNoteService {
 
     private final DayNoteRepository dayNoteRepository;
     private final UserRepository userRepository;
+    private final GuestSessionRepository guestSessionRepository;
     private final TripAccessGuard tripAccessGuard;
 
     public DayNoteService(DayNoteRepository dayNoteRepository,
                           UserRepository userRepository,
+                          GuestSessionRepository guestSessionRepository,
                           TripAccessGuard tripAccessGuard) {
         this.dayNoteRepository = dayNoteRepository;
         this.userRepository = userRepository;
+        this.guestSessionRepository = guestSessionRepository;
         this.tripAccessGuard = tripAccessGuard;
     }
 
@@ -57,7 +63,12 @@ public class DayNoteService {
      */
     @Transactional(readOnly = true)
     public DayNoteResponse getDayNote(String publicId, LocalDate dayDate, Long userId) {
-        ResolvedTrip resolved = tripAccessGuard.resolveForUser(publicId, userId);
+        return getDayNote(publicId, dayDate, TripActor.user(userId));
+    }
+
+    @Transactional(readOnly = true)
+    public DayNoteResponse getDayNote(String publicId, LocalDate dayDate, TripActor actor) {
+        ResolvedTrip resolved = tripAccessGuard.resolveForActor(publicId, actor);
 
         // Validate the day is within the trip's date range
         if (dayDate.isBefore(resolved.trip().getStartDate()) ||
@@ -76,6 +87,10 @@ public class DayNoteService {
             updatedByName = userRepository.findById(dayNote.getUpdatedByUserId())
                 .map(User::getDisplayName)
                 .orElse(null);
+        } else if (dayNote.getUpdatedByGuestSessionId() != null) {
+            updatedByName = guestSessionRepository.findById(dayNote.getUpdatedByGuestSessionId())
+                .map(GuestSession::getDisplayName)
+                .orElse(null);
         }
 
         return DayNoteResponse.of(dayNote, updatedByName);
@@ -91,7 +106,12 @@ public class DayNoteService {
      */
     @Transactional(readOnly = true)
     public List<DayNoteResponse> listDayNotes(String publicId, Long userId) {
-        ResolvedTrip resolved = tripAccessGuard.resolveForUser(publicId, userId);
+        return listDayNotes(publicId, TripActor.user(userId));
+    }
+
+    @Transactional(readOnly = true)
+    public List<DayNoteResponse> listDayNotes(String publicId, TripActor actor) {
+        ResolvedTrip resolved = tripAccessGuard.resolveForActor(publicId, actor);
         Long tripId = resolved.trip().getId();
 
         List<DayNote> notes = dayNoteRepository.findAllInDateRange(
@@ -118,7 +138,13 @@ public class DayNoteService {
     @Transactional
     public DayNoteResponse updateDayNote(String publicId, LocalDate dayDate, Long userId,
                                          UpdateDayNoteRequest request) {
-        ResolvedTrip resolved = tripAccessGuard.resolveForUserAtLeast(publicId, userId, TripRole.EDITOR);
+        return updateDayNote(publicId, dayDate, TripActor.user(userId), request);
+    }
+
+    @Transactional
+    public DayNoteResponse updateDayNote(String publicId, LocalDate dayDate, TripActor actor,
+                                         UpdateDayNoteRequest request) {
+        ResolvedTrip resolved = tripAccessGuard.resolveForActorAtLeast(publicId, actor, TripRole.EDITOR);
 
         // Validate the day is within the trip's date range
         if (dayDate.isBefore(resolved.trip().getStartDate()) ||
@@ -132,7 +158,7 @@ public class DayNoteService {
             .orElseGet(() -> new DayNote(tripId, dayDate, ""));
 
         dayNote.setNote(request.note());
-        dayNote.setUpdatedByUserId(userId);
+        attributeUpdated(dayNote, actor, resolved);
 
         DayNote saved = dayNoteRepository.save(dayNote);
         return buildDayNoteResponse(saved);
@@ -147,7 +173,21 @@ public class DayNoteService {
             updatedByName = userRepository.findById(dayNote.getUpdatedByUserId())
                 .map(User::getDisplayName)
                 .orElse(null);
+        } else if (dayNote.getUpdatedByGuestSessionId() != null) {
+            updatedByName = guestSessionRepository.findById(dayNote.getUpdatedByGuestSessionId())
+                .map(GuestSession::getDisplayName)
+                .orElse(null);
         }
         return DayNoteResponse.of(dayNote, updatedByName);
+    }
+
+    private static void attributeUpdated(DayNote dayNote, TripActor actor, ResolvedTrip resolved) {
+        if (actor.isUser()) {
+            dayNote.setUpdatedByUserId(actor.userId());
+            dayNote.setUpdatedByGuestSessionId(null);
+        } else {
+            dayNote.setUpdatedByUserId(null);
+            dayNote.setUpdatedByGuestSessionId(resolved.guestSessionId());
+        }
     }
 }
