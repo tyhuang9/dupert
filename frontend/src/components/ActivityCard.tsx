@@ -8,6 +8,7 @@ interface ActivityCardProps {
   canMoveUp: boolean
   maxDate: string
   minDate: string
+  readOnly?: boolean
   onEdit: (activity: Activity) => void
   onDelete: (activityId: number) => void
   onMoveDown: (activity: Activity) => void
@@ -22,6 +23,7 @@ export function ActivityCard({
   canMoveUp,
   maxDate,
   minDate,
+  readOnly = false,
   onEdit,
   onDelete,
   onMoveDown,
@@ -38,28 +40,30 @@ export function ActivityCard({
     <div className={styles.card}>
       <div className={styles.header}>
         <h3 className={styles.title}>{activity.title}</h3>
-        <div className={styles.actions}>
-          <button
-            type="button"
-            className={styles.iconButton}
-            title="Edit activity"
-            onClick={() => onEdit(activity)}
-            disabled={busy}
-            aria-label={`Edit: ${activity.title}`}
-          >
-            ✎
-          </button>
-          <button
-            type="button"
-            className={styles.iconButton}
-            title="Delete activity"
-            onClick={handleDelete}
-            disabled={busy}
-            aria-label={`Delete: ${activity.title}`}
-          >
-            ✕
-          </button>
-        </div>
+        {!readOnly && (
+          <div className={styles.actions}>
+            <button
+              type="button"
+              className={styles.iconButton}
+              title="Edit activity"
+              onClick={() => onEdit(activity)}
+              disabled={busy}
+              aria-label={`Edit: ${activity.title}`}
+            >
+              ✎
+            </button>
+            <button
+              type="button"
+              className={styles.iconButton}
+              title="Delete activity"
+              onClick={handleDelete}
+              disabled={busy}
+              aria-label={`Delete: ${activity.title}`}
+            >
+              ✕
+            </button>
+          </div>
+        )}
       </div>
 
       <div className={styles.meta}>
@@ -83,39 +87,41 @@ export function ActivityCard({
         <p className={styles.address}>{activity.address}</p>
       )}
 
-      <div className={styles.moveControls} aria-label={`Move controls for ${activity.title}`}>
-        <button
-          type="button"
-          className={styles.iconButton}
-          onClick={() => onMoveUp(activity)}
-          disabled={busy || !canMoveUp}
-          aria-label={`Move ${activity.title} up`}
-          title="Move up"
-        >
-          ↑
-        </button>
-        <button
-          type="button"
-          className={styles.iconButton}
-          onClick={() => onMoveDown(activity)}
-          disabled={busy || !canMoveDown}
-          aria-label={`Move ${activity.title} down`}
-          title="Move down"
-        >
-          ↓
-        </button>
-        <label className={styles.moveLabel}>
-          Move to
-          <input
-            type="date"
-            value={activity.dayDate}
-            min={minDate}
-            max={maxDate}
-            disabled={busy}
-            onChange={(event) => onMoveToDay(activity, event.target.value)}
-          />
-        </label>
-      </div>
+      {!readOnly && (
+        <div className={styles.moveControls} aria-label={`Move controls for ${activity.title}`}>
+          <button
+            type="button"
+            className={styles.iconButton}
+            onClick={() => onMoveUp(activity)}
+            disabled={busy || !canMoveUp}
+            aria-label={`Move ${activity.title} up`}
+            title="Move up"
+          >
+            ↑
+          </button>
+          <button
+            type="button"
+            className={styles.iconButton}
+            onClick={() => onMoveDown(activity)}
+            disabled={busy || !canMoveDown}
+            aria-label={`Move ${activity.title} down`}
+            title="Move down"
+          >
+            ↓
+          </button>
+          <label className={styles.moveLabel}>
+            Move to
+            <input
+              type="date"
+              value={activity.dayDate}
+              min={minDate}
+              max={maxDate}
+              disabled={busy}
+              onChange={(event) => onMoveToDay(activity, event.target.value)}
+            />
+          </label>
+        </div>
+      )}
 
       <p className={styles.attribution}>
         by {activity.updatedByUserDisplayName || 'guest'}

@@ -1,6 +1,9 @@
-import { BrowserRouter, Link, Navigate, Route, Routes, useParams } from 'react-router-dom'
+import { BrowserRouter, Link, Navigate, Route, Routes } from 'react-router-dom'
 import './App.css'
+import AcceptInvitePage from './pages/AcceptInvitePage'
+import GuestOnboardingPage from './pages/GuestOnboardingPage'
 import LoginPage from './pages/LoginPage'
+import MembersPage from './pages/MembersPage'
 import RegisterPage from './pages/RegisterPage'
 import TripsPage from './pages/TripsPage'
 import NewTripPage from './pages/NewTripPage'
@@ -23,27 +26,6 @@ function TodoPage({ title }: { title: string }) {
       <p>This page isn&apos;t ready yet — check back soon.</p>
     </main>
   )
-}
-
-function MembersPage() {
-  const { publicId } = useParams()
-  return (
-    <main style={{ maxWidth: 640, margin: '4rem auto', padding: '0 1rem' }}>
-      <h1>Members &amp; share links</h1>
-      <p>
-        Trip <code>{publicId}</code>. This page isn&apos;t ready yet — check
-        back soon.
-      </p>
-    </main>
-  )
-}
-
-function AcceptInvitePage() {
-  return <TodoPage title="Accept invite" />
-}
-
-function GuestOnboardingPage() {
-  return <TodoPage title="Guest onboarding" />
 }
 
 function ForbiddenPage() {
@@ -75,14 +57,14 @@ export default function App() {
         <Route path="/share/:token/guest" element={<GuestOnboardingPage />} />
         <Route path="/404" element={<NotFoundPage />} />
         <Route path="/403" element={<ForbiddenPage />} />
+        <Route path="/trips/:publicId" element={<TripWorkspacePage />} />
+        <Route path="/trips/:publicId/d/:day" element={<TripWorkspacePage />} />
 
         {/* Authenticated routes — wrapped in RequireAuth */}
         <Route element={<RequireAuth />}>
           <Route path="/" element={<Navigate to="/trips" replace />} />
           <Route path="/trips" element={<TripsPage />} />
           <Route path="/trips/new" element={<NewTripPage />} />
-          <Route path="/trips/:publicId" element={<TripWorkspacePage />} />
-          <Route path="/trips/:publicId/d/:day" element={<TripWorkspacePage />} />
           <Route path="/trips/:publicId/members" element={<MembersPage />} />
         </Route>
 

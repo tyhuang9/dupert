@@ -6,6 +6,7 @@ interface DayNoteEditorProps {
   dayDate: string
   note: DayNote | undefined
   loading: boolean
+  readOnly?: boolean
   saving: boolean
   onSave: (note: string) => Promise<void> | void
 }
@@ -14,6 +15,7 @@ export function DayNoteEditor({
   dayDate,
   note,
   loading,
+  readOnly = false,
   saving,
   onSave,
 }: DayNoteEditorProps) {
@@ -32,13 +34,16 @@ export function DayNoteEditor({
           className={styles.textarea}
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
-          disabled={loading || saving}
+          disabled={loading || saving || readOnly}
+          readOnly={readOnly}
           maxLength={5000}
         />
       </label>
-      <button type="submit" className={styles.submitButton} disabled={loading || saving}>
-        {saving ? 'Saving…' : 'Save note'}
-      </button>
+      {!readOnly && (
+        <button type="submit" className={styles.submitButton} disabled={loading || saving}>
+          {saving ? 'Saving...' : 'Save note'}
+        </button>
+      )}
     </form>
   )
 }

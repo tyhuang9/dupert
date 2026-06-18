@@ -7,6 +7,7 @@ interface ActivityListProps {
   busy?: boolean
   maxDate: string
   minDate: string
+  readOnly?: boolean
   onEdit: (activity: Activity) => void
   onDelete: (activityId: number) => void
   onMoveDown: (activity: Activity) => void
@@ -19,6 +20,7 @@ export function ActivityList({
   busy = false,
   maxDate,
   minDate,
+  readOnly = false,
   onEdit,
   onDelete,
   onMoveDown,
@@ -28,7 +30,7 @@ export function ActivityList({
   if (activities.length === 0) {
     return (
       <div className={styles.emptyState}>
-        <p>No activities yet. Add one to get started.</p>
+        <p>{readOnly ? 'No activities yet.' : 'No activities yet. Add one to get started.'}</p>
       </div>
     )
   }
@@ -44,6 +46,7 @@ export function ActivityList({
           canMoveUp={index > 0}
           maxDate={maxDate}
           minDate={minDate}
+          readOnly={readOnly}
           onEdit={onEdit}
           onDelete={onDelete}
           onMoveDown={onMoveDown}

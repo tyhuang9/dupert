@@ -30,6 +30,8 @@ const PUBLIC_PATHS = new Set<string>([
   '/auth/refresh',
 ])
 
+const GUEST_WRITE_HEADER = 'X-TripPlanner-Guest-Write'
+
 /** True when the URL points at one of the unauthenticated/cookie-only endpoints. */
 function isPublicPath(url: string | undefined): boolean {
   if (!url) return false
@@ -42,6 +44,23 @@ function isPublicPath(url: string | undefined): boolean {
     ? withoutQuery.slice('/api'.length)
     : withoutQuery
   return PUBLIC_PATHS.has(path)
+}
+
+function normalizedPath(url: string | undefined): string {
+  if (!url) return ''
+  const withoutQuery = url.split('?')[0]
+  return withoutQuery.startsWith('/api')
+    ? withoutQuery.slice('/api'.length)
+    : withoutQuery
+}
+
+function shouldSendGuestWriteHeader(config: InternalAxiosRequestConfig): boolean {
+  const method = config.method?.toUpperCase()
+  if (!method || !['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
+    return false
+  }
+  const path = normalizedPath(config.url)
+  return path.startsWith('/trips/') || path.startsWith('/activities/')
 }
 
 /**
@@ -111,6 +130,8 @@ apiClient.interceptors.request.use((config) => {
   const token = useAuthStore.getState().getAccessToken()
   if (token) {
     config.headers.set('Authorization', `Bearer ${token}`)
+  } else if (shouldSendGuestWriteHeader(config)) {
+    config.headers.set(GUEST_WRITE_HEADER, '1')
   }
   return config
 })

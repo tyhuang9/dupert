@@ -87,6 +87,7 @@ export function TripWorkspacePage() {
 
   const activeEditingActivity =
     editingActivity && editingActivity.dayDate === selectedDay ? editingActivity : null
+  const canEditTrip = tripQuery.data?.role !== 'VIEWER'
 
   const handleDayChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const nextDay = event.target.value
@@ -229,12 +230,14 @@ export function TripWorkspacePage() {
               <Link to="/trips" className={styles.secondaryLink}>
                 Back to trips
               </Link>
-              <Link
-                to={`/trips/${tripQuery.data.publicId}/members`}
-                className={styles.secondaryLink}
-              >
-                Members
-              </Link>
+              {canEditTrip && (
+                <Link
+                  to={`/trips/${tripQuery.data.publicId}/members`}
+                  className={styles.secondaryLink}
+                >
+                  Members
+                </Link>
+              )}
             </div>
           </header>
 
@@ -264,6 +267,7 @@ export function TripWorkspacePage() {
                   dayDate={selectedDay}
                   note={dayNoteQuery.data}
                   loading={dayNoteQuery.isLoading}
+                  readOnly={!canEditTrip}
                   saving={updateDayNoteMutation.isPending}
                   onSave={handleSaveDayNote}
                 />
@@ -284,26 +288,31 @@ export function TripWorkspacePage() {
                       {parseApiError(mutationError).topMessage}
                     </p>
                   )}
-                  <h3 className={styles.formHeading}>
-                    {activeEditingActivity ? 'Edit activity' : 'Add activity'}
-                  </h3>
-                  <ActivityForm
-                    key={activeEditingActivity ? `edit-${activeEditingActivity.id}` : `create-${selectedDay}`}
-                    initialValues={activityFormInitialValues}
-                    onSubmit={activeEditingActivity ? handleUpdateActivity : handleCreateActivity}
-                    onCancel={activeEditingActivity ? () => setEditingActivity(null) : undefined}
-                    submitting={
-                      activeEditingActivity
-                        ? updateActivityMutation.isPending
-                        : createActivityMutation.isPending
-                    }
-                    submitLabel={activeEditingActivity ? 'Save changes' : 'Save activity'}
-                  />
+                  {canEditTrip && (
+                    <>
+                      <h3 className={styles.formHeading}>
+                        {activeEditingActivity ? 'Edit activity' : 'Add activity'}
+                      </h3>
+                      <ActivityForm
+                        key={activeEditingActivity ? `edit-${activeEditingActivity.id}` : `create-${selectedDay}`}
+                        initialValues={activityFormInitialValues}
+                        onSubmit={activeEditingActivity ? handleUpdateActivity : handleCreateActivity}
+                        onCancel={activeEditingActivity ? () => setEditingActivity(null) : undefined}
+                        submitting={
+                          activeEditingActivity
+                            ? updateActivityMutation.isPending
+                            : createActivityMutation.isPending
+                        }
+                        submitLabel={activeEditingActivity ? 'Save changes' : 'Save activity'}
+                      />
+                    </>
+                  )}
                   <ActivityList
                     activities={dayActivities}
                     busy={isActivityMutationPending}
                     minDate={tripQuery.data.startDate}
                     maxDate={tripQuery.data.endDate}
+                    readOnly={!canEditTrip}
                     onEdit={setEditingActivity}
                     onDelete={handleDeleteActivity}
                     onMoveDown={(activity) => handleMoveActivity(activity, 1)}

@@ -79,6 +79,40 @@ describe('apiClient request interceptor', () => {
     const { data } = await apiClient.post('/admin/audit-auth/login', {})
     expect(data.auth).toBe('Bearer live-tok')
   })
+
+  it('adds the guest write header on trip writes when no bearer token is present', async () => {
+    apiMock.onPost('/trips/abc234def567/activities').reply((cfg) => {
+      const guestWrite =
+        cfg.headers?.['X-TripPlanner-Guest-Write'] ??
+        cfg.headers?.['x-tripplanner-guest-write']
+      const auth = cfg.headers?.['Authorization'] ?? cfg.headers?.['authorization']
+      return [200, { guestWrite, auth: auth ?? null }]
+    })
+
+    const { data } = await apiClient.post('/trips/abc234def567/activities', {})
+    expect(data.guestWrite).toBe('1')
+    expect(data.auth).toBeNull()
+  })
+
+  it('does not add the guest write header when a bearer token is present', async () => {
+    useAuthStore.getState().setSession({
+      accessToken: 'live-tok',
+      expiresInSeconds: 900,
+      user: SAMPLE_USER,
+    })
+
+    apiMock.onPost('/trips/abc234def567/activities').reply((cfg) => {
+      const guestWrite =
+        cfg.headers?.['X-TripPlanner-Guest-Write'] ??
+        cfg.headers?.['x-tripplanner-guest-write']
+      const auth = cfg.headers?.['Authorization'] ?? cfg.headers?.['authorization']
+      return [200, { guestWrite: guestWrite ?? null, auth }]
+    })
+
+    const { data } = await apiClient.post('/trips/abc234def567/activities', {})
+    expect(data.guestWrite).toBeNull()
+    expect(data.auth).toBe('Bearer live-tok')
+  })
 })
 
 describe('apiClient response interceptor — refresh on 401', () => {
