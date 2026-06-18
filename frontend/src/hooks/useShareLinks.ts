@@ -9,6 +9,7 @@ import {
   acceptGuestShareLink,
   acceptShareLink,
   createShareLink,
+  listTripMembers,
   listShareLinks,
   revokeShareLink,
 } from '../api/share'
@@ -19,11 +20,13 @@ import type {
   CreatedShareLink,
   CreateShareLinkRequest,
   ShareLink,
+  TripMember,
 } from '../types/share'
 
 export const shareKeys = {
   all: ['share-links'] as const,
   forTrip: (publicId: string) => [...shareKeys.all, publicId] as const,
+  members: (publicId: string) => ['trip-members', publicId] as const,
 }
 
 export function useShareLinks(
@@ -32,6 +35,16 @@ export function useShareLinks(
   return useQuery({
     queryKey: shareKeys.forTrip(publicId ?? ''),
     queryFn: () => listShareLinks(publicId as string),
+    enabled: Boolean(publicId),
+  })
+}
+
+export function useTripMembers(
+  publicId: string | undefined,
+): UseQueryResult<TripMember[]> {
+  return useQuery({
+    queryKey: shareKeys.members(publicId ?? ''),
+    queryFn: () => listTripMembers(publicId as string),
     enabled: Boolean(publicId),
   })
 }

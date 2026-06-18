@@ -5,6 +5,7 @@ import {
   useCreateShareLink,
   useRevokeShareLink,
   useShareLinks,
+  useTripMembers,
 } from '../hooks/useShareLinks'
 import { useTrip } from '../hooks/useTrips'
 import { usePageTitle } from '../utils/usePageTitle'
@@ -16,6 +17,7 @@ type ShareRole = CreateShareLinkRequest['role']
 export default function MembersPage() {
   const { publicId } = useParams()
   const tripQuery = useTrip(publicId)
+  const membersQuery = useTripMembers(publicId)
   const shareLinksQuery = useShareLinks(publicId)
   const createMutation = useCreateShareLink()
   const revokeMutation = useRevokeShareLink()
@@ -56,6 +58,7 @@ export default function MembersPage() {
   const error =
     createMutation.error ||
     revokeMutation.error ||
+    membersQuery.error ||
     shareLinksQuery.error ||
     tripQuery.error
   const parsedError = error ? parseApiError(error) : null
@@ -81,6 +84,31 @@ export default function MembersPage() {
           {parsedError.topMessage}
         </p>
       )}
+
+      <section className={styles.section}>
+        <h2 className={styles.sectionTitle}>Members</h2>
+        {membersQuery.isLoading ? (
+          <div className={styles.state} aria-live="polite">
+            <p>Loading members...</p>
+          </div>
+        ) : membersQuery.data && membersQuery.data.length > 0 ? (
+          <ul className={styles.list}>
+            {membersQuery.data.map((member) => (
+              <li key={member.userId} className={styles.listItem}>
+                <div>
+                  <p className={styles.itemTitle}>{member.displayName}</p>
+                  <p className={styles.itemMeta}>{member.email}</p>
+                </div>
+                <p className={styles.itemMeta}>{member.role.toLowerCase()}</p>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <div className={styles.state}>
+            <p>No members found.</p>
+          </div>
+        )}
+      </section>
 
       <section className={styles.section}>
         <h2 className={styles.sectionTitle}>Create share link</h2>

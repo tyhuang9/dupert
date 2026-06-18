@@ -6,11 +6,19 @@ import type {
   CreatedShareLink,
   CreateShareLinkRequest,
   ShareLink,
+  TripMember,
 } from '../types/share'
 
 export async function listShareLinks(publicId: string): Promise<ShareLink[]> {
   const { data } = await apiClient.get<ShareLink[]>(
     `/trips/${encodeURIComponent(publicId)}/share-links`,
+  )
+  return data
+}
+
+export async function listTripMembers(publicId: string): Promise<TripMember[]> {
+  const { data } = await apiClient.get<TripMember[]>(
+    `/trips/${encodeURIComponent(publicId)}/members`,
   )
   return data
 }

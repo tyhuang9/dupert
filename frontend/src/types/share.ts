@@ -34,3 +34,10 @@ export interface AcceptGuestShareLinkResponse {
   role: TripRole
   displayName: string
 }
+
+export interface TripMember {
+  userId: number
+  email: string
+  displayName: string
+  role: TripRole
+}

@@ -5,6 +5,7 @@ import {
   acceptGuestShareLink,
   acceptShareLink,
   createShareLink,
+  listTripMembers,
   listShareLinks,
   revokeShareLink,
 } from './share'
@@ -40,6 +41,26 @@ describe('share api', () => {
     apiMock.onGet('/trips/abc234def567/share-links').reply(200, [SHARE_LINK])
 
     await expect(listShareLinks('abc234def567')).resolves.toEqual([SHARE_LINK])
+  })
+
+  it('lists trip members', async () => {
+    apiMock.onGet('/trips/abc234def567/members').reply(200, [
+      {
+        userId: 7,
+        email: 'alice@example.com',
+        displayName: 'Alice',
+        role: 'OWNER',
+      },
+    ])
+
+    await expect(listTripMembers('abc234def567')).resolves.toEqual([
+      {
+        userId: 7,
+        email: 'alice@example.com',
+        displayName: 'Alice',
+        role: 'OWNER',
+      },
+    ])
   })
 
   it('creates a share link', async () => {
