@@ -1,21 +1,186 @@
 import axios from 'axios'
-import { Link, useParams } from 'react-router-dom'
+import { useEffect, useMemo, useState } from 'react'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { parseApiError } from '../api/errors'
 import { useTrip } from '../hooks/useTrips'
+import {
+  useActivities,
+  useCreateActivity,
+  useDayNote,
+  useDeleteActivity,
+  useMoveActivity,
+  useReorderActivities,
+  useUpdateActivity,
+  useUpdateDayNote,
+} from '../hooks/useActivities'
 import { usePageTitle } from '../utils/usePageTitle'
 import styles from './TripWorkspacePage.module.css'
+import { ActivityForm } from '../components/ActivityForm'
+import { ActivityList } from '../components/ActivityList'
+import { DayNoteEditor } from '../components/DayNoteEditor'
+import type { Activity, CreateActivityRequest } from '../types/activity'
 
 function isNotFoundError(err: unknown): boolean {
   return axios.isAxiosError(err) && err.response?.status === 404
 }
 
+function dayInRange(dayDate: string, startDate: string, endDate: string): boolean {
+  return dayDate >= startDate && dayDate <= endDate
+}
+
 export function TripWorkspacePage() {
   const { publicId, day } = useParams()
+  const navigate = useNavigate()
+  const [editingActivity, setEditingActivity] = useState<Activity | null>(null)
   const tripQuery = useTrip(publicId)
+  const activitiesQuery = useActivities(publicId)
+  const selectedDay = tripQuery.data
+    ? day && dayInRange(day, tripQuery.data.startDate, tripQuery.data.endDate)
+      ? day
+      : tripQuery.data.startDate
+    : day
+  const dayNoteQuery = useDayNote(publicId, selectedDay)
+  const createActivityMutation = useCreateActivity()
+  const updateActivityMutation = useUpdateActivity()
+  const deleteActivityMutation = useDeleteActivity()
+  const reorderActivitiesMutation = useReorderActivities()
+  const moveActivityMutation = useMoveActivity()
+  const updateDayNoteMutation = useUpdateDayNote()
 
   usePageTitle(
     tripQuery.data ? `${tripQuery.data.name} – TripPlanner` : 'Trip workspace – TripPlanner',
   )
+
+  useEffect(() => {
+    if (!publicId || !tripQuery.data || !day) return
+    if (!dayInRange(day, tripQuery.data.startDate, tripQuery.data.endDate)) {
+      navigate(
+        `/trips/${encodeURIComponent(publicId)}/d/${encodeURIComponent(tripQuery.data.startDate)}`,
+        { replace: true },
+      )
+    }
+  }, [day, navigate, publicId, tripQuery.data])
+
+  const allActivities = useMemo(() => activitiesQuery.data ?? [], [activitiesQuery.data])
+  const dayActivities = useMemo(
+    () =>
+      allActivities
+        .filter((activity) => activity.dayDate === selectedDay)
+        .sort((left, right) => left.orderIndex - right.orderIndex),
+    [allActivities, selectedDay],
+  )
+
+  const isActivityMutationPending =
+    createActivityMutation.isPending ||
+    updateActivityMutation.isPending ||
+    deleteActivityMutation.isPending ||
+    reorderActivitiesMutation.isPending ||
+    moveActivityMutation.isPending
+
+  const mutationError =
+    createActivityMutation.error ||
+    updateActivityMutation.error ||
+    deleteActivityMutation.error ||
+    reorderActivitiesMutation.error ||
+    moveActivityMutation.error ||
+    updateDayNoteMutation.error
+
+  const activeEditingActivity =
+    editingActivity && editingActivity.dayDate === selectedDay ? editingActivity : null
+
+  const handleDayChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const nextDay = event.target.value
+    if (
+      publicId &&
+      tripQuery.data &&
+      dayInRange(nextDay, tripQuery.data.startDate, tripQuery.data.endDate)
+    ) {
+      setEditingActivity(null)
+      navigate(`/trips/${encodeURIComponent(publicId)}/d/${encodeURIComponent(nextDay)}`)
+    }
+  }
+
+  const handleCreateActivity = async (payload: CreateActivityRequest) => {
+    if (!publicId || !selectedDay) return
+    await createActivityMutation.mutateAsync({ publicId, dayDate: selectedDay, body: payload })
+  }
+
+  const handleUpdateActivity = async (payload: CreateActivityRequest) => {
+    if (!publicId || !activeEditingActivity) return
+    await updateActivityMutation.mutateAsync({
+      publicId,
+      activityId: activeEditingActivity.id,
+      body: payload,
+    })
+    setEditingActivity(null)
+  }
+
+  const handleDeleteActivity = (activityId: number) => {
+    if (!publicId) return
+    if (activeEditingActivity?.id === activityId) {
+      setEditingActivity(null)
+    }
+    void deleteActivityMutation.mutateAsync({ publicId, activityId })
+  }
+
+  const handleMoveActivity = (activity: Activity, direction: -1 | 1) => {
+    if (!publicId || !selectedDay) return
+    const currentIndex = dayActivities.findIndex((item) => item.id === activity.id)
+    const targetIndex = currentIndex + direction
+    if (currentIndex < 0 || targetIndex < 0 || targetIndex >= dayActivities.length) return
+    const nextActivities = [...dayActivities]
+    const [moved] = nextActivities.splice(currentIndex, 1)
+    nextActivities.splice(targetIndex, 0, moved)
+    void reorderActivitiesMutation.mutateAsync({
+      publicId,
+      dayDate: selectedDay,
+      body: { activityIds: nextActivities.map((item) => item.id) },
+    })
+  }
+
+  const handleMoveActivityToDay = (activity: Activity, dayDate: string) => {
+    if (
+      !publicId ||
+      !tripQuery.data ||
+      !dayInRange(dayDate, tripQuery.data.startDate, tripQuery.data.endDate) ||
+      dayDate === activity.dayDate
+    ) {
+      return
+    }
+    const destinationCount = allActivities.filter((item) => item.dayDate === dayDate).length
+    if (activeEditingActivity?.id === activity.id) {
+      setEditingActivity(null)
+    }
+    void moveActivityMutation.mutateAsync({
+      activityId: activity.id,
+      publicId,
+      body: { dayDate, orderIndex: destinationCount },
+    })
+  }
+
+  const handleSaveDayNote = async (note: string) => {
+    if (!publicId || !selectedDay) return
+    await updateDayNoteMutation.mutateAsync({
+      publicId,
+      dayDate: selectedDay,
+      body: { note },
+    })
+  }
+
+  const activityFormInitialValues = activeEditingActivity
+    ? {
+        category: activeEditingActivity.category,
+        title: activeEditingActivity.title,
+        notes: activeEditingActivity.notes,
+        startTime: activeEditingActivity.startTime,
+        endTime: activeEditingActivity.endTime,
+        mapboxId: activeEditingActivity.mapboxId,
+        placeName: activeEditingActivity.placeName,
+        address: activeEditingActivity.address,
+        lat: activeEditingActivity.lat,
+        lng: activeEditingActivity.lng,
+      }
+    : undefined
 
   return (
     <main id="main" className={styles.shell}>
@@ -76,11 +241,77 @@ export function TripWorkspacePage() {
           <section className={styles.workspaceShell}>
             <div className={styles.panel}>
               <h2 className={styles.panelTitle}>Selected day</h2>
-              <p className={styles.panelBody}>{day ?? tripQuery.data.startDate}</p>
+              <label className={styles.inputLabel}>
+                Pick a day
+                <input
+                  type="date"
+                  value={selectedDay ?? ''}
+                  min={tripQuery.data.startDate}
+                  max={tripQuery.data.endDate}
+                  onChange={handleDayChange}
+                  className={styles.dateInput}
+                />
+              </label>
+              {dayNoteQuery.isLoading ? (
+                <p className={styles.panelBody}>Loading note...</p>
+              ) : dayNoteQuery.isError ? (
+                <p className={styles.panelBody} role="alert">
+                  {parseApiError(dayNoteQuery.error).topMessage}
+                </p>
+              ) : selectedDay ? (
+                <DayNoteEditor
+                  key={`${selectedDay}:${dayNoteQuery.data?.note ?? ''}`}
+                  dayDate={selectedDay}
+                  note={dayNoteQuery.data}
+                  loading={dayNoteQuery.isLoading}
+                  saving={updateDayNoteMutation.isPending}
+                  onSave={handleSaveDayNote}
+                />
+              ) : null}
             </div>
             <div className={styles.panel}>
               <h2 className={styles.panelTitle}>Timeline</h2>
-              <p className={styles.panelBody}>Activities and notes land in Piece 4.</p>
+              {activitiesQuery.isLoading ? (
+                <p className={styles.panelBody}>Loading activities…</p>
+              ) : activitiesQuery.isError ? (
+                <p className={styles.panelBody} role="alert">
+                  {parseApiError(activitiesQuery.error).topMessage}
+                </p>
+              ) : (
+                <>
+                  {mutationError && (
+                    <p className={styles.inlineAlert} role="alert">
+                      {parseApiError(mutationError).topMessage}
+                    </p>
+                  )}
+                  <h3 className={styles.formHeading}>
+                    {activeEditingActivity ? 'Edit activity' : 'Add activity'}
+                  </h3>
+                  <ActivityForm
+                    key={activeEditingActivity ? `edit-${activeEditingActivity.id}` : `create-${selectedDay}`}
+                    initialValues={activityFormInitialValues}
+                    onSubmit={activeEditingActivity ? handleUpdateActivity : handleCreateActivity}
+                    onCancel={activeEditingActivity ? () => setEditingActivity(null) : undefined}
+                    submitting={
+                      activeEditingActivity
+                        ? updateActivityMutation.isPending
+                        : createActivityMutation.isPending
+                    }
+                    submitLabel={activeEditingActivity ? 'Save changes' : 'Save activity'}
+                  />
+                  <ActivityList
+                    activities={dayActivities}
+                    busy={isActivityMutationPending}
+                    minDate={tripQuery.data.startDate}
+                    maxDate={tripQuery.data.endDate}
+                    onEdit={setEditingActivity}
+                    onDelete={handleDeleteActivity}
+                    onMoveDown={(activity) => handleMoveActivity(activity, 1)}
+                    onMoveToDay={handleMoveActivityToDay}
+                    onMoveUp={(activity) => handleMoveActivity(activity, -1)}
+                  />
+                </>
+              )}
             </div>
             <div className={styles.panel}>
               <h2 className={styles.panelTitle}>Map</h2>
