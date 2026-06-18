@@ -25,5 +25,6 @@ backend/.gradle/
 Thumbs.db
 
 # Orchestrator scratch (kept local, not committed)
+.agent/
 .agents/
 PROJECT.md
