@@ -31,6 +31,7 @@ import com.trip.repo.ActivityRepository;
 import com.trip.repo.DayNoteRepository;
 import com.trip.repo.GuestSessionRepository;
 import com.trip.repo.RefreshTokenRepository;
+import com.trip.repo.ShareLinkRepository;
 import com.trip.repo.TripMemberRepository;
 import com.trip.repo.TripRepository;
 import com.trip.repo.UserRepository;
@@ -79,6 +80,9 @@ class DayNoteControllerTest {
 
     @MockitoBean
     GuestSessionRepository guestSessionRepository;
+
+    @MockitoBean
+    ShareLinkRepository shareLinkRepository;
 
     @MockitoBean
     BreachedPasswordChecker breachedPasswordChecker;

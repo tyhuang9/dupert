@@ -51,6 +51,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
 
     private static final String LOGIN_PATH = "/api/auth/login";
     private static final String REGISTER_PATH = "/api/auth/register";
+    private static final String SHARE_PATH_PREFIX = "/api/share/";
     /**
      * Shared with {@code AuthController}'s inner per-(ip, email) check so the two
      * layers emit byte-identical 429 bodies — a probing attacker cannot distinguish
@@ -82,9 +83,33 @@ public class RateLimitFilter extends OncePerRequestFilter {
                 if (!tryConsume(response, RateLimitRegistry.Named.AUTH_REGISTER, clientIp)) {
                     return;
                 }
+            } else if (isShareAcceptPath(path)) {
+                if (!tryConsume(response, RateLimitRegistry.Named.SHARE_ACCEPT,
+                        clientIp + ":" + shareToken(path))) {
+                    return;
+                }
             }
         }
         chain.doFilter(request, response);
+    }
+
+    private static boolean isShareAcceptPath(String path) {
+        if (!path.startsWith(SHARE_PATH_PREFIX)) {
+            return false;
+        }
+        int tokenStart = SHARE_PATH_PREFIX.length();
+        int tokenEnd = path.indexOf('/', tokenStart);
+        if (tokenEnd <= tokenStart || tokenEnd == path.length() - 1) {
+            return false;
+        }
+        String action = path.substring(tokenEnd + 1);
+        return "accept".equals(action) || "guest".equals(action);
+    }
+
+    private static String shareToken(String path) {
+        int tokenStart = SHARE_PATH_PREFIX.length();
+        int tokenEnd = path.indexOf('/', tokenStart);
+        return tokenEnd < 0 ? "" : path.substring(tokenStart, tokenEnd);
     }
 
     private boolean tryConsume(HttpServletResponse response,

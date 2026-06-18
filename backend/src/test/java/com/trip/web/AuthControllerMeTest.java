@@ -36,6 +36,7 @@ import com.trip.domain.User;
 import com.trip.repo.ActivityRepository;
 import com.trip.repo.DayNoteRepository;
 import com.trip.repo.GuestSessionRepository;
+import com.trip.repo.ShareLinkRepository;
 import com.trip.repo.TripMemberRepository;
 import com.trip.repo.TripRepository;
 import com.trip.repo.UserRepository;
@@ -92,6 +93,9 @@ class AuthControllerMeTest {
 
     @MockitoBean
     GuestSessionRepository guestSessionRepository;
+
+    @MockitoBean
+    ShareLinkRepository shareLinkRepository;
 
     @BeforeEach
     void wireDefaults() {
