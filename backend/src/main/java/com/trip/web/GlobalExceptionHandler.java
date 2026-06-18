@@ -9,6 +9,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
@@ -22,6 +23,7 @@ import com.trip.config.CorrelationIdFilter;
 import com.trip.web.exception.NotFoundException;
 import com.trip.web.exception.ValidationException;
 
+import jakarta.persistence.OptimisticLockException;
 import jakarta.validation.ConstraintViolationException;
 
 /**
@@ -141,6 +143,14 @@ public class GlobalExceptionHandler {
         // the request body or any user-supplied value in the log line.
         log.warn("Data integrity violation (correlationId={}): {}", cid, ex.getClass().getSimpleName());
         return respond(HttpStatus.CONFLICT, "conflict", "Conflict with existing resource.", null);
+    }
+
+    @ExceptionHandler({ObjectOptimisticLockingFailureException.class, OptimisticLockException.class})
+    public ResponseEntity<ErrorResponse> handleOptimisticLock(Exception ex) {
+        String cid = MDC.get(CorrelationIdFilter.MDC_KEY);
+        log.debug("Optimistic lock conflict (correlationId={}): {}", cid, ex.getClass().getSimpleName());
+        return respond(HttpStatus.CONFLICT, "edit_conflict",
+            "This resource changed since it was last loaded.", null);
     }
 
     @ExceptionHandler(Exception.class)

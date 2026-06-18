@@ -1,7 +1,10 @@
 package com.trip.service.activity;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -296,6 +299,12 @@ public class ActivityService {
 
         // Validate that all provided IDs belong to this trip/day and build a lookup map
         var requestedIds = request.activityIds();
+        Set<Long> uniqueRequestedIds = new HashSet<>(requestedIds);
+        if (uniqueRequestedIds.size() != requestedIds.size()) {
+            throw new ValidationException("duplicate_activity_ids",
+                "activityIds must not contain duplicates");
+        }
+
         var activityById = new java.util.HashMap<Long, Activity>();
         for (Activity a : currentDayActivities) {
             activityById.put(a.getId(), a);
@@ -320,7 +329,7 @@ public class ActivityService {
 
         // Activities not in the request are moved to the end
         for (Activity a : currentDayActivities) {
-            if (!requestedIds.contains(a.getId())) {
+            if (!uniqueRequestedIds.contains(a.getId())) {
                 a.setOrderIndex(nextIndex);
                 a.setUpdatedByUserId(userId);
                 activityRepository.save(a);
@@ -373,31 +382,22 @@ public class ActivityService {
         // If moving within the same day, just reorder in-place
         if (sourceDayDate.equals(destDayDate)) {
             List<Activity> dayActivities = activityRepository.findByTripIdAndDayDateOrderByOrderIndex(tripId, sourceDayDate);
-
-            // Build a lookup and remove the moving activity
-            var activityById = new java.util.HashMap<Long, Activity>();
+            List<Activity> reordered = new ArrayList<>(dayActivities.size());
             for (Activity a : dayActivities) {
                 if (!a.getId().equals(activityId)) {
-                    activityById.put(a.getId(), a);
+                    reordered.add(a);
                 }
             }
 
-            // Rebuild indices: activities at or after targetIndex are pushed down
-            int index = 0;
-            for (Activity a : dayActivities) {
-                if (a.getId().equals(activityId)) {
-                    // This is the moving activity; set its index
-                    activity.setOrderIndex(Math.min(targetIndex, activityById.size()));
-                } else if (index >= targetIndex) {
-                    // This activity is at or after the insertion point; shift it down
-                    a.setOrderIndex(index + 1);
-                    activityRepository.save(a);
-                } else {
-                    // This activity is before the insertion point; keep its relative index
-                    a.setOrderIndex(index);
+            int insertionIndex = Math.min(targetIndex, reordered.size());
+            reordered.add(insertionIndex, activity);
+
+            for (int index = 0; index < reordered.size(); index++) {
+                Activity a = reordered.get(index);
+                a.setOrderIndex(index);
+                if (!a.getId().equals(activityId)) {
                     activityRepository.save(a);
                 }
-                index++;
             }
         } else {
             // Moving to a different day

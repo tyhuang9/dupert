@@ -19,6 +19,9 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import com.trip.repo.ActivityRepository;
+import com.trip.repo.DayNoteRepository;
+import com.trip.repo.GuestSessionRepository;
 import com.trip.repo.RefreshTokenRepository;
 import com.trip.repo.TripMemberRepository;
 import com.trip.repo.TripRepository;
@@ -60,6 +63,15 @@ class SmokeTest {
 
     @MockitoBean
     TripMemberRepository tripMemberRepository;
+
+    @MockitoBean
+    ActivityRepository activityRepository;
+
+    @MockitoBean
+    DayNoteRepository dayNoteRepository;
+
+    @MockitoBean
+    GuestSessionRepository guestSessionRepository;
 
     @Test
     void healthEndpointReturns200() throws Exception {

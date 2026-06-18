@@ -36,6 +36,9 @@ import com.trip.domain.Trip;
 import com.trip.domain.TripMember;
 import com.trip.domain.TripRole;
 import com.trip.domain.User;
+import com.trip.repo.ActivityRepository;
+import com.trip.repo.DayNoteRepository;
+import com.trip.repo.GuestSessionRepository;
 import com.trip.repo.TripMemberRepository;
 import com.trip.repo.TripRepository;
 import com.trip.repo.UserRepository;
@@ -89,6 +92,15 @@ class TripControllerTest {
 
     @MockitoBean
     PublicIdGenerator publicIdGenerator;
+
+    @MockitoBean
+    ActivityRepository activityRepository;
+
+    @MockitoBean
+    DayNoteRepository dayNoteRepository;
+
+    @MockitoBean
+    GuestSessionRepository guestSessionRepository;
 
     @BeforeEach
     void wireDefaults() {

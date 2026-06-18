@@ -33,6 +33,9 @@ import org.springframework.test.web.servlet.MockMvc;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.trip.domain.RefreshToken;
 import com.trip.domain.User;
+import com.trip.repo.ActivityRepository;
+import com.trip.repo.DayNoteRepository;
+import com.trip.repo.GuestSessionRepository;
 import com.trip.repo.TripMemberRepository;
 import com.trip.repo.TripRepository;
 import com.trip.repo.UserRepository;
@@ -80,6 +83,15 @@ class AuthControllerMeTest {
 
     @MockitoBean
     TripMemberRepository tripMemberRepository;
+
+    @MockitoBean
+    ActivityRepository activityRepository;
+
+    @MockitoBean
+    DayNoteRepository dayNoteRepository;
+
+    @MockitoBean
+    GuestSessionRepository guestSessionRepository;
 
     @BeforeEach
     void wireDefaults() {
