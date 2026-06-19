@@ -40,6 +40,7 @@ cp .env.example .env
 #   JWT_SECRET            (generate: openssl rand -hex 32)
 #   LOG_EMAIL_PEPPER      (generate: openssl rand -hex 16)
 #   VITE_MAPBOX_TOKEN     (Mapbox public token)
+#   NVD_API_KEY           (optional, strongly recommended before Dependency-Check)
 ```
 
 Install frontend dependencies:
@@ -89,6 +90,7 @@ Open http://localhost:3000 in your browser. Vite proxies `/api/**` to the backen
 |---|---|
 | `./gradlew build` | Compile + run tests + assemble jar |
 | `./gradlew test` | Run tests only |
+| `./gradlew dependencyCheckAnalyze` | Run OWASP Dependency-Check and fail on CVSS 7+ findings. Set `NVD_API_KEY` first for reliable update speed |
 | `./gradlew bootJar` | Produce `build/libs/<name>.jar` for deployment |
 | `./gradlew clean` | Wipe `build/` |
 
@@ -100,11 +102,42 @@ Open http://localhost:3000 in your browser. Vite proxies `/api/**` to the backen
 | `npm run build` | Production build to `dist/` |
 | `npm run preview` | Serve the production build locally |
 | `npm run lint` | ESLint |
+| `npm run test` | Vitest unit/component tests |
+| `npm audit --omit=dev` | Audit production dependency tree |
+
+Before pushing a feature, run:
+
+```bash
+(cd backend && ./gradlew test)
+(cd frontend && npm run lint)
+(cd frontend && npm run test)
+(cd frontend && npm run build)
+(cd frontend && npm audit --omit=dev)
+```
+
+With `NVD_API_KEY` set, also run:
+
+```bash
+(cd backend && ./gradlew dependencyCheckAnalyze)
+```
+
+## CI
+
+GitHub Actions lives at `.github/workflows/ci.yml`.
+
+On pushes to `main`, pull requests, and manual dispatches it runs:
+
+- backend tests on Java 21
+- backend OWASP Dependency-Check when `NVD_API_KEY` is configured, with HTML/JSON reports uploaded as artifacts
+- frontend `npm ci`, lint, tests, production build, and production dependency audit
+
+The CI workflow does not require app runtime secrets. Backend tests use the test profile and do not require a Neon URL, Mapbox token, or local `.env`. For reliable OWASP Dependency-Check updates, add a repository secret named `NVD_API_KEY`; when it is absent, CI emits a notice and skips only that vulnerability scan instead of using the NVD no-key rate limit path. CI caches `~/.gradle/dependency-check-data` between successful scan runs.
 
 ## Project layout
 
 ```
 TripPlanner/
+├── .github/         GitHub Actions CI workflow
 ├── backend/         Spring Boot service (Java 21)
 │   └── src/main/java/com/trip/
 │       ├── config/  Security, CORS, headers, CSP, rate-limit, exception handler
@@ -130,6 +163,16 @@ TripPlanner/
 | `LOG_EMAIL_PEPPER` | backend | 16 random bytes (hex) for hashing emails in logs |
 | `APP_FRONTEND_ORIGIN` | backend | Exact origin allowed by CORS (e.g. `http://localhost:3000`) |
 | `VITE_MAPBOX_TOKEN` | frontend | Public Mapbox token; URL-restricted in the Mapbox dashboard |
-| `VITE_API_BASE_URL` | frontend | Backend base URL the SPA talks to |
+| `NVD_API_KEY` | backend/CI | Optional but strongly recommended key for reliable OWASP Dependency-Check NVD updates |
 
 Values containing shell metacharacters (`&`, `;`, `$`, spaces) **must** be wrapped in single quotes in `.env`, otherwise `source .env` will silently truncate them.
+
+## Security notes
+
+- Trip URLs are identifiers, not access grants. Every `/api/trips/**` request goes through the backend access guard and requires either a member JWT or a valid guest-session cookie.
+- Access tokens stay in memory; refresh tokens and guest-session tokens are opaque `HttpOnly` cookies.
+- Share links store only a SHA-256 hash of the raw token and can be revoked by the trip owner.
+- Anonymous guest writes require the guest cookie plus the `X-TripPlanner-Guest-Write: 1` header, and guest/share endpoints are rate limited.
+- SSE events on `/api/trips/{publicId}/stream` contain only pointers such as event type, trip id, activity id, or day date; clients refetch the real data through authenticated API calls.
+- Mapbox is called directly from the browser with a public token. Restrict the token to localhost and production origins in the Mapbox dashboard.
+- Keep `.env` local-only. Commit changes to `.env.example` when configuration requirements change.

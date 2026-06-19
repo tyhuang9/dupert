@@ -50,6 +50,19 @@ describe('activity drag helpers', () => {
     ])
   })
 
+  it('keeps date-only ranges stable across leap day and DST boundaries', () => {
+    expect(listTripDays('2028-02-28', '2028-03-01')).toEqual([
+      '2028-02-28',
+      '2028-02-29',
+      '2028-03-01',
+    ])
+    expect(listTripDays('2026-03-07', '2026-03-09')).toEqual([
+      '2026-03-07',
+      '2026-03-08',
+      '2026-03-09',
+    ])
+  })
+
   it('builds a same-day reorder operation', () => {
     const dayActivities = [
       activity(10, '2026-05-01', 0),

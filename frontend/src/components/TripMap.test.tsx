@@ -111,10 +111,45 @@ describe('<TripMap>', () => {
     expect(screen.getByTestId('route-layer')).toBeInTheDocument()
   })
 
+  it('shows route calculation state while directions are loading', async () => {
+    let resolveRoute: (route: Awaited<ReturnType<typeof getDrivingDirections>>) => void = () => {}
+    directionsMock.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveRoute = resolve
+        }),
+    )
+
+    render(<TripMap activities={ACTIVITIES} destination="Tokyo" />)
+
+    expect(await screen.findByText('Calculating route...')).toBeInTheDocument()
+    resolveRoute({
+      distance: 2400,
+      duration: 720,
+      geometry: {
+        type: 'LineString',
+        coordinates: [
+          [139.7454, 35.6586],
+          [139.7707, 35.6654],
+        ],
+      },
+      legs: [{ distance: 2400, duration: 720 }],
+    })
+    expect(await screen.findByText('12 min total · 2.4 km')).toBeInTheDocument()
+  })
+
   it('does not request directions with fewer than two mapped activities', () => {
     render(<TripMap activities={[ACTIVITIES[0]]} destination="Tokyo" />)
 
     expect(directionsMock).not.toHaveBeenCalled()
     expect(screen.queryByTestId('route-layer')).not.toBeInTheDocument()
+    expect(screen.getByText('Route needs at least two mapped stops.')).toBeInTheDocument()
+  })
+
+  it('shows an empty map state when the selected day has no mapped stops', () => {
+    render(<TripMap activities={[]} destination="Tokyo" />)
+
+    expect(directionsMock).not.toHaveBeenCalled()
+    expect(screen.getByText('No mapped stops for this day.')).toBeInTheDocument()
   })
 })

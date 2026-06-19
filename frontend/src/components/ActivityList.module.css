@@ -34,7 +34,7 @@
 
 .dragHandle:hover,
 .dragHandle:focus-visible {
-  border-color: var(--color-border-focus);
+  border-color: var(--focus-ring-color);
   background-color: var(--color-surface-2);
 }
 

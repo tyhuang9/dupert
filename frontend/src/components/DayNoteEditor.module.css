@@ -28,7 +28,7 @@
 
 .submitButton {
   width: fit-content;
-  padding: var(--space-3) var(--space-5);
+  padding: var(--space-3) var(--space-6);
   border: none;
   border-radius: var(--radius-md);
   background-color: var(--color-primary);

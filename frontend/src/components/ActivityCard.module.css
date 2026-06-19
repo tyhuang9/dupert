@@ -16,15 +16,18 @@
 }
 
 .title {
+  min-width: 0;
   margin: 0;
   font-size: var(--font-size-sm);
   line-height: var(--line-height-tight);
+  overflow-wrap: anywhere;
 }
 
 .actions {
   display: flex;
   align-items: center;
   gap: var(--space-2);
+  flex-shrink: 0;
 }
 
 .iconButton {
@@ -45,7 +48,7 @@
 
 .iconButton:hover,
 .iconButton:focus-visible {
-  border-color: var(--color-border-focus);
+  border-color: var(--focus-ring-color);
   background-color: var(--color-surface-2);
 }
 
@@ -65,7 +68,7 @@
 
 .category {
   padding: 0.25rem 0.5rem;
-  border-radius: var(--radius-full);
+  border-radius: var(--radius-pill);
   background-color: var(--color-surface-2);
 }
 
@@ -116,4 +119,25 @@
 .attribution {
   color: var(--color-text-muted);
   font-size: var(--font-size-xs);
+}
+
+@media (max-width: 420px) {
+  .header {
+    display: grid;
+    gap: var(--space-3);
+  }
+
+  .actions,
+  .moveControls {
+    width: 100%;
+  }
+
+  .moveLabel {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .moveLabel input {
+    width: min(100%, 10rem);
+  }
 }

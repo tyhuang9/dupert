@@ -160,7 +160,7 @@
 .dayTarget:hover,
 .dayTarget:focus-visible,
 .dayTargetOver {
-  border-color: var(--color-border-focus);
+  border-color: var(--focus-ring-color);
   background-color: var(--color-surface);
 }
 
@@ -174,7 +174,7 @@
   min-height: 1.5rem;
   display: inline-grid;
   place-items: center;
-  border-radius: var(--radius-full);
+  border-radius: var(--radius-pill);
   background-color: var(--color-surface);
   color: var(--color-text-muted);
   font-size: var(--font-size-xs);

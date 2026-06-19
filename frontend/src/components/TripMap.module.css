@@ -27,7 +27,7 @@
   min-height: 1.75rem;
   padding: 0 var(--space-2);
   border: 1px solid var(--color-surface-border);
-  border-radius: var(--radius-full);
+  border-radius: var(--radius-pill);
   background-color: var(--color-surface);
   color: var(--color-text);
   font-size: var(--font-size-xs);
@@ -51,11 +51,26 @@
   box-shadow: var(--shadow-sm);
 }
 
+.mapNotice {
+  position: absolute;
+  top: var(--space-3);
+  left: var(--space-3);
+  max-width: calc(100% - var(--space-6));
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-surface-border);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  box-shadow: var(--shadow-sm);
+}
+
 .fallback {
   display: grid;
   align-content: center;
   min-height: 24rem;
-  padding: var(--space-5);
+  padding: var(--space-6);
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);
   line-height: var(--line-height-base);

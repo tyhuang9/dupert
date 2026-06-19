@@ -57,13 +57,8 @@ export default function MembersPage() {
     void revokeMutation.mutateAsync({ publicId, linkId })
   }
 
-  const error =
-    createMutation.error ||
-    revokeMutation.error ||
-    membersQuery.error ||
-    shareLinksQuery.error ||
-    tripQuery.error
-  const parsedError = error ? parseApiError(error) : null
+  const pageError = createMutation.error || revokeMutation.error || tripQuery.error
+  const parsedError = pageError ? parseApiError(pageError) : null
 
   return (
     <main id="main" className={styles.shell}>
@@ -92,6 +87,17 @@ export default function MembersPage() {
         {membersQuery.isLoading ? (
           <div className={styles.state} aria-live="polite">
             <p>Loading members...</p>
+          </div>
+        ) : membersQuery.isError ? (
+          <div className={styles.errorState} role="alert">
+            <p>{parseApiError(membersQuery.error).topMessage}</p>
+            <button
+              type="button"
+              className={styles.secondaryButton}
+              onClick={() => void membersQuery.refetch()}
+            >
+              Retry members
+            </button>
           </div>
         ) : membersQuery.data && membersQuery.data.length > 0 ? (
           <ul className={styles.list}>
@@ -168,6 +174,17 @@ export default function MembersPage() {
         {shareLinksQuery.isLoading ? (
           <div className={styles.state} aria-live="polite">
             <p>Loading share links...</p>
+          </div>
+        ) : shareLinksQuery.isError ? (
+          <div className={styles.errorState} role="alert">
+            <p>{parseApiError(shareLinksQuery.error).topMessage}</p>
+            <button
+              type="button"
+              className={styles.secondaryButton}
+              onClick={() => void shareLinksQuery.refetch()}
+            >
+              Retry links
+            </button>
           </div>
         ) : activeLinks.length > 0 ? (
           <ul className={styles.list}>

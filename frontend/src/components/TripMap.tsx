@@ -96,6 +96,17 @@ export function TripMap({ activities, destination }: TripMapProps) {
   )
   const currentRoute = directionsState.key === routeKey ? directionsState.route : null
   const routeError = directionsState.key === routeKey && directionsState.error
+  const routeLoading =
+    Boolean(token) &&
+    mappedActivities.length >= 2 &&
+    directionsState.key !== routeKey
+  const mapNotice = useMemo(() => {
+    if (mappedActivities.length === 0) return 'No mapped stops for this day.'
+    if (mappedActivities.length === 1) return 'Route needs at least two mapped stops.'
+    if (routeLoading) return 'Calculating route...'
+    if (routeError) return 'Route unavailable.'
+    return null
+  }, [mappedActivities.length, routeError, routeLoading])
   const routeSourceData = useMemo(
     () =>
       currentRoute
@@ -196,15 +207,16 @@ export function TripMap({ activities, destination }: TripMapProps) {
           </Marker>
         ))}
       </Map>
-      {(currentRoute || routeError) && (
+      {mapNotice && (
+        <div className={styles.mapNotice} aria-live="polite">
+          {mapNotice}
+        </div>
+      )}
+      {currentRoute && (
         <div className={styles.routeSummary} aria-live="polite">
-          {routeError ? (
-            <span>Route unavailable</span>
-          ) : currentRoute ? (
-            <span>
-              {formatTravelTime(currentRoute.duration)} total · {(currentRoute.distance / 1000).toFixed(1)} km
-            </span>
-          ) : null}
+          <span>
+            {formatTravelTime(currentRoute.duration)} total · {(currentRoute.distance / 1000).toFixed(1)} km
+          </span>
         </div>
       )}
     </div>
