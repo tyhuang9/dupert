@@ -2,7 +2,9 @@ import { useEffect, useRef } from 'react'
 import { fetchEventSource } from '@microsoft/fetch-event-source'
 import { useQueryClient } from '@tanstack/react-query'
 import { useAuthStore, useAccessToken } from '../auth/authStore'
+import { shareKeys } from './useShareLinks'
 import { activityKeys } from './useActivities'
+import { tripKeys } from './useTrips'
 
 export interface TripStreamEvent {
   type: string
@@ -98,5 +100,14 @@ function invalidateForEvent(
         queryKey: activityKeys.dayNote(publicId, event.dayDate),
       })
     }
+    return
+  }
+
+  if (event.type === 'share-links.changed') {
+    void queryClient.invalidateQueries({ queryKey: shareKeys.forTrip(publicId) })
+    void queryClient.invalidateQueries({ queryKey: shareKeys.members(publicId) })
+    void queryClient.invalidateQueries({ queryKey: tripKeys.detail(publicId) })
+    void queryClient.invalidateQueries({ queryKey: activityKeys.list(publicId) })
+    void queryClient.invalidateQueries({ queryKey: activityKeys.dayNotes(publicId) })
   }
 }

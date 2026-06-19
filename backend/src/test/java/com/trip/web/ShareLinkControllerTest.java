@@ -2,6 +2,8 @@ package com.trip.web;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -44,6 +46,7 @@ import com.trip.repo.TripRepository;
 import com.trip.repo.UserRepository;
 import com.trip.service.auth.JwtService;
 import com.trip.service.auth.password.BreachedPasswordChecker;
+import com.trip.service.realtime.TripEventPublisher;
 import com.trip.service.share.ShareTokenService;
 import com.trip.service.trip.ReflectionIds;
 
@@ -99,6 +102,9 @@ class ShareLinkControllerTest {
     @MockitoBean
     BreachedPasswordChecker breachedPasswordChecker;
 
+    @MockitoBean
+    TripEventPublisher tripEventPublisher;
+
     private Trip trip;
 
     @BeforeEach
@@ -148,6 +154,10 @@ class ShareLinkControllerTest {
         assertThat(saved.getValue().isAllowAnonymous()).isFalse();
         assertThat(saved.getValue().getTokenHash()).hasSize(64);
         assertThat(saved.getValue().getTokenHash()).doesNotContain("http", "share");
+        verify(tripEventPublisher).publishAfterCommit(eq(TRIP_PK), argThat(event ->
+            event.type().equals("share-links.changed")
+                && event.activityId() == null
+                && event.dayDate() == null));
     }
 
     @Test
@@ -211,6 +221,10 @@ class ShareLinkControllerTest {
 
         assertThat(shareLink.getRevokedAt()).isNotNull();
         verify(shareLinkRepository).save(shareLink);
+        verify(tripEventPublisher).publishAndDisconnectAfterCommit(eq(TRIP_PK), argThat(event ->
+            event.type().equals("share-links.changed")
+                && event.activityId() == null
+                && event.dayDate() == null));
     }
 
     @Test

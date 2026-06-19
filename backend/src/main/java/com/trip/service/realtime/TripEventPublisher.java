@@ -18,15 +18,26 @@ public class TripEventPublisher {
     }
 
     public void publishAfterCommit(Long tripId, TripEvent event) {
-        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+        afterCommitOrNow(() -> broker.publish(tripId, event));
+    }
+
+    public void publishAndDisconnectAfterCommit(Long tripId, TripEvent event) {
+        afterCommitOrNow(() -> {
             broker.publish(tripId, event);
+            broker.disconnect(tripId);
+        });
+    }
+
+    private void afterCommitOrNow(Runnable action) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            action.run();
             return;
         }
 
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void afterCommit() {
-                broker.publish(tripId, event);
+                action.run();
             }
         });
     }

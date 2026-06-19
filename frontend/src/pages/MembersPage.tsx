@@ -7,6 +7,7 @@ import {
   useShareLinks,
   useTripMembers,
 } from '../hooks/useShareLinks'
+import { useTripStream } from '../hooks/useTripStream'
 import { useTrip } from '../hooks/useTrips'
 import { usePageTitle } from '../utils/usePageTitle'
 import type { CreateShareLinkRequest } from '../types/share'
@@ -24,6 +25,7 @@ export default function MembersPage() {
   const [role, setRole] = useState<ShareRole>('EDITOR')
   const [allowAnonymous, setAllowAnonymous] = useState(false)
   const [lastShareUrl, setLastShareUrl] = useState('')
+  useTripStream(publicId)
 
   usePageTitle(
     tripQuery.data

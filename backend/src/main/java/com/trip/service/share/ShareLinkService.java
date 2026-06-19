@@ -16,6 +16,8 @@ import com.trip.repo.GuestSessionRepository;
 import com.trip.repo.ShareLinkRepository;
 import com.trip.repo.TripMemberRepository;
 import com.trip.repo.TripRepository;
+import com.trip.service.realtime.TripEvent;
+import com.trip.service.realtime.TripEventPublisher;
 import com.trip.service.trip.ResolvedTrip;
 import com.trip.service.trip.TripAccessGuard;
 import com.trip.web.dto.share.AcceptShareLinkResponse;
@@ -46,6 +48,7 @@ public class ShareLinkService {
     private final TripMemberRepository tripMemberRepository;
     private final TripAccessGuard tripAccessGuard;
     private final ShareTokenService shareTokenService;
+    private final TripEventPublisher tripEventPublisher;
     private final String frontendOrigin;
 
     public ShareLinkService(ShareLinkRepository shareLinkRepository,
@@ -54,6 +57,7 @@ public class ShareLinkService {
                             TripMemberRepository tripMemberRepository,
                             TripAccessGuard tripAccessGuard,
                             ShareTokenService shareTokenService,
+                            TripEventPublisher tripEventPublisher,
                             AppProperties appProperties) {
         this.shareLinkRepository = shareLinkRepository;
         this.guestSessionRepository = guestSessionRepository;
@@ -61,6 +65,7 @@ public class ShareLinkService {
         this.tripMemberRepository = tripMemberRepository;
         this.tripAccessGuard = tripAccessGuard;
         this.shareTokenService = shareTokenService;
+        this.tripEventPublisher = tripEventPublisher;
         this.frontendOrigin = appProperties.getFrontendOrigin();
     }
 
@@ -78,6 +83,8 @@ public class ShareLinkService {
             userId,
             request.expiresAt());
         ShareLink saved = shareLinkRepository.save(link);
+        tripEventPublisher.publishAfterCommit(
+            resolved.trip().getId(), TripEvent.shareLinksChanged(publicId));
         return CreateShareLinkResponse.of(saved, token.raw(), shareUrl(token.raw()));
     }
 
@@ -100,6 +107,8 @@ public class ShareLinkService {
         if (link.getRevokedAt() == null) {
             link.revoke(OffsetDateTime.now());
             shareLinkRepository.save(link);
+            tripEventPublisher.publishAndDisconnectAfterCommit(
+                resolved.trip().getId(), TripEvent.shareLinksChanged(publicId));
         }
     }
 

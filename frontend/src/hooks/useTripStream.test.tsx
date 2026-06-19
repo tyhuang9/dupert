@@ -5,6 +5,8 @@ import type { PropsWithChildren } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuthStore } from '../auth/authStore'
 import { activityKeys } from './useActivities'
+import { shareKeys } from './useShareLinks'
+import { tripKeys } from './useTrips'
 import { useTripStream } from './useTripStream'
 
 vi.mock('@microsoft/fetch-event-source', () => ({
@@ -142,6 +144,38 @@ describe('useTripStream', () => {
       expect(invalidateSpy).toHaveBeenCalledWith({
         queryKey: activityKeys.list('abc234def567'),
       })
+    })
+  })
+
+  it('invalidates trip sharing and access caches for share-link events', async () => {
+    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries')
+    renderHook(() => useTripStream('abc234def567'), { wrapper })
+
+    await waitFor(() => {
+      expect(fetchEventSourceMock).toHaveBeenCalled()
+    })
+
+    act(() => {
+      streamOptions().onmessage({
+        event: 'trip-event',
+        data: JSON.stringify(tripEvent('share-links.changed')),
+      })
+    })
+
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: shareKeys.forTrip('abc234def567'),
+    })
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: shareKeys.members('abc234def567'),
+    })
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: tripKeys.detail('abc234def567'),
+    })
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: activityKeys.list('abc234def567'),
+    })
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: activityKeys.dayNotes('abc234def567'),
     })
   })
 })

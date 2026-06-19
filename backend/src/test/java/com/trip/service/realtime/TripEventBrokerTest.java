@@ -27,4 +27,15 @@ class TripEventBrokerTest {
 
         assertThat(broker.subscriberCountForTest(42L)).isZero();
     }
+
+    @Test
+    void disconnectRemovesTripSubscribers() {
+        TripEventBroker broker = new TripEventBroker();
+        broker.subscribe(42L);
+        broker.subscribe(42L);
+
+        broker.disconnect(42L);
+
+        assertThat(broker.subscriberCountForTest(42L)).isZero();
+    }
 }

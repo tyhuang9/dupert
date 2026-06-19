@@ -61,6 +61,16 @@ public class TripEventBroker {
         }
     }
 
+    public void disconnect(Long tripId) {
+        CopyOnWriteArrayList<SseEmitter> emitters = emittersByTrip.remove(tripId);
+        if (emitters == null || emitters.isEmpty()) {
+            return;
+        }
+        for (SseEmitter emitter : emitters) {
+            emitter.complete();
+        }
+    }
+
     int subscriberCountForTest(Long tripId) {
         return emittersByTrip.getOrDefault(tripId, new CopyOnWriteArrayList<>()).size();
     }
