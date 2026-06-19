@@ -24,6 +24,7 @@ import {
   useUpdateActivity,
   useUpdateDayNote,
 } from '../hooks/useActivities'
+import { useTripStream } from '../hooks/useTripStream'
 import { usePageTitle } from '../utils/usePageTitle'
 import styles from './TripWorkspacePage.module.css'
 import { ActivityForm } from '../components/ActivityForm'
@@ -122,6 +123,7 @@ export function TripWorkspacePage() {
   const navigate = useNavigate()
   const [editingActivity, setEditingActivity] = useState<Activity | null>(null)
   const [placeDraft, setPlaceDraft] = useState<Partial<CreateActivityRequest> | null>(null)
+  const [isDraggingActivity, setIsDraggingActivity] = useState(false)
   const tripQuery = useTrip(publicId)
   const activitiesQuery = useActivities(publicId)
   const selectedDay = tripQuery.data
@@ -136,6 +138,7 @@ export function TripWorkspacePage() {
   const reorderActivitiesMutation = useReorderActivities()
   const moveActivityMutation = useMoveActivity()
   const updateDayNoteMutation = useUpdateDayNote()
+  useTripStream(publicId, { bufferActivityEvents: isDraggingActivity })
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: { distance: 8 },
@@ -309,6 +312,11 @@ export function TripWorkspacePage() {
     })
   }
 
+  const handleWorkspaceDragEnd = (event: DragEndEvent) => {
+    handleDragEnd(event)
+    setIsDraggingActivity(false)
+  }
+
   const activityFormInitialValues = activeEditingActivity
     ? {
         category: activeEditingActivity.category,
@@ -389,7 +397,9 @@ export function TripWorkspacePage() {
           <DndContext
             sensors={sensors}
             collisionDetection={closestCenter}
-            onDragEnd={handleDragEnd}
+            onDragCancel={() => setIsDraggingActivity(false)}
+            onDragEnd={handleWorkspaceDragEnd}
+            onDragStart={() => setIsDraggingActivity(true)}
           >
             <section className={styles.workspaceShell}>
               <div className={styles.panel}>
