@@ -1,4 +1,15 @@
 import axios from 'axios'
+import {
+  closestCenter,
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  useDroppable,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core'
+import { sortableKeyboardCoordinates } from '@dnd-kit/sortable'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { parseApiError } from '../api/errors'
@@ -21,6 +32,11 @@ import { DayNoteEditor } from '../components/DayNoteEditor'
 import { PlaceSearch } from '../components/PlaceSearch'
 import { TripMap } from '../components/TripMap'
 import type { Activity, CreateActivityRequest } from '../types/activity'
+import {
+  dayDropId,
+  getActivityDragOperation,
+  listTripDays,
+} from '../utils/activityDrag'
 
 function isNotFoundError(err: unknown): boolean {
   return axios.isAxiosError(err) && err.response?.status === 404
@@ -28,6 +44,77 @@ function isNotFoundError(err: unknown): boolean {
 
 function dayInRange(dayDate: string, startDate: string, endDate: string): boolean {
   return dayDate >= startDate && dayDate <= endDate
+}
+
+function formatDayLabel(dayDate: string): string {
+  return dayDate.slice(5)
+}
+
+function DayDropTarget({
+  activityCount,
+  dayDate,
+  disabled,
+  onSelectDay,
+  selected,
+}: {
+  activityCount: number
+  dayDate: string
+  disabled: boolean
+  onSelectDay: (dayDate: string) => void
+  selected: boolean
+}) {
+  const { isOver, setNodeRef } = useDroppable({
+    id: dayDropId(dayDate),
+    disabled,
+  })
+  const className = [
+    styles.dayTarget,
+    selected ? styles.dayTargetSelected : '',
+    isOver ? styles.dayTargetOver : '',
+  ].filter(Boolean).join(' ')
+
+  return (
+    <button
+      ref={setNodeRef}
+      type="button"
+      className={className}
+      onClick={() => onSelectDay(dayDate)}
+      aria-pressed={selected}
+      title={`${dayDate} (${activityCount} activities)`}
+    >
+      <span>{formatDayLabel(dayDate)}</span>
+      <span className={styles.dayTargetCount}>{activityCount}</span>
+    </button>
+  )
+}
+
+function DayDropTargets({
+  activities,
+  days,
+  disabled,
+  onSelectDay,
+  selectedDay,
+}: {
+  activities: Activity[]
+  days: string[]
+  disabled: boolean
+  onSelectDay: (dayDate: string) => void
+  selectedDay: string
+}) {
+  return (
+    <div className={styles.dayTargets} aria-label="Trip days">
+      {days.map((dayDate) => (
+        <DayDropTarget
+          key={dayDate}
+          activityCount={activities.filter((activity) => activity.dayDate === dayDate).length}
+          dayDate={dayDate}
+          disabled={disabled}
+          onSelectDay={onSelectDay}
+          selected={dayDate === selectedDay}
+        />
+      ))}
+    </div>
+  )
 }
 
 export function TripWorkspacePage() {
@@ -49,6 +136,14 @@ export function TripWorkspacePage() {
   const reorderActivitiesMutation = useReorderActivities()
   const moveActivityMutation = useMoveActivity()
   const updateDayNoteMutation = useUpdateDayNote()
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: 8 },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
+  )
 
   usePageTitle(
     tripQuery.data ? `${tripQuery.data.name} – TripPlanner` : 'Trip workspace – TripPlanner',
@@ -65,6 +160,13 @@ export function TripWorkspacePage() {
   }, [day, navigate, publicId, tripQuery.data])
 
   const allActivities = useMemo(() => activitiesQuery.data ?? [], [activitiesQuery.data])
+  const tripDays = useMemo(
+    () =>
+      tripQuery.data
+        ? listTripDays(tripQuery.data.startDate, tripQuery.data.endDate)
+        : [],
+    [tripQuery.data],
+  )
   const dayActivities = useMemo(
     () =>
       allActivities
@@ -92,8 +194,7 @@ export function TripWorkspacePage() {
     editingActivity && editingActivity.dayDate === selectedDay ? editingActivity : null
   const canEditTrip = tripQuery.data?.role !== 'VIEWER'
 
-  const handleDayChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const nextDay = event.target.value
+  const handleSelectDay = (nextDay: string) => {
     if (
       publicId &&
       tripQuery.data &&
@@ -103,6 +204,10 @@ export function TripWorkspacePage() {
       setPlaceDraft(null)
       navigate(`/trips/${encodeURIComponent(publicId)}/d/${encodeURIComponent(nextDay)}`)
     }
+  }
+
+  const handleDayChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    handleSelectDay(event.target.value)
   }
 
   const handleCreateActivity = async (payload: CreateActivityRequest) => {
@@ -171,6 +276,36 @@ export function TripWorkspacePage() {
       publicId,
       dayDate: selectedDay,
       body: { note },
+    })
+  }
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    if (!publicId || !selectedDay || isActivityMutationPending) return
+    const operation = getActivityDragOperation({
+      activeId: event.active.id,
+      overId: event.over?.id,
+      selectedDayActivities: dayActivities,
+      allActivities,
+    })
+    if (!operation) return
+
+    if (operation.type === 'reorder') {
+      void reorderActivitiesMutation.mutateAsync({
+        publicId,
+        dayDate: selectedDay,
+        body: { activityIds: operation.activityIds },
+      })
+      return
+    }
+
+    if (activeEditingActivity?.id === operation.activity.id) {
+      setEditingActivity(null)
+      setPlaceDraft(null)
+    }
+    void moveActivityMutation.mutateAsync({
+      activityId: operation.activity.id,
+      publicId,
+      body: { dayDate: operation.dayDate, orderIndex: operation.orderIndex },
     })
   }
 
@@ -251,104 +386,117 @@ export function TripWorkspacePage() {
             </div>
           </header>
 
-          <section className={styles.workspaceShell}>
-            <div className={styles.panel}>
-              <h2 className={styles.panelTitle}>Selected day</h2>
-              <label className={styles.inputLabel}>
-                Pick a day
-                <input
-                  type="date"
-                  value={selectedDay ?? ''}
-                  min={tripQuery.data.startDate}
-                  max={tripQuery.data.endDate}
-                  onChange={handleDayChange}
-                  className={styles.dateInput}
-                />
-              </label>
-              {dayNoteQuery.isLoading ? (
-                <p className={styles.panelBody}>Loading note...</p>
-              ) : dayNoteQuery.isError ? (
-                <p className={styles.panelBody} role="alert">
-                  {parseApiError(dayNoteQuery.error).topMessage}
-                </p>
-              ) : selectedDay ? (
-                <DayNoteEditor
-                  key={`${selectedDay}:${dayNoteQuery.data?.note ?? ''}`}
-                  dayDate={selectedDay}
-                  note={dayNoteQuery.data}
-                  loading={dayNoteQuery.isLoading}
-                  readOnly={!canEditTrip}
-                  saving={updateDayNoteMutation.isPending}
-                  onSave={handleSaveDayNote}
-                />
-              ) : null}
-            </div>
-            <div className={styles.panel}>
-              <h2 className={styles.panelTitle}>Timeline</h2>
-              {activitiesQuery.isLoading ? (
-                <p className={styles.panelBody}>Loading activities…</p>
-              ) : activitiesQuery.isError ? (
-                <p className={styles.panelBody} role="alert">
-                  {parseApiError(activitiesQuery.error).topMessage}
-                </p>
-              ) : (
-                <>
-                  {mutationError && (
-                    <p className={styles.inlineAlert} role="alert">
-                      {parseApiError(mutationError).topMessage}
-                    </p>
-                  )}
-                  {canEditTrip && (
-                    <>
-                      <PlaceSearch
-                        onPlaceSelect={(place) => {
-                          setEditingActivity(null)
-                          setPlaceDraft(place)
-                        }}
-                      />
-                      <h3 className={styles.formHeading}>
-                        {activeEditingActivity ? 'Edit activity' : 'Add activity'}
-                      </h3>
-                      <ActivityForm
-                        key={activeEditingActivity ? `edit-${activeEditingActivity.id}` : createFormKey}
-                        initialValues={activityFormInitialValues}
-                        onSubmit={activeEditingActivity ? handleUpdateActivity : handleCreateActivity}
-                        onCancel={activeEditingActivity ? () => setEditingActivity(null) : undefined}
-                        submitting={
-                          activeEditingActivity
-                            ? updateActivityMutation.isPending
-                            : createActivityMutation.isPending
-                        }
-                        submitLabel={activeEditingActivity ? 'Save changes' : 'Save activity'}
-                      />
-                    </>
-                  )}
-                  <ActivityList
-                    activities={dayActivities}
-                    busy={isActivityMutationPending}
-                    minDate={tripQuery.data.startDate}
-                    maxDate={tripQuery.data.endDate}
-                    readOnly={!canEditTrip}
-                    onEdit={(activity) => {
-                      setPlaceDraft(null)
-                      setEditingActivity(activity)
-                    }}
-                    onDelete={handleDeleteActivity}
-                    onMoveDown={(activity) => handleMoveActivity(activity, 1)}
-                    onMoveToDay={handleMoveActivityToDay}
-                    onMoveUp={(activity) => handleMoveActivity(activity, -1)}
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+          >
+            <section className={styles.workspaceShell}>
+              <div className={styles.panel}>
+                <h2 className={styles.panelTitle}>Selected day</h2>
+                <label className={styles.inputLabel}>
+                  Pick a day
+                  <input
+                    type="date"
+                    value={selectedDay ?? ''}
+                    min={tripQuery.data.startDate}
+                    max={tripQuery.data.endDate}
+                    onChange={handleDayChange}
+                    className={styles.dateInput}
                   />
-                </>
-              )}
-            </div>
-            <div className={styles.panel}>
-              <h2 className={styles.panelTitle}>Map</h2>
-              <TripMap
-                activities={dayActivities}
-                destination={tripQuery.data.destination}
-              />
-            </div>
-          </section>
+                </label>
+                <DayDropTargets
+                  activities={allActivities}
+                  days={tripDays}
+                  disabled={!canEditTrip || isActivityMutationPending}
+                  onSelectDay={handleSelectDay}
+                  selectedDay={selectedDay ?? tripQuery.data.startDate}
+                />
+                {dayNoteQuery.isLoading ? (
+                  <p className={styles.panelBody}>Loading note...</p>
+                ) : dayNoteQuery.isError ? (
+                  <p className={styles.panelBody} role="alert">
+                    {parseApiError(dayNoteQuery.error).topMessage}
+                  </p>
+                ) : selectedDay ? (
+                  <DayNoteEditor
+                    key={`${selectedDay}:${dayNoteQuery.data?.note ?? ''}`}
+                    dayDate={selectedDay}
+                    note={dayNoteQuery.data}
+                    loading={dayNoteQuery.isLoading}
+                    readOnly={!canEditTrip}
+                    saving={updateDayNoteMutation.isPending}
+                    onSave={handleSaveDayNote}
+                  />
+                ) : null}
+              </div>
+              <div className={styles.panel}>
+                <h2 className={styles.panelTitle}>Timeline</h2>
+                {activitiesQuery.isLoading ? (
+                  <p className={styles.panelBody}>Loading activities…</p>
+                ) : activitiesQuery.isError ? (
+                  <p className={styles.panelBody} role="alert">
+                    {parseApiError(activitiesQuery.error).topMessage}
+                  </p>
+                ) : (
+                  <>
+                    {mutationError && (
+                      <p className={styles.inlineAlert} role="alert">
+                        {parseApiError(mutationError).topMessage}
+                      </p>
+                    )}
+                    {canEditTrip && (
+                      <>
+                        <PlaceSearch
+                          onPlaceSelect={(place) => {
+                            setEditingActivity(null)
+                            setPlaceDraft(place)
+                          }}
+                        />
+                        <h3 className={styles.formHeading}>
+                          {activeEditingActivity ? 'Edit activity' : 'Add activity'}
+                        </h3>
+                        <ActivityForm
+                          key={activeEditingActivity ? `edit-${activeEditingActivity.id}` : createFormKey}
+                          initialValues={activityFormInitialValues}
+                          onSubmit={activeEditingActivity ? handleUpdateActivity : handleCreateActivity}
+                          onCancel={activeEditingActivity ? () => setEditingActivity(null) : undefined}
+                          submitting={
+                            activeEditingActivity
+                              ? updateActivityMutation.isPending
+                              : createActivityMutation.isPending
+                          }
+                          submitLabel={activeEditingActivity ? 'Save changes' : 'Save activity'}
+                        />
+                      </>
+                    )}
+                    <ActivityList
+                      activities={dayActivities}
+                      busy={isActivityMutationPending}
+                      minDate={tripQuery.data.startDate}
+                      maxDate={tripQuery.data.endDate}
+                      readOnly={!canEditTrip}
+                      onEdit={(activity) => {
+                        setPlaceDraft(null)
+                        setEditingActivity(activity)
+                      }}
+                      onDelete={handleDeleteActivity}
+                      onMoveDown={(activity) => handleMoveActivity(activity, 1)}
+                      onMoveToDay={handleMoveActivityToDay}
+                      onMoveUp={(activity) => handleMoveActivity(activity, -1)}
+                    />
+                  </>
+                )}
+              </div>
+              <div className={styles.panel}>
+                <h2 className={styles.panelTitle}>Map</h2>
+                <TripMap
+                  activities={dayActivities}
+                  destination={tripQuery.data.destination}
+                />
+              </div>
+            </section>
+          </DndContext>
         </>
       ) : null}
     </main>

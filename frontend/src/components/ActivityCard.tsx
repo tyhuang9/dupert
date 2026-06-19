@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import type { Activity } from '../types/activity'
 import styles from './ActivityCard.module.css'
 
@@ -6,6 +7,7 @@ interface ActivityCardProps {
   busy?: boolean
   canMoveDown: boolean
   canMoveUp: boolean
+  dragHandle?: ReactNode
   maxDate: string
   minDate: string
   readOnly?: boolean
@@ -21,6 +23,7 @@ export function ActivityCard({
   busy = false,
   canMoveDown,
   canMoveUp,
+  dragHandle,
   maxDate,
   minDate,
   readOnly = false,
@@ -35,33 +38,39 @@ export function ActivityCard({
       onDelete(activity.id)
     }
   }
+  const hasActions = Boolean(dragHandle) || !readOnly
 
   return (
     <div className={styles.card}>
       <div className={styles.header}>
         <h3 className={styles.title}>{activity.title}</h3>
-        {!readOnly && (
+        {hasActions && (
           <div className={styles.actions}>
-            <button
-              type="button"
-              className={styles.iconButton}
-              title="Edit activity"
-              onClick={() => onEdit(activity)}
-              disabled={busy}
-              aria-label={`Edit: ${activity.title}`}
-            >
-              ✎
-            </button>
-            <button
-              type="button"
-              className={styles.iconButton}
-              title="Delete activity"
-              onClick={handleDelete}
-              disabled={busy}
-              aria-label={`Delete: ${activity.title}`}
-            >
-              ✕
-            </button>
+            {dragHandle}
+            {!readOnly && (
+              <>
+                <button
+                  type="button"
+                  className={styles.iconButton}
+                  title="Edit activity"
+                  onClick={() => onEdit(activity)}
+                  disabled={busy}
+                  aria-label={`Edit: ${activity.title}`}
+                >
+                  ✎
+                </button>
+                <button
+                  type="button"
+                  className={styles.iconButton}
+                  title="Delete activity"
+                  onClick={handleDelete}
+                  disabled={busy}
+                  aria-label={`Delete: ${activity.title}`}
+                >
+                  ✕
+                </button>
+              </>
+            )}
           </div>
         )}
       </div>
