@@ -1,6 +1,8 @@
 package com.trip.web;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -40,6 +42,7 @@ import com.trip.repo.ShareLinkRepository;
 import com.trip.repo.TripMemberRepository;
 import com.trip.repo.TripRepository;
 import com.trip.repo.UserRepository;
+import com.trip.service.realtime.TripEventPublisher;
 import com.trip.service.auth.JwtService;
 import com.trip.service.auth.password.BreachedPasswordChecker;
 import com.trip.service.trip.ReflectionIds;
@@ -92,6 +95,9 @@ class ActivityControllerTest {
     @MockitoBean
     BreachedPasswordChecker breachedPasswordChecker;
 
+    @MockitoBean
+    TripEventPublisher tripEventPublisher;
+
     private Trip trip;
 
     @BeforeEach
@@ -127,6 +133,11 @@ class ActivityControllerTest {
             .andExpect(jsonPath("$.orderIndex").value(2))
             .andExpect(jsonPath("$.createdByUserDisplayName").value("Alice"))
             .andExpect(jsonPath("$.updatedByUserDisplayName").value("Alice"));
+
+        verify(tripEventPublisher).publishAfterCommit(eq(TRIP_PK), argThat(event ->
+            event.type().equals("activity.created")
+                && event.activityId().equals(501L)
+                && event.dayDate().equals(DAY_TWO)));
     }
 
     @Test
@@ -205,6 +216,11 @@ class ActivityControllerTest {
             .andExpect(jsonPath("$.category").value("ACTIVITY"))
             .andExpect(jsonPath("$.title").value("Museum"))
             .andExpect(jsonPath("$.updatedByUserDisplayName").value("Alice"));
+
+        verify(tripEventPublisher).publishAfterCommit(eq(TRIP_PK), argThat(event ->
+            event.type().equals("activity.updated")
+                && event.activityId().equals(1L)
+                && event.dayDate().equals(DAY_ONE)));
     }
 
     @Test
@@ -217,6 +233,10 @@ class ActivityControllerTest {
             .andExpect(status().isNoContent());
 
         verify(activityRepository).delete(activity);
+        verify(tripEventPublisher).publishAfterCommit(eq(TRIP_PK), argThat(event ->
+            event.type().equals("activity.deleted")
+                && event.activityId().equals(1L)
+                && event.dayDate().equals(DAY_ONE)));
     }
 
     @Test
@@ -236,6 +256,10 @@ class ActivityControllerTest {
         org.assertj.core.api.Assertions.assertThat(third.getOrderIndex()).isZero();
         org.assertj.core.api.Assertions.assertThat(first.getOrderIndex()).isEqualTo(1);
         org.assertj.core.api.Assertions.assertThat(second.getOrderIndex()).isEqualTo(2);
+        verify(tripEventPublisher).publishAfterCommit(eq(TRIP_PK), argThat(event ->
+            event.type().equals("day.reordered")
+                && event.activityId() == null
+                && event.dayDate().equals(DAY_ONE)));
     }
 
     @Test
@@ -307,6 +331,10 @@ class ActivityControllerTest {
         org.assertj.core.api.Assertions.assertThat(destFirst.getOrderIndex()).isZero();
         org.assertj.core.api.Assertions.assertThat(destSecond.getOrderIndex()).isEqualTo(2);
         org.assertj.core.api.Assertions.assertThat(moving.getOrderIndex()).isEqualTo(1);
+        verify(tripEventPublisher).publishAfterCommit(eq(TRIP_PK), argThat(event ->
+            event.type().equals("activity.moved")
+                && event.activityId().equals(1L)
+                && event.dayDate().equals(DAY_TWO)));
     }
 
     private String bearerFor(long userId) {

@@ -19,6 +19,8 @@ import com.trip.service.trip.TripAccessGuard;
 import com.trip.domain.TripRole;
 import com.trip.repo.GuestSessionRepository;
 import com.trip.domain.GuestSession;
+import com.trip.service.realtime.TripEvent;
+import com.trip.service.realtime.TripEventPublisher;
 import com.trip.web.dto.activity.ActivityResponse;
 import com.trip.web.dto.activity.CreateActivityRequest;
 import com.trip.web.dto.activity.UpdateActivityRequest;
@@ -53,15 +55,18 @@ public class ActivityService {
     private final UserRepository userRepository;
     private final GuestSessionRepository guestSessionRepository;
     private final TripAccessGuard tripAccessGuard;
+    private final TripEventPublisher tripEventPublisher;
 
     public ActivityService(ActivityRepository activityRepository,
                            UserRepository userRepository,
                            GuestSessionRepository guestSessionRepository,
-                           TripAccessGuard tripAccessGuard) {
+                           TripAccessGuard tripAccessGuard,
+                           TripEventPublisher tripEventPublisher) {
         this.activityRepository = activityRepository;
         this.userRepository = userRepository;
         this.guestSessionRepository = guestSessionRepository;
         this.tripAccessGuard = tripAccessGuard;
+        this.tripEventPublisher = tripEventPublisher;
     }
 
     /**
@@ -121,6 +126,8 @@ public class ActivityService {
         attributeUpdated(activity, actor, resolved);
 
         Activity saved = activityRepository.save(activity);
+        tripEventPublisher.publishAfterCommit(
+            tripId, TripEvent.activityCreated(publicId, saved.getId(), dayDate));
         return buildActivityResponse(saved);
     }
 
@@ -218,6 +225,9 @@ public class ActivityService {
 
         attributeUpdated(activity, actor, resolved);
         Activity updated = activityRepository.save(activity);
+        tripEventPublisher.publishAfterCommit(
+            resolved.trip().getId(),
+            TripEvent.activityUpdated(publicId, updated.getId(), updated.getDayDate()));
 
         return buildActivityResponse(updated);
     }
@@ -249,6 +259,9 @@ public class ActivityService {
         }
 
         activityRepository.delete(activity);
+        tripEventPublisher.publishAfterCommit(
+            resolved.trip().getId(),
+            TripEvent.activityDeleted(publicId, activity.getId(), activity.getDayDate()));
     }
 
     /**
@@ -361,6 +374,8 @@ public class ActivityService {
                 nextIndex++;
             }
         }
+        tripEventPublisher.publishAfterCommit(
+            tripId, TripEvent.dayReordered(publicId, dayDate));
     }
 
     /**
@@ -473,6 +488,8 @@ public class ActivityService {
 
         attributeUpdated(activity, actor, resolved);
         Activity updated = activityRepository.save(activity);
+        tripEventPublisher.publishAfterCommit(
+            tripId, TripEvent.activityMoved(publicId, updated.getId(), updated.getDayDate()));
 
         return buildActivityResponse(updated);
     }

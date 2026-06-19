@@ -12,6 +12,8 @@ import com.trip.domain.User;
 import com.trip.repo.DayNoteRepository;
 import com.trip.repo.GuestSessionRepository;
 import com.trip.repo.UserRepository;
+import com.trip.service.realtime.TripEvent;
+import com.trip.service.realtime.TripEventPublisher;
 import com.trip.service.trip.ResolvedTrip;
 import com.trip.service.trip.TripActor;
 import com.trip.service.trip.TripAccessGuard;
@@ -40,15 +42,18 @@ public class DayNoteService {
     private final UserRepository userRepository;
     private final GuestSessionRepository guestSessionRepository;
     private final TripAccessGuard tripAccessGuard;
+    private final TripEventPublisher tripEventPublisher;
 
     public DayNoteService(DayNoteRepository dayNoteRepository,
                           UserRepository userRepository,
                           GuestSessionRepository guestSessionRepository,
-                          TripAccessGuard tripAccessGuard) {
+                          TripAccessGuard tripAccessGuard,
+                          TripEventPublisher tripEventPublisher) {
         this.dayNoteRepository = dayNoteRepository;
         this.userRepository = userRepository;
         this.guestSessionRepository = guestSessionRepository;
         this.tripAccessGuard = tripAccessGuard;
+        this.tripEventPublisher = tripEventPublisher;
     }
 
     /**
@@ -161,6 +166,8 @@ public class DayNoteService {
         attributeUpdated(dayNote, actor, resolved);
 
         DayNote saved = dayNoteRepository.save(dayNote);
+        tripEventPublisher.publishAfterCommit(
+            tripId, TripEvent.noteUpdated(publicId, dayDate));
         return buildDayNoteResponse(saved);
     }
 

@@ -1,6 +1,9 @@
 package com.trip.web;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -37,6 +40,7 @@ import com.trip.repo.TripRepository;
 import com.trip.repo.UserRepository;
 import com.trip.service.auth.JwtService;
 import com.trip.service.auth.password.BreachedPasswordChecker;
+import com.trip.service.realtime.TripEventPublisher;
 import com.trip.service.trip.ReflectionIds;
 
 @SpringBootTest
@@ -86,6 +90,9 @@ class DayNoteControllerTest {
 
     @MockitoBean
     BreachedPasswordChecker breachedPasswordChecker;
+
+    @MockitoBean
+    TripEventPublisher tripEventPublisher;
 
     @BeforeEach
     void wireDefaults() {
@@ -148,6 +155,11 @@ class DayNoteControllerTest {
             .andExpect(jsonPath("$.dayDate").value(DAY_TWO.toString()))
             .andExpect(jsonPath("$.note").value("Check reservation email"))
             .andExpect(jsonPath("$.updatedByUserDisplayName").value("Alice"));
+
+        verify(tripEventPublisher).publishAfterCommit(eq(TRIP_PK), argThat(event ->
+            event.type().equals("note.updated")
+                && event.activityId() == null
+                && event.dayDate().equals(DAY_TWO)));
     }
 
     @Test
@@ -163,6 +175,11 @@ class DayNoteControllerTest {
                 .content(objectMapper.writeValueAsString(Map.of("note", ""))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.note").value(""));
+
+        verify(tripEventPublisher).publishAfterCommit(eq(TRIP_PK), argThat(event ->
+            event.type().equals("note.updated")
+                && event.activityId() == null
+                && event.dayDate().equals(DAY_TWO)));
     }
 
     @Test
