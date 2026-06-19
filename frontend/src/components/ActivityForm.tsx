@@ -36,6 +36,7 @@ export function ActivityForm({
   const [notes, setNotes] = useState(initialValues?.notes ?? '')
   const [startTime, setStartTime] = useState(initialValues?.startTime ?? '')
   const [endTime, setEndTime] = useState(initialValues?.endTime ?? '')
+  const hasPlace = Boolean(initialValues?.placeName || initialValues?.address)
 
   const reset = () => {
     setCategory('OTHER')
@@ -54,11 +55,11 @@ export function ActivityForm({
       notes: emptyToNull(notes),
       startTime: emptyToNull(startTime),
       endTime: emptyToNull(endTime),
-      mapboxId: null,
-      placeName: null,
-      address: null,
-      lat: null,
-      lng: null,
+      mapboxId: initialValues?.mapboxId ?? null,
+      placeName: initialValues?.placeName ?? null,
+      address: initialValues?.address ?? null,
+      lat: initialValues?.lat ?? null,
+      lng: initialValues?.lng ?? null,
     }
 
     void Promise.resolve(onSubmit(payload)).then(() => {
@@ -105,6 +106,13 @@ export function ActivityForm({
           onChange={(event) => setNotes(event.target.value)}
         />
       </label>
+
+      {hasPlace && (
+        <div className={styles.placeSummary}>
+          <p>{initialValues?.placeName}</p>
+          {initialValues?.address && <p>{initialValues.address}</p>}
+        </div>
+      )}
 
       <div className={styles.row}>
         <label className={styles.label}>

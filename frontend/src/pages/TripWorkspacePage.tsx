@@ -18,6 +18,7 @@ import styles from './TripWorkspacePage.module.css'
 import { ActivityForm } from '../components/ActivityForm'
 import { ActivityList } from '../components/ActivityList'
 import { DayNoteEditor } from '../components/DayNoteEditor'
+import { PlaceSearch } from '../components/PlaceSearch'
 import { TripMap } from '../components/TripMap'
 import type { Activity, CreateActivityRequest } from '../types/activity'
 
@@ -33,6 +34,7 @@ export function TripWorkspacePage() {
   const { publicId, day } = useParams()
   const navigate = useNavigate()
   const [editingActivity, setEditingActivity] = useState<Activity | null>(null)
+  const [placeDraft, setPlaceDraft] = useState<Partial<CreateActivityRequest> | null>(null)
   const tripQuery = useTrip(publicId)
   const activitiesQuery = useActivities(publicId)
   const selectedDay = tripQuery.data
@@ -98,6 +100,7 @@ export function TripWorkspacePage() {
       dayInRange(nextDay, tripQuery.data.startDate, tripQuery.data.endDate)
     ) {
       setEditingActivity(null)
+      setPlaceDraft(null)
       navigate(`/trips/${encodeURIComponent(publicId)}/d/${encodeURIComponent(nextDay)}`)
     }
   }
@@ -105,6 +108,7 @@ export function TripWorkspacePage() {
   const handleCreateActivity = async (payload: CreateActivityRequest) => {
     if (!publicId || !selectedDay) return
     await createActivityMutation.mutateAsync({ publicId, dayDate: selectedDay, body: payload })
+    setPlaceDraft(null)
   }
 
   const handleUpdateActivity = async (payload: CreateActivityRequest) => {
@@ -152,6 +156,7 @@ export function TripWorkspacePage() {
     const destinationCount = allActivities.filter((item) => item.dayDate === dayDate).length
     if (activeEditingActivity?.id === activity.id) {
       setEditingActivity(null)
+      setPlaceDraft(null)
     }
     void moveActivityMutation.mutateAsync({
       activityId: activity.id,
@@ -182,7 +187,11 @@ export function TripWorkspacePage() {
         lat: activeEditingActivity.lat,
         lng: activeEditingActivity.lng,
       }
-    : undefined
+    : placeDraft ?? undefined
+
+  const createFormKey = placeDraft?.mapboxId
+    ? `create-${selectedDay}-${placeDraft.mapboxId}`
+    : `create-${selectedDay}`
 
   return (
     <main id="main" className={styles.shell}>
@@ -291,11 +300,17 @@ export function TripWorkspacePage() {
                   )}
                   {canEditTrip && (
                     <>
+                      <PlaceSearch
+                        onPlaceSelect={(place) => {
+                          setEditingActivity(null)
+                          setPlaceDraft(place)
+                        }}
+                      />
                       <h3 className={styles.formHeading}>
                         {activeEditingActivity ? 'Edit activity' : 'Add activity'}
                       </h3>
                       <ActivityForm
-                        key={activeEditingActivity ? `edit-${activeEditingActivity.id}` : `create-${selectedDay}`}
+                        key={activeEditingActivity ? `edit-${activeEditingActivity.id}` : createFormKey}
                         initialValues={activityFormInitialValues}
                         onSubmit={activeEditingActivity ? handleUpdateActivity : handleCreateActivity}
                         onCancel={activeEditingActivity ? () => setEditingActivity(null) : undefined}
@@ -314,7 +329,10 @@ export function TripWorkspacePage() {
                     minDate={tripQuery.data.startDate}
                     maxDate={tripQuery.data.endDate}
                     readOnly={!canEditTrip}
-                    onEdit={setEditingActivity}
+                    onEdit={(activity) => {
+                      setPlaceDraft(null)
+                      setEditingActivity(activity)
+                    }}
                     onDelete={handleDeleteActivity}
                     onMoveDown={(activity) => handleMoveActivity(activity, 1)}
                     onMoveToDay={handleMoveActivityToDay}
@@ -326,7 +344,7 @@ export function TripWorkspacePage() {
             <div className={styles.panel}>
               <h2 className={styles.panelTitle}>Map</h2>
               <TripMap
-                activities={allActivities}
+                activities={dayActivities}
                 destination={tripQuery.data.destination}
               />
             </div>

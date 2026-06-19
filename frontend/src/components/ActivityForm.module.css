@@ -37,6 +37,22 @@
   resize: vertical;
 }
 
+.placeSummary {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-3);
+  border: 1px solid var(--color-surface-border);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface-2);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-base);
+}
+
+.placeSummary p {
+  margin: 0;
+}
+
 .submitButton {
   width: fit-content;
   padding: var(--space-3) var(--space-5);

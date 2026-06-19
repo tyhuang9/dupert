@@ -3,12 +3,47 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import MockAdapter from 'axios-mock-adapter'
 import type { PropsWithChildren } from 'react'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { apiClient } from '../api/client'
 import type { Activity, DayNote } from '../types/activity'
 import type { Trip } from '../types/trip'
 import { TripWorkspacePage } from './TripWorkspacePage'
+
+vi.mock('../components/TripMap', () => ({
+  TripMap: ({ activities }: { activities: Array<{ id: number; title: string }> }) => (
+    <div data-testid="trip-map">
+      {activities.map((activity) => (
+        <span key={activity.id}>{activity.title}</span>
+      ))}
+    </div>
+  ),
+}))
+
+vi.mock('../components/PlaceSearch', () => ({
+  PlaceSearch: ({
+    onPlaceSelect,
+  }: {
+    onPlaceSelect: (place: Record<string, unknown>) => void
+  }) => (
+    <button
+      type="button"
+      onClick={() =>
+        onPlaceSelect({
+          category: 'ACTIVITY',
+          title: 'Tokyo Tower',
+          mapboxId: 'mapbox.tokyo-tower',
+          placeName: 'Tokyo Tower',
+          address: '4 Chome-2-8 Shibakoen, Minato City, Tokyo',
+          lat: 35.6586,
+          lng: 139.7454,
+        })
+      }
+    >
+      Mock place search
+    </button>
+  ),
+}))
 
 let apiMock: MockAdapter
 let queryClient: QueryClient
@@ -119,6 +154,23 @@ describe('<TripWorkspacePage>', () => {
     expect(await screen.findByLabelText(/pick a day/i)).toHaveValue('2026-05-03')
   })
 
+  it('passes only selected-day activities to the map', async () => {
+    const dayTwoActivity = {
+      ...SAMPLE_ACTIVITY,
+      id: 22,
+      dayDate: '2026-05-02',
+      title: 'Tokyo Tower',
+      orderIndex: 0,
+    }
+    mockWorkspace([SAMPLE_ACTIVITY, dayTwoActivity])
+
+    renderWorkspace('/trips/abc234def567/d/2026-05-02')
+
+    const map = await screen.findByTestId('trip-map')
+    expect(map).toHaveTextContent('Tokyo Tower')
+    expect(map).not.toHaveTextContent('Tsukiji sushi')
+  })
+
   it('creates an activity for the selected day', async () => {
     mockWorkspace()
     apiMock.onPost('/trips/abc234def567/activities?dayDate=2026-05-01').reply(201, {
@@ -131,14 +183,55 @@ describe('<TripWorkspacePage>', () => {
     await userEvent.type(await screen.findByLabelText(/^title$/i), 'Tsukiji sushi')
     await userEvent.click(screen.getByRole('button', { name: /^save activity$/i }))
 
-    expect(await screen.findByText('Tsukiji sushi')).toBeInTheDocument()
+    expect(await screen.findAllByText('Tsukiji sushi')).not.toHaveLength(0)
     expect(apiMock.history.post[0].url).toBe('/trips/abc234def567/activities?dayDate=2026-05-01')
   })
 
-  it('edits an existing activity', async () => {
-    mockWorkspace([SAMPLE_ACTIVITY])
-    apiMock.onPatch('/trips/abc234def567/activities/10').reply(200, {
+  it('creates an activity from a selected Mapbox place', async () => {
+    mockWorkspace()
+    apiMock.onPost('/trips/abc234def567/activities?dayDate=2026-05-01').reply(201, {
       ...SAMPLE_ACTIVITY,
+      id: 20,
+      category: 'ACTIVITY',
+      title: 'Tokyo Tower',
+      mapboxId: 'mapbox.tokyo-tower',
+      placeName: 'Tokyo Tower',
+      address: '4 Chome-2-8 Shibakoen, Minato City, Tokyo',
+      lat: 35.6586,
+      lng: 139.7454,
+    })
+
+    renderWorkspace('/trips/abc234def567')
+
+    await userEvent.click(await screen.findByRole('button', { name: /mock place search/i }))
+    expect(screen.getByLabelText(/^title$/i)).toHaveValue('Tokyo Tower')
+    await userEvent.click(screen.getByRole('button', { name: /^save activity$/i }))
+
+    await waitFor(() => {
+      expect(JSON.parse(apiMock.history.post[0].data as string)).toMatchObject({
+        category: 'ACTIVITY',
+        title: 'Tokyo Tower',
+        mapboxId: 'mapbox.tokyo-tower',
+        placeName: 'Tokyo Tower',
+        address: '4 Chome-2-8 Shibakoen, Minato City, Tokyo',
+        lat: 35.6586,
+        lng: 139.7454,
+      })
+    })
+  })
+
+  it('edits an existing activity', async () => {
+    const placedActivity = {
+      ...SAMPLE_ACTIVITY,
+      mapboxId: 'mapbox.tsukiji',
+      placeName: 'Tsukiji Outer Market',
+      address: 'Tsukiji, Chuo City, Tokyo',
+      lat: 35.6654,
+      lng: 139.7707,
+    }
+    mockWorkspace([placedActivity])
+    apiMock.onPatch('/trips/abc234def567/activities/10').reply(200, {
+      ...placedActivity,
       title: 'Updated sushi',
     })
 
@@ -150,8 +243,16 @@ describe('<TripWorkspacePage>', () => {
     await userEvent.type(titleInput, 'Updated sushi')
     await userEvent.click(screen.getByRole('button', { name: /save changes/i }))
 
-    expect(await screen.findByText('Updated sushi')).toBeInTheDocument()
+    expect(await screen.findAllByText('Updated sushi')).not.toHaveLength(0)
     expect(apiMock.history.patch[0].url).toBe('/trips/abc234def567/activities/10')
+    expect(JSON.parse(apiMock.history.patch[0].data as string)).toMatchObject({
+      title: 'Updated sushi',
+      mapboxId: 'mapbox.tsukiji',
+      placeName: 'Tsukiji Outer Market',
+      address: 'Tsukiji, Chuo City, Tokyo',
+      lat: 35.6654,
+      lng: 139.7707,
+    })
   })
 
   it('saves the selected day note', async () => {
