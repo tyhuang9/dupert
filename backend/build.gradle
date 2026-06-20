@@ -50,12 +50,15 @@ tasks.named('test') {
 // OWASP Dependency-Check configuration.
 // Run via: ./gradlew dependencyCheckAnalyze.
 def nvdApiKey = System.getenv('NVD_API_KEY')
+def dependencyCheckAutoUpdate = System.getenv('DEPENDENCY_CHECK_AUTO_UPDATE') != 'false'
 dependencyCheck {
+	autoUpdate = dependencyCheckAutoUpdate
 	formats = ['HTML', 'JSON']
 	failBuildOnCVSS = 7.0
 	suppressionFile = 'config/dependency-check-suppressions.xml'
 	nvd {
-		maxRetryCount = 10
+		delay = 6000
+		maxRetryCount = 12
 		if (nvdApiKey != null && !nvdApiKey.isBlank()) {
 			apiKey = nvdApiKey
 		}

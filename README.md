@@ -90,7 +90,8 @@ Open http://localhost:3000 in your browser. Vite proxies `/api/**` to the backen
 |---|---|
 | `./gradlew build` | Compile + run tests + assemble jar |
 | `./gradlew test` | Run tests only |
-| `./gradlew dependencyCheckAnalyze` | Run OWASP Dependency-Check and fail on CVSS 7+ findings. Set `NVD_API_KEY` first for reliable update speed |
+| `./gradlew dependencyCheckAnalyze` | Run OWASP Dependency-Check and fail on CVSS 7+ findings |
+| `./gradlew dependencyCheckUpdate` | Refresh the local OWASP Dependency-Check vulnerability database from NVD |
 | `./gradlew bootJar` | Produce `build/libs/<name>.jar` for deployment |
 | `./gradlew clean` | Wipe `build/` |
 
@@ -118,20 +119,23 @@ Before pushing a feature, run:
 With `NVD_API_KEY` set, also run:
 
 ```bash
+(cd backend && ./gradlew dependencyCheckUpdate)
 (cd backend && ./gradlew dependencyCheckAnalyze)
 ```
 
 ## CI
 
-GitHub Actions lives at `.github/workflows/ci.yml`.
+GitHub Actions lives at `.github/workflows/ci.yml` and `.github/workflows/dependency-check-data.yml`.
 
-On pushes to `main`, pull requests, and manual dispatches it runs:
+On pushes to `main`, pull requests, and manual dispatches CI runs:
 
 - backend tests on Java 21
-- backend OWASP Dependency-Check when `NVD_API_KEY` is configured, with HTML/JSON reports uploaded as artifacts
+- backend OWASP Dependency-Check against the cached vulnerability database, with HTML/JSON reports uploaded as artifacts
 - frontend `npm ci`, lint, tests, production build, and production dependency audit
 
-The CI workflow does not require app runtime secrets. Backend tests use the test profile and do not require a Neon URL, Mapbox token, or local `.env`. For reliable OWASP Dependency-Check updates, add a repository secret named `NVD_API_KEY`; when it is absent, CI emits a notice and skips only that vulnerability scan instead of using the NVD no-key rate limit path. CI caches `~/.gradle/dependency-check-data` between successful scan runs.
+The CI workflow does not require app runtime secrets. Backend tests use the test profile and do not require a Neon URL, Mapbox token, or local `.env`. Dependency-Check scans do not call NVD during push or pull request CI; they restore `~/.gradle/dependency-check-data` from the latest successful data refresh. If that cache is missing, CI fails with a message to run the Dependency-Check Data workflow.
+
+The Dependency-Check Data workflow runs daily and can be dispatched manually. It requires the repository secret `NVD_API_KEY`, runs `./gradlew dependencyCheckUpdate`, and saves the refreshed vulnerability database cache only after a successful update.
 
 ## Project layout
 

@@ -26,41 +26,35 @@ jobs:
           java-version: '21'
           cache: gradle
 
-      - name: Check Dependency-Check NVD key
-        id: nvd
-        shell: bash
-        env:
-          NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
-        run: |
-          if [ -n "$NVD_API_KEY" ]; then
-            echo "configured=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "configured=false" >> "$GITHUB_OUTPUT"
-            echo "::notice title=Dependency-Check skipped::Set the NVD_API_KEY repository secret to enable the backend vulnerability scan."
-          fi
-
-      - name: Cache dependency-check data
-        if: steps.nvd.outputs.configured == 'true'
+      - name: Restore dependency-check data
+        id: dependency-check-cache
         uses: actions/cache@v5
         with:
           path: ~/.gradle/dependency-check-data
-          key: dependency-check-${{ runner.os }}-${{ hashFiles('backend/build.gradle', 'backend/gradle/wrapper/gradle-wrapper.properties') }}
+          key: dependency-check-scan-${{ runner.os }}-${{ hashFiles('backend/build.gradle', 'backend/gradle/wrapper/gradle-wrapper.properties') }}-${{ github.run_id }}
           restore-keys: |
-            dependency-check-${{ runner.os }}-
+            dependency-check-${{ runner.os }}-${{ hashFiles('backend/build.gradle', 'backend/gradle/wrapper/gradle-wrapper.properties') }}-
 
       - name: Run backend tests
         working-directory: backend
         run: ./gradlew test
 
+      - name: Verify dependency-check cache
+        shell: bash
+        run: |
+          if [ ! -d "$HOME/.gradle/dependency-check-data" ] || ! find "$HOME/.gradle/dependency-check-data" -name '*.mv.db' -print -quit | grep -q .; then
+            echo "::error title=Dependency-Check cache missing::Run the Dependency-Check Data workflow manually, or wait for the scheduled cache refresh, before running CI."
+            exit 1
+          fi
+
       - name: Run dependency check
-        if: steps.nvd.outputs.configured == 'true'
         working-directory: backend
         env:
-          NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
+          DEPENDENCY_CHECK_AUTO_UPDATE: 'false'
         run: ./gradlew dependencyCheckAnalyze
 
       - name: Upload dependency-check report
-        if: always() && steps.nvd.outputs.configured == 'true'
+        if: always()
         uses: actions/upload-artifact@v5
         with:
           name: backend-dependency-check

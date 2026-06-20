@@ -1,0 +1,50 @@
+name: Dependency-Check Data
+
+on:
+  schedule:
+    - cron: '17 8 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  update:
+    name: Update Dependency-Check Data
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: gradle
+
+      - name: Check NVD key
+        shell: bash
+        env:
+          NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
+        run: |
+          if [ -z "$NVD_API_KEY" ]; then
+            echo "::error title=NVD_API_KEY missing::Set the NVD_API_KEY repository secret before refreshing Dependency-Check data."
+            exit 1
+          fi
+
+      - name: Restore dependency-check data
+        uses: actions/cache@v5
+        with:
+          path: ~/.gradle/dependency-check-data
+          key: dependency-check-${{ runner.os }}-${{ hashFiles('backend/build.gradle', 'backend/gradle/wrapper/gradle-wrapper.properties') }}-${{ github.run_id }}
+          restore-keys: |
+            dependency-check-${{ runner.os }}-${{ hashFiles('backend/build.gradle', 'backend/gradle/wrapper/gradle-wrapper.properties') }}-
+
+      - name: Update dependency-check data
+        working-directory: backend
+        env:
+          NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
+          DEPENDENCY_CHECK_AUTO_UPDATE: 'true'
+        run: ./gradlew dependencyCheckUpdate
