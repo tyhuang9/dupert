@@ -6,6 +6,13 @@ import { AxiosError, AxiosHeaders } from 'axios'
 import { LoginPage } from './LoginPage'
 import { AuthContext, type AuthContextValue } from '../auth/authContextValue'
 import { useAuthStore } from '../auth/authStore'
+import { resetDevPassword } from '../api/auth'
+
+vi.mock('../api/auth', () => ({
+  resetDevPassword: vi.fn(async () => {}),
+}))
+
+const resetDevPasswordMock = vi.mocked(resetDevPassword)
 
 function makeAuth(overrides: Partial<AuthContextValue> = {}): AuthContextValue {
   return {
@@ -55,6 +62,7 @@ function makeAxiosError(status: number, data: unknown): AxiosError {
 
 beforeEach(() => {
   useAuthStore.getState().clearSession()
+  resetDevPasswordMock.mockClear()
 })
 
 afterEach(() => {
@@ -64,8 +72,8 @@ afterEach(() => {
 describe('<LoginPage>', () => {
   it('renders the email and password fields with proper labels', () => {
     renderLogin(makeAuth())
-    expect(screen.getByLabelText(/email/i)).toBeInTheDocument()
-    expect(screen.getByLabelText(/password/i)).toBeInTheDocument()
+    expect(screen.getByLabelText('Email')).toBeInTheDocument()
+    expect(screen.getByLabelText('Password')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /sign in/i })).toBeInTheDocument()
   })
 
@@ -74,8 +82,8 @@ describe('<LoginPage>', () => {
     renderLogin(ctx)
 
     const user = userEvent.setup()
-    await user.type(screen.getByLabelText(/email/i), 'me@example.com')
-    await user.type(screen.getByLabelText(/password/i), 'super-secret-1')
+    await user.type(screen.getByLabelText('Email'), 'me@example.com')
+    await user.type(screen.getByLabelText('Password'), 'super-secret-1')
     await user.click(screen.getByRole('button', { name: /sign in/i }))
 
     expect(ctx.login).toHaveBeenCalledWith({
@@ -95,8 +103,8 @@ describe('<LoginPage>', () => {
     )
 
     const user = userEvent.setup()
-    await user.type(screen.getByLabelText(/email/i), 'me@example.com')
-    await user.type(screen.getByLabelText(/password/i), 'super-secret-1')
+    await user.type(screen.getByLabelText('Email'), 'me@example.com')
+    await user.type(screen.getByLabelText('Password'), 'super-secret-1')
     await user.click(screen.getByRole('button', { name: /sign in/i }))
 
     await waitFor(() => {
@@ -113,8 +121,8 @@ describe('<LoginPage>', () => {
     renderLogin(ctx)
 
     const user = userEvent.setup()
-    await user.type(screen.getByLabelText(/email/i), 'me@example.com')
-    await user.type(screen.getByLabelText(/password/i), 'wrong-password-12')
+    await user.type(screen.getByLabelText('Email'), 'me@example.com')
+    await user.type(screen.getByLabelText('Password'), 'wrong-password-12')
     await user.click(screen.getByRole('button', { name: /sign in/i }))
 
     const banner = await screen.findByRole('alert')
@@ -135,15 +143,32 @@ describe('<LoginPage>', () => {
     renderLogin(ctx)
 
     const user = userEvent.setup()
-    await user.type(screen.getByLabelText(/email/i), 'me')
-    await user.type(screen.getByLabelText(/password/i), 'whatever-12345')
+    await user.type(screen.getByLabelText('Email'), 'me')
+    await user.type(screen.getByLabelText('Password'), 'whatever-12345')
     await user.click(screen.getByRole('button', { name: /sign in/i }))
 
     expect(
       await screen.findByText(/well-formed email address/i),
     ).toBeInTheDocument()
-    const emailInput = screen.getByLabelText(/email/i)
+    const emailInput = screen.getByLabelText('Email')
     expect(emailInput.getAttribute('aria-invalid')).toBe('true')
+  })
+
+  it('submits the dev password reset and fills the login form with the new credentials', async () => {
+    renderLogin(makeAuth())
+
+    const user = userEvent.setup()
+    await user.type(screen.getByLabelText('Account email'), 'me@example.com')
+    await user.type(screen.getByLabelText('New password'), 'new-password-123')
+    await user.click(screen.getByRole('button', { name: /update password/i }))
+
+    expect(resetDevPasswordMock).toHaveBeenCalledWith({
+      email: 'me@example.com',
+      password: 'new-password-123',
+    })
+    expect(await screen.findByRole('status')).toHaveTextContent(/password updated/i)
+    expect(screen.getByLabelText('Email')).toHaveValue('me@example.com')
+    expect(screen.getByLabelText('Password')).toHaveValue('new-password-123')
   })
 
   it('redirects already-logged-in users immediately', () => {

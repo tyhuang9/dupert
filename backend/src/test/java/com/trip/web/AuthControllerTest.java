@@ -4,6 +4,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -22,13 +24,18 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.core.env.Environment;
+import org.springframework.core.env.Profiles;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.trip.config.AppProperties;
+import com.trip.config.RateLimitRegistry;
 import com.trip.domain.RefreshToken;
 import com.trip.domain.User;
 import com.trip.repo.ActivityRepository;
@@ -42,6 +49,8 @@ import com.trip.service.auth.JwtService;
 import com.trip.service.auth.RefreshTokenService;
 import com.trip.service.auth.RefreshTokenService.IssuedRefreshToken;
 import com.trip.service.auth.password.BreachedPasswordChecker;
+import com.trip.web.auth.RefreshCookie;
+import com.trip.web.dto.DevPasswordResetRequest;
 import com.trip.web.dto.LoginRequest;
 import com.trip.web.dto.RegisterRequest;
 
@@ -91,6 +100,15 @@ class AuthControllerTest {
 
     @MockitoBean
     BreachedPasswordChecker breachedPasswordChecker;
+
+    @Autowired
+    AppProperties appProperties;
+
+    @Autowired
+    RateLimitRegistry rateLimitRegistry;
+
+    @Autowired
+    RefreshCookie refreshCookie;
 
     // TripAccessGuard component-scans the trip repos; test profile excludes JPA
     // auto-config so we mock them like the auth repos above.
@@ -325,6 +343,67 @@ class AuthControllerTest {
             .andExpect(status().isUnauthorized());
 
         verify(userRepository, times(1)).findByEmailIgnoreCase("alice@example.com");
+    }
+
+    @Test
+    void devResetPasswordUpdatesHashAndRevokesRefreshTokens() throws Exception {
+        User user = userWith(55L, "alice@example.com", "Alice");
+        user.setPasswordHash("old-hash");
+        when(userRepository.findByEmailIgnoreCase("alice@example.com"))
+            .thenReturn(Optional.of(user));
+        when(passwordEncoder.encode("new-password-123")).thenReturn("new-hash");
+
+        mvc.perform(post("/api/auth/dev/reset-password")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(
+                    new DevPasswordResetRequest("ALICE@Example.com", "new-password-123"))))
+            .andExpect(status().isNoContent());
+
+        org.assertj.core.api.Assertions.assertThat(user.getPasswordHash())
+            .isEqualTo("new-hash");
+        verify(userRepository).save(user);
+        verify(refreshTokenService).revokeAllForUser(55L);
+    }
+
+    @Test
+    void devResetPasswordUnknownEmailReturns404WithoutSideEffects() throws Exception {
+        when(userRepository.findByEmailIgnoreCase("missing@example.com"))
+            .thenReturn(Optional.empty());
+
+        mvc.perform(post("/api/auth/dev/reset-password")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(
+                    new DevPasswordResetRequest("missing@example.com", "new-password-123"))))
+            .andExpect(status().isNotFound())
+            .andExpect(jsonPath("$.error").value("user_not_found"));
+
+        verify(passwordEncoder, never()).encode("new-password-123");
+        verify(userRepository, never()).save(any(User.class));
+        verify(refreshTokenService, never()).revokeAllForUser(any());
+    }
+
+    @Test
+    void devResetPasswordReturns404WhenProdProfileIsActive() {
+        Environment environment = mock(Environment.class);
+        when(environment.acceptsProfiles(any(Profiles.class))).thenReturn(false);
+        AuthController controller = new AuthController(
+            userRepository,
+            passwordEncoder,
+            jwtService,
+            refreshTokenService,
+            refreshCookie,
+            breachedPasswordChecker,
+            rateLimitRegistry,
+            appProperties,
+            environment
+        );
+
+        ResponseEntity<?> response = controller.devResetPassword(
+            new DevPasswordResetRequest("alice@example.com", "new-password-123"));
+
+        org.assertj.core.api.Assertions.assertThat(response.getStatusCode())
+            .isEqualTo(org.springframework.http.HttpStatus.NOT_FOUND);
+        verify(userRepository, never()).findByEmailIgnoreCase(anyString());
     }
 
     // ------------------------------------------------------------------

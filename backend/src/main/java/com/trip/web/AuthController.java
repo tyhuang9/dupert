@@ -3,6 +3,8 @@ package com.trip.web;
 import java.util.Map;
 import java.util.Optional;
 
+import org.springframework.core.env.Environment;
+import org.springframework.core.env.Profiles;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -31,6 +33,7 @@ import com.trip.service.auth.password.BreachedPasswordChecker;
 import com.trip.web.auth.DisplayNameSanitizer;
 import com.trip.web.auth.RefreshCookie;
 import com.trip.web.dto.AuthResponse;
+import com.trip.web.dto.DevPasswordResetRequest;
 import com.trip.web.dto.LoginRequest;
 import com.trip.web.dto.RegisterRequest;
 import com.trip.web.dto.UserSummary;
@@ -83,6 +86,7 @@ public class AuthController {
     private final BreachedPasswordChecker breachedPasswordChecker;
     private final RateLimitRegistry rateLimitRegistry;
     private final boolean trustProxy;
+    private final boolean devPasswordResetEnabled;
 
     public AuthController(UserRepository userRepository,
                           PasswordEncoder passwordEncoder,
@@ -91,7 +95,8 @@ public class AuthController {
                           RefreshCookie refreshCookie,
                           BreachedPasswordChecker breachedPasswordChecker,
                           RateLimitRegistry rateLimitRegistry,
-                          AppProperties appProperties) {
+                          AppProperties appProperties,
+                          Environment environment) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
@@ -100,6 +105,7 @@ public class AuthController {
         this.breachedPasswordChecker = breachedPasswordChecker;
         this.rateLimitRegistry = rateLimitRegistry;
         this.trustProxy = appProperties.isTrustProxy();
+        this.devPasswordResetEnabled = environment.acceptsProfiles(Profiles.of("!prod"));
         this.dummyHash = passwordEncoder.encode("dummy-password-for-anti-enumeration");
     }
 
@@ -241,6 +247,28 @@ public class AuthController {
             refreshTokenService.revokeByRawToken(cookie.getValue());
         }
         refreshCookie.clearOnResponse(response);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/dev/reset-password")
+    @Transactional
+    public ResponseEntity<?> devResetPassword(@Valid @RequestBody DevPasswordResetRequest body) {
+        if (!devPasswordResetEnabled) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(Map.of("error", "not_found"));
+        }
+
+        String email = EmailNormalizer.normalize(body.email());
+        Optional<User> maybeUser = userRepository.findByEmailIgnoreCase(email);
+        if (maybeUser.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(Map.of("error", "user_not_found"));
+        }
+
+        User user = maybeUser.get();
+        user.setPasswordHash(passwordEncoder.encode(body.password()));
+        userRepository.save(user);
+        refreshTokenService.revokeAllForUser(user.getId());
         return ResponseEntity.noContent().build();
     }
 

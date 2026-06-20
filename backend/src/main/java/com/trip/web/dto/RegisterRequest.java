@@ -28,4 +28,9 @@ public record RegisterRequest(
     @Size(min = 1, max = 50)
     String displayName
 ) {
+    @Override
+    public String toString() {
+        return "RegisterRequest[email=" + email
+            + ", password=<redacted>, displayName=" + displayName + "]";
+    }
 }

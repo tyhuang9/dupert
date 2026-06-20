@@ -1,6 +1,7 @@
 import { apiClient } from './client'
 import type {
   AuthResponse,
+  DevPasswordResetRequest,
   LoginRequest,
   RegisterRequest,
   UserSummary,
@@ -29,6 +30,10 @@ export async function register(body: RegisterRequest): Promise<AuthResponse> {
 export async function login(body: LoginRequest): Promise<AuthResponse> {
   const { data } = await apiClient.post<AuthResponse>('/auth/login', body)
   return data
+}
+
+export async function resetDevPassword(body: DevPasswordResetRequest): Promise<void> {
+  await apiClient.post('/auth/dev/reset-password', body)
 }
 
 export async function logout(): Promise<void> {

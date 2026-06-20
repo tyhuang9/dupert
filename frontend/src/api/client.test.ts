@@ -45,7 +45,7 @@ describe('apiClient request interceptor', () => {
     expect(res.data.auth).toBe('Bearer live-tok')
   })
 
-  it('does not attach Authorization on /auth/login, /auth/register, /auth/refresh', async () => {
+  it('does not attach Authorization on auth public paths', async () => {
     useAuthStore.getState().setSession({
       accessToken: 'live-tok',
       expiresInSeconds: 900,
@@ -59,6 +59,17 @@ describe('apiClient request interceptor', () => {
 
     const { data } = await apiClient.post('/auth/login', { email: 'x', password: 'y' })
     expect(data.auth).toBeNull()
+
+    apiMock.onPost('/auth/dev/reset-password').reply((cfg) => {
+      const auth = cfg.headers?.['Authorization'] ?? cfg.headers?.['authorization']
+      return [204, { auth: auth ?? null }]
+    })
+
+    const reset = await apiClient.post('/auth/dev/reset-password', {
+      email: 'x@example.com',
+      password: 'new-password-123',
+    })
+    expect(reset.data.auth).toBeNull()
   })
 
   it('does NOT treat suffix matches like /admin/audit-auth/login as public (regression)', async () => {

@@ -34,3 +34,8 @@ export interface LoginRequest {
   email: string
   password: string
 }
+
+export interface DevPasswordResetRequest {
+  email: string
+  password: string
+}
