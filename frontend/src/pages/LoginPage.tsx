@@ -108,11 +108,11 @@ export function LoginPage() {
   const topMessage = errorInfo?.topMessage ?? null
   const isWarning = errorInfo?.severity === 'warning'
   const bannerClass = isWarning ? styles.bannerWarning : styles.banner
-  const bannerIcon = isWarning ? '⚠' : '✕'
+  const bannerIcon = '!'
   const resetTopMessage = resetErrorInfo?.topMessage ?? null
   const isResetWarning = resetErrorInfo?.severity === 'warning'
   const resetBannerClass = isResetWarning ? styles.bannerWarning : styles.banner
-  const resetBannerIcon = isResetWarning ? '⚠' : '✕'
+  const resetBannerIcon = '!'
 
   return (
     <main id="main" className={styles.shell}>

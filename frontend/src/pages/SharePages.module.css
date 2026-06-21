@@ -1,13 +1,15 @@
 .shell {
-  width: min(100% - var(--space-8), 56rem);
-  margin: var(--space-12) auto;
+  width: min(100% - var(--space-8), 64rem);
+  margin: var(--space-8) auto;
   color: var(--color-text);
+  font-family: var(--font-sans);
 }
 
 .narrowShell {
   width: min(100% - var(--space-8), 36rem);
-  margin: var(--space-12) auto;
+  margin: var(--space-8) auto;
   color: var(--color-text);
+  font-family: var(--font-sans);
 }
 
 .header {
@@ -15,7 +17,9 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: var(--space-4);
-  margin-bottom: var(--space-6);
+  margin-bottom: var(--space-5);
+  padding-bottom: var(--space-4);
+  border-bottom: 1px solid var(--color-surface-border);
 }
 
 .heading {
@@ -34,30 +38,36 @@
 .section,
 .state,
 .errorState {
-  padding: var(--space-6);
   border: 1px solid var(--color-surface-border);
   border-radius: var(--radius-md);
   background-color: var(--color-surface);
 }
 
+.section {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-5);
+  box-shadow: var(--shadow-sm);
+}
+
 .section + .section {
-  margin-top: var(--space-6);
+  margin-top: var(--space-4);
 }
 
 .sectionTitle {
-  margin: 0 0 var(--space-4);
+  margin: 0;
   font-size: var(--font-size-md);
   line-height: var(--line-height-tight);
 }
 
 .form {
   display: grid;
-  gap: var(--space-4);
+  gap: var(--space-3);
 }
 
 .field {
   display: grid;
-  gap: var(--space-1);
+  gap: var(--space-2);
 }
 
 .label,
@@ -73,6 +83,12 @@
   gap: var(--space-2);
 }
 
+.checkboxLabel input {
+  width: 1rem;
+  height: 1rem;
+  accent-color: var(--color-primary);
+}
+
 .input,
 .select {
   min-height: 2.75rem;
@@ -82,10 +98,18 @@
   background-color: var(--color-surface);
   color: var(--color-text);
   font-size: var(--font-size-base);
+  transition:
+    background-color var(--transition-base),
+    border-color var(--transition-base);
 }
 
 .input[aria-invalid='true'] {
   border-color: var(--color-danger);
+}
+
+.input:hover,
+.select:hover {
+  border-color: var(--color-border-strong);
 }
 
 .actions {
@@ -98,7 +122,7 @@
 .primaryButton,
 .secondaryButton,
 .secondaryLink {
-  min-height: 2.5rem;
+  min-height: 2.75rem;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -107,6 +131,11 @@
   font-size: var(--font-size-sm);
   font-weight: 600;
   text-decoration: none;
+  transition:
+    background-color var(--transition-base),
+    border-color var(--transition-base),
+    box-shadow var(--transition-base),
+    color var(--transition-base);
 }
 
 .primaryButton {
@@ -116,12 +145,35 @@
   cursor: pointer;
 }
 
+.primaryButton:hover:not(:disabled) {
+  background-color: var(--color-primary-hover);
+  border-color: var(--color-primary-hover);
+  box-shadow: var(--shadow-sm);
+}
+
 .secondaryButton,
 .secondaryLink {
   border: 1px solid var(--color-surface-border);
   background-color: var(--color-surface);
   color: var(--color-text);
   cursor: pointer;
+}
+
+.secondaryButton:hover:not(:disabled),
+.secondaryLink:hover {
+  background-color: var(--color-surface-2);
+  border-color: var(--color-border-strong);
+}
+
+.primaryButton:focus-visible,
+.secondaryButton:focus-visible,
+.secondaryLink:focus-visible,
+.input:focus-visible,
+.select:focus-visible,
+.checkboxLabel input:focus-visible,
+.shareUrl:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
 }
 
 .primaryButton:disabled,
@@ -137,10 +189,16 @@
 }
 
 .banner {
-  padding: var(--space-3);
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-danger) 18%, var(--color-danger-bg));
   border-radius: var(--radius-md);
   background-color: var(--color-danger-bg);
   color: var(--color-danger-fg);
+}
+
+.shell > .banner {
+  margin-bottom: var(--space-4);
 }
 
 .fieldError {
@@ -150,7 +208,6 @@
 .shareUrlBox {
   display: grid;
   gap: var(--space-2);
-  margin-top: var(--space-4);
 }
 
 .shareUrl {
@@ -162,11 +219,12 @@
   background-color: var(--color-surface-2);
   color: var(--color-text);
   font-size: var(--font-size-sm);
+  overflow-wrap: anywhere;
 }
 
 .list {
   display: grid;
-  gap: var(--space-3);
+  gap: var(--space-2);
   padding: 0;
   margin: 0;
   list-style: none;
@@ -175,9 +233,9 @@
 .listItem {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: var(--space-3);
-  align-items: start;
-  padding: var(--space-4);
+  gap: var(--space-3) var(--space-4);
+  align-items: center;
+  padding: var(--space-3) var(--space-4);
   border: 1px solid var(--color-surface-border);
   border-radius: var(--radius-md);
   background-color: var(--color-surface);
@@ -207,12 +265,29 @@
   overflow-wrap: anywhere;
 }
 
+.listItem > .itemMeta {
+  justify-self: start;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-md);
+  background-color: var(--color-primary-softer);
+  color: var(--color-primary-text);
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  line-height: var(--line-height-tight);
+  text-transform: uppercase;
+}
+
 .state,
 .errorState {
-  margin-top: var(--space-4);
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  margin: 0;
+  background-color: var(--color-surface-2);
 }
 
 .errorState {
+  border-color: color-mix(in srgb, var(--color-danger) 24%, var(--color-danger-bg));
   background-color: var(--color-danger-bg);
   color: var(--color-danger-fg);
 }
@@ -221,15 +296,11 @@
   color: var(--color-danger-fg);
 }
 
-.errorState > * + * {
-  margin-top: var(--space-4);
-}
-
 @media (max-width: 640px) {
   .shell,
   .narrowShell {
     width: min(100% - var(--space-4), 56rem);
-    margin: var(--space-8) auto;
+    margin: var(--space-6) auto;
   }
 
   .header,
@@ -245,5 +316,9 @@
   .secondaryButton,
   .primaryButton {
     width: 100%;
+  }
+
+  .section {
+    padding: var(--space-4);
   }
 }

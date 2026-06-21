@@ -1,234 +1,106 @@
 /**
- * tokens.css — TripPlanner design-token foundation.
+ * TripPlanner visual system.
  *
- * This is the AUTHORITATIVE design-token file. New components should consume
- * these CSS custom properties rather than hardcoding colors / spacing /
- * typography / radius / shadow / focus / motion values.
- *
- * The legacy tokens in `index.css` (`--text`, `--text-h`, `--bg`, `--border`,
- * `--code-bg`, `--accent`, `--accent-bg`, `--accent-border`, `--social-bg`,
- * `--shadow`, `--sans`, `--heading`, `--mono`) are intentionally kept for
- * backward compatibility during the UI/UX cleanup. Don't rename or remove
- * them; new code should prefer the semantic equivalents in this file.
- *
- * Naming conventions
- * ------------------
- *   --color-{role}[-fg|-bg|-hover|-active]    semantic colors (primary,
- *       danger, warning, success, surface, text). `*-fg` is the foreground
- *       paired with the same-role background; `*-bg` is the subtle tinted
- *       background used in inline alerts.
- *   --color-neutral-{50..900}                 9-step neutral ramp (Tailwind
- *       Slate family — well-known, contrast-friendly).
- *   --space-{step}                            spacing scale. The numeric
- *       suffix is a SCALE STEP, not a pixel count: 1=4px, 2=8px, 3=12px,
- *       4=16px, 6=24px, 8=32px, 12=48px. Steps 5/7/9/10/11 are intentionally
- *       omitted to keep the scale opinionated.
- *   --font-size-{xs..xl}                      t-shirt-sized font scale.
- *   --line-height-{tight,base}                line-height tokens.
- *   --radius-{sm,md,lg,pill}                  border-radius tokens.
- *   --shadow-{sm,md,lg}                       elevation tokens.
- *   --focus-ring-{color,width,offset}         a11y focus indicator.
- *   --transition-{base,slow}                  motion duration+timing.
- *
- * Color palette
- * -------------
- * Neutrals: Tailwind Slate (50–900). Picked over Gray/Zinc for the slightly
- * cooler, more "trip planner" feel and proven AA contrast pairings.
- * Primary: blue-600 (#2563eb) on white = 4.78:1 (AA pass for normal text).
- * Considered cyan-500 (#06b6d4) for primary but it failed 4.5:1 against
- * white (~3.0:1) — dropped in favor of blue-600.
- * Danger: red-700 on red-50 background; red-600 used for the solid action.
- * Warning: amber-800 on amber-50 (yellow-on-white at 4.5:1 is hard, so we
- * use a darker brown-amber foreground).
- * Success: emerald-700 on emerald-50.
- *
- * Dark mode
- * ---------
- * `@media (prefers-color-scheme: dark)` re-defines every color token and
- * relaxes shadows (less visible against dark surfaces). Spacing, font scale,
- * radius, and motion are mode-invariant.
- *
- * Reduced motion
- * --------------
- * `@media (prefers-reduced-motion: reduce)` overrides --transition-base /
- * --transition-slow to 0ms with `step-end` timing. Components that consume
- * the tokens via `transition: ... var(--transition-base)` automatically
- * pick up the override — DO NOT also gate `transition` properties on
- * individual selectors against `prefers-reduced-motion`. The token IS the
- * gate.
+ * This file is the source of truth for the Stitch-aligned rebuild:
+ * Inter, operational slate surfaces, 8px rhythm, 8px radius, compact
+ * dashboard density, and a single accessible primary blue.
  */
 
 :root {
-  /* ---------- Neutrals (Tailwind Slate) ---------- */
-  --color-neutral-50: #f8fafc;
-  --color-neutral-100: #f1f5f9;
-  --color-neutral-200: #e2e8f0;
-  --color-neutral-300: #cbd5e1;
-  --color-neutral-400: #94a3b8;
-  --color-neutral-500: #64748b;
-  --color-neutral-600: #475569;
-  --color-neutral-700: #334155;
-  --color-neutral-800: #1e293b;
-  --color-neutral-900: #0f172a;
+  color-scheme: light;
 
-  /* ---------- Primary action ---------- */
-  /* blue-600 on white = 4.78:1 (AA normal). White on blue-600 = 4.78:1. */
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+
+  --color-bg: #eef2f7;
+  --color-bg-strong: #e2e8f0;
+  --color-shell: #f8fafc;
+  --color-surface: #ffffff;
+  --color-surface-2: #f1f5f9;
+  --color-surface-3: #e8edf5;
+  --color-surface-border: #d7dee9;
+  --color-border-strong: #b8c2d2;
+
+  --color-text: #0f172a;
+  --color-text-muted: #475569;
+  --color-text-subtle: #64748b;
+  --color-text-inverse: #ffffff;
+
   --color-primary: #2563eb;
   --color-primary-fg: #ffffff;
   --color-primary-text: #1d4ed8;
-  --color-primary-hover: #1d4ed8; /* blue-700 */
-  --color-primary-active: #1e40af; /* blue-800 */
+  --color-primary-hover: #1d4ed8;
+  --color-primary-active: #1e40af;
+  --color-primary-soft: #dbeafe;
+  --color-primary-softer: #eff6ff;
 
-  /* ---------- Danger ---------- */
-  /* red-700 on red-50 = 8.6:1. White on red-600 = 4.6:1. */
-  --color-danger: #dc2626; /* red-600, solid action */
-  --color-danger-fg: #b91c1c; /* red-700, foreground text on --color-danger-bg */
-  --color-danger-bg: #fef2f2; /* red-50 */
+  --color-danger: #dc2626;
+  --color-danger-fg: #991b1b;
+  --color-danger-bg: #fef2f2;
+  --color-warning: #d97706;
+  --color-warning-fg: #78350f;
+  --color-warning-bg: #fffbeb;
+  --color-success: #059669;
+  --color-success-fg: #047857;
+  --color-success-bg: #ecfdf5;
 
-  /* ---------- Warning ---------- */
-  /* amber-900 on amber-50 = 9.4:1. Yellow-on-white at 4.5:1 isn't possible
-     with vivid amber, so the foreground uses a dark amber-brown. */
-  --color-warning: #d97706; /* amber-600, used for icons/borders */
-  --color-warning-fg: #78350f; /* amber-900 */
-  --color-warning-bg: #fffbeb; /* amber-50 */
-
-  /* ---------- Success ---------- */
-  /* emerald-700 on emerald-50 = 6.7:1. */
-  --color-success: #059669; /* emerald-600 */
-  --color-success-fg: #047857; /* emerald-700 */
-  --color-success-bg: #ecfdf5; /* emerald-50 */
-
-  /* ---------- Surface ---------- */
-  --color-surface: #ffffff;
-  --color-surface-2: #f8fafc; /* raised: subtly cooler than --color-surface */
-  --color-surface-border: #e2e8f0; /* slate-200 */
-
-  /* ---------- Text ---------- */
-  /* slate-900 on white = 17.1:1. slate-500 on white = 4.6:1 (AA normal). */
-  --color-text: #0f172a;
-  --color-text-muted: #475569; /* slate-600, 8.5:1 — generous AA */
-  --color-text-inverse: #ffffff;
-
-  /* ---------- Spacing scale (step → px) ----------
-     1=4, 2=8, 3=12, 4=16, 6=24, 8=32, 12=48 */
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
   --space-4: 16px;
+  --space-5: 20px;
   --space-6: 24px;
   --space-8: 32px;
+  --space-10: 40px;
   --space-12: 48px;
 
-  /* ---------- Font scale ---------- */
   --font-size-xs: 12px;
   --font-size-sm: 14px;
   --font-size-base: 16px;
   --font-size-md: 18px;
-  --font-size-lg: 24px;
-  --font-size-xl: 32px;
+  --font-size-lg: 22px;
+  --font-size-xl: 28px;
   --line-height-tight: 1.2;
-  --line-height-base: 1.5;
+  --line-height-base: 1.45;
 
-  /* ---------- Radius ---------- */
   --radius-sm: 4px;
   --radius-md: 8px;
-  --radius-lg: 12px;
+  --radius-lg: 8px;
   --radius-pill: 999px;
 
-  /* ---------- Shadows ----------
-     Match the existing --shadow aesthetic (soft, layered). */
   --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
   --shadow-md:
-    0 4px 6px -1px rgba(15, 23, 42, 0.08),
-    0 2px 4px -2px rgba(15, 23, 42, 0.05);
+    0 10px 24px rgba(15, 23, 42, 0.08),
+    0 2px 6px rgba(15, 23, 42, 0.05);
   --shadow-lg:
-    0 10px 15px -3px rgba(15, 23, 42, 0.1),
-    0 4px 6px -2px rgba(15, 23, 42, 0.05);
+    0 18px 48px rgba(15, 23, 42, 0.12),
+    0 3px 10px rgba(15, 23, 42, 0.06);
 
-  /* ---------- Focus ring (load-bearing for a11y) ----------
-     #2563eb on white = 4.78:1; on --color-primary (#2563eb) the same color
-     would be invisible, so the ring uses a high-contrast blue-700 outline
-     that still hits 3:1 against the primary background. In practice we pair
-     this with --focus-ring-offset, which puts a surface-colored gap between
-     the element and the ring — the gap+ring sandwich works on any bg. */
   --focus-ring-color: #2563eb;
   --focus-ring-width: 2px;
   --focus-ring-offset: 2px;
 
-  /* ---------- Motion ---------- */
-  --transition-base: 150ms ease-out;
-  --transition-slow: 250ms ease-out;
-}
+  --transition-base: 160ms ease-out;
+  --transition-slow: 240ms ease-out;
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    /* Neutrals invert: 900 becomes the page bg, 50 becomes the bright text.
-       Numbers stay the same (semantics: 900 = darkest), but consumers should
-       be using the semantic --color-text / --color-surface tokens, not the
-       raw ramp, so they'll get the right thing automatically. */
-    --color-neutral-50: #0f172a;
-    --color-neutral-100: #1e293b;
-    --color-neutral-200: #334155;
-    --color-neutral-300: #475569;
-    --color-neutral-400: #64748b;
-    --color-neutral-500: #94a3b8;
-    --color-neutral-600: #cbd5e1;
-    --color-neutral-700: #e2e8f0;
-    --color-neutral-800: #f1f5f9;
-    --color-neutral-900: #f8fafc;
-
-    /* Primary: blue-500 on near-black surface = 5.4:1; white on blue-500
-       = 4.6:1. Considered blue-600 again but it dropped to 4.1:1 against
-       the lighter blue-500 hover state, so we lift the whole ramp. */
-    --color-primary: #3b82f6; /* blue-500 */
-    --color-primary-fg: #0f172a; /* dark text on bright primary; 5.4:1 */
-    --color-primary-text: #60a5fa; /* blue-400, AA on raised dark surfaces */
-    --color-primary-hover: #60a5fa; /* blue-400 */
-    --color-primary-active: #93c5fd; /* blue-300 */
-
-    /* Danger: red-400 fg on red-950 bg = 6.5:1. */
-    --color-danger: #f87171; /* red-400 */
-    --color-danger-fg: #fca5a5; /* red-300 */
-    --color-danger-bg: #450a0a; /* red-950 */
-
-    /* Warning: amber-300 fg on amber-950 bg = 9.2:1. */
-    --color-warning: #fbbf24; /* amber-400 */
-    --color-warning-fg: #fcd34d; /* amber-300 */
-    --color-warning-bg: #451a03; /* amber-950 */
-
-    /* Success: emerald-300 fg on emerald-950 bg = 9.0:1. */
-    --color-success: #34d399; /* emerald-400 */
-    --color-success-fg: #6ee7b7; /* emerald-300 */
-    --color-success-bg: #022c22; /* emerald-950 */
-
-    /* Surface */
-    --color-surface: #0f172a; /* slate-900 */
-    --color-surface-2: #1e293b; /* slate-800 — raised */
-    --color-surface-border: #334155; /* slate-700 */
-
-    /* Text: slate-50 on slate-900 = 17.1:1. slate-400 on slate-900 = 5.7:1. */
-    --color-text: #f8fafc;
-    --color-text-muted: #94a3b8; /* slate-400 */
-    --color-text-inverse: #0f172a;
-
-    /* Shadows: more subtle on dark — high-contrast shadows look like halos. */
-    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
-    --shadow-md:
-      0 4px 6px -1px rgba(0, 0, 0, 0.4),
-      0 2px 4px -2px rgba(0, 0, 0, 0.3);
-    --shadow-lg:
-      0 10px 15px -3px rgba(0, 0, 0, 0.5),
-      0 4px 6px -2px rgba(0, 0, 0, 0.3);
-
-    /* Focus ring: blue-400 on slate-900 = 6.4:1; on blue-500 = 3.1:1. */
-    --focus-ring-color: #60a5fa;
-  }
+  /* Backward-compatible aliases for older modules during the rebuild. */
+  --text: var(--color-text-muted);
+  --text-h: var(--color-text);
+  --bg: var(--color-bg);
+  --border: var(--color-surface-border);
+  --code-bg: var(--color-surface-2);
+  --accent: var(--color-primary);
+  --accent-bg: var(--color-primary-soft);
+  --accent-border: var(--color-primary);
+  --social-bg: var(--color-surface-2);
+  --shadow: var(--shadow-md);
+  --sans: var(--font-sans);
+  --heading: var(--font-sans);
+  --mono: var(--font-mono);
 }
 
 @media (prefers-reduced-motion: reduce) {
   :root {
-    /* The token IS the gate: components consuming --transition-* will
-       become instantaneous without any per-selector media-query gating. */
     --transition-base: 0ms step-end;
     --transition-slow: 0ms step-end;
   }

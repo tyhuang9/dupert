@@ -172,7 +172,7 @@ export function RegisterPage() {
   const topMessage = errorInfo?.topMessage ?? null
   const isWarning = errorInfo?.severity === 'warning'
   const bannerClass = isWarning ? styles.bannerWarning : styles.banner
-  const bannerIcon = isWarning ? '⚠' : '✕'
+  const bannerIcon = '!'
 
   return (
     <main id="main" className={styles.shell}>
