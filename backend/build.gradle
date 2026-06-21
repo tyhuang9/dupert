@@ -1,6 +1,6 @@
 plugins {
 	id 'java'
-	id 'org.springframework.boot' version '3.5.14'
+	id 'org.springframework.boot' version '3.5.15'
 	id 'io.spring.dependency-management' version '1.1.7'
 	id 'org.owasp.dependencycheck' version '12.2.2'
 }
@@ -8,6 +8,11 @@ plugins {
 group = 'com.trip'
 version = '0.0.1-SNAPSHOT'
 description = 'TripPlanner backend'
+
+// Dependency-Check matches Log4j API/SLF4J bridge artifacts to generic Log4j
+// CPEs. Keep the managed Log4j 2.x line on the release that fixes the flagged
+// Core/1.x-bridge CVEs until the Spring Boot BOM catches up.
+ext['log4j2.version'] = '2.25.4'
 
 java {
 	toolchain {
