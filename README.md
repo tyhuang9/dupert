@@ -32,7 +32,7 @@ No Docker, no local Postgres install, no global Gradle.
 
 ```bash
 git clone <this repo>
-cd TripPlanner
+cd trip-planner
 cp .env.example .env
 # Edit .env and fill in real values for:
 #   DATABASE_URL          (Neon connection string — wrap in single quotes if it
@@ -54,15 +54,20 @@ The backend uses the Gradle wrapper, so the first `./gradlew` invocation will fe
 
 ## Run (development)
 
-You'll need two terminals.
-
-**Terminal 1 — backend** (http://localhost:8000):
+Start both the backend and frontend from the repo root:
 
 ```bash
-cd TripPlanner
-set -a && source .env && set +a       # load env vars into the shell
-cd backend
-./gradlew bootRun
+npm run dev
+```
+
+This sources `.env`, starts the Spring Boot backend on http://localhost:8000, starts the Vite frontend on http://localhost:3000, and stops both processes when you press `Ctrl+C`.
+
+Open http://localhost:3000 in your browser. Vite proxies `/api/**` to the backend, so the SPA can call `/api/...` without CORS gymnastics during development.
+
+If you prefer the direct script instead of npm:
+
+```bash
+./scripts/dev.sh
 ```
 
 If Gradle complains about Java, export `JAVA_HOME` explicitly:
@@ -72,15 +77,6 @@ export JAVA_HOME="<path-to-your-jdk-21>"
 ```
 
 Flyway will run the V1 migration against your Neon database on first boot.
-
-**Terminal 2 — frontend** (http://localhost:3000):
-
-```bash
-cd TripPlanner/frontend
-npm run dev
-```
-
-Open http://localhost:3000 in your browser. Vite proxies `/api/**` to the backend, so the SPA can call `/api/...` without CORS gymnastics during development.
 
 ## Other commands
 
@@ -140,7 +136,7 @@ The Dependency-Check Data workflow runs daily and can be dispatched manually. It
 ## Project layout
 
 ```
-TripPlanner/
+trip-planner/
 ├── .github/         GitHub Actions CI workflow
 ├── backend/         Spring Boot service (Java 21)
 │   └── src/main/java/com/trip/
