@@ -71,7 +71,8 @@ export function PlaceSearch({ onPlaceSelect }: PlaceSearchProps) {
   return (
     <div className={styles.searchShell}>
       <label className={styles.label}>
-        Place search
+        Search places
+        <span className={styles.helpText}>Restaurants, sights, hotels, airports, and transit stops.</span>
         <span className={styles.searchBox}>
           <SearchBox
             accessToken={accessToken}
@@ -90,7 +91,8 @@ export function PlaceSearch({ onPlaceSelect }: PlaceSearchProps) {
         </span>
       </label>
       {selectedName && (
-        <div className={styles.selectedPlace}>
+        <div className={styles.selectedPlace} role="status" aria-live="polite" aria-atomic="true">
+          <span>Ready to add</span>
           <p>{selectedName}</p>
           {selectedAddress && (
             <p className={styles.placeAddress}>{selectedAddress}</p>

@@ -1,78 +1,138 @@
 .form {
+  min-width: 0;
   display: grid;
-  gap: var(--space-4);
-  padding: var(--space-4);
-  border: 1px solid var(--color-surface-border);
-  border-radius: var(--radius-lg);
-  background-color: var(--color-surface);
+  gap: var(--space-3);
 }
 
-.row {
+.fieldGrid {
+  min-width: 0;
   display: grid;
-  gap: var(--space-4);
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
 }
 
 .label {
+  min-width: 0;
   display: grid;
-  gap: var(--space-2);
-  font-size: var(--font-size-sm);
+  gap: var(--space-1);
   color: var(--color-text);
+  font-size: var(--font-size-xs);
+  font-weight: 800;
 }
 
 .input,
 .select,
 .textarea {
+  min-width: 0;
   width: 100%;
-  padding: var(--space-3);
+  min-height: 2.25rem;
+  padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-sm);
   border: 1px solid var(--color-surface-border);
-  background-color: var(--color-surface-2);
+  background-color: var(--color-surface);
   color: var(--color-text);
-  font-size: var(--font-size-base);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  transition:
+    border-color var(--transition-base),
+    box-shadow var(--transition-base);
+}
+
+.input::placeholder,
+.textarea::placeholder {
+  color: var(--color-text-muted);
+}
+
+.input:focus-visible,
+.select:focus-visible,
+.textarea:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
 }
 
 .textarea {
-  min-height: 8rem;
+  min-height: 4.75rem;
   resize: vertical;
 }
 
 .placeSummary {
+  min-width: 0;
   display: grid;
   gap: var(--space-1);
-  padding: var(--space-3);
+  padding: var(--space-2) var(--space-3);
   border: 1px solid var(--color-surface-border);
   border-radius: var(--radius-md);
-  background-color: var(--color-surface-2);
+  background-color: var(--color-surface);
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);
   line-height: var(--line-height-base);
 }
 
+.placeSummary span {
+  color: var(--color-primary-text);
+  font-size: var(--font-size-xs);
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
 .placeSummary p {
+  min-width: 0;
   margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.placeSummary p:first-of-type {
+  color: var(--color-text);
+  font-weight: 700;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.submitButton,
+.cancelButton {
+  min-height: 2.25rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--font-size-xs);
+  font-weight: 800;
+  transition:
+    background-color var(--transition-base),
+    border-color var(--transition-base),
+    color var(--transition-base);
 }
 
 .submitButton {
-  width: fit-content;
-  padding: var(--space-3) var(--space-6);
-  border: none;
-  border-radius: var(--radius-md);
+  border: 1px solid var(--color-primary);
   background-color: var(--color-primary);
-  color: white;
-  cursor: pointer;
-  font-weight: 700;
+  color: var(--color-primary-fg);
+}
+
+.submitButton:hover,
+.submitButton:focus-visible {
+  border-color: var(--color-primary-hover);
+  background-color: var(--color-primary-hover);
 }
 
 .cancelButton {
-  width: fit-content;
-  padding: var(--space-3) var(--space-6);
   border: 1px solid var(--color-surface-border);
-  border-radius: var(--radius-md);
   background-color: var(--color-surface);
   color: var(--color-text);
-  cursor: pointer;
-  font-weight: 700;
+}
+
+.submitButton:focus-visible,
+.cancelButton:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
 }
 
 .submitButton:disabled {
@@ -82,11 +142,18 @@
 
 .cancelButton:hover,
 .cancelButton:focus-visible {
+  border-color: var(--color-primary);
   background-color: var(--color-surface-2);
+  color: var(--color-primary-text);
 }
 
 @media (max-width: 640px) {
-  .row {
+  .fieldGrid {
     grid-template-columns: 1fr;
+  }
+
+  .submitButton,
+  .cancelButton {
+    width: 100%;
   }
 }

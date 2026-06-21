@@ -1,43 +1,98 @@
 .form {
+  min-width: 0;
   display: grid;
-  gap: var(--space-3);
-  padding: var(--space-4);
-  border: 1px solid var(--color-surface-border);
-  border-radius: var(--radius-md);
-  background-color: var(--color-surface);
+  gap: var(--space-2);
 }
 
 .label {
+  min-width: 0;
   display: grid;
-  gap: var(--space-2);
+  gap: var(--space-1);
   color: var(--color-text);
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-xs);
+  font-weight: 800;
+}
+
+.labelRow {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.labelRow span:last-child {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-weight: 700;
 }
 
 .textarea {
-  min-height: 8rem;
+  min-width: 0;
+  min-height: 6rem;
   width: 100%;
   resize: vertical;
-  padding: var(--space-3);
+  padding: var(--space-2) var(--space-3);
   border: 1px solid var(--color-surface-border);
   border-radius: var(--radius-sm);
   background-color: var(--color-surface-2);
   color: var(--color-text);
-  font-size: var(--font-size-base);
+  font: inherit;
+  font-size: var(--font-size-xs);
+  line-height: 1.45;
+}
+
+.textarea::placeholder {
+  color: var(--color-text-muted);
+}
+
+.textarea:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
 }
 
 .submitButton {
+  min-height: 2.25rem;
   width: fit-content;
-  padding: var(--space-3) var(--space-6);
-  border: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 var(--space-4);
+  border: 1px solid var(--color-primary);
   border-radius: var(--radius-md);
   background-color: var(--color-primary);
-  color: white;
+  color: var(--color-primary-fg);
   cursor: pointer;
-  font-weight: 700;
+  font: inherit;
+  font-size: var(--font-size-xs);
+  font-weight: 800;
+  transition:
+    background-color var(--transition-base),
+    border-color var(--transition-base);
+}
+
+.submitButton:hover,
+.submitButton:focus-visible {
+  border-color: var(--color-primary-hover);
+  background-color: var(--color-primary-hover);
+}
+
+.submitButton:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
 }
 
 .submitButton:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+@media (max-width: 520px) {
+  .labelRow {
+    display: grid;
+  }
+
+  .submitButton {
+    width: 100%;
+  }
 }

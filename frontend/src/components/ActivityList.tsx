@@ -33,6 +33,8 @@ interface SortableActivityCardProps extends Omit<ActivityListProps, 'activities'
   activity: Activity
   canMoveDown: boolean
   canMoveUp: boolean
+  isLast: boolean
+  position: number
 }
 
 function SortableActivityCard({
@@ -40,8 +42,10 @@ function SortableActivityCard({
   busy = false,
   canMoveDown,
   canMoveUp,
+  isLast,
   maxDate,
   minDate,
+  position,
   readOnly = false,
   onEdit,
   onDelete,
@@ -77,32 +81,37 @@ function SortableActivityCard({
       {...attributes}
       {...listeners}
     >
-      ↕
+      Drag
     </button>
   ) : undefined
 
   return (
-    <div
+    <li
       ref={setNodeRef}
       style={style}
-      className={`${styles.sortableItem} ${isDragging ? styles.dragging : ''}`}
+      className={`${styles.sortableItem} ${isLast ? styles.lastItem : ''} ${isDragging ? styles.dragging : ''}`}
     >
-      <ActivityCard
-        activity={activity}
-        busy={busy}
-        canMoveDown={canMoveDown}
-        canMoveUp={canMoveUp}
-        dragHandle={dragHandle}
-        maxDate={maxDate}
-        minDate={minDate}
-        readOnly={readOnly}
-        onEdit={onEdit}
-        onDelete={onDelete}
-        onMoveDown={onMoveDown}
-        onMoveToDay={onMoveToDay}
-        onMoveUp={onMoveUp}
-      />
-    </div>
+      <span className={styles.timelineMarker} aria-hidden="true">
+        {position}
+      </span>
+      <div className={styles.cardSlot}>
+        <ActivityCard
+          activity={activity}
+          busy={busy}
+          canMoveDown={canMoveDown}
+          canMoveUp={canMoveUp}
+          dragHandle={dragHandle}
+          maxDate={maxDate}
+          minDate={minDate}
+          readOnly={readOnly}
+          onEdit={onEdit}
+          onDelete={onDelete}
+          onMoveDown={onMoveDown}
+          onMoveToDay={onMoveToDay}
+          onMoveUp={onMoveUp}
+        />
+      </div>
+    </li>
   )
 }
 
@@ -121,7 +130,10 @@ export function ActivityList({
   if (activities.length === 0) {
     return (
       <div className={styles.emptyState}>
-        <p>{readOnly ? 'No activities yet.' : 'No activities yet. Add one to get started.'}</p>
+        <p>
+          <strong>No activities yet.</strong>
+          {!readOnly && <span> Search for a place or add a manual activity to start this day.</span>}
+        </p>
       </div>
     )
   }
@@ -131,7 +143,7 @@ export function ActivityList({
       items={activities.map((activity) => activityDragId(activity.id))}
       strategy={verticalListSortingStrategy}
     >
-      <div className={styles.list}>
+      <ol className={styles.list}>
         {activities.map((activity, index) => (
           <SortableActivityCard
             key={activity.id}
@@ -139,8 +151,10 @@ export function ActivityList({
             busy={busy}
             canMoveDown={index < activities.length - 1}
             canMoveUp={index > 0}
+            isLast={index === activities.length - 1}
             maxDate={maxDate}
             minDate={minDate}
+            position={index + 1}
             readOnly={readOnly}
             onEdit={onEdit}
             onDelete={onDelete}
@@ -149,7 +163,7 @@ export function ActivityList({
             onMoveUp={onMoveUp}
           />
         ))}
-      </div>
+      </ol>
     </SortableContext>
   )
 }

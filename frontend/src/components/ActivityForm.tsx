@@ -71,7 +71,7 @@ export function ActivityForm({
 
   return (
     <form className={styles.form} onSubmit={handleSubmit}>
-      <div className={styles.row}>
+      <div className={styles.fieldGrid}>
         <label className={styles.label}>
           Category
           <select
@@ -93,6 +93,7 @@ export function ActivityForm({
             className={styles.input}
             value={title}
             onChange={(event) => setTitle(event.target.value)}
+            placeholder="Museum visit, lunch, hotel check-in..."
             required
           />
         </label>
@@ -104,17 +105,19 @@ export function ActivityForm({
           className={styles.textarea}
           value={notes}
           onChange={(event) => setNotes(event.target.value)}
+          placeholder="Reservation details, tickets, confirmation numbers..."
         />
       </label>
 
       {hasPlace && (
         <div className={styles.placeSummary}>
+          <span>Selected place</span>
           <p>{initialValues?.placeName}</p>
           {initialValues?.address && <p>{initialValues.address}</p>}
         </div>
       )}
 
-      <div className={styles.row}>
+      <div className={styles.fieldGrid}>
         <label className={styles.label}>
           Start time
           <input
@@ -136,14 +139,16 @@ export function ActivityForm({
         </label>
       </div>
 
-      <button type="submit" className={styles.submitButton} disabled={submitting}>
-        {submitting ? 'Saving…' : submitLabel}
-      </button>
-      {onCancel && (
-        <button type="button" className={styles.cancelButton} onClick={onCancel}>
-          Cancel
+      <div className={styles.actions}>
+        <button type="submit" className={styles.submitButton} disabled={submitting}>
+          {submitting ? 'Saving…' : submitLabel}
         </button>
-      )}
+        {onCancel && (
+          <button type="button" className={styles.cancelButton} onClick={onCancel}>
+            Cancel
+          </button>
+        )}
+      </div>
     </form>
   )
 }

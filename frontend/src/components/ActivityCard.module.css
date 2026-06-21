@@ -1,44 +1,111 @@
 .card {
-  padding: var(--space-4);
+  position: relative;
+  min-width: 0;
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
   border: 1px solid var(--color-surface-border);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-md);
   background-color: var(--color-surface);
-  display: flex;
-  flex-direction: column;
+  box-shadow: var(--shadow-sm);
+  transition:
+    border-color var(--transition-base),
+    box-shadow var(--transition-base);
+}
+
+.card:hover,
+.card:focus-within {
+  border-color: var(--color-primary);
+  box-shadow: var(--shadow-md);
+}
+
+.main {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 3rem minmax(0, 1fr) auto;
+  align-items: start;
   gap: var(--space-3);
 }
 
-.header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--space-4);
+.categoryBlock {
+  width: 3rem;
+  height: 3rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--color-surface-border);
+  border-radius: var(--radius-md);
+  background-color: var(--color-surface-2);
+  color: var(--color-primary-text);
+  font-size: var(--font-size-xs);
+  font-weight: 800;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.categoryBlock[data-category='MEAL'],
+.categoryBlock[data-category='SNACK'] {
+  background-color: var(--color-warning-bg);
+  color: var(--color-warning-fg);
+}
+
+.categoryBlock[data-category='ACTIVITY'] {
+  background-color: var(--color-success-bg);
+  color: var(--color-success-fg);
+}
+
+.categoryBlock[data-category='TRANSPORT'] {
+  background-color: var(--color-primary);
+  color: var(--color-primary-fg);
+}
+
+.categoryBlock[data-category='LODGING'] {
+  background-color: var(--color-danger-bg);
+  color: var(--color-danger-fg);
+}
+
+.content {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-1);
 }
 
 .title {
   min-width: 0;
   margin: 0;
-  font-size: var(--font-size-sm);
+  color: var(--color-text);
+  font-size: var(--font-size-base);
+  font-weight: 700;
   line-height: var(--line-height-tight);
   overflow-wrap: anywhere;
 }
 
 .actions {
+  min-width: 0;
   display: flex;
   align-items: center;
-  gap: var(--space-2);
-  flex-shrink: 0;
+  gap: var(--space-1);
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .iconButton {
-  width: 2.5rem;
-  height: 2.5rem;
-  border: 1px solid var(--color-surface-border);
+  max-width: 100%;
+  min-width: 2rem;
+  min-height: 2rem;
+  padding: 0 var(--space-2);
+  border: 1px solid transparent;
   border-radius: var(--radius-sm);
-  background-color: var(--color-surface);
-  color: var(--color-text);
-  font-size: var(--font-size-sm);
+  background-color: transparent;
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: var(--font-size-xs);
+  font-weight: 700;
   cursor: pointer;
+  transition:
+    background-color var(--transition-base),
+    border-color var(--transition-base),
+    color var(--transition-base);
 }
 
 .iconButton:disabled {
@@ -48,16 +115,24 @@
 
 .iconButton:hover,
 .iconButton:focus-visible {
-  border-color: var(--focus-ring-color);
+  border-color: var(--color-surface-border);
   background-color: var(--color-surface-2);
+  color: var(--color-primary-text);
+}
+
+.iconButton:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
 }
 
 .iconButton:disabled:hover {
-  border-color: var(--color-surface-border);
-  background-color: var(--color-surface);
+  border-color: transparent;
+  background-color: transparent;
+  color: var(--color-text-muted);
 }
 
 .meta {
+  min-width: 0;
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-2);
@@ -66,13 +141,26 @@
   color: var(--color-text-muted);
 }
 
+.category,
+.time,
+.locationLabel {
+  min-height: 1rem;
+  display: inline-flex;
+  align-items: center;
+  padding: 0;
+  font-size: var(--font-size-xs);
+  font-weight: 800;
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
 .category {
-  padding: 0.25rem 0.5rem;
-  border-radius: var(--radius-pill);
-  background-color: var(--color-surface-2);
+  color: var(--color-text-muted);
 }
 
 .time {
+  color: var(--color-text-muted);
   font-variant-numeric: tabular-nums;
 }
 
@@ -80,12 +168,28 @@
 .location,
 .address,
 .attribution {
+  min-width: 0;
   margin: 0;
   font-size: var(--font-size-sm);
+  line-height: var(--line-height-base);
+  overflow-wrap: anywhere;
+}
+
+.notes {
+  color: var(--color-text-muted);
 }
 
 .location {
-  color: var(--color-text);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  color: var(--color-text-muted);
+  font-weight: 500;
+}
+
+.locationLabel {
+  color: var(--color-text-muted);
 }
 
 .address {
@@ -93,27 +197,40 @@
 }
 
 .moveControls {
+  min-width: 0;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--color-surface-border);
 }
 
 .moveLabel {
+  min-width: 0;
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
   color: var(--color-text-muted);
   font-size: var(--font-size-xs);
+  font-weight: 700;
 }
 
 .moveLabel input {
+  min-width: 0;
+  min-height: 2rem;
   max-width: 10rem;
-  padding: var(--space-2);
+  padding: var(--space-1) var(--space-2);
   border: 1px solid var(--color-surface-border);
   border-radius: var(--radius-sm);
   background-color: var(--color-surface-2);
   color: var(--color-text);
+  font: inherit;
+}
+
+.moveLabel input:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
 }
 
 .attribution {
@@ -121,15 +238,28 @@
   font-size: var(--font-size-xs);
 }
 
-@media (max-width: 420px) {
-  .header {
-    display: grid;
-    gap: var(--space-3);
+@media (max-width: 560px) {
+  .main {
+    grid-template-columns: 2.75rem minmax(0, 1fr);
   }
 
-  .actions,
+  .categoryBlock {
+    width: 2.75rem;
+    height: 2.75rem;
+  }
+
+  .actions {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+  }
+
   .moveControls {
     width: 100%;
+    justify-content: stretch;
+  }
+
+  .iconButton {
+    flex: 1 1 auto;
   }
 
   .moveLabel {

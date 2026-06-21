@@ -75,6 +75,7 @@
   /* blue-600 on white = 4.78:1 (AA normal). White on blue-600 = 4.78:1. */
   --color-primary: #2563eb;
   --color-primary-fg: #ffffff;
+  --color-primary-text: #1d4ed8;
   --color-primary-hover: #1d4ed8; /* blue-700 */
   --color-primary-active: #1e40af; /* blue-800 */
 
@@ -181,6 +182,7 @@
        the lighter blue-500 hover state, so we lift the whole ramp. */
     --color-primary: #3b82f6; /* blue-500 */
     --color-primary-fg: #0f172a; /* dark text on bright primary; 5.4:1 */
+    --color-primary-text: #60a5fa; /* blue-400, AA on raised dark surfaces */
     --color-primary-hover: #60a5fa; /* blue-400 */
     --color-primary-active: #93c5fd; /* blue-300 */
 

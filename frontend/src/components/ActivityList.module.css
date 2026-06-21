@@ -1,26 +1,91 @@
 .list {
   display: grid;
-  gap: var(--space-4);
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
 .sortableItem {
+  position: relative;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 2.5rem minmax(0, 1fr);
+  gap: var(--space-2);
+  align-items: start;
+  padding-bottom: var(--space-3);
   touch-action: manipulation;
+}
+
+.sortableItem::before {
+  content: '';
+  position: absolute;
+  top: 2.5rem;
+  bottom: 0;
+  left: 1.25rem;
+  width: 1px;
+  background-image: linear-gradient(
+    to bottom,
+    var(--color-text-muted) 50%,
+    transparent 50%
+  );
+  background-repeat: repeat-y;
+  background-size: 1px var(--space-2);
+  opacity: 0.45;
+}
+
+.lastItem {
+  padding-bottom: 0;
+}
+
+.lastItem::before {
+  display: none;
 }
 
 .dragging {
   opacity: 0.55;
 }
 
-.dragHandle {
+.timelineMarker {
+  position: relative;
+  z-index: 1;
   width: 2.5rem;
   height: 2.5rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 4px solid var(--color-surface);
+  border-radius: var(--radius-pill);
+  background-color: var(--color-primary);
+  color: var(--color-primary-fg);
+  box-shadow: var(--shadow-sm);
+  font-size: var(--font-size-xs);
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.cardSlot {
+  min-width: 0;
+}
+
+.dragHandle {
+  min-width: 2rem;
+  min-height: 2rem;
+  padding: 0 var(--space-2);
   touch-action: none;
-  border: 1px solid var(--color-surface-border);
+  border: 1px solid transparent;
   border-radius: var(--radius-sm);
-  background-color: var(--color-surface);
-  color: var(--color-text);
-  font-size: var(--font-size-sm);
+  background-color: transparent;
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: var(--font-size-xs);
+  font-weight: 700;
   cursor: grab;
+  transition:
+    background-color var(--transition-base),
+    border-color var(--transition-base),
+    color var(--transition-base);
 }
 
 .dragHandle:active {
@@ -34,17 +99,27 @@
 
 .dragHandle:hover,
 .dragHandle:focus-visible {
-  border-color: var(--focus-ring-color);
+  border-color: var(--color-surface-border);
   background-color: var(--color-surface-2);
+  color: var(--color-primary-text);
+}
+
+.dragHandle:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
 }
 
 .dragHandle:disabled:hover {
-  border-color: var(--color-surface-border);
-  background-color: var(--color-surface);
+  border-color: transparent;
+  background-color: transparent;
+  color: var(--color-text-muted);
 }
 
 .emptyState {
-  padding: var(--space-4);
+  min-height: 8rem;
+  display: grid;
+  align-content: center;
+  padding: var(--space-6);
   border: 1px dashed var(--color-surface-border);
   border-radius: var(--radius-md);
   background-color: var(--color-surface-2);
@@ -54,4 +129,9 @@
 .emptyState p {
   margin: 0;
   font-size: var(--font-size-sm);
+  line-height: var(--line-height-base);
+}
+
+.emptyState strong {
+  color: var(--color-text);
 }

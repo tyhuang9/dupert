@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useId, useState, type FormEvent } from 'react'
 import type { DayNote } from '../types/activity'
 import styles from './DayNoteEditor.module.css'
 
@@ -20,6 +20,8 @@ export function DayNoteEditor({
   onSave,
 }: DayNoteEditorProps) {
   const [draft, setDraft] = useState(note?.note ?? '')
+  const textareaId = useId()
+  const countId = useId()
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -28,17 +30,23 @@ export function DayNoteEditor({
 
   return (
     <form className={styles.form} onSubmit={handleSubmit}>
-      <label className={styles.label}>
-        Day note for {dayDate}
-        <textarea
-          className={styles.textarea}
-          value={draft}
-          onChange={(event) => setDraft(event.target.value)}
-          disabled={loading || saving || readOnly}
-          readOnly={readOnly}
-          maxLength={5000}
-        />
-      </label>
+      <div className={styles.labelRow}>
+        <label className={styles.label} htmlFor={textareaId}>
+          Day note for {dayDate}
+        </label>
+        <span id={countId}>{draft.length}/5000</span>
+      </div>
+      <textarea
+        id={textareaId}
+        className={styles.textarea}
+        value={draft}
+        onChange={(event) => setDraft(event.target.value)}
+        disabled={loading || saving || readOnly}
+        readOnly={readOnly}
+        maxLength={5000}
+        aria-describedby={countId}
+        placeholder="Log reservations, backup plans, reminders, or anything collaborators should know."
+      />
       {!readOnly && (
         <button type="submit" className={styles.submitButton} disabled={loading || saving}>
           {saving ? 'Saving...' : 'Save note'}

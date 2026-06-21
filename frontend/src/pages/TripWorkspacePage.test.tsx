@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import MockAdapter from 'axios-mock-adapter'
 import type { PropsWithChildren } from 'react'
@@ -11,11 +11,24 @@ import type { Trip } from '../types/trip'
 import { TripWorkspacePage } from './TripWorkspacePage'
 
 vi.mock('../components/TripMap', () => ({
-  TripMap: ({ activities }: { activities: Array<{ id: number; title: string }> }) => (
+  TripMap: ({
+    activities,
+    fallbackActivities,
+  }: {
+    activities: Array<{ id: number; title: string }>
+    fallbackActivities: Array<{ id: number; title: string }>
+  }) => (
     <div data-testid="trip-map">
-      {activities.map((activity) => (
-        <span key={activity.id}>{activity.title}</span>
-      ))}
+      <div data-testid="selected-map-activities">
+        {activities.map((activity) => (
+          <span key={activity.id}>{activity.title}</span>
+        ))}
+      </div>
+      <div data-testid="fallback-map-activities">
+        {fallbackActivities.map((activity) => (
+          <span key={activity.id}>{activity.title}</span>
+        ))}
+      </div>
     </div>
   ),
 }))
@@ -154,12 +167,48 @@ describe('<TripWorkspacePage>', () => {
     expect(await screen.findByLabelText(/pick a day/i)).toHaveValue('2026-05-03')
   })
 
+  it('switches the workspace when a day rail item is selected', async () => {
+    const dayTwoActivity = {
+      ...SAMPLE_ACTIVITY,
+      id: 22,
+      dayDate: '2026-05-02',
+      title: 'Tokyo Tower',
+      notes: 'Sunset slot',
+      lat: 35.6586,
+      lng: 139.7454,
+      orderIndex: 0,
+    }
+    apiMock.onGet('/trips/abc234def567').reply(200, SAMPLE_TRIP)
+    apiMock.onGet('/trips/abc234def567/activities').reply(200, [SAMPLE_ACTIVITY, dayTwoActivity])
+    apiMock.onGet('/trips/abc234def567/notes/2026-05-01').reply(200, SAMPLE_NOTE)
+    apiMock.onGet('/trips/abc234def567/notes/2026-05-02').reply(200, {
+      ...SAMPLE_NOTE,
+      dayDate: '2026-05-02',
+      note: 'Day two note',
+    })
+
+    renderWorkspace('/trips/abc234def567/d/2026-05-01')
+
+    expect(await screen.findByDisplayValue('Check reservation email')).toBeInTheDocument()
+    await userEvent.click(screen.getByTitle('2026-05-02 (1 activities)'))
+
+    expect(await screen.findByLabelText(/pick a day/i)).toHaveValue('2026-05-02')
+    expect(await screen.findByDisplayValue('Day two note')).toBeInTheDocument()
+    expect(screen.getAllByText('Tokyo Tower').length).toBeGreaterThan(0)
+
+    const selectedMapActivities = within(screen.getByTestId('selected-map-activities'))
+    expect(selectedMapActivities.getByText('Tokyo Tower')).toBeInTheDocument()
+    expect(selectedMapActivities.queryByText('Tsukiji sushi')).not.toBeInTheDocument()
+  })
+
   it('passes only selected-day activities to the map', async () => {
     const dayTwoActivity = {
       ...SAMPLE_ACTIVITY,
       id: 22,
       dayDate: '2026-05-02',
       title: 'Tokyo Tower',
+      lat: 35.6586,
+      lng: 139.7454,
       orderIndex: 0,
     }
     mockWorkspace([SAMPLE_ACTIVITY, dayTwoActivity])
@@ -167,8 +216,35 @@ describe('<TripWorkspacePage>', () => {
     renderWorkspace('/trips/abc234def567/d/2026-05-02')
 
     const map = await screen.findByTestId('trip-map')
-    expect(map).toHaveTextContent('Tokyo Tower')
-    expect(map).not.toHaveTextContent('Tsukiji sushi')
+    const selectedMapActivities = within(screen.getByTestId('selected-map-activities'))
+    const fallbackMapActivities = within(screen.getByTestId('fallback-map-activities'))
+    expect(map).toBeInTheDocument()
+    expect(selectedMapActivities.getByText('Tokyo Tower')).toBeInTheDocument()
+    expect(selectedMapActivities.queryByText('Tsukiji sushi')).not.toBeInTheDocument()
+    expect(fallbackMapActivities.getByText('Tokyo Tower')).toBeInTheDocument()
+    expect(fallbackMapActivities.getByText('Tsukiji sushi')).toBeInTheDocument()
+    expect(screen.getByText(/2 activities/i)).toBeInTheDocument()
+    expect(screen.getByText('1 of 1')).toBeInTheDocument()
+    expect(screen.getByText(/1 mapped stop today/i)).toBeInTheDocument()
+  })
+
+  it('keeps viewer workspaces read-only while preserving itinerary and map context', async () => {
+    mockWorkspace([SAMPLE_ACTIVITY], SAMPLE_NOTE, { ...SAMPLE_TRIP, role: 'VIEWER' })
+
+    renderWorkspace('/trips/abc234def567')
+
+    expect(await screen.findByRole('heading', { name: /tokyo 2026/i })).toBeInTheDocument()
+    expect(screen.getAllByText('Tsukiji sushi').length).toBeGreaterThan(0)
+    expect(screen.getByTestId('trip-map')).toBeInTheDocument()
+    expect(await screen.findByLabelText(/day note/i)).toBeDisabled()
+
+    expect(screen.queryByRole('button', { name: /mock place search/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /save note/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /add activity/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /share/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /edit: tsukiji sushi/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /delete: tsukiji sushi/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /move tsukiji sushi up/i })).not.toBeInTheDocument()
   })
 
   it('creates an activity for the selected day', async () => {
