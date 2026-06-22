@@ -4,7 +4,6 @@ import {
   useSortable,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
-import type { SearchBoxOptions } from '@mapbox/search-js-core'
 import { CalendarPlus } from 'lucide-react'
 import { ActivityCard } from './ActivityCard'
 import type { Activity, CreateActivityRequest } from '../types/activity'
@@ -17,10 +16,10 @@ interface ActivityListProps {
   readOnly?: boolean
   activeActivityId?: number | null
   expandedActivityId?: number | null
-  placeSearchOptions?: Partial<SearchBoxOptions>
   onActiveActivityChange?: (activityId: number | null) => void
   onAddActivity?: () => void
   onDelete: (activityId: number) => void
+  onRequestMapLocation?: (activity: Activity, payload: CreateActivityRequest) => void
   onSubmitEdit: (activity: Activity, payload: CreateActivityRequest) => Promise<void> | void
   onToggleExpand: (activity: Activity) => void
 }
@@ -46,9 +45,9 @@ function SortableActivityCard({
   readOnly = false,
   activeActivityId,
   expandedActivityId,
-  placeSearchOptions,
   onActiveActivityChange,
   onDelete,
+  onRequestMapLocation,
   onSubmitEdit,
   onToggleExpand,
 }: SortableActivityCardProps) {
@@ -85,10 +84,10 @@ function SortableActivityCard({
           dragAttributes={attributes}
           dragListeners={listeners}
           expanded={expandedActivityId === activity.id}
-          placeSearchOptions={placeSearchOptions}
           readOnly={readOnly}
           onActiveChange={onActiveActivityChange}
           onDelete={onDelete}
+          onRequestMapLocation={onRequestMapLocation}
           onSubmitEdit={onSubmitEdit}
           onToggleExpand={onToggleExpand}
         />
@@ -103,10 +102,10 @@ export function ActivityList({
   readOnly = false,
   activeActivityId = null,
   expandedActivityId = null,
-  placeSearchOptions,
   onActiveActivityChange,
   onAddActivity,
   onDelete,
+  onRequestMapLocation,
   onSubmitEdit,
   onToggleExpand,
 }: ActivityListProps) {
@@ -145,13 +144,13 @@ export function ActivityList({
             activity={activity}
             activeActivityId={activeActivityId}
             expandedActivityId={expandedActivityId}
-            placeSearchOptions={placeSearchOptions}
             busy={busy}
             isLast={index === activities.length - 1}
             position={index + 1}
             readOnly={readOnly}
             onActiveActivityChange={onActiveActivityChange}
             onDelete={onDelete}
+            onRequestMapLocation={onRequestMapLocation}
             onSubmitEdit={onSubmitEdit}
             onToggleExpand={onToggleExpand}
           />

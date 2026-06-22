@@ -10,8 +10,6 @@ import {
   Trash2,
   Utensils,
 } from 'lucide-react'
-import type { SearchBoxOptions } from '@mapbox/search-js-core'
-import { PlaceSearch } from './PlaceSearch'
 import type { ActivityCategory, CreateActivityRequest } from '../types/activity'
 import styles from './ActivityForm.module.css'
 
@@ -40,7 +38,7 @@ interface ActivityFormProps {
   onDelete?: () => void
   submitting: boolean
   deleteLabel?: string
-  placeSearchOptions?: Partial<SearchBoxOptions>
+  onRequestMapLocation?: (payload: CreateActivityRequest) => void
   variant?: 'default' | 'compact'
   submitLabel?: string
 }
@@ -74,7 +72,7 @@ export function ActivityForm({
   onDelete,
   submitting,
   deleteLabel = 'Delete',
-  placeSearchOptions,
+  onRequestMapLocation,
   variant = 'compact',
   submitLabel = 'Save activity',
 }: ActivityFormProps) {
@@ -83,7 +81,6 @@ export function ActivityForm({
   const placeId = useId()
   const addressId = useId()
   const notesId = useId()
-  const searchPanelId = useId()
   const categoryMenuId = useId()
   const notesPanelId = useId()
   const [category, setCategory] = useState<ActivityCategory>(initialValues?.category ?? 'OTHER')
@@ -96,7 +93,6 @@ export function ActivityForm({
   const [mapboxId, setMapboxId] = useState<string | null>(initialValues?.mapboxId ?? null)
   const [lat, setLat] = useState<number | null>(initialValues?.lat ?? null)
   const [lng, setLng] = useState<number | null>(initialValues?.lng ?? null)
-  const [selectingPlace, setSelectingPlace] = useState(false)
   const [categoryMenuOpen, setCategoryMenuOpen] = useState(false)
   const [notesOpen, setNotesOpen] = useState(Boolean(initialValues?.notes))
 
@@ -111,37 +107,27 @@ export function ActivityForm({
     setMapboxId(null)
     setLat(null)
     setLng(null)
-    setSelectingPlace(false)
     setCategoryMenuOpen(false)
     setNotesOpen(false)
   }
 
-  const handlePlaceSelect = (place: Partial<CreateActivityRequest>) => {
-    if (place.category) setCategory(place.category)
-    if (place.title) setTitle(place.title)
-    if (place.placeName ?? place.title) setPlaceName(place.placeName ?? place.title ?? '')
-    if (place.address !== undefined) setAddress(place.address ?? '')
-    if (place.mapboxId !== undefined) setMapboxId(place.mapboxId)
-    if (place.lat !== undefined) setLat(place.lat)
-    if (place.lng !== undefined) setLng(place.lng)
-    setSelectingPlace(false)
-  }
+  const buildPayload = (): CreateActivityRequest => ({
+    category,
+    title: title.trim(),
+    notes: emptyToNull(notes),
+    startTime: emptyToNull(startTime),
+    endTime: emptyToNull(endTime),
+    mapboxId,
+    placeName: emptyToNull(placeName),
+    address: emptyToNull(address),
+    lat,
+    lng,
+  })
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
 
-    const payload = {
-      category,
-      title: title.trim(),
-      notes: emptyToNull(notes),
-      startTime: emptyToNull(startTime),
-      endTime: emptyToNull(endTime),
-      mapboxId,
-      placeName: emptyToNull(placeName),
-      address: emptyToNull(address),
-      lat,
-      lng,
-    }
+    const payload = buildPayload()
 
     void Promise.resolve(onSubmit(payload)).then(() => {
       if (!initialValues) {
@@ -248,15 +234,16 @@ export function ActivityForm({
               <MapPin size={15} aria-hidden="true" />
               Location
             </span>
-            <button
-              type="button"
-              className={styles.locationMapButton}
-              onClick={() => setSelectingPlace((current) => !current)}
-              aria-controls={searchPanelId}
-              aria-expanded={selectingPlace}
-            >
-              {selectingPlace ? 'Close map search' : 'Change on map'}
-            </button>
+            {onRequestMapLocation && (
+              <button
+                type="button"
+                className={styles.locationMapButton}
+                onClick={() => onRequestMapLocation(buildPayload())}
+                disabled={submitting}
+              >
+                Change on map
+              </button>
+            )}
           </div>
 
           <div className={styles.locationFields}>
@@ -282,12 +269,6 @@ export function ActivityForm({
               />
             </label>
           </div>
-
-          {selectingPlace && (
-            <div id={searchPanelId} className={styles.compactSearchPanel}>
-              <PlaceSearch onPlaceSelect={handlePlaceSelect} searchOptions={placeSearchOptions} />
-            </div>
-          )}
         </section>
 
         <div className={styles.notesDisclosure}>

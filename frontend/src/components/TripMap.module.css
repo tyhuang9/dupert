@@ -86,7 +86,7 @@
 
 .routeSummary {
   right: var(--space-3);
-  bottom: calc(var(--space-3) + var(--map-bottom-card-offset, 0px));
+  bottom: var(--space-3);
   display: grid;
   gap: var(--space-1);
   min-width: min(16rem, calc(100% - var(--space-6)));
@@ -164,7 +164,7 @@
 .emptyMapCard {
   position: absolute;
   right: var(--space-3);
-  bottom: calc(var(--space-3) + var(--map-bottom-card-offset, 0px));
+  bottom: var(--space-3);
   max-width: min(20rem, calc(100% - var(--space-6)));
   display: grid;
   grid-template-columns: 36px minmax(0, 1fr);

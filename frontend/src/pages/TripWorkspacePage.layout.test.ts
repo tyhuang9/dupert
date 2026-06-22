@@ -25,7 +25,6 @@ describe('TripWorkspacePage layout scroll contract', () => {
       '.dayPanel',
       '.timelinePanel',
       '.mapPanel',
-      '.selectedDayMapCard',
     ]) {
       expect(cssBlocks(workspaceCss, selector).join('\n')).not.toMatch(/overflow(?:-[xy])?:\s*auto/)
     }

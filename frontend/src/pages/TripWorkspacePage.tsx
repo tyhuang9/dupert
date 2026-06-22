@@ -20,7 +20,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Layers,
-  MapPin,
   Plane,
   Plus,
   Route as TimelineIcon,
@@ -118,6 +117,12 @@ interface CalendarCell {
 
 type WorkspaceMode = 'days' | 'timeline'
 
+interface MapLocationTarget {
+  activityId: number
+  activityTitle: string
+  payload: CreateActivityRequest
+}
+
 const MAP_STYLE_OPTIONS: Array<{ id: MapStyleId; label: string }> = [
   { id: 'streets', label: 'Streets' },
   { id: 'outdoors', label: 'Outdoors' },
@@ -169,6 +174,36 @@ function formatActivityTime(activity: Activity): string {
 
 function hasFiniteCoordinates(activity: Pick<Activity, 'lat' | 'lng'>): boolean {
   return Number.isFinite(activity.lat) && Number.isFinite(activity.lng)
+}
+
+function locationSearchQuery(
+  activity: Activity,
+  payload: CreateActivityRequest,
+): string {
+  return (
+    payload.address?.trim() ||
+    payload.placeName?.trim() ||
+    payload.title?.trim() ||
+    activity.address ||
+    activity.placeName ||
+    activity.title
+  )
+}
+
+function activityUpdateWithPlace(
+  activity: Activity,
+  basePayload: CreateActivityRequest,
+  place: Partial<CreateActivityRequest>,
+): CreateActivityRequest {
+  return {
+    ...basePayload,
+    title: basePayload.title.trim() || activity.title,
+    mapboxId: place.mapboxId ?? null,
+    placeName: place.placeName ?? place.title ?? basePayload.placeName ?? null,
+    address: place.address ?? null,
+    lat: place.lat ?? null,
+    lng: place.lng ?? null,
+  }
 }
 
 const pointerFirstCollisionDetection: CollisionDetection = (args) => {
@@ -502,8 +537,12 @@ export function TripWorkspacePage() {
   const [isDraggingActivity, setIsDraggingActivity] = useState(false)
   const [workspaceMode, setWorkspaceMode] = useState<WorkspaceMode>('days')
   const [activitySearch, setActivitySearch] = useState('')
-  const [mapStyle, setMapStyle] = useState<MapStyleId>('streets')
+  const [mapStyle, setMapStyle] = useState<MapStyleId>('light')
   const [mapViewportContext, setMapViewportContext] = useState<MapViewportContext | null>(null)
+  const [mapLocationTarget, setMapLocationTarget] = useState<MapLocationTarget | null>(null)
+  const [mapSearchValue, setMapSearchValue] = useState('')
+  const [mapSearchFocusKey, setMapSearchFocusKey] = useState(0)
+  const [mapSearchPreview, setMapSearchPreview] = useState<Partial<CreateActivityRequest> | null>(null)
   const [activeActivityId, setActiveActivityId] = useState<number | null>(null)
   const [calendarMonth, setCalendarMonth] = useState(() =>
     getMonthKey(day ?? new Date().toISOString().slice(0, 10)),
@@ -587,9 +626,6 @@ export function TripWorkspacePage() {
   const selectedDayMappedCount = dayActivities.filter(
     hasFiniteCoordinates,
   ).length
-  const mapMappedActivityCount = mapActivities.filter(
-    hasFiniteCoordinates,
-  ).length
   const collaboratorNames = useMemo(
     () => collectCollaboratorNames(allActivities),
     [allActivities],
@@ -638,6 +674,7 @@ export function TripWorkspacePage() {
   const placeSearchOptions = mapViewportContext?.center
     ? { proximity: mapViewportContext.center }
     : undefined
+  const mapPreviewPlace = mapSearchPreview ?? placeDraft
 
   const handleSelectDay = (nextDay: string) => {
     if (
@@ -648,6 +685,8 @@ export function TripWorkspacePage() {
       setWorkspaceMode('days')
       setExpandedActivityId(null)
       setPlaceDraft(null)
+      setMapLocationTarget(null)
+      setMapSearchPreview(null)
       setActiveActivityId(null)
       setCalendarMonth(getMonthKey(nextDay))
       navigate(`/trips/${encodeURIComponent(publicId)}/d/${encodeURIComponent(nextDay)}`)
@@ -657,6 +696,8 @@ export function TripWorkspacePage() {
   const openActivityComposer = () => {
     setWorkspaceMode('days')
     setExpandedActivityId(null)
+    setMapLocationTarget(null)
+    setMapSearchPreview(null)
     setPlaceDraft({})
     const reducedMotion =
       typeof window.matchMedia === 'function' &&
@@ -686,6 +727,10 @@ export function TripWorkspacePage() {
   const handleToggleActivityExpand = (activity: Activity) => {
     setActiveActivityId(activity.id)
     setPlaceDraft(null)
+    setMapSearchPreview(null)
+    if (mapLocationTarget?.activityId === activity.id && expandedActivityId === activity.id) {
+      setMapLocationTarget(null)
+    }
     setExpandedActivityId((currentId) => (currentId === activity.id ? null : activity.id))
   }
 
@@ -697,6 +742,8 @@ export function TripWorkspacePage() {
       body: payload,
     })
     setPlaceDraft(null)
+    setMapSearchPreview(null)
+    setMapLocationTarget(null)
     setActiveActivityId(created.id)
   }
 
@@ -707,13 +754,74 @@ export function TripWorkspacePage() {
       activityId: activity.id,
       body: payload,
     })
+    if (mapLocationTarget?.activityId === activity.id) {
+      setMapLocationTarget(null)
+      setMapSearchPreview(null)
+    }
     setExpandedActivityId(null)
+  }
+
+  const handleRequestActivityLocationOnMap = (
+    activity: Activity,
+    payload: CreateActivityRequest,
+  ) => {
+    const query = locationSearchQuery(activity, payload)
+    setWorkspaceMode('days')
+    setExpandedActivityId(activity.id)
+    setActiveActivityId(activity.id)
+    setPlaceDraft(null)
+    setMapSearchPreview(null)
+    setMapLocationTarget({
+      activityId: activity.id,
+      activityTitle: payload.title || activity.title,
+      payload,
+    })
+    setMapSearchValue(query)
+    setMapSearchFocusKey((current) => current + 1)
+
+    const reducedMotion =
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    window.requestAnimationFrame(() => {
+      document.getElementById('map-search-panel')?.scrollIntoView({
+        block: 'nearest',
+        behavior: reducedMotion ? 'auto' : 'smooth',
+      })
+    })
+  }
+
+  const handleMapPlaceSelect = async (place: Partial<CreateActivityRequest>) => {
+    if (!mapLocationTarget) {
+      setWorkspaceMode('days')
+      setExpandedActivityId(null)
+      setPlaceDraft(place)
+      setMapSearchPreview(null)
+      setActiveActivityId(null)
+      return
+    }
+
+    if (!publicId) return
+    const activity = allActivities.find((item) => item.id === mapLocationTarget.activityId)
+    if (!activity) return
+    const updated = await updateActivityMutation.mutateAsync({
+      publicId,
+      activityId: activity.id,
+      body: activityUpdateWithPlace(activity, mapLocationTarget.payload, place),
+    })
+    setExpandedActivityId(updated.id)
+    setActiveActivityId(updated.id)
+    setMapLocationTarget(null)
+    setMapSearchPreview(null)
   }
 
   const handleDeleteActivity = (activityId: number) => {
     if (!publicId) return
     if (activeEditingActivity?.id === activityId) {
       setExpandedActivityId(null)
+    }
+    if (mapLocationTarget?.activityId === activityId) {
+      setMapLocationTarget(null)
+      setMapSearchPreview(null)
     }
     void deleteActivityMutation.mutateAsync({ publicId, activityId })
   }
@@ -749,6 +857,8 @@ export function TripWorkspacePage() {
     if (activeEditingActivity?.id === operation.activity.id) {
       setExpandedActivityId(null)
       setPlaceDraft(null)
+      setMapLocationTarget(null)
+      setMapSearchPreview(null)
     }
     void moveActivityMutation.mutateAsync({
       activityId: operation.activity.id,
@@ -769,6 +879,8 @@ export function TripWorkspacePage() {
     setIsTripSettingsOpen(false)
     setExpandedActivityId(null)
     setPlaceDraft(null)
+    setMapLocationTarget(null)
+    setMapSearchPreview(null)
     setCalendarMonth(getMonthKey(nextDay))
     if (nextDay !== selectedDay) {
       navigate(`/trips/${encodeURIComponent(publicId)}/d/${encodeURIComponent(nextDay)}`, {
@@ -987,12 +1099,12 @@ export function TripWorkspacePage() {
                           activities={dayActivities}
                           activeActivityId={visibleActiveActivityId}
                           expandedActivityId={expandedActivityId}
-                          placeSearchOptions={placeSearchOptions}
                           busy={isActivityMutationPending}
                           readOnly={!canEditTrip}
                           onActiveActivityChange={setActiveActivityId}
                           onAddActivity={openActivityComposer}
                           onDelete={handleDeleteActivity}
+                          onRequestMapLocation={handleRequestActivityLocationOnMap}
                           onSubmitEdit={handleUpdateActivity}
                           onToggleExpand={handleToggleActivityExpand}
                         />
@@ -1004,7 +1116,6 @@ export function TripWorkspacePage() {
                               initialValues={placeDraft ?? undefined}
                               onSubmit={handleCreateActivity}
                               onCancel={() => setPlaceDraft(null)}
-                              placeSearchOptions={placeSearchOptions}
                               submitting={createActivityMutation.isPending}
                               submitLabel="Save activity"
                             />
@@ -1096,15 +1207,20 @@ export function TripWorkspacePage() {
               >
                 <div className={styles.mapOverlayStack}>
                   {canEditTrip && (
-                    <div className={styles.mapSearchOverlay}>
+                    <div id="map-search-panel" className={styles.mapSearchOverlay}>
                       <PlaceSearch
+                        contextLabel={
+                          mapLocationTarget
+                            ? `Updating location for ${mapLocationTarget.activityTitle}`
+                            : undefined
+                        }
+                        focusKey={mapSearchFocusKey}
+                        searchValue={mapSearchValue}
+                        selectionLabel={mapLocationTarget ? 'Update Location' : undefined}
                         searchOptions={placeSearchOptions}
-                        onPlaceSelect={(place) => {
-                          setWorkspaceMode('days')
-                          setExpandedActivityId(null)
-                          setPlaceDraft(place)
-                          setActiveActivityId(null)
-                        }}
+                        onPlacePreview={setMapSearchPreview}
+                        onPlaceSelect={(place) => void handleMapPlaceSelect(place)}
+                        onSearchValueChange={setMapSearchValue}
                       />
                     </div>
                   )}
@@ -1126,10 +1242,6 @@ export function TripWorkspacePage() {
                         ))}
                       </select>
                     </label>
-                    <div className={styles.mapCountBadge}>
-                      <MapPin size={14} aria-hidden="true" />
-                      {mapMappedActivityCount} mapped {mapMappedActivityCount === 1 ? 'stop' : 'stops'} in view
-                    </div>
                   </div>
                 </div>
                 <TripMap
@@ -1139,51 +1251,11 @@ export function TripWorkspacePage() {
                   activeActivityId={visibleActiveActivityId}
                   destination={tripQuery.data.destination}
                   mapStyle={mapStyle}
-                  previewPlace={placeDraft}
+                  previewPlace={mapPreviewPlace}
                   onActivityActivate={handleActivityActivate}
                   onActiveActivityChange={setActiveActivityId}
                   onViewportContextChange={setMapViewportContext}
                 />
-                <div
-                  className={styles.selectedDayMapCard}
-                  aria-label={workspaceMode === 'timeline' ? 'Full trip map summary' : 'Selected day summary'}
-                >
-                  <div className={styles.selectedDayMapHeader}>
-                    <div>
-                      <p className={styles.panelKicker}>
-                        {workspaceMode === 'timeline' ? 'Full Trip' : 'Selected Day'}
-                      </p>
-                      <h3>
-                        {workspaceMode === 'timeline' ? 'Timeline map' : formatReadableDate(selectedDay)}
-                      </h3>
-                    </div>
-                    <span>{pluralize(mapActivities.length, 'item')}</span>
-                  </div>
-                  {mapActivities.length > 0 ? (
-                    <ol className={styles.selectedDayMapList}>
-                      {mapActivities.slice(0, 3).map((activity, index) => (
-                        <li key={activity.id}>
-                          <span className={styles.selectedDayMapIndex}>{index + 1}</span>
-                          <span>
-                            <strong>{activity.title}</strong>
-                            <small>{formatActivityTime(activity)}</small>
-                          </span>
-                        </li>
-                      ))}
-                      {mapActivities.length > 3 && (
-                        <li className={styles.selectedDayMapMore}>
-                          +{mapActivities.length - 3} more
-                        </li>
-                      )}
-                    </ol>
-                  ) : (
-                    <p className={styles.selectedDayMapEmpty}>
-                      {workspaceMode === 'timeline'
-                        ? 'No items scheduled for this trip.'
-                        : 'No items scheduled for this date.'}
-                    </p>
-                  )}
-                </div>
               </aside>
             </section>
           </DndContext>

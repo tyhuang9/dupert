@@ -519,7 +519,7 @@ export function TripMap({
         style={{ width: '100%', height: '100%', minHeight: '24rem' }}
         aria-label={destination ? `Map for ${destination}` : 'Trip map'}
       >
-        <NavigationControl position="bottom-left" showCompass={false} />
+        <NavigationControl position="top-right" showCompass={false} />
         {routeSourceData && (
           <Source id="selected-day-route-source" type="geojson" data={routeSourceData}>
             <Layer {...ROUTE_LINE_LAYER} />

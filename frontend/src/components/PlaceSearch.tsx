@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { SearchBox } from '@mapbox/search-js-react'
 import type { SearchBoxOptions, SearchBoxRetrieveResponse } from '@mapbox/search-js-core'
 import type { ActivityCategory, CreateActivityRequest } from '../types/activity'
@@ -7,7 +7,13 @@ import styles from './PlaceSearch.module.css'
 
 interface PlaceSearchProps {
   onPlaceSelect: (place: Partial<CreateActivityRequest>) => void
+  onPlacePreview?: (place: Partial<CreateActivityRequest> | null) => void
+  onSearchValueChange?: (value: string) => void
+  contextLabel?: string
+  focusKey?: number
   searchOptions?: Partial<SearchBoxOptions>
+  searchValue?: string
+  selectionLabel?: string
 }
 
 type RetrievedFeature = SearchBoxRetrieveResponse['features'][number]
@@ -56,10 +62,38 @@ function placePayload(res: SearchBoxRetrieveResponse): Partial<CreateActivityReq
   }
 }
 
-export function PlaceSearch({ onPlaceSelect, searchOptions }: PlaceSearchProps) {
+export function PlaceSearch({
+  onPlaceSelect,
+  onPlacePreview,
+  onSearchValueChange,
+  contextLabel,
+  focusKey,
+  searchOptions,
+  searchValue,
+  selectionLabel,
+}: PlaceSearchProps) {
   const accessToken = import.meta.env.VITE_MAPBOX_TOKEN as string | undefined
-  const [value, setValue] = useState('')
+  const shellRef = useRef<HTMLDivElement>(null)
+  const [value, setValue] = useState(searchValue ?? '')
+  const [pendingPlace, setPendingPlace] = useState<Partial<CreateActivityRequest> | null>(null)
   const [searchError, setSearchError] = useState<string | null>(null)
+  const displayedValue = searchValue ?? value
+
+  useEffect(() => {
+    if (focusKey === undefined) return undefined
+    const scheduleFrame = window.requestAnimationFrame
+      ? (callback: FrameRequestCallback) => window.requestAnimationFrame(callback)
+      : (callback: FrameRequestCallback) => window.setTimeout(() => callback(Date.now()), 0)
+    const cancelFrame = window.cancelAnimationFrame
+      ? (handle: number) => window.cancelAnimationFrame(handle)
+      : (handle: number) => window.clearTimeout(handle)
+    const frame = scheduleFrame(() => {
+      const input = shellRef.current?.querySelector('input')
+      input?.focus()
+      input?.select()
+    })
+    return () => cancelFrame(frame)
+  }, [focusKey])
 
   if (!accessToken) {
     return (
@@ -69,18 +103,31 @@ export function PlaceSearch({ onPlaceSelect, searchOptions }: PlaceSearchProps) 
     )
   }
 
+  const updateValue = (nextValue: string) => {
+    setValue(nextValue)
+    onSearchValueChange?.(nextValue)
+  }
+
+  const clearPendingPlace = () => {
+    if (!pendingPlace) return
+    setPendingPlace(null)
+    onPlacePreview?.(null)
+  }
+
   return (
-    <div className={styles.searchShell}>
+    <div ref={shellRef} className={styles.searchShell}>
+      {contextLabel && <p className={styles.context}>{contextLabel}</p>}
       <label className={styles.label}>
         Search places
         <span className={styles.helpText}>Restaurants, sights, hotels, airports, and transit stops.</span>
         <span className={styles.searchBox}>
           <SearchBox
             accessToken={accessToken}
-            value={value}
+            value={displayedValue}
             onChange={(nextValue) => {
-              setValue(nextValue)
+              updateValue(nextValue)
               if (!nextValue) setSearchError(null)
+              clearPendingPlace()
             }}
             onSuggest={() => setSearchError(null)}
             onSuggestError={() => {
@@ -90,11 +137,18 @@ export function PlaceSearch({ onPlaceSelect, searchOptions }: PlaceSearchProps) 
               const payload = placePayload(res)
               if (!payload) return
               setSearchError(null)
-              setValue(payload.placeName ?? payload.title ?? '')
-              onPlaceSelect(payload)
+              updateValue(payload.address ?? payload.placeName ?? payload.title ?? '')
+              if (selectionLabel) {
+                setPendingPlace(payload)
+                onPlacePreview?.(payload)
+              } else {
+                onPlaceSelect(payload)
+              }
             }}
             onClear={() => {
               setSearchError(null)
+              updateValue('')
+              clearPendingPlace()
             }}
             placeholder="Search restaurants, sights, hotels..."
             options={{ language: 'en', ...searchOptions }}
@@ -105,6 +159,21 @@ export function PlaceSearch({ onPlaceSelect, searchOptions }: PlaceSearchProps) 
         <p className={styles.searchError} role="alert">
           {searchError}
         </p>
+      )}
+      {selectionLabel && pendingPlace && (
+        <div className={styles.resultCard} aria-live="polite">
+          <div>
+            <strong>{pendingPlace.placeName ?? pendingPlace.title}</strong>
+            {pendingPlace.address && <span>{pendingPlace.address}</span>}
+          </div>
+          <button
+            type="button"
+            className={styles.resultButton}
+            onClick={() => onPlaceSelect(pendingPlace)}
+          >
+            {selectionLabel}
+          </button>
+        </div>
       )}
     </div>
   )

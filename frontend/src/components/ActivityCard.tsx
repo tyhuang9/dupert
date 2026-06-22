@@ -1,5 +1,4 @@
 import type { FocusEvent, HTMLAttributes, KeyboardEvent, MouseEvent } from 'react'
-import type { SearchBoxOptions } from '@mapbox/search-js-core'
 import {
   BedDouble,
   Coffee,
@@ -18,11 +17,11 @@ interface ActivityCardProps {
   dragAttributes?: HTMLAttributes<HTMLElement>
   dragListeners?: HTMLAttributes<HTMLElement>
   expanded?: boolean
-  placeSearchOptions?: Partial<SearchBoxOptions>
   readOnly?: boolean
   active?: boolean
   onActiveChange?: (activityId: number | null) => void
   onDelete: (activityId: number) => void
+  onRequestMapLocation?: (activity: Activity, payload: CreateActivityRequest) => void
   onSubmitEdit: (activity: Activity, payload: CreateActivityRequest) => Promise<void> | void
   onToggleExpand: (activity: Activity) => void
 }
@@ -101,10 +100,10 @@ export function ActivityCard({
   dragAttributes,
   dragListeners,
   expanded = false,
-  placeSearchOptions,
   readOnly = false,
   onActiveChange,
   onDelete,
+  onRequestMapLocation,
   onSubmitEdit,
   onToggleExpand,
 }: ActivityCardProps) {
@@ -200,12 +199,16 @@ export function ActivityCard({
       {expanded && !readOnly && (
         <div className={styles.editorPanel}>
           <ActivityForm
-            key={`activity-edit-${activity.id}`}
+            key={`activity-edit-${activity.id}-${activity.version}-${activity.updatedAt}`}
             initialValues={editInitialValues(activity)}
             onSubmit={(payload) => onSubmitEdit(activity, payload)}
             onCancel={() => onToggleExpand(activity)}
             onDelete={handleDelete}
-            placeSearchOptions={placeSearchOptions}
+            onRequestMapLocation={
+              onRequestMapLocation
+                ? (payload) => onRequestMapLocation(activity, payload)
+                : undefined
+            }
             submitting={busy}
             variant="compact"
             submitLabel="Save Changes"

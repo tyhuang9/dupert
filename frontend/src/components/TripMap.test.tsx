@@ -20,6 +20,7 @@ const mapMockState = vi.hoisted(() => ({
   onLoad: null as null | (() => void),
   onMoveEnd: null as null | (() => void),
   mapStyle: null as null | string,
+  navigationPosition: null as null | string,
 }))
 
 vi.mock('../api/mapboxDirections', () => ({
@@ -67,7 +68,10 @@ vi.mock('react-map-gl/mapbox', async () => {
     Marker: ({ children }: PropsWithChildren) => (
       <div data-testid="marker">{children}</div>
     ),
-    NavigationControl: () => <div data-testid="navigation-control" />,
+    NavigationControl: ({ position }: { position?: string }) => {
+      mapMockState.navigationPosition = position ?? null
+      return <div data-testid="navigation-control" />
+    },
     Source: ({ children }: PropsWithChildren) => (
       <div data-testid="route-source">{children}</div>
     ),
@@ -143,6 +147,7 @@ beforeEach(() => {
   mapMockState.onLoad = null
   mapMockState.onMoveEnd = null
   mapMockState.mapStyle = null
+  mapMockState.navigationPosition = null
   directionsMock.mockResolvedValue({
     distance: 2400,
     duration: 720,
@@ -180,6 +185,8 @@ describe('<TripMap>', () => {
     expect(await screen.findByText('12 min')).toBeInTheDocument()
     expect(screen.getByText('12 min total · 2.4 km')).toBeInTheDocument()
     expect(screen.getByTestId('route-layer')).toBeInTheDocument()
+    expect(screen.getByTestId('navigation-control')).toBeInTheDocument()
+    expect(mapMockState.navigationPosition).toBe('top-right')
     expect(geocodeMock.geocodeDestination).not.toHaveBeenCalled()
   })
 
