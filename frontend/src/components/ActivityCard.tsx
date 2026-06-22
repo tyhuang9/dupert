@@ -1,4 +1,4 @@
-import type { FocusEvent, ReactNode } from 'react'
+import type { FocusEvent, KeyboardEvent, MouseEvent, ReactNode } from 'react'
 import {
   ArrowDown,
   ArrowUp,
@@ -26,6 +26,7 @@ interface ActivityCardProps {
   readOnly?: boolean
   active?: boolean
   onActiveChange?: (activityId: number | null) => void
+  onActivate?: (activity: Activity) => void
   onEdit: (activity: Activity) => void
   onDelete: (activityId: number) => void
   onMoveDown: (activity: Activity) => void
@@ -70,6 +71,14 @@ function getStatusLabel(activity: Activity): 'CONFIRMED' | 'FREE ENTRY' {
   return 'CONFIRMED'
 }
 
+function isInteractiveTarget(target: EventTarget | null, currentTarget: HTMLElement): boolean {
+  if (!(target instanceof Element)) return false
+  const interactiveTarget = target.closest(
+    'a, button, input, label, select, textarea, [role="button"], [role="link"]',
+  )
+  return Boolean(interactiveTarget && currentTarget.contains(interactiveTarget))
+}
+
 function ActivityCategoryIcon({ category }: { category: Activity['category'] }) {
   switch (category) {
     case 'ACTIVITY':
@@ -98,6 +107,7 @@ export function ActivityCard({
   minDate,
   readOnly = false,
   onActiveChange,
+  onActivate,
   onEdit,
   onDelete,
   onMoveDown,
@@ -122,14 +132,34 @@ export function ActivityCard({
       onActiveChange?.(null)
     }
   }
+  const activateCard = () => {
+    onActiveChange?.(activity.id)
+    onActivate?.(activity)
+  }
+  const handleClick = (event: MouseEvent<HTMLElement>) => {
+    if (isInteractiveTarget(event.target, event.currentTarget)) return
+    activateCard()
+  }
+  const handleKeyDown = (event: KeyboardEvent<HTMLElement>) => {
+    if (
+      event.defaultPrevented ||
+      isInteractiveTarget(event.target, event.currentTarget) ||
+      (event.key !== 'Enter' && event.key !== ' ')
+    ) {
+      return
+    }
+    event.preventDefault()
+    activateCard()
+  }
 
   return (
     <article
       id={`activity-${activity.id}`}
       className={cardClassName}
-      tabIndex={-1}
+      tabIndex={0}
+      onClick={handleClick}
+      onKeyDown={handleKeyDown}
       onMouseEnter={() => onActiveChange?.(activity.id)}
-      onMouseLeave={() => onActiveChange?.(null)}
       onFocusCapture={() => onActiveChange?.(activity.id)}
       onBlurCapture={handleBlurCapture}
       data-active={active ? 'true' : undefined}

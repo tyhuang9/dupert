@@ -130,43 +130,6 @@
   color: var(--color-primary-active);
 }
 
-.insertSlot {
-  min-height: 26px;
-  display: grid;
-  grid-template-columns: 28px minmax(0, 1fr);
-  gap: var(--space-3);
-  align-items: center;
-  margin-top: calc(var(--space-3) * -1);
-  color: var(--color-text-subtle);
-  font-size: 11px;
-  font-weight: 800;
-  text-transform: uppercase;
-}
-
-.insertSlot::before {
-  content: '';
-  justify-self: center;
-  width: 2px;
-  height: 100%;
-  background: repeating-linear-gradient(
-    to bottom,
-    var(--color-border-strong),
-    var(--color-border-strong) 4px,
-    transparent 4px,
-    transparent 8px
-  );
-}
-
-.insertSlot span {
-  display: inline-flex;
-  align-items: center;
-  min-height: 26px;
-  padding: 0 var(--space-3);
-  border: 1px dashed var(--color-surface-border);
-  border-radius: var(--radius-md);
-  background: var(--color-shell);
-}
-
 @media (max-width: 520px) {
   .sortableItem {
     grid-template-columns: 24px minmax(0, 1fr);
@@ -189,10 +152,6 @@
     left: 11px;
   }
 
-  .insertSlot {
-    grid-template-columns: 24px minmax(0, 1fr);
-    gap: var(--space-2);
-  }
 }
 
 @media (pointer: coarse) {

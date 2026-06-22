@@ -1,6 +1,10 @@
 .shell {
   width: 100%;
-  min-height: 100vh;
+  height: 100vh;
+  height: 100dvh;
+  min-height: 0;
+  max-height: 100vh;
+  max-height: 100dvh;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -10,6 +14,7 @@
 }
 
 .topNav {
+  flex: 0 0 auto;
   min-height: 64px;
   display: flex;
   align-items: center;
@@ -24,6 +29,7 @@
 
 .brandCluster,
 .topNavActions,
+.topUtilityActions,
 .timelineHeaderActions,
 .avatarStack,
 .actions {
@@ -37,6 +43,9 @@
 }
 
 .brandMark {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
   color: var(--color-text);
   font-size: var(--font-size-sm);
   font-weight: 800;
@@ -44,15 +53,15 @@
   white-space: nowrap;
 }
 
-.brandMark::before {
-  content: '';
-  width: 10px;
-  height: 10px;
-  display: inline-block;
-  margin-right: var(--space-2);
-  border-radius: 3px;
+.brandIcon {
+  width: 28px;
+  height: 28px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: var(--radius-md);
   background: var(--color-primary);
-  box-shadow: 12px 0 0 var(--color-primary-soft);
+  color: var(--color-primary-fg);
+  box-shadow: 0 8px 18px rgba(37, 99, 235, 0.18);
 }
 
 .topNavLinks {
@@ -75,6 +84,12 @@
 
 .topNavLinks a:hover {
   background: var(--color-surface-2);
+  color: var(--color-primary-text);
+}
+
+.topNavLinks a[aria-current='page'] {
+  background: transparent;
+  box-shadow: inset 0 -2px 0 var(--color-primary);
   color: var(--color-primary-text);
 }
 
@@ -119,10 +134,12 @@
 .secondaryAction:focus-visible,
 .primaryAction:focus-visible,
 .shareLink:focus-visible,
+.utilityButton:focus-visible,
 .calendarControls button:focus-visible,
 .calendarDay:focus-visible,
-.railNav a:focus-visible,
-.mapSegmentedControl button:focus-visible {
+.railNav button:focus-visible,
+.mapSegmentedControl button:focus-visible,
+.timelineActivityButton:focus-visible {
   outline: var(--focus-ring-width) solid var(--focus-ring-color);
   outline-offset: var(--focus-ring-offset);
 }
@@ -149,8 +166,22 @@
   white-space: nowrap;
 }
 
+.topUtilityActions {
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.topAvatarStack {
+  display: inline-flex;
+  align-items: center;
+  flex-direction: row-reverse;
+  padding-left: var(--space-2);
+}
+
 .profileAvatar,
-.collaboratorAvatar {
+.collaboratorAvatar,
+.topAvatar,
+.avatarOverflow {
   display: inline-grid;
   place-items: center;
   border-radius: var(--radius-pill);
@@ -166,8 +197,39 @@
   border: 1px solid var(--color-surface-border);
 }
 
+.topAvatar,
+.avatarOverflow {
+  width: 28px;
+  height: 28px;
+  border: 2px solid var(--color-surface);
+  margin-left: -8px;
+}
+
+.avatarOverflow {
+  background: var(--color-surface-2);
+  color: var(--color-text-muted);
+}
+
+.utilityButton {
+  width: 32px;
+  height: 32px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--color-surface-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+}
+
+.utilityButton:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary-text);
+}
+
 .workspaceShell {
-  flex: 1;
+  flex: 1 1 auto;
+  height: 100%;
   min-height: 0;
   display: grid;
   grid-template-columns: 280px minmax(380px, 1fr) minmax(400px, 40vw);
@@ -184,9 +246,9 @@
   height: 100%;
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
+  gap: var(--space-3);
   padding: var(--space-4);
-  overflow: auto;
+  overflow: hidden;
   border-right: 1px solid var(--color-surface-border);
   background: var(--color-shell);
 }
@@ -271,25 +333,28 @@
   background: var(--color-surface-border);
 }
 
-.railNav a {
+.railNav button {
   min-height: 34px;
   display: flex;
   align-items: center;
   gap: var(--space-3);
   padding: 0 var(--space-3);
+  border: 0;
   border-radius: var(--radius-md);
+  background: transparent;
   color: var(--color-text-muted);
+  font: inherit;
   font-size: var(--font-size-xs);
   font-weight: 700;
-  text-decoration: none;
+  text-align: left;
 }
 
-.railNav a:hover {
+.railNav button:hover {
   background: var(--color-surface-2);
   color: var(--color-primary-text);
 }
 
-.railNav a[aria-current='page'] {
+.railNav button[aria-pressed='true'] {
   background: var(--color-primary-soft);
   color: var(--color-primary-text);
 }
@@ -523,9 +588,10 @@
 .noteSection {
   display: grid;
   gap: var(--space-3);
-  margin-top: auto;
-  padding-top: var(--space-3);
-  border-top: 1px solid var(--color-surface-border);
+  padding: var(--space-4);
+  border: 1px solid var(--color-surface-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-shell);
 }
 
 .sectionHeader,
@@ -556,6 +622,13 @@
 .railFooter {
   display: grid;
   gap: var(--space-2);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-surface-border);
+}
+
+.railSpacer {
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .primaryAction,
@@ -585,7 +658,10 @@
 .shareLink,
 .calendarControls button,
 .calendarDay,
-.mapSegmentedControl button {
+.mapSegmentedControl button,
+.railNav button,
+.utilityButton,
+.timelineActivityButton {
   cursor: pointer;
 }
 
@@ -622,6 +698,7 @@
 }
 
 .timelinePanel {
+  min-height: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -679,7 +756,9 @@
   display: grid;
   align-content: start;
   gap: var(--space-4);
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: var(--space-5);
 }
 
@@ -704,22 +783,147 @@
   line-height: var(--line-height-base);
 }
 
+.fullTimeline {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.timelineDayGroup {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--color-surface-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.timelineDayHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.timelineDayHeader h3 {
+  margin: var(--space-1) 0 0;
+  color: var(--color-text);
+  font-size: var(--font-size-base);
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.timelineDayHeader span,
+.timelineActivityMeta,
+.timelineActivityStatus,
+.timelineActivityLocation,
+.emptyTimelineDay {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+
+.timelineDayHeader span,
+.timelineActivityMeta,
+.timelineActivityStatus {
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.timelineDayActivities {
+  display: grid;
+  gap: var(--space-2);
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.timelineActivityButton {
+  width: 100%;
+  min-height: 56px;
+  display: grid;
+  grid-template-columns: 5.25rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--color-surface-border);
+  border-radius: var(--radius-md);
+  background: var(--color-shell);
+  color: var(--color-text);
+  font: inherit;
+  text-align: left;
+  transition:
+    background-color var(--transition-base),
+    border-color var(--transition-base),
+    box-shadow var(--transition-base);
+}
+
+.timelineActivityButton:hover,
+.timelineActivityActive {
+  border-color: #bfdbfe;
+  background: var(--color-primary-softer);
+  box-shadow: 0 8px 20px rgba(37, 99, 235, 0.08);
+}
+
+.timelineActivityButton strong,
+.timelineActivityLocation {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.timelineActivityButton strong {
+  color: var(--color-text);
+  font-size: var(--font-size-sm);
+  line-height: 1.25;
+}
+
+.emptyTimelineDay {
+  margin: 0;
+}
+
 .mapPanel {
   position: relative;
+  min-height: 0;
   overflow: hidden;
   background: var(--color-surface-3);
   --map-bottom-card-offset: 152px;
 }
 
-.mapChrome {
+.mapOverlayStack {
   position: absolute;
-  inset: var(--space-4) var(--space-4) auto var(--space-4);
-  z-index: 5;
+  top: var(--space-4);
+  right: var(--space-4);
+  left: var(--space-4);
+  z-index: 7;
+  display: grid;
+  gap: var(--space-3);
+  justify-items: start;
+  pointer-events: none;
+}
+
+.mapOverlayStack > * {
+  pointer-events: auto;
+}
+
+.mapChrome {
+  position: relative;
+  width: 100%;
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: var(--space-3);
   pointer-events: none;
+}
+
+.mapSearchOverlay {
+  width: min(100%, 24rem);
+  padding: var(--space-3);
+  border: 1px solid var(--color-text-subtle);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: var(--shadow-md);
 }
 
 .mapSegmentedControl,
@@ -786,7 +990,7 @@
   gap: var(--space-3);
   max-height: 136px;
   padding: var(--space-3);
-  overflow: auto;
+  overflow: hidden;
   border: 1px solid var(--color-surface-border);
   border-radius: var(--radius-md);
   background: rgba(255, 255, 255, 0.96);
@@ -906,31 +1110,37 @@
 
 @media (max-width: 1180px) {
   .shell {
-    overflow: auto;
+    overflow: hidden;
   }
 
   .workspaceShell {
-    min-height: calc(100vh - 64px);
+    height: 100%;
+    min-height: 0;
     grid-template-columns: 280px minmax(0, 1fr);
-    overflow: visible;
+    grid-template-rows: minmax(0, 1fr) minmax(0, 40%);
+    overflow: hidden;
   }
 
   .dayPanel {
-    min-height: 420px;
+    grid-column: 1;
+    grid-row: 1;
+    min-height: 0;
+    overflow: hidden;
   }
 
   .timelinePanel {
-    grid-column: 1 / -1;
-    grid-row: 2;
-    min-height: auto;
-    border-top: 1px solid var(--color-surface-border);
+    grid-column: 2;
+    grid-row: 1;
+    min-height: 0;
+    border-right: 0;
+    border-left: 1px solid var(--color-surface-border);
   }
 
   .mapPanel {
-    grid-column: 2;
-    grid-row: 1;
-    min-height: 420px;
-    border-left: 1px solid var(--color-surface-border);
+    grid-column: 1 / -1;
+    grid-row: 2;
+    min-height: 0;
+    border-top: 1px solid var(--color-surface-border);
   }
 }
 
@@ -952,36 +1162,49 @@
     min-width: 0;
   }
 
+  .topUtilityActions {
+    margin-left: auto;
+  }
+
   .syncBadge {
     flex: 1 1 auto;
     justify-content: center;
   }
 
   .workspaceShell {
+    height: 100%;
     min-height: 0;
     grid-template-columns: 1fr;
+    grid-template-rows: minmax(180px, 30%) minmax(0, 1fr) minmax(180px, 30%);
+    overflow: hidden;
   }
 
   .dayPanel {
     width: 100%;
+    grid-column: 1;
+    grid-row: 1;
+    height: auto;
+    min-height: 0;
+    overflow: hidden;
   }
 
   .mapPanel {
     grid-column: 1;
-    grid-row: 2;
-    min-height: 380px;
+    grid-row: 3;
+    min-height: 0;
     border-top: 1px solid var(--color-surface-border);
     border-left: 0;
   }
 
   .timelinePanel {
-    grid-row: 3;
+    grid-row: 2;
+    min-height: 0;
+    border-left: 0;
   }
 
   .dayPanel,
   .timelinePanel {
-    min-height: auto;
-    overflow: visible;
+    overflow: hidden;
   }
 
   .dayTargets {
@@ -1021,11 +1244,24 @@
 
   .mapChrome {
     display: grid;
-    inset: var(--space-3) var(--space-3) auto var(--space-3);
+  }
+
+  .mapOverlayStack {
+    top: var(--space-3);
+    right: var(--space-3);
+    left: var(--space-3);
   }
 
   .mapCountBadge {
     max-width: none;
+  }
+
+  .timelineActivityButton {
+    grid-template-columns: 1fr;
+  }
+
+  .timelineActivityStatus {
+    justify-self: start;
   }
 }
 
@@ -1033,5 +1269,40 @@
   .globalSearch input,
   .mapSegmentedControl button {
     min-height: 44px;
+  }
+}
+
+@media (max-height: 720px) {
+  .topNav {
+    min-height: 56px;
+    padding: 0 var(--space-4);
+  }
+
+  .dayPanel,
+  .timelineScroll {
+    padding: var(--space-3);
+  }
+
+  .calendarCard,
+  .noteSection,
+  .composer,
+  .timelineDayGroup {
+    padding: var(--space-3);
+  }
+
+  .timelineHeader {
+    min-height: 64px;
+    padding: var(--space-3) var(--space-4);
+  }
+
+  .calendarDay {
+    min-height: 24px;
+  }
+
+  .selectedDayMapCard {
+    right: var(--space-3);
+    bottom: var(--space-3);
+    left: var(--space-3);
+    max-height: 112px;
   }
 }

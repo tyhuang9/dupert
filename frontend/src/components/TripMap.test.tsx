@@ -36,6 +36,7 @@ vi.mock('react-map-gl/mapbox', async () => {
     React.useImperativeHandle(ref, () => ({
       fitBounds: mapControlMock.fitBounds,
       flyTo: mapControlMock.flyTo,
+      getZoom: () => 11,
     }))
     mapMockState.onError = props.onError ?? null
     return (
@@ -101,6 +102,21 @@ const ACTIVITIES: Activity[] = [
     version: 0,
   },
 ]
+
+function runtimeActivity(overrides: Record<string, unknown>): Activity {
+  return { ...ACTIVITIES[0], ...overrides } as unknown as Activity
+}
+
+function activityWithoutCoordinateKeys(): Activity {
+  const activity = {
+    ...ACTIVITIES[0],
+    id: 99,
+    title: 'Missing Coordinates',
+  } as Record<string, unknown>
+  delete activity.lat
+  delete activity.lng
+  return activity as unknown as Activity
+}
 
 const directionsMock = vi.mocked(getDrivingDirections)
 
@@ -185,6 +201,91 @@ describe('<TripMap>', () => {
     expect(screen.getByText('Route needs at least two mapped stops.')).toBeInTheDocument()
   })
 
+  it('ignores activities with missing, null, undefined, or non-finite coordinates', () => {
+    render(
+      <TripMap
+        activities={[
+          activityWithoutCoordinateKeys(),
+          runtimeActivity({ id: 20, title: 'Null Latitude', lat: null, lng: 139.7454 }),
+          runtimeActivity({ id: 21, title: 'Undefined Longitude', lat: 35.6586, lng: undefined }),
+          runtimeActivity({ id: 22, title: 'NaN Latitude', lat: Number.NaN, lng: 139.7454 }),
+          runtimeActivity({
+            id: 23,
+            title: 'Infinite Longitude',
+            lat: 35.6586,
+            lng: Number.POSITIVE_INFINITY,
+          }),
+        ]}
+        fallbackActivities={[]}
+        destination={null}
+      />,
+    )
+
+    expect(screen.queryByTestId('marker')).not.toBeInTheDocument()
+    expect(screen.getByText('No mapped stops yet. Add a place to start the map.')).toBeInTheDocument()
+    expect(screen.getByText('Map is ready')).toBeInTheDocument()
+    expect(directionsMock).not.toHaveBeenCalled()
+    expect(mapControlMock.fitBounds).not.toHaveBeenCalled()
+    expect(mapControlMock.flyTo).not.toHaveBeenCalled()
+  })
+
+  it('uses only finite activity coordinates for markers, routes, and bounds', async () => {
+    const malformedStop = runtimeActivity({
+      id: 12,
+      orderIndex: 1,
+      title: 'Broken Stop',
+      lat: Number.NEGATIVE_INFINITY,
+      lng: 139.76,
+    })
+    const validStopAfterMalformed = { ...ACTIVITIES[1], orderIndex: 2 }
+
+    render(
+      <TripMap
+        activities={[ACTIVITIES[0], malformedStop, validStopAfterMalformed]}
+        fallbackActivities={[]}
+        routeActivities={[ACTIVITIES[0], malformedStop, validStopAfterMalformed]}
+        destination="Tokyo"
+      />,
+    )
+
+    expect(screen.getByRole('button', { name: /stop 1: tokyo tower/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /stop 2: tsukiji market/i })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /broken stop/i })).not.toBeInTheDocument()
+
+    await waitFor(() => {
+      expect(directionsMock).toHaveBeenCalledWith(
+        [ACTIVITIES[0], validStopAfterMalformed],
+        'pk.test',
+        expect.any(AbortSignal),
+      )
+    })
+    expect(mapControlMock.fitBounds).toHaveBeenCalledWith(
+      [
+        [139.7454, 35.6586],
+        [139.7707, 35.6654],
+      ],
+      expect.objectContaining({ maxZoom: 12, padding: 64 }),
+    )
+  })
+
+  it('can render mapped stops without requesting a route', () => {
+    render(
+      <TripMap
+        activities={ACTIVITIES}
+        fallbackActivities={[]}
+        routeActivities={[]}
+        destination="Tokyo"
+      />,
+    )
+
+    expect(screen.getByRole('button', { name: /stop 1: tokyo tower/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /stop 2: tsukiji market/i })).toBeInTheDocument()
+    expect(directionsMock).not.toHaveBeenCalled()
+    expect(screen.queryByTestId('route-layer')).not.toBeInTheDocument()
+    expect(screen.queryByText(/selected-day route/i)).not.toBeInTheDocument()
+    expect(screen.queryByText('Route needs at least two mapped stops.')).not.toBeInTheDocument()
+  })
+
   it('shows full-trip fallback markers when the selected day has no mapped stops', async () => {
     render(<TripMap activities={[]} fallbackActivities={ACTIVITIES} destination="Tokyo" />)
 
@@ -250,6 +351,40 @@ describe('<TripMap>', () => {
       )
     })
     expect(directionsMock).not.toHaveBeenCalled()
+  })
+
+  it('ignores preview places without finite coordinates', () => {
+    const invalidPreviewPlaces = [
+      { title: 'Null Preview', lat: null, lng: 139.7707 },
+      { title: 'Undefined Preview', lat: 35.6654, lng: undefined },
+      { title: 'NaN Preview', lat: Number.NaN, lng: 139.7707 },
+      { title: 'Infinite Preview', lat: 35.6654, lng: Number.POSITIVE_INFINITY },
+    ]
+
+    const { rerender } = render(
+      <TripMap
+        activities={[]}
+        fallbackActivities={[]}
+        destination={null}
+        previewPlace={invalidPreviewPlaces[0]}
+      />,
+    )
+
+    for (const previewPlace of invalidPreviewPlaces) {
+      rerender(
+        <TripMap
+          activities={[]}
+          fallbackActivities={[]}
+          destination={null}
+          previewPlace={previewPlace}
+        />,
+      )
+      expect(screen.queryByRole('img', { name: new RegExp(previewPlace.title, 'i') })).not.toBeInTheDocument()
+    }
+    expect(screen.getByText('No mapped stops yet. Add a place to start the map.')).toBeInTheDocument()
+    expect(directionsMock).not.toHaveBeenCalled()
+    expect(mapControlMock.fitBounds).not.toHaveBeenCalled()
+    expect(mapControlMock.flyTo).not.toHaveBeenCalled()
   })
 
   it('shows a clear empty map message when destination geocoding fails', async () => {

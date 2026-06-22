@@ -59,8 +59,6 @@ export function PlaceSearch({ onPlaceSelect }: PlaceSearchProps) {
   const accessToken = import.meta.env.VITE_MAPBOX_TOKEN as string | undefined
   const [value, setValue] = useState('')
   const [searchError, setSearchError] = useState<string | null>(null)
-  const [selectedName, setSelectedName] = useState('')
-  const [selectedAddress, setSelectedAddress] = useState<string | null>(null)
 
   if (!accessToken) {
     return (
@@ -91,14 +89,11 @@ export function PlaceSearch({ onPlaceSelect }: PlaceSearchProps) {
               const payload = placePayload(res)
               if (!payload) return
               setSearchError(null)
-              setSelectedName(payload.placeName ?? payload.title ?? '')
-              setSelectedAddress(payload.address ?? null)
+              setValue(payload.placeName ?? payload.title ?? '')
               onPlaceSelect(payload)
             }}
             onClear={() => {
               setSearchError(null)
-              setSelectedName('')
-              setSelectedAddress(null)
             }}
             placeholder="Search restaurants, sights, hotels..."
             options={{ language: 'en' }}
@@ -109,15 +104,6 @@ export function PlaceSearch({ onPlaceSelect }: PlaceSearchProps) {
         <p className={styles.searchError} role="alert">
           {searchError}
         </p>
-      )}
-      {selectedName && (
-        <div className={styles.selectedPlace} role="status" aria-live="polite" aria-atomic="true">
-          <span>Ready to add</span>
-          <p>{selectedName}</p>
-          {selectedAddress && (
-            <p className={styles.placeAddress}>{selectedAddress}</p>
-          )}
-        </div>
       )}
     </div>
   )

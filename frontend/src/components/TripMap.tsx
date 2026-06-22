@@ -19,6 +19,7 @@ import styles from './TripMap.module.css'
 interface TripMapProps {
   activities: Activity[]
   fallbackActivities?: Activity[]
+  routeActivities?: Activity[]
   destination: string | null
   mapMode?: 'map' | 'satellite'
   previewPlace?: MapPreviewPlace | null
@@ -74,8 +75,12 @@ const ROUTE_LINE_LAYER: LayerProps = {
   },
 }
 
+function isFiniteCoordinate(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value)
+}
+
 function hasCoordinates(activity: Activity): activity is CoordinateActivity {
-  return activity.lat !== null && activity.lng !== null
+  return isFiniteCoordinate(activity.lat) && isFiniteCoordinate(activity.lng)
 }
 
 function sortActivitiesByTripOrder(activities: CoordinateActivity[]): CoordinateActivity[] {
@@ -118,8 +123,8 @@ function destinationToDisplayStop(destinationCoordinate: DestinationCoordinate):
 function previewPlaceToDisplayStop(previewPlace: MapPreviewPlace | null | undefined): DisplayStop | null {
   if (
     !previewPlace ||
-    typeof previewPlace.lat !== 'number' ||
-    typeof previewPlace.lng !== 'number'
+    !isFiniteCoordinate(previewPlace.lat) ||
+    !isFiniteCoordinate(previewPlace.lng)
   ) {
     return null
   }
@@ -165,6 +170,7 @@ function formatTravelTime(seconds: number): string {
 export function TripMap({
   activities,
   fallbackActivities = [],
+  routeActivities = activities,
   activeActivityId = null,
   destination,
   mapMode = 'map',
@@ -196,6 +202,10 @@ export function TripMap({
   const selectedMappedActivities = useMemo(
     () => activities.filter(hasCoordinates),
     [activities],
+  )
+  const routeMappedActivities = useMemo(
+    () => routeActivities.filter(hasCoordinates),
+    [routeActivities],
   )
   const fallbackMappedActivities = useMemo(
     () => sortActivitiesByTripOrder(fallbackActivities.filter(hasCoordinates)),
@@ -249,14 +259,14 @@ export function TripMap({
   )
   const routeKey = useMemo(
     () =>
-      selectedMappedActivities.map((activity) => `${activity.lng},${activity.lat}`).join(';'),
-    [selectedMappedActivities],
+      routeMappedActivities.map((activity) => `${activity.lng},${activity.lat}`).join(';'),
+    [routeMappedActivities],
   )
   const currentRoute = directionsState.key === routeKey ? directionsState.route : null
   const routeError = directionsState.key === routeKey && directionsState.error
   const routeLoading =
     Boolean(token) &&
-    selectedMappedActivities.length >= 2 &&
+    routeMappedActivities.length >= 2 &&
     directionsState.key !== routeKey
   const mapNotice = useMemo(() => {
     if (mapLoadFailed) {
@@ -291,7 +301,7 @@ export function TripMap({
     if (selectedMappedActivities.length === 0) {
       return 'No mapped stops yet. Add a place to start the map.'
     }
-    if (selectedMappedActivities.length === 1) return 'Route needs at least two mapped stops.'
+    if (routeMappedActivities.length === 1) return 'Route needs at least two mapped stops.'
     if (routeLoading) return 'Calculating route...'
     if (routeError) return 'Route unavailable.'
     return null
@@ -305,6 +315,7 @@ export function TripMap({
     previewDisplayStop,
     routeError,
     routeLoading,
+    routeMappedActivities.length,
     selectedMappedActivities.length,
   ])
   const routeSourceData = useMemo(
@@ -321,8 +332,8 @@ export function TripMap({
   const routeLegMarkers = useMemo(
     () =>
       currentRoute?.legs.flatMap((leg, index) => {
-        const from = selectedMappedActivities[index]
-        const to = selectedMappedActivities[index + 1]
+        const from = routeMappedActivities[index]
+        const to = routeMappedActivities[index + 1]
         if (!from || !to) return []
         return [{
           id: `${from.id}-${to.id}`,
@@ -331,7 +342,7 @@ export function TripMap({
           lng: (from.lng + to.lng) / 2,
         }]
       }) ?? [],
-    [currentRoute, selectedMappedActivities],
+    [currentRoute, routeMappedActivities],
   )
   const displayKey = useMemo(
     () => displayStops.map((stop) => `${stop.source}:${stop.lng},${stop.lat}`).join(';'),
@@ -340,11 +351,11 @@ export function TripMap({
 
   useEffect(() => {
     const controller = new AbortController()
-    if (!token || selectedMappedActivities.length < 2) {
+    if (!token || routeMappedActivities.length < 2) {
       return () => controller.abort()
     }
 
-    void getDrivingDirections(selectedMappedActivities, token, controller.signal)
+    void getDrivingDirections(routeMappedActivities, token, controller.signal)
       .then((nextRoute) => {
         if (controller.signal.aborted) return
         setDirectionsState({ error: false, key: routeKey, route: nextRoute })
@@ -356,7 +367,7 @@ export function TripMap({
       })
 
     return () => controller.abort()
-  }, [routeKey, selectedMappedActivities, token])
+  }, [routeKey, routeMappedActivities, token])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -420,6 +431,24 @@ export function TripMap({
       { duration: 0, maxZoom: 12, padding: 64 },
     )
   }, [displayKey, displayStops])
+
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || activeActivityId === null) return
+
+    const activeStop = displayStops.find((stop) => stop.activityId === activeActivityId)
+    if (!activeStop) return
+
+    const reducedMotion =
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    const currentZoom = typeof map.getZoom === 'function' ? map.getZoom() : 12
+    map.flyTo({
+      center: [activeStop.lng, activeStop.lat],
+      duration: reducedMotion ? 0 : 450,
+      zoom: Math.max(currentZoom, 13),
+    })
+  }, [activeActivityId, displayStops])
 
   if (!token) {
     return (
@@ -543,7 +572,7 @@ export function TripMap({
           <strong>
             {formatTravelTime(currentRoute.duration)} total · {(currentRoute.distance / 1000).toFixed(1)} km
           </strong>
-          <span>{selectedMappedActivities.length} mapped stops</span>
+          <span>{routeMappedActivities.length} mapped stops</span>
         </div>
       )}
     </div>

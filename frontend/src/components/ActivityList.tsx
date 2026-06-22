@@ -1,4 +1,4 @@
-import { Fragment, type CSSProperties } from 'react'
+import type { CSSProperties } from 'react'
 import {
   SortableContext,
   useSortable,
@@ -18,6 +18,7 @@ interface ActivityListProps {
   readOnly?: boolean
   activeActivityId?: number | null
   onActiveActivityChange?: (activityId: number | null) => void
+  onActivityActivate?: (activity: Activity) => void
   onEdit: (activity: Activity) => void
   onDelete: (activityId: number) => void
   onMoveDown: (activity: Activity) => void
@@ -52,6 +53,7 @@ function SortableActivityCard({
   readOnly = false,
   activeActivityId,
   onActiveActivityChange,
+  onActivityActivate,
   onEdit,
   onDelete,
   onMoveDown,
@@ -111,6 +113,7 @@ function SortableActivityCard({
           minDate={minDate}
           readOnly={readOnly}
           onActiveChange={onActiveActivityChange}
+          onActivate={onActivityActivate}
           onEdit={onEdit}
           onDelete={onDelete}
           onMoveDown={onMoveDown}
@@ -130,6 +133,7 @@ export function ActivityList({
   readOnly = false,
   activeActivityId = null,
   onActiveActivityChange,
+  onActivityActivate,
   onEdit,
   onDelete,
   onMoveDown,
@@ -161,31 +165,26 @@ export function ActivityList({
     >
       <ol className={styles.list}>
         {activities.map((activity, index) => (
-          <Fragment key={activity.id}>
-            <SortableActivityCard
-              activity={activity}
-              activeActivityId={activeActivityId}
-              busy={busy}
-              canMoveDown={index < activities.length - 1}
-              canMoveUp={index > 0}
-              isLast={index === activities.length - 1}
-              maxDate={maxDate}
-              minDate={minDate}
-              position={index + 1}
-              readOnly={readOnly}
-              onActiveActivityChange={onActiveActivityChange}
-              onEdit={onEdit}
-              onDelete={onDelete}
-              onMoveDown={onMoveDown}
-              onMoveToDay={onMoveToDay}
-              onMoveUp={onMoveUp}
-            />
-            {!readOnly && index < activities.length - 1 && (
-              <li className={styles.insertSlot} aria-hidden="true">
-                <span>Insert activity here</span>
-              </li>
-            )}
-          </Fragment>
+          <SortableActivityCard
+            key={activity.id}
+            activity={activity}
+            activeActivityId={activeActivityId}
+            busy={busy}
+            canMoveDown={index < activities.length - 1}
+            canMoveUp={index > 0}
+            isLast={index === activities.length - 1}
+            maxDate={maxDate}
+            minDate={minDate}
+            position={index + 1}
+            readOnly={readOnly}
+            onActiveActivityChange={onActiveActivityChange}
+            onActivityActivate={onActivityActivate}
+            onEdit={onEdit}
+            onDelete={onDelete}
+            onMoveDown={onMoveDown}
+            onMoveToDay={onMoveToDay}
+            onMoveUp={onMoveUp}
+          />
         ))}
       </ol>
     </SortableContext>

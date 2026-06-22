@@ -19,6 +19,7 @@ vi.mock('../components/TripMap', () => ({
     onActivityActivate,
     onActiveActivityChange,
     previewPlace,
+    routeActivities = activities,
   }: {
     activeActivityId?: number | null
     activities: Array<{ id: number; title: string }>
@@ -27,6 +28,7 @@ vi.mock('../components/TripMap', () => ({
     onActivityActivate?: (activityId: number) => void
     onActiveActivityChange?: (activityId: number | null) => void
     previewPlace?: { placeName?: string | null; title?: string | null } | null
+    routeActivities?: Array<{ id: number; title: string }>
   }) => (
     <div data-testid="trip-map">
       <div data-testid="active-map-activity">{activeActivityId ?? 'none'}</div>
@@ -56,6 +58,11 @@ vi.mock('../components/TripMap', () => ({
       </div>
       <div data-testid="fallback-map-activities">
         {fallbackActivities.map((activity) => (
+          <span key={activity.id}>{activity.title}</span>
+        ))}
+      </div>
+      <div data-testid="route-map-activities">
+        {routeActivities.map((activity) => (
           <span key={activity.id}>{activity.title}</span>
         ))}
       </div>
@@ -186,14 +193,19 @@ describe('<TripWorkspacePage>', () => {
 
     renderWorkspace('/trips/abc234def567')
 
-    expect(await screen.findByRole('heading', { name: /tokyo 2026/i })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 1, name: /tokyo 2026/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 2, name: /friday, may 1/i })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /tripplanner/i })).toHaveAttribute('href', '/trips')
+    expect(screen.getByRole('link', { name: /^trips$/i })).toHaveAttribute('aria-current', 'page')
     expect(screen.getByText(/Tokyo, Japan/)).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: /may 2026/i })).toBeInTheDocument()
     expect(screen.getByTitle('2026-05-01 (0 activities)')).toHaveAttribute('aria-pressed', 'true')
-    expect(screen.getByRole('link', { name: /^days$/i })).toHaveAttribute('href', '#days-calendar')
-    expect(screen.getByRole('link', { name: /^timeline$/i })).toHaveAttribute('href', '#timeline-panel-title')
-    expect(screen.getByRole('link', { name: /^notes$/i })).toHaveAttribute('href', '#day-notes')
-    expect(screen.getByRole('link', { name: /^map$/i })).toHaveAttribute('href', '#map-panel-title')
+    expect(screen.getByRole('button', { name: /^days$/i })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: /^timeline$/i })).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.queryByRole('link', { name: /^notes$/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /^map$/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: /search results/i })).not.toBeInTheDocument()
+    expect(screen.queryByText(/ready to add/i)).not.toBeInTheDocument()
     expect(await screen.findByText(/no activities yet/i)).toBeInTheDocument()
     expect(screen.getByLabelText(/day note/i)).toHaveValue('Check reservation email')
     expect(screen.getByLabelText(/selected day summary/i)).toHaveTextContent('No items scheduled')
@@ -260,15 +272,54 @@ describe('<TripWorkspacePage>', () => {
     const map = await screen.findByTestId('trip-map')
     const selectedMapActivities = within(screen.getByTestId('selected-map-activities'))
     const fallbackMapActivities = within(screen.getByTestId('fallback-map-activities'))
+    const routeMapActivities = within(screen.getByTestId('route-map-activities'))
     expect(map).toBeInTheDocument()
     expect(selectedMapActivities.getByText('Tokyo Tower')).toBeInTheDocument()
     expect(selectedMapActivities.queryByText('Tsukiji sushi')).not.toBeInTheDocument()
     expect(fallbackMapActivities.getByText('Tokyo Tower')).toBeInTheDocument()
     expect(fallbackMapActivities.getByText('Tsukiji sushi')).toBeInTheDocument()
-    expect(screen.getByText(/2 activities/i)).toBeInTheDocument()
-    expect(screen.getByText('1 of 1')).toBeInTheDocument()
-    expect(screen.getByText(/1 mapped stop today/i)).toBeInTheDocument()
+    expect(routeMapActivities.getByText('Tokyo Tower')).toBeInTheDocument()
+    expect(routeMapActivities.queryByText('Tsukiji sushi')).not.toBeInTheDocument()
+    expect(screen.getByText(/1 activity scheduled today/i)).toBeInTheDocument()
+    expect(screen.getByText(/1 mapped stop in view/i)).toBeInTheDocument()
     expect(screen.getAllByText('CONFIRMED').length).toBeGreaterThan(0)
+  })
+
+  it('switches to a full-trip timeline and maps all trip activities', async () => {
+    const dayTwoActivity = {
+      ...SAMPLE_ACTIVITY,
+      id: 22,
+      dayDate: '2026-05-02',
+      title: 'Tokyo Tower',
+      lat: 35.6586,
+      lng: 139.7454,
+      orderIndex: 0,
+    }
+    mockWorkspace([SAMPLE_ACTIVITY, dayTwoActivity])
+
+    renderWorkspace('/trips/abc234def567/d/2026-05-01')
+
+    await screen.findByRole('heading', { level: 1, name: /tokyo 2026/i })
+    await userEvent.click(screen.getByRole('button', { name: /^timeline$/i }))
+
+    expect(screen.getByRole('button', { name: /^timeline$/i })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('heading', { name: /full trip timeline/i })).toBeInTheDocument()
+    expect(screen.getByText(/2 activities across 5 days/i)).toBeInTheDocument()
+
+    const fullTimeline = screen.getByLabelText(/trip days timeline/i)
+    expect(within(fullTimeline).getByText('Tsukiji sushi')).toBeInTheDocument()
+    expect(within(fullTimeline).getByText('Tokyo Tower')).toBeInTheDocument()
+
+    const selectedMapActivities = within(screen.getByTestId('selected-map-activities'))
+    const routeMapActivities = within(screen.getByTestId('route-map-activities'))
+    expect(selectedMapActivities.getByText('Tsukiji sushi')).toBeInTheDocument()
+    expect(selectedMapActivities.getByText('Tokyo Tower')).toBeInTheDocument()
+    expect(routeMapActivities.queryByText('Tsukiji sushi')).not.toBeInTheDocument()
+    expect(routeMapActivities.queryByText('Tokyo Tower')).not.toBeInTheDocument()
+    expect(screen.getByLabelText(/full trip map summary/i)).toHaveTextContent('Timeline map')
+
+    await userEvent.click(within(fullTimeline).getByRole('button', { name: /tokyo tower/i }))
+    expect(screen.getByTestId('active-map-activity')).toHaveTextContent('22')
   })
 
   it('syncs active activity state between cards and map controls', async () => {
@@ -292,7 +343,11 @@ describe('<TripWorkspacePage>', () => {
     const activityCard = activityHeading.closest('article')
     expect(activityCard).not.toBeNull()
 
-    await userEvent.hover(activityCard as HTMLElement)
+    await userEvent.click(activityCard as HTMLElement)
+    expect(screen.getByTestId('active-map-activity')).toHaveTextContent('22')
+    expect(activityCard).toHaveAttribute('data-active', 'true')
+
+    await userEvent.keyboard('{Enter}')
     expect(screen.getByTestId('active-map-activity')).toHaveTextContent('22')
 
     await userEvent.click(screen.getByRole('button', { name: /mock activate marker/i }))
@@ -308,14 +363,14 @@ describe('<TripWorkspacePage>', () => {
 
     renderWorkspace('/trips/abc234def567')
 
-    expect(await screen.findByRole('heading', { name: /tokyo 2026/i })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 1, name: /tokyo 2026/i })).toBeInTheDocument()
     expect(screen.getAllByText('Tsukiji sushi').length).toBeGreaterThan(0)
     expect(screen.getByTestId('trip-map')).toBeInTheDocument()
     expect(await screen.findByLabelText(/day note/i)).toBeDisabled()
 
     expect(screen.queryByRole('button', { name: /mock place search/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /save note/i })).not.toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: /add activity/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /add activity/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /share/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /edit: tsukiji sushi/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /delete: tsukiji sushi/i })).not.toBeInTheDocument()
@@ -336,6 +391,14 @@ describe('<TripWorkspacePage>', () => {
 
     expect(await screen.findAllByText('Tsukiji sushi')).not.toHaveLength(0)
     expect(apiMock.history.post[0].url).toBe('/trips/abc234def567/activities?dayDate=2026-05-01')
+    expect(JSON.parse(apiMock.history.post[0].data as string)).toMatchObject({
+      title: 'Tsukiji sushi',
+      mapboxId: null,
+      placeName: null,
+      address: null,
+      lat: null,
+      lng: null,
+    })
   })
 
   it('creates an activity from a selected Mapbox place', async () => {
@@ -355,6 +418,8 @@ describe('<TripWorkspacePage>', () => {
     renderWorkspace('/trips/abc234def567')
 
     await userEvent.click(await screen.findByRole('button', { name: /mock place search/i }))
+    expect(screen.queryByRole('heading', { name: /search results/i })).not.toBeInTheDocument()
+    expect(screen.queryByText(/ready to add/i)).not.toBeInTheDocument()
     expect(screen.getByLabelText(/^title$/i)).toHaveValue('Tokyo Tower')
     expect(screen.getByTestId('preview-map-place')).toHaveTextContent('Tokyo Tower')
     await userEvent.click(screen.getByRole('button', { name: /^save activity$/i }))
@@ -441,6 +506,9 @@ describe('<TripWorkspacePage>', () => {
 
     renderWorkspace('/trips/abc234def567')
 
+    expect(await screen.findByRole('heading', { name: /tsukiji sushi/i })).toBeInTheDocument()
+    expect(screen.queryByText(/insert activity here/i)).not.toBeInTheDocument()
+
     await userEvent.click(await screen.findByRole('button', { name: /move dinner up/i }))
 
     await waitFor(() => {
@@ -474,7 +542,7 @@ describe('<TripWorkspacePage>', () => {
     await userEvent.click(screen.getByRole('button', { name: /retry/i }))
 
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: /tokyo 2026/i })).toBeInTheDocument()
+      expect(screen.getByRole('heading', { level: 1, name: /tokyo 2026/i })).toBeInTheDocument()
     })
   })
 })
