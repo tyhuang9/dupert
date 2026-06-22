@@ -1,18 +1,131 @@
-import { useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
+import {
+  CalendarDays,
+  LogOut,
+  MapPin,
+  Plus,
+  Search,
+  SlidersHorizontal,
+  UserRound,
+  X,
+} from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth'
 import { parseApiError } from '../api/errors'
 import { useTrips } from '../hooks/useTrips'
+import type { Trip, TripRole } from '../types/trip'
+import coastalCard from '../assets/trips/coastal-card.webp'
+import emptyPlanner from '../assets/trips/empty-planner.webp'
+import genericCard from '../assets/trips/generic-card.webp'
+import parisCard from '../assets/trips/paris-card.webp'
+import tokyoCard from '../assets/trips/tokyo-card.webp'
+import { selectTripVisualKey, type TripVisualKey } from '../utils/tripVisuals'
 import { usePageTitle } from '../utils/usePageTitle'
 import styles from './TripsPage.module.css'
+
+type RoleFilter = 'ALL' | TripRole
+
+const ROLE_FILTERS: RoleFilter[] = ['ALL', 'OWNER', 'EDITOR', 'VIEWER']
+
+const DATE_FORMATTER = new Intl.DateTimeFormat('en-US', {
+  month: 'short',
+  day: 'numeric',
+  year: 'numeric',
+  timeZone: 'UTC',
+})
+
+const TRIP_VISUALS: Record<TripVisualKey, string> = {
+  tokyo: tokyoCard,
+  paris: parisCard,
+  coastal: coastalCard,
+  generic: genericCard,
+}
+
+function formatRole(role: RoleFilter): string {
+  if (role === 'ALL') {
+    return 'All'
+  }
+  return role.charAt(0) + role.slice(1).toLowerCase()
+}
+
+function parseDate(date: string): Date | null {
+  const parsed = new Date(`${date}T00:00:00Z`)
+  return Number.isNaN(parsed.getTime()) ? null : parsed
+}
+
+function formatDate(date: string): string {
+  const parsed = parseDate(date)
+  return parsed ? DATE_FORMATTER.format(parsed) : date
+}
+
+function formatTripDateRange(
+  trip: Pick<Trip, 'startDate' | 'endDate'>,
+): string {
+  return `${formatDate(trip.startDate)} - ${formatDate(trip.endDate)}`
+}
+
+function formatTripDuration(trip: Pick<Trip, 'startDate' | 'endDate'>): string {
+  const start = parseDate(trip.startDate)
+  const end = parseDate(trip.endDate)
+  if (!start || !end || end < start) {
+    return 'Dates set'
+  }
+
+  const days =
+    Math.round((end.getTime() - start.getTime()) / 86_400_000) + 1
+  return `${days} ${days === 1 ? 'day' : 'days'}`
+}
+
+function tripMatchesSearch(trip: Trip, searchTerm: string): boolean {
+  const query = searchTerm.trim().toLowerCase()
+  if (!query) {
+    return true
+  }
+
+  return [
+    trip.name,
+    trip.destination ?? 'destination pending',
+    formatRole(trip.role),
+    trip.startDate,
+    trip.endDate,
+    formatTripDateRange(trip),
+    formatTripDuration(trip),
+  ]
+    .join(' ')
+    .toLowerCase()
+    .includes(query)
+}
 
 export function TripsPage() {
   usePageTitle('Trips – TripPlanner')
 
   const { logout } = useAuth()
   const navigate = useNavigate()
+  const searchInputRef = useRef<HTMLInputElement>(null)
   const [loggingOut, setLoggingOut] = useState(false)
+  const [searchTerm, setSearchTerm] = useState('')
+  const [roleFilter, setRoleFilter] = useState<RoleFilter>('ALL')
   const tripsQuery = useTrips()
+  const trips = useMemo(() => tripsQuery.data ?? [], [tripsQuery.data])
+
+  const visibleTrips = useMemo(
+    () =>
+      trips.filter(
+        (trip) =>
+          (roleFilter === 'ALL' || trip.role === roleFilter) &&
+          tripMatchesSearch(trip, searchTerm),
+      ),
+    [roleFilter, searchTerm, trips],
+  )
+
+  const hasTrips = trips.length > 0
+  const hasActiveFilters = searchTerm.trim().length > 0 || roleFilter !== 'ALL'
+
+  function clearFilters() {
+    setSearchTerm('')
+    setRoleFilter('ALL')
+    requestAnimationFrame(() => searchInputRef.current?.focus())
+  }
 
   async function onLogout() {
     setLoggingOut(true)
@@ -35,6 +148,7 @@ export function TripsPage() {
         </div>
         <div className={styles.actions}>
           <Link to="/trips/new" className={styles.primaryAction}>
+            <Plus aria-hidden="true" size={18} />
             New trip
           </Link>
           <button
@@ -43,6 +157,7 @@ export function TripsPage() {
             disabled={loggingOut}
             className={styles.secondaryAction}
           >
+            <LogOut aria-hidden="true" size={18} />
             {loggingOut ? 'Signing out...' : 'Sign out'}
           </button>
         </div>
@@ -63,28 +178,150 @@ export function TripsPage() {
             Retry
           </button>
         </section>
-      ) : tripsQuery.data && tripsQuery.data.length > 0 ? (
-        <ul className={styles.tripList} aria-label="Trips">
-          {tripsQuery.data.map((trip) => (
-            <li key={trip.publicId} className={styles.tripItem}>
-              <Link to={`/trips/${trip.publicId}`} className={styles.tripLink}>
-                <span className={styles.tripName}>{trip.name}</span>
-                <span className={styles.tripMeta}>
-                  {trip.destination ? `${trip.destination} · ` : ''}
-                  {trip.startDate} to {trip.endDate}
-                </span>
-                <span className={styles.role}>{trip.role.toLowerCase()}</span>
-              </Link>
-            </li>
-          ))}
-        </ul>
+      ) : hasTrips ? (
+        <section className={styles.dashboard} aria-labelledby="trips-heading">
+          <h2 id="trips-heading" className="sr-only">
+            Trips
+          </h2>
+          <div className={styles.toolbar}>
+            <label className={styles.searchField}>
+              <span className="sr-only">Search trips</span>
+              <Search aria-hidden="true" size={18} />
+              <input
+                ref={searchInputRef}
+                type="search"
+                value={searchTerm}
+                onChange={(event) => setSearchTerm(event.target.value)}
+                placeholder="Search trips, destinations, roles, or dates"
+              />
+            </label>
+
+            <div
+              className={styles.filterGroup}
+              role="group"
+              aria-label="Filter trips by role"
+            >
+              <span className={styles.filterLabel}>
+                <SlidersHorizontal aria-hidden="true" size={16} />
+                Role
+              </span>
+              {ROLE_FILTERS.map((filter) => (
+                <button
+                  key={filter}
+                  type="button"
+                  className={
+                    roleFilter === filter
+                      ? styles.filterChipActive
+                      : styles.filterChip
+                  }
+                  aria-pressed={roleFilter === filter}
+                  onClick={() => setRoleFilter(filter)}
+                >
+                  {formatRole(filter)}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <p
+            className={styles.resultsSummary}
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+          >
+            Showing {visibleTrips.length} of {trips.length}{' '}
+            {trips.length === 1 ? 'trip' : 'trips'}
+          </p>
+
+          {visibleTrips.length > 0 ? (
+            <ul className={styles.tripGrid} aria-label="Trips">
+              {visibleTrips.map((trip) => {
+                const visual = TRIP_VISUALS[selectTripVisualKey(trip)]
+                const destination = trip.destination ?? 'Destination pending'
+                const dateRange = formatTripDateRange(trip)
+                const duration = formatTripDuration(trip)
+                const role = formatRole(trip.role)
+
+                return (
+                  <li key={trip.publicId} className={styles.tripCardItem}>
+                    <Link
+                      to={`/trips/${trip.publicId}`}
+                      className={styles.tripCard}
+                      aria-label={[
+                        `Open ${trip.name}`,
+                        destination,
+                        dateRange,
+                        duration,
+                        role,
+                      ].join(', ')}
+                    >
+                      <span className={styles.cardMedia}>
+                        <img
+                          src={visual}
+                          alt=""
+                          width="1200"
+                          height="676"
+                          loading="lazy"
+                        />
+                        <span className={styles.role}>{role}</span>
+                      </span>
+                      <span className={styles.cardBody}>
+                        <span className={styles.tripName}>{trip.name}</span>
+                        <span className={styles.tripMeta}>
+                          <span>
+                            <MapPin aria-hidden="true" size={16} />
+                            {destination}
+                          </span>
+                          <span>
+                            <CalendarDays aria-hidden="true" size={16} />
+                            {dateRange}
+                          </span>
+                          <span>
+                            <UserRound aria-hidden="true" size={16} />
+                            {duration}
+                          </span>
+                        </span>
+                      </span>
+                    </Link>
+                  </li>
+                )
+              })}
+            </ul>
+          ) : (
+            <section className={styles.noResultsState}>
+              <div className={styles.stateIcon}>
+                <Search aria-hidden="true" size={22} />
+              </div>
+              <h2>No trips match your filters</h2>
+              <p>Try a destination, role, date, or trip name from your list.</p>
+              {hasActiveFilters ? (
+                <button
+                  type="button"
+                  className={styles.secondaryAction}
+                  onClick={clearFilters}
+                >
+                  <X aria-hidden="true" size={18} />
+                  Clear filters
+                </button>
+              ) : null}
+            </section>
+          )}
+        </section>
       ) : (
-        <section className={styles.state}>
-          <h2>No trips yet</h2>
-          <p>Create your first itinerary when you are ready.</p>
-          <Link to="/trips/new" className={styles.primaryAction}>
-            New trip
-          </Link>
+        <section className={styles.emptyState}>
+          <img src={emptyPlanner} alt="" width="960" height="720" />
+          <div>
+            <p className={styles.eyebrow}>No trips yet</p>
+            <h2>Start your first itinerary</h2>
+            <p>
+              Add a destination and dates, then build the plan from your trip
+              workspace.
+            </p>
+            <Link to="/trips/new" className={styles.primaryAction}>
+              <Plus aria-hidden="true" size={18} />
+              New trip
+            </Link>
+          </div>
         </section>
       )}
     </main>

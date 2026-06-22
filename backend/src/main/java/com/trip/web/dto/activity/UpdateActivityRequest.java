@@ -6,7 +6,7 @@ import com.trip.domain.ActivityCategory;
 
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 /**
@@ -21,7 +21,7 @@ import jakarta.validation.constraints.Size;
 public record UpdateActivityRequest(
     ActivityCategory category,
 
-    @NotBlank(message = "title must not be blank if provided")
+    @Pattern(regexp = ".*\\S.*", message = "title must not be blank if provided")
     @Size(min = 1, max = 200, message = "title must be between 1 and 200 characters")
     String title,
 

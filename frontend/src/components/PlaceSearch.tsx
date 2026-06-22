@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { SearchBox } from '@mapbox/search-js-react'
 import type { SearchBoxRetrieveResponse } from '@mapbox/search-js-core'
 import type { ActivityCategory, CreateActivityRequest } from '../types/activity'
+import { mapboxAccessTroubleshooting } from '../utils/mapboxAccess'
 import styles from './PlaceSearch.module.css'
 
 interface PlaceSearchProps {
@@ -57,6 +58,7 @@ function placePayload(res: SearchBoxRetrieveResponse): Partial<CreateActivityReq
 export function PlaceSearch({ onPlaceSelect }: PlaceSearchProps) {
   const accessToken = import.meta.env.VITE_MAPBOX_TOKEN as string | undefined
   const [value, setValue] = useState('')
+  const [searchError, setSearchError] = useState<string | null>(null)
   const [selectedName, setSelectedName] = useState('')
   const [selectedAddress, setSelectedAddress] = useState<string | null>(null)
 
@@ -77,19 +79,37 @@ export function PlaceSearch({ onPlaceSelect }: PlaceSearchProps) {
           <SearchBox
             accessToken={accessToken}
             value={value}
-            onChange={setValue}
+            onChange={(nextValue) => {
+              setValue(nextValue)
+              if (!nextValue) setSearchError(null)
+            }}
+            onSuggest={() => setSearchError(null)}
+            onSuggestError={() => {
+              setSearchError(`Mapbox search failed. ${mapboxAccessTroubleshooting()}`)
+            }}
             onRetrieve={(res) => {
               const payload = placePayload(res)
               if (!payload) return
+              setSearchError(null)
               setSelectedName(payload.placeName ?? payload.title ?? '')
               setSelectedAddress(payload.address ?? null)
               onPlaceSelect(payload)
+            }}
+            onClear={() => {
+              setSearchError(null)
+              setSelectedName('')
+              setSelectedAddress(null)
             }}
             placeholder="Search restaurants, sights, hotels..."
             options={{ language: 'en' }}
           />
         </span>
       </label>
+      {searchError && (
+        <p className={styles.searchError} role="alert">
+          {searchError}
+        </p>
+      )}
       {selectedName && (
         <div className={styles.selectedPlace} role="status" aria-live="polite" aria-atomic="true">
           <span>Ready to add</span>

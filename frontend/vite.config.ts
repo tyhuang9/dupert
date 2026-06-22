@@ -5,6 +5,7 @@ import babel from '@rolldown/plugin-babel'
 
 // https://vite.dev/config/
 export default defineConfig({
+  envDir: '..',
   plugins: [
     react(),
     babel({ presets: [reactCompilerPreset()] }),

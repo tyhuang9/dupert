@@ -9,6 +9,7 @@
 }
 
 .marker {
+  appearance: none;
   display: inline-grid;
   place-items: center;
   width: 40px;
@@ -20,12 +21,32 @@
   font-size: var(--font-size-xs);
   font-weight: 900;
   box-shadow: var(--shadow-md);
+  cursor: pointer;
+  transition:
+    border-color var(--transition-base),
+    box-shadow var(--transition-base),
+    transform var(--transition-base);
+}
+
+.marker:hover,
+.markerActive {
+  border-color: var(--color-warning);
+  box-shadow: 0 0 0 6px rgba(37, 99, 235, 0.18), var(--shadow-md);
+  transform: translateY(-1px);
 }
 
 .destinationMarker {
   border-color: var(--color-warning);
   background: var(--color-warning-bg);
   color: var(--color-warning-fg);
+  cursor: default;
+  transform: none;
+}
+
+.previewMarker {
+  border-color: var(--color-primary-active);
+  background: var(--color-surface);
+  color: var(--color-primary-active);
   cursor: default;
 }
 
@@ -55,7 +76,6 @@
 .mapNotice {
   position: absolute;
   max-width: calc(100% - var(--space-6));
-  padding: var(--space-2) var(--space-3);
   border: 1px solid var(--color-surface-border);
   border-radius: var(--radius-md);
   background: rgba(255, 255, 255, 0.95);
@@ -65,14 +85,34 @@
 }
 
 .routeSummary {
-  left: var(--space-3);
-  bottom: var(--space-3);
+  right: var(--space-3);
+  bottom: calc(var(--space-3) + var(--map-bottom-card-offset, 0px));
+  display: grid;
+  gap: var(--space-1);
+  min-width: min(16rem, calc(100% - var(--space-6)));
+  padding: var(--space-3);
   color: var(--color-text);
+}
+
+.routeSummary strong {
+  color: var(--color-text);
+  font-size: var(--font-size-sm);
+}
+
+.routeSummaryHeader {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-primary-text);
 }
 
 .mapNotice {
   top: 64px;
   left: var(--space-3);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
   color: var(--color-text-muted);
 }
 
@@ -81,7 +121,11 @@
   height: 100%;
   min-height: 30rem;
   display: grid;
+  grid-template-columns: 44px minmax(0, 26rem);
   align-content: center;
+  justify-content: center;
+  align-items: start;
+  gap: var(--space-3);
   padding: var(--space-6);
   background:
     linear-gradient(135deg, rgba(37, 99, 235, 0.08), rgba(15, 23, 42, 0)),
@@ -91,8 +135,62 @@
   line-height: var(--line-height-base);
 }
 
+.fallbackIcon {
+  width: 44px;
+  height: 44px;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid #bfdbfe;
+  border-radius: var(--radius-md);
+  background: var(--color-primary-soft);
+  color: var(--color-primary-active);
+}
+
+.fallback h3 {
+  margin: 0 0 var(--space-1);
+  color: var(--color-text);
+  font-size: var(--font-size-sm);
+}
+
 .fallback p {
   margin: 0;
+}
+
+.fallbackHint {
+  margin-top: var(--space-2) !important;
+  color: var(--color-text-muted);
+}
+
+.emptyMapCard {
+  position: absolute;
+  right: var(--space-3);
+  bottom: calc(var(--space-3) + var(--map-bottom-card-offset, 0px));
+  max-width: min(20rem, calc(100% - var(--space-6)));
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.95);
+  color: var(--color-text-muted);
+  box-shadow: var(--shadow-md);
+  font-size: var(--font-size-xs);
+}
+
+.emptyMapCard > svg {
+  color: var(--color-primary-text);
+}
+
+.emptyMapCard strong,
+.emptyMapCard span {
+  display: block;
+}
+
+.emptyMapCard strong {
+  color: var(--color-text);
+  font-size: var(--font-size-sm);
 }
 
 @media (max-width: 820px) {
@@ -103,5 +201,18 @@
 
   .mapNotice {
     top: 96px;
+  }
+
+  .routeSummary,
+  .emptyMapCard {
+    right: var(--space-3);
+    min-width: 0;
+  }
+}
+
+@media (pointer: coarse) {
+  .marker {
+    width: 44px;
+    height: 44px;
   }
 }

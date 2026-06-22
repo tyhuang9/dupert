@@ -8,6 +8,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { apiClient } from '../api/client'
 import { AuthContext, type AuthContextValue } from '../auth/authContextValue'
 import type { Trip } from '../types/trip'
+import { selectTripVisualKey } from '../utils/tripVisuals'
 import { NewTripPage } from './NewTripPage'
 import { TripsPage } from './TripsPage'
 
@@ -22,6 +23,26 @@ const SAMPLE_TRIP: Trip = {
   endDate: '2026-05-05',
   createdAt: '2026-05-22T16:00:00Z',
   role: 'OWNER',
+}
+
+const PARIS_TRIP: Trip = {
+  publicId: 'paris987',
+  name: 'Paris spring',
+  destination: 'Paris, France',
+  startDate: '2026-04-10',
+  endDate: '2026-04-14',
+  createdAt: '2026-01-10T16:00:00Z',
+  role: 'EDITOR',
+}
+
+const COASTAL_TRIP: Trip = {
+  publicId: 'coast321',
+  name: 'Coastal reset',
+  destination: 'Oregon Coast',
+  startDate: '2026-08-01',
+  endDate: '2026-08-03',
+  createdAt: '2026-01-12T16:00:00Z',
+  role: 'VIEWER',
 }
 
 function makeAuth(overrides: Partial<AuthContextValue> = {}): AuthContextValue {
@@ -114,15 +135,61 @@ describe('<TripsPage>', () => {
   it('renders trips from the API', async () => {
     apiMock.onGet('/trips').reply(200, [SAMPLE_TRIP])
 
-    renderTrips()
+    const { container } = renderTrips()
 
     expect(screen.getByText(/loading trips/i)).toBeInTheDocument()
-    expect(await screen.findByRole('link', { name: /tokyo 2026/i })).toHaveAttribute(
+    const tripLink = await screen.findByRole('link', { name: /tokyo 2026/i })
+    expect(tripLink).toHaveAttribute(
       'href',
       '/trips/abc234def567',
     )
+    expect(tripLink).toHaveAccessibleName(/5 days/i)
+    expect(container.querySelector('img')).toHaveAttribute(
+      'src',
+      expect.stringContaining('tokyo-card'),
+    )
     expect(screen.getByText(/Tokyo, Japan/)).toBeInTheDocument()
-    expect(screen.getByText(/OWNER/i)).toBeInTheDocument()
+    expect(screen.getByText(/May 1, 2026 - May 5, 2026/)).toBeInTheDocument()
+    expect(screen.getAllByText(/owner/i).length).toBeGreaterThan(0)
+  })
+
+  it('filters trips by search text and role', async () => {
+    apiMock
+      .onGet('/trips')
+      .reply(200, [SAMPLE_TRIP, PARIS_TRIP, COASTAL_TRIP])
+
+    renderTrips()
+
+    expect(
+      await screen.findByRole('link', { name: /open tokyo 2026/i }),
+    ).toBeInTheDocument()
+
+    const searchInput = screen.getByLabelText(/search trips/i)
+
+    await userEvent.type(searchInput, 'paris')
+
+    expect(
+      screen.getByRole('link', { name: /open paris spring/i }),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('link', { name: /open tokyo 2026/i }),
+    ).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: /viewer/i }))
+
+    expect(
+      screen.getByText(/no trips match your filters/i),
+    ).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: /clear filters/i }))
+
+    await waitFor(() => {
+      expect(searchInput).toHaveFocus()
+    })
+    expect(
+      screen.getByRole('link', { name: /open coastal reset/i }),
+    ).toBeInTheDocument()
+    expect(screen.getByText(/showing 3 of 3 trips/i)).toBeInTheDocument()
   })
 
   it('renders an empty state with a create link', async () => {
@@ -163,6 +230,44 @@ describe('<TripsPage>', () => {
     await waitFor(() => {
       expect(screen.getByTestId('login')).toBeInTheDocument()
     })
+  })
+})
+
+describe('selectTripVisualKey', () => {
+  it('selects known destination visuals by whole-token hints', () => {
+    expect(
+      selectTripVisualKey({
+        name: 'Tokyo 2026',
+        destination: 'Tokyo, Japan',
+      }),
+    ).toBe('tokyo')
+    expect(
+      selectTripVisualKey({
+        name: 'Paris spring',
+        destination: 'France',
+      }),
+    ).toBe('paris')
+    expect(
+      selectTripVisualKey({
+        name: 'Coastal reset',
+        destination: 'Oregon Coast',
+      }),
+    ).toBe('coastal')
+  })
+
+  it('uses the generic visual when hints only appear inside another word', () => {
+    expect(
+      selectTripVisualKey({
+        name: 'Seattle weekend',
+        destination: 'Seattle, Washington',
+      }),
+    ).toBe('generic')
+    expect(
+      selectTripVisualKey({
+        name: 'Japanese garden walk',
+        destination: 'Kyoto',
+      }),
+    ).toBe('generic')
   })
 })
 

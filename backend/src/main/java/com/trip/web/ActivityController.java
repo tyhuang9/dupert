@@ -2,6 +2,8 @@ package com.trip.web;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -17,6 +19,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.trip.service.activity.ActivityService;
 import com.trip.web.dto.activity.ActivityResponse;
 import com.trip.web.dto.activity.CreateActivityRequest;
@@ -25,7 +29,10 @@ import com.trip.web.dto.activity.MoveActivityRequest;
 import com.trip.web.dto.activity.ReorderActivitiesRequest;
 import com.trip.web.auth.AuthenticationActors;
 
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.ConstraintViolationException;
 import jakarta.validation.Valid;
+import jakarta.validation.Validator;
 import jakarta.validation.constraints.Pattern;
 
 /**
@@ -47,9 +54,15 @@ public class ActivityController {
     static final String PUBLIC_ID_PATTERN = "[a-z0-9]{1,24}";
 
     private final ActivityService activityService;
+    private final ObjectMapper objectMapper;
+    private final Validator validator;
 
-    public ActivityController(ActivityService activityService) {
+    public ActivityController(ActivityService activityService,
+                              ObjectMapper objectMapper,
+                              Validator validator) {
         this.activityService = activityService;
+        this.objectMapper = objectMapper;
+        this.validator = validator;
     }
 
     /**
@@ -111,10 +124,19 @@ public class ActivityController {
     public ResponseEntity<ActivityResponse> updateActivity(
             @PathVariable @Pattern(regexp = PUBLIC_ID_PATTERN) String publicId,
             @PathVariable long activityId,
-            @Valid @RequestBody UpdateActivityRequest body,
+            @RequestBody Map<String, JsonNode> body,
             Authentication authentication) {
+        UpdateActivityRequest request = objectMapper.convertValue(body, UpdateActivityRequest.class);
+        Set<ConstraintViolation<UpdateActivityRequest>> violations = validator.validate(request);
+        if (!violations.isEmpty()) {
+            throw new ConstraintViolationException(violations);
+        }
         ActivityResponse updated = activityService.updateActivity(
-            activityId, AuthenticationActors.requireTripActor(authentication), publicId, body);
+            activityId,
+            AuthenticationActors.requireTripActor(authentication),
+            publicId,
+            request,
+            body.keySet());
         return ResponseEntity.ok(updated);
     }
 

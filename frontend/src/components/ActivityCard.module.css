@@ -10,12 +10,27 @@
   box-shadow: var(--shadow-sm);
   transition:
     border-color var(--transition-base),
+    background-color var(--transition-base),
     box-shadow var(--transition-base);
 }
 
 .card:hover,
-.card:focus-within {
+.card:focus-within,
+.card:focus-visible {
   border-color: #bfdbfe;
+  box-shadow: var(--shadow-md);
+}
+
+.card:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.cardActive {
+  border-color: var(--color-primary);
+  background:
+    linear-gradient(90deg, rgba(37, 99, 235, 0.08), rgba(37, 99, 235, 0)),
+    var(--color-surface);
   box-shadow: var(--shadow-md);
 }
 
@@ -30,9 +45,8 @@
 .categoryBlock {
   width: 44px;
   height: 44px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  display: inline-grid;
+  place-items: center;
   border: 1px solid var(--color-surface-border);
   border-radius: var(--radius-md);
   background: var(--color-primary-softer);
@@ -41,6 +55,19 @@
   font-weight: 800;
   line-height: 1;
   text-transform: uppercase;
+}
+
+.categoryIcon {
+  display: block;
+}
+
+.categoryText {
+  width: 100%;
+  max-width: 40px;
+  overflow: hidden;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .categoryBlock[data-category='MEAL'],
@@ -67,6 +94,20 @@
 .content {
   min-width: 0;
   display: grid;
+  gap: var(--space-2);
+}
+
+.cardHeader {
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.titleBlock {
+  min-width: 0;
+  display: grid;
   gap: var(--space-1);
 }
 
@@ -74,10 +115,34 @@
   min-width: 0;
   margin: 0;
   color: var(--color-text);
-  font-size: var(--font-size-base);
+  font-size: var(--font-size-sm);
   font-weight: 800;
   line-height: var(--line-height-tight);
   overflow-wrap: anywhere;
+}
+
+.statusTag {
+  flex: 0 0 auto;
+  min-height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 var(--space-2);
+  border: 1px solid #bfdbfe;
+  border-radius: var(--radius-md);
+  background: var(--color-primary-softer);
+  color: var(--color-primary-text);
+  font-size: var(--font-size-xs);
+  font-weight: 900;
+  line-height: 1;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.statusTag[data-status='FREE ENTRY'] {
+  border-color: #bbf7d0;
+  background: var(--color-success-bg);
+  color: var(--color-success-fg);
 }
 
 .actions {
@@ -91,9 +156,13 @@
 
 .iconButton {
   max-width: 100%;
-  min-width: 2rem;
-  min-height: 2rem;
-  padding: 0 var(--space-2);
+  width: 2.25rem;
+  min-width: 2.25rem;
+  height: 2.25rem;
+  min-height: 2.25rem;
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
   background: transparent;
@@ -101,6 +170,7 @@
   font: inherit;
   font-size: var(--font-size-xs);
   font-weight: 800;
+  cursor: pointer;
   transition:
     background-color var(--transition-base),
     border-color var(--transition-base),
@@ -130,19 +200,14 @@
   color: var(--color-text-muted);
 }
 
-.meta {
+.metadata {
   min-width: 0;
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  align-items: center;
-  font-size: var(--font-size-xs);
-  color: var(--color-text-muted);
+  display: grid;
+  gap: var(--space-1);
 }
 
-.category,
 .time,
-.locationLabel {
+.metadataLine span {
   min-height: 1rem;
   display: inline-flex;
   align-items: center;
@@ -152,9 +217,8 @@
   text-transform: uppercase;
 }
 
-.category,
 .time,
-.locationLabel {
+.metadataLine span {
   color: var(--color-text-subtle);
 }
 
@@ -162,30 +226,23 @@
   font-variant-numeric: tabular-nums;
 }
 
-.notes,
-.location,
-.address,
+.metadataLine,
 .attribution {
   min-width: 0;
   margin: 0;
-  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
   line-height: var(--line-height-base);
   overflow-wrap: anywhere;
 }
 
-.notes,
-.address,
-.attribution {
-  color: var(--color-text-muted);
+.metadataLine {
+  display: flex;
+  gap: var(--space-2);
 }
 
-.location {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  align-items: center;
-  color: var(--color-text);
-  font-weight: 700;
+.metadataLine span {
+  flex: 0 0 auto;
 }
 
 .moveControls {
@@ -253,6 +310,7 @@
     flex: 1 1 auto;
     min-width: 44px;
     min-height: 44px;
+    height: 44px;
   }
 
   .moveLabel {
@@ -264,5 +322,13 @@
     min-width: 44px;
     min-height: 44px;
     max-width: 100%;
+  }
+}
+
+@media (pointer: coarse) {
+  .iconButton {
+    min-width: 44px;
+    min-height: 44px;
+    height: 44px;
   }
 }

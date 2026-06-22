@@ -12,6 +12,20 @@ import {
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable'
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
+import {
+  CalendarDays,
+  ChevronLeft,
+  ChevronRight,
+  Layers,
+  Map as MapIcon,
+  MapPin,
+  NotebookTabs,
+  Plus,
+  Route as TimelineIcon,
+  Search,
+  Share2,
+  UsersRound,
+} from 'lucide-react'
 import { parseApiError } from '../api/errors'
 import { useTrip } from '../hooks/useTrips'
 import {
@@ -47,16 +61,6 @@ function dayInRange(dayDate: string, startDate: string, endDate: string): boolea
   return dayDate >= startDate && dayDate <= endDate
 }
 
-function formatDayLabel(dayDate: string): string {
-  return dayDate.slice(5)
-}
-
-function formatWeekday(dayDate: string): string {
-  return new Intl.DateTimeFormat('en-US', { weekday: 'short' }).format(
-    new Date(`${dayDate}T00:00:00`),
-  )
-}
-
 function formatReadableDate(dayDate: string | undefined): string {
   if (!dayDate) return 'Select a day'
   return new Intl.DateTimeFormat('en-US', {
@@ -77,6 +81,67 @@ function formatCompactDate(dayDate: string): string {
   }).format(new Date(`${dayDate}T00:00:00`))
 }
 
+function parseDateKey(dayDate: string): Date {
+  const [year, month, day] = dayDate.split('-').map(Number)
+  return new Date(Date.UTC(year, month - 1, day))
+}
+
+function dateKeyFromUtc(date: Date): string {
+  return date.toISOString().slice(0, 10)
+}
+
+function addDaysToDateKey(dayDate: string, days: number): string {
+  const date = parseDateKey(dayDate)
+  date.setUTCDate(date.getUTCDate() + days)
+  return dateKeyFromUtc(date)
+}
+
+function getMonthKey(dayDate: string): string {
+  return dayDate.slice(0, 7)
+}
+
+function addMonthsToMonthKey(monthKey: string, months: number): string {
+  const [year, month] = monthKey.split('-').map(Number)
+  const date = new Date(Date.UTC(year, month - 1 + months, 1))
+  return date.toISOString().slice(0, 7)
+}
+
+function formatMonthHeading(monthKey: string): string {
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'long',
+    year: 'numeric',
+  }).format(new Date(`${monthKey}-01T00:00:00`))
+}
+
+interface CalendarCell {
+  dayDate: string
+  inMonth: boolean
+  inTripRange: boolean
+}
+
+function buildCalendarCells(monthKey: string, startDate: string, endDate: string): CalendarCell[] {
+  const firstOfMonth = `${monthKey}-01`
+  const firstDate = parseDateKey(firstOfMonth)
+  const firstWeekday = firstDate.getUTCDay()
+  const gridStart = addDaysToDateKey(firstOfMonth, -firstWeekday)
+
+  return Array.from({ length: 42 }, (_, index) => {
+    const dayDate = addDaysToDateKey(gridStart, index)
+    return {
+      dayDate,
+      inMonth: getMonthKey(dayDate) === monthKey,
+      inTripRange: dayInRange(dayDate, startDate, endDate),
+    }
+  })
+}
+
+function formatActivityTime(activity: Activity): string {
+  if (activity.startTime && activity.endTime) return `${activity.startTime}-${activity.endTime}`
+  if (activity.startTime) return activity.startTime
+  if (activity.endTime) return `Ends ${activity.endTime}`
+  return 'Any time'
+}
+
 function getInitials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean)
   if (parts.length === 0) return 'U'
@@ -92,27 +157,29 @@ function collectCollaboratorNames(activities: Activity[]): string[] {
   return names.size > 0 ? [...names].slice(0, 3) : ['You']
 }
 
-function DayDropTarget({
+function CalendarDayCell({
   activityCount,
-  dayDate,
+  cell,
   disabled,
   onSelectDay,
   selected,
 }: {
   activityCount: number
-  dayDate: string
+  cell: CalendarCell
   disabled: boolean
   onSelectDay: (dayDate: string) => void
   selected: boolean
 }) {
   const { isOver, setNodeRef } = useDroppable({
-    id: dayDropId(dayDate),
-    disabled,
+    id: dayDropId(cell.dayDate),
+    disabled: disabled || !cell.inTripRange,
   })
   const className = [
-    styles.dayTarget,
-    selected ? styles.dayTargetSelected : '',
-    isOver ? styles.dayTargetOver : '',
+    styles.calendarDay,
+    !cell.inMonth ? styles.calendarDayOutside : '',
+    !cell.inTripRange ? styles.calendarDayDisabled : '',
+    selected ? styles.calendarDaySelected : '',
+    isOver ? styles.calendarDayOver : '',
   ].filter(Boolean).join(' ')
 
   return (
@@ -120,44 +187,98 @@ function DayDropTarget({
       ref={setNodeRef}
       type="button"
       className={className}
-      onClick={() => onSelectDay(dayDate)}
+      onClick={() => onSelectDay(cell.dayDate)}
+      disabled={!cell.inTripRange}
       aria-pressed={selected}
-      title={`${dayDate} (${activityCount} activities)`}
+      title={`${cell.dayDate} (${activityCount} activities)`}
     >
-      <span className={styles.dayTargetWeekday}>{formatWeekday(dayDate)}</span>
-      <span className={styles.dayTargetDate}>{formatDayLabel(dayDate)}</span>
-      <span className={styles.dayTargetCount}>
-        {pluralize(activityCount, 'plan')}
-      </span>
+      <span>{Number(cell.dayDate.slice(8, 10))}</span>
+      {activityCount > 0 && (
+        <span className={styles.calendarBadge} aria-label={`${activityCount} activities`}>
+          {activityCount}
+        </span>
+      )}
     </button>
   )
 }
 
-function DayDropTargets({
+function CompactMonthCalendar({
   activities,
-  days,
   disabled,
+  endDate,
+  monthKey,
+  onMonthChange,
   onSelectDay,
   selectedDay,
+  startDate,
 }: {
   activities: Activity[]
-  days: string[]
+  endDate: string
   disabled: boolean
+  monthKey: string
+  onMonthChange: (monthKey: string) => void
   onSelectDay: (dayDate: string) => void
   selectedDay: string
+  startDate: string
 }) {
+  const cells = useMemo(
+    () => buildCalendarCells(monthKey, startDate, endDate),
+    [endDate, monthKey, startDate],
+  )
+  const activityCounts = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const activity of activities) {
+      counts.set(activity.dayDate, (counts.get(activity.dayDate) ?? 0) + 1)
+    }
+    return counts
+  }, [activities])
+  const previousMonth = addMonthsToMonthKey(monthKey, -1)
+  const nextMonth = addMonthsToMonthKey(monthKey, 1)
+  const firstTripMonth = getMonthKey(startDate)
+  const lastTripMonth = getMonthKey(endDate)
+
   return (
-    <div className={styles.dayTargets} aria-label="Trip days">
-      {days.map((dayDate) => (
-        <DayDropTarget
-          key={dayDate}
-          activityCount={activities.filter((activity) => activity.dayDate === dayDate).length}
-          dayDate={dayDate}
-          disabled={disabled}
-          onSelectDay={onSelectDay}
-          selected={dayDate === selectedDay}
-        />
-      ))}
+    <div id="days-calendar" className={styles.calendarCard}>
+      <div className={styles.calendarHeader}>
+        <h2>{formatMonthHeading(monthKey)}</h2>
+        <div className={styles.calendarControls} aria-label="Calendar month navigation">
+          <button
+            type="button"
+            onClick={() => onMonthChange(previousMonth)}
+            disabled={previousMonth < firstTripMonth}
+            aria-label="Previous month"
+            title="Previous month"
+          >
+            <ChevronLeft size={16} aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            onClick={() => onMonthChange(nextMonth)}
+            disabled={nextMonth > lastTripMonth}
+            aria-label="Next month"
+            title="Next month"
+          >
+            <ChevronRight size={16} aria-hidden="true" />
+          </button>
+        </div>
+      </div>
+      <div className={styles.calendarWeekdays} aria-hidden="true">
+        {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((dayName, index) => (
+          <span key={`${dayName}-${index}`}>{dayName}</span>
+        ))}
+      </div>
+      <div className={styles.calendarGrid} aria-label="Trip month calendar">
+        {cells.map((cell) => (
+          <CalendarDayCell
+            key={cell.dayDate}
+            activityCount={activityCounts.get(cell.dayDate) ?? 0}
+            cell={cell}
+            disabled={disabled}
+            onSelectDay={onSelectDay}
+            selected={cell.dayDate === selectedDay}
+          />
+        ))}
+      </div>
     </div>
   )
 }
@@ -170,6 +291,10 @@ export function TripWorkspacePage() {
   const [isDraggingActivity, setIsDraggingActivity] = useState(false)
   const [activitySearch, setActivitySearch] = useState('')
   const [mapMode, setMapMode] = useState<'map' | 'satellite'>('map')
+  const [activeActivityId, setActiveActivityId] = useState<number | null>(null)
+  const [calendarMonth, setCalendarMonth] = useState(() =>
+    getMonthKey(day ?? new Date().toISOString().slice(0, 10)),
+  )
   const tripQuery = useTrip(publicId)
   const activitiesQuery = useActivities(publicId)
   const selectedDay = tripQuery.data
@@ -217,6 +342,15 @@ export function TripWorkspacePage() {
         : [],
     [tripQuery.data],
   )
+  const displayedCalendarMonth = useMemo(() => {
+    if (!tripQuery.data) return calendarMonth
+    const firstTripMonth = getMonthKey(tripQuery.data.startDate)
+    const lastTripMonth = getMonthKey(tripQuery.data.endDate)
+    if (calendarMonth < firstTripMonth || calendarMonth > lastTripMonth) {
+      return getMonthKey(selectedDay ?? tripQuery.data.startDate)
+    }
+    return calendarMonth
+  }, [calendarMonth, selectedDay, tripQuery.data])
   const dayActivities = useMemo(
     () =>
       allActivities
@@ -224,6 +358,11 @@ export function TripWorkspacePage() {
         .sort((left, right) => left.orderIndex - right.orderIndex),
     [allActivities, selectedDay],
   )
+  const visibleActiveActivityId = dayActivities.some(
+    (activity) => activity.id === activeActivityId,
+  )
+    ? activeActivityId
+    : null
   const selectedDayIndex = selectedDay ? tripDays.indexOf(selectedDay) + 1 : 0
   const mappedActivityCount = dayActivities.filter(
     (activity) => activity.lat !== null && activity.lng !== null,
@@ -272,18 +411,35 @@ export function TripWorkspacePage() {
     ) {
       setEditingActivity(null)
       setPlaceDraft(null)
+      setActiveActivityId(null)
+      setCalendarMonth(getMonthKey(nextDay))
       navigate(`/trips/${encodeURIComponent(publicId)}/d/${encodeURIComponent(nextDay)}`)
     }
   }
 
-  const handleDayChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    handleSelectDay(event.target.value)
+  const handleActivityActivate = (activityId: number) => {
+    setActiveActivityId(activityId)
+    const target = document.getElementById(`activity-${activityId}`)
+    if (!target) return
+    const reducedMotion =
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    target.scrollIntoView({
+      block: 'center',
+      behavior: reducedMotion ? 'auto' : 'smooth',
+    })
+    target.focus({ preventScroll: true })
   }
 
   const handleCreateActivity = async (payload: CreateActivityRequest) => {
     if (!publicId || !selectedDay) return
-    await createActivityMutation.mutateAsync({ publicId, dayDate: selectedDay, body: payload })
+    const created = await createActivityMutation.mutateAsync({
+      publicId,
+      dayDate: selectedDay,
+      body: payload,
+    })
     setPlaceDraft(null)
+    setActiveActivityId(created.id)
   }
 
   const handleUpdateActivity = async (payload: CreateActivityRequest) => {
@@ -399,8 +555,15 @@ export function TripWorkspacePage() {
       }
     : placeDraft ?? undefined
 
-  const createFormKey = placeDraft?.mapboxId
-    ? `create-${selectedDay}-${placeDraft.mapboxId}`
+  const createFormKey = placeDraft
+    ? [
+        'create',
+        selectedDay,
+        placeDraft.mapboxId ?? '',
+        placeDraft.lng ?? '',
+        placeDraft.lat ?? '',
+        placeDraft.title ?? placeDraft.placeName ?? '',
+      ].join(':')
     : `create-${selectedDay}`
 
   return (
@@ -449,6 +612,7 @@ export function TripWorkspacePage() {
             <div className={styles.topNavActions}>
               <label className={styles.globalSearch}>
                 <span className="sr-only">Search activities</span>
+                <Search className={styles.searchIcon} size={16} aria-hidden="true" />
                 <input
                   value={activitySearch}
                   onChange={(event) => setActivitySearch(event.target.value)}
@@ -460,6 +624,10 @@ export function TripWorkspacePage() {
                   {pluralize(matchingActivityCount, 'match', 'matches')}
                 </span>
               )}
+              <span className={styles.syncBadge}>
+                <UsersRound size={14} aria-hidden="true" />
+                Shared workspace
+              </span>
               <span className={styles.profileAvatar} aria-label="Current user">
                 {getInitials(collaboratorNames[0] ?? 'You')}
               </span>
@@ -502,32 +670,35 @@ export function TripWorkspacePage() {
                   </div>
                 </div>
 
-                <nav className={styles.railNav} aria-label="Workspace sections">
-                  <p className={styles.panelKicker}>Day plan</p>
-                  <DayDropTargets
-                    activities={allActivities}
-                    days={tripDays}
-                    disabled={!canEditTrip || isActivityMutationPending}
-                    onSelectDay={handleSelectDay}
-                    selectedDay={selectedDay ?? tripQuery.data.startDate}
-                  />
-                  <div className={styles.railDivider} />
-                  <a href="#day-notes">Notes</a>
-                  <a href="#timeline-panel-title">Timeline</a>
-                  <a href="#map-panel-title">Map view</a>
-                </nav>
+                <CompactMonthCalendar
+                  activities={allActivities}
+                  disabled={!canEditTrip || isActivityMutationPending}
+                  endDate={tripQuery.data.endDate}
+                  monthKey={displayedCalendarMonth}
+                  onMonthChange={setCalendarMonth}
+                  onSelectDay={handleSelectDay}
+                  selectedDay={selectedDay ?? tripQuery.data.startDate}
+                  startDate={tripQuery.data.startDate}
+                />
 
-                <label className={styles.inputLabel}>
-                  Pick a day
-                  <input
-                    type="date"
-                    value={selectedDay ?? ''}
-                    min={tripQuery.data.startDate}
-                    max={tripQuery.data.endDate}
-                    onChange={handleDayChange}
-                    className={styles.dateInput}
-                  />
-                </label>
+                <nav className={styles.railNav} aria-label="Workspace sections">
+                  <a href="#days-calendar" aria-current="page">
+                    <CalendarDays size={17} aria-hidden="true" />
+                    Days
+                  </a>
+                  <a href="#timeline-panel-title">
+                    <TimelineIcon size={17} aria-hidden="true" />
+                    Timeline
+                  </a>
+                  <a href="#day-notes">
+                    <NotebookTabs size={17} aria-hidden="true" />
+                    Notes
+                  </a>
+                  <a href="#map-panel-title">
+                    <MapIcon size={17} aria-hidden="true" />
+                    Map
+                  </a>
+                </nav>
 
                 <div id="day-notes" className={styles.noteSection}>
                   <div className={styles.sectionHeader}>
@@ -556,6 +727,7 @@ export function TripWorkspacePage() {
                 <div className={styles.railFooter}>
                   {canEditTrip && (
                     <a href="#activity-composer" className={styles.primaryAction}>
+                      <Plus size={16} aria-hidden="true" />
                       Add Activity
                     </a>
                   )}
@@ -591,6 +763,7 @@ export function TripWorkspacePage() {
                         to={`/trips/${tripQuery.data.publicId}/members`}
                         className={styles.shareLink}
                       >
+                        <Share2 size={15} aria-hidden="true" />
                         Share
                       </Link>
                     )}
@@ -627,6 +800,7 @@ export function TripWorkspacePage() {
                           onPlaceSelect={(place) => {
                             setEditingActivity(null)
                             setPlaceDraft(place)
+                            setActiveActivityId(null)
                           }}
                         />
                         <ActivityForm
@@ -645,14 +819,19 @@ export function TripWorkspacePage() {
                     )}
                     <div className={styles.sectionHeader}>
                       <h3 className={styles.sectionTitle}>Timeline</h3>
-                      <span>{pluralize(dayActivities.length, 'item')}</span>
+                      <span>
+                        <CalendarDays size={13} aria-hidden="true" />
+                        {pluralize(dayActivities.length, 'item')}
+                      </span>
                     </div>
                     <ActivityList
                       activities={dayActivities}
+                      activeActivityId={visibleActiveActivityId}
                       busy={isActivityMutationPending}
                       minDate={tripQuery.data.startDate}
                       maxDate={tripQuery.data.endDate}
                       readOnly={!canEditTrip}
+                      onActiveActivityChange={setActiveActivityId}
                       onEdit={(activity) => {
                         setPlaceDraft(null)
                         setEditingActivity(activity)
@@ -674,27 +853,67 @@ export function TripWorkspacePage() {
                       type="button"
                       aria-pressed={mapMode === 'map'}
                       onClick={() => setMapMode('map')}
+                      title="Show street map"
                     >
+                      <MapIcon size={14} aria-hidden="true" />
                       Map
                     </button>
                     <button
                       type="button"
                       aria-pressed={mapMode === 'satellite'}
                       onClick={() => setMapMode('satellite')}
+                      title="Show satellite map"
                     >
+                      <Layers size={14} aria-hidden="true" />
                       Satellite
                     </button>
                   </div>
                   <div className={styles.mapCountBadge}>
+                    <MapPin size={14} aria-hidden="true" />
                     {mappedActivityCount} mapped {mappedActivityCount === 1 ? 'stop' : 'stops'} today
                   </div>
                 </div>
                 <TripMap
                   activities={dayActivities}
                   fallbackActivities={allActivities}
+                  activeActivityId={visibleActiveActivityId}
                   destination={tripQuery.data.destination}
                   mapMode={mapMode}
+                  previewPlace={placeDraft}
+                  onActivityActivate={handleActivityActivate}
+                  onActiveActivityChange={setActiveActivityId}
                 />
+                <div className={styles.selectedDayMapCard} aria-label="Selected Day summary">
+                  <div className={styles.selectedDayMapHeader}>
+                    <div>
+                      <p className={styles.panelKicker}>Selected Day</p>
+                      <h3>{formatReadableDate(selectedDay)}</h3>
+                    </div>
+                    <span>{pluralize(dayActivities.length, 'item')}</span>
+                  </div>
+                  {dayActivities.length > 0 ? (
+                    <ol className={styles.selectedDayMapList}>
+                      {dayActivities.slice(0, 3).map((activity, index) => (
+                        <li key={activity.id}>
+                          <span className={styles.selectedDayMapIndex}>{index + 1}</span>
+                          <span>
+                            <strong>{activity.title}</strong>
+                            <small>{formatActivityTime(activity)}</small>
+                          </span>
+                        </li>
+                      ))}
+                      {dayActivities.length > 3 && (
+                        <li className={styles.selectedDayMapMore}>
+                          +{dayActivities.length - 3} more
+                        </li>
+                      )}
+                    </ol>
+                  ) : (
+                    <p className={styles.selectedDayMapEmpty}>
+                      No items scheduled for this date.
+                    </p>
+                  )}
+                </div>
               </aside>
             </section>
           </DndContext>

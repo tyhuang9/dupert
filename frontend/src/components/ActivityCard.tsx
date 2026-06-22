@@ -1,4 +1,17 @@
-import type { ReactNode } from 'react'
+import type { FocusEvent, ReactNode } from 'react'
+import {
+  ArrowDown,
+  ArrowUp,
+  BedDouble,
+  CalendarDays,
+  Coffee,
+  Landmark,
+  MapPin,
+  Pencil,
+  Plane,
+  Trash2,
+  Utensils,
+} from 'lucide-react'
 import type { Activity } from '../types/activity'
 import styles from './ActivityCard.module.css'
 
@@ -11,6 +24,8 @@ interface ActivityCardProps {
   maxDate: string
   minDate: string
   readOnly?: boolean
+  active?: boolean
+  onActiveChange?: (activityId: number | null) => void
   onEdit: (activity: Activity) => void
   onDelete: (activityId: number) => void
   onMoveDown: (activity: Activity) => void
@@ -44,8 +59,37 @@ function getCategoryLabel(category: Activity['category']): string {
   }
 }
 
+function getStatusLabel(activity: Activity): 'CONFIRMED' | 'FREE ENTRY' {
+  const searchableText = `${activity.title} ${activity.notes ?? ''}`.toLowerCase()
+  if (
+    activity.category === 'ACTIVITY' &&
+    (searchableText.includes('free') || !searchableText.includes('reservation'))
+  ) {
+    return 'FREE ENTRY'
+  }
+  return 'CONFIRMED'
+}
+
+function ActivityCategoryIcon({ category }: { category: Activity['category'] }) {
+  switch (category) {
+    case 'ACTIVITY':
+      return <Landmark className={styles.categoryIcon} size={18} aria-hidden="true" />
+    case 'LODGING':
+      return <BedDouble className={styles.categoryIcon} size={18} aria-hidden="true" />
+    case 'MEAL':
+      return <Utensils className={styles.categoryIcon} size={18} aria-hidden="true" />
+    case 'SNACK':
+      return <Coffee className={styles.categoryIcon} size={18} aria-hidden="true" />
+    case 'TRANSPORT':
+      return <Plane className={styles.categoryIcon} size={18} aria-hidden="true" />
+    case 'OTHER':
+      return <MapPin className={styles.categoryIcon} size={18} aria-hidden="true" />
+  }
+}
+
 export function ActivityCard({
   activity,
+  active = false,
   busy = false,
   canMoveDown,
   canMoveUp,
@@ -53,6 +97,7 @@ export function ActivityCard({
   maxDate,
   minDate,
   readOnly = false,
+  onActiveChange,
   onEdit,
   onDelete,
   onMoveDown,
@@ -67,42 +112,75 @@ export function ActivityCard({
   const hasActions = Boolean(dragHandle) || !readOnly
   const timeDisplay = getTimeDisplay(activity)
   const categoryLabel = getCategoryLabel(activity.category)
+  const statusLabel = getStatusLabel(activity)
+  const cardClassName = [styles.card, active ? styles.cardActive : '']
+    .filter(Boolean)
+    .join(' ')
+  const handleBlurCapture = (event: FocusEvent<HTMLElement>) => {
+    const nextTarget = event.relatedTarget
+    if (!nextTarget || !event.currentTarget.contains(nextTarget as Node)) {
+      onActiveChange?.(null)
+    }
+  }
 
   return (
-    <div className={styles.card}>
+    <article
+      id={`activity-${activity.id}`}
+      className={cardClassName}
+      tabIndex={-1}
+      onMouseEnter={() => onActiveChange?.(activity.id)}
+      onMouseLeave={() => onActiveChange?.(null)}
+      onFocusCapture={() => onActiveChange?.(activity.id)}
+      onBlurCapture={handleBlurCapture}
+      data-active={active ? 'true' : undefined}
+    >
       <div className={styles.main}>
         <div className={styles.categoryBlock} data-category={activity.category}>
-          <span>{categoryLabel}</span>
+          <ActivityCategoryIcon category={activity.category} />
+          <span className={styles.categoryText}>{categoryLabel}</span>
         </div>
 
         <div className={styles.content}>
-          <div className={styles.meta}>
-            {timeDisplay.dateTime ? (
-              <time className={styles.time} dateTime={timeDisplay.dateTime}>
-                {timeDisplay.label}
-              </time>
-            ) : (
-              <span className={styles.time}>{timeDisplay.label}</span>
-            )}
-            <span className={styles.category}>{activity.category.toLowerCase()}</span>
+          <div className={styles.cardHeader}>
+            <div className={styles.titleBlock}>
+              {timeDisplay.dateTime ? (
+                <time className={styles.time} dateTime={timeDisplay.dateTime}>
+                  {timeDisplay.label}
+                </time>
+              ) : (
+                <span className={styles.time}>{timeDisplay.label}</span>
+              )}
+              <h3 className={styles.title}>{activity.title}</h3>
+            </div>
+            <span className={styles.statusTag} data-status={statusLabel}>
+              {statusLabel}
+            </span>
           </div>
 
-          <h3 className={styles.title}>{activity.title}</h3>
-
-          {activity.notes && (
-            <p className={styles.notes}>{activity.notes}</p>
-          )}
-
-          {activity.placeName && (
-            <p className={styles.location}>
-              <span className={styles.locationLabel}>Place</span>
-              {activity.placeName}
+          <div className={styles.metadata}>
+            <p className={styles.metadataLine}>
+              <span>Category</span>
+              {activity.category.toLowerCase()}
             </p>
-          )}
-
-          {activity.address && (
-            <p className={styles.address}>{activity.address}</p>
-          )}
+            {activity.placeName && (
+              <p className={styles.metadataLine}>
+                <span>Location</span>
+                {activity.placeName}
+              </p>
+            )}
+            {activity.address && (
+              <p className={styles.metadataLine}>
+                <span>Address</span>
+                {activity.address}
+              </p>
+            )}
+            {activity.notes && (
+              <p className={styles.metadataLine}>
+                <span>{statusLabel === 'CONFIRMED' ? 'Reference' : 'Notes'}</span>
+                {activity.notes}
+              </p>
+            )}
+          </div>
         </div>
 
         {hasActions && (
@@ -118,7 +196,7 @@ export function ActivityCard({
                   disabled={busy}
                   aria-label={`Edit: ${activity.title}`}
                 >
-                  Edit
+                  <Pencil size={16} aria-hidden="true" />
                 </button>
                 <button
                   type="button"
@@ -128,7 +206,7 @@ export function ActivityCard({
                   disabled={busy}
                   aria-label={`Delete: ${activity.title}`}
                 >
-                  Delete
+                  <Trash2 size={16} aria-hidden="true" />
                 </button>
               </>
             )}
@@ -146,7 +224,7 @@ export function ActivityCard({
             aria-label={`Earlier: move ${activity.title} up`}
             title="Move up"
           >
-            Earlier
+            <ArrowUp size={16} aria-hidden="true" />
           </button>
           <button
             type="button"
@@ -156,10 +234,11 @@ export function ActivityCard({
             aria-label={`Later: move ${activity.title} down`}
             title="Move down"
           >
-            Later
+            <ArrowDown size={16} aria-hidden="true" />
           </button>
           <label className={styles.moveLabel}>
-            Day
+            <CalendarDays size={15} aria-hidden="true" />
+            <span>Day</span>
             <input
               type="date"
               value={activity.dayDate}
@@ -175,6 +254,6 @@ export function ActivityCard({
       <p className={styles.attribution}>
         Updated by {activity.updatedByUserDisplayName || 'guest'}
       </p>
-    </div>
+    </article>
   )
 }

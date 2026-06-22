@@ -179,6 +179,13 @@ public class ActivityService {
     @Transactional
     public ActivityResponse updateActivity(Long activityId, TripActor actor, String publicId,
                                            UpdateActivityRequest request) {
+        return updateActivity(activityId, actor, publicId, request, populatedUpdateFields(request));
+    }
+
+    @Transactional
+    public ActivityResponse updateActivity(Long activityId, TripActor actor, String publicId,
+                                           UpdateActivityRequest request,
+                                           Set<String> providedFields) {
         // First verify access to the trip
         ResolvedTrip resolved = tripAccessGuard.resolveForActorAtLeast(publicId, actor, TripRole.EDITOR);
 
@@ -198,28 +205,28 @@ public class ActivityService {
         if (request.title() != null) {
             activity.setTitle(request.title());
         }
-        if (request.notes() != null) {
+        if (providedFields.contains("notes")) {
             activity.setNotes(request.notes());
         }
-        if (request.startTime() != null) {
+        if (providedFields.contains("startTime")) {
             activity.setStartTime(request.startTime());
         }
-        if (request.endTime() != null) {
+        if (providedFields.contains("endTime")) {
             activity.setEndTime(request.endTime());
         }
-        if (request.mapboxId() != null) {
+        if (providedFields.contains("mapboxId")) {
             activity.setMapboxId(request.mapboxId());
         }
-        if (request.placeName() != null) {
+        if (providedFields.contains("placeName")) {
             activity.setPlaceName(request.placeName());
         }
-        if (request.address() != null) {
+        if (providedFields.contains("address")) {
             activity.setAddress(request.address());
         }
-        if (request.lat() != null) {
+        if (providedFields.contains("lat")) {
             activity.setLat(request.lat());
         }
-        if (request.lng() != null) {
+        if (providedFields.contains("lng")) {
             activity.setLng(request.lng());
         }
 
@@ -230,6 +237,41 @@ public class ActivityService {
             TripEvent.activityUpdated(publicId, updated.getId(), updated.getDayDate()));
 
         return buildActivityResponse(updated);
+    }
+
+    private static Set<String> populatedUpdateFields(UpdateActivityRequest request) {
+        Set<String> fields = new HashSet<>();
+        if (request.category() != null) {
+            fields.add("category");
+        }
+        if (request.title() != null) {
+            fields.add("title");
+        }
+        if (request.notes() != null) {
+            fields.add("notes");
+        }
+        if (request.startTime() != null) {
+            fields.add("startTime");
+        }
+        if (request.endTime() != null) {
+            fields.add("endTime");
+        }
+        if (request.mapboxId() != null) {
+            fields.add("mapboxId");
+        }
+        if (request.placeName() != null) {
+            fields.add("placeName");
+        }
+        if (request.address() != null) {
+            fields.add("address");
+        }
+        if (request.lat() != null) {
+            fields.add("lat");
+        }
+        if (request.lng() != null) {
+            fields.add("lng");
+        }
+        return fields;
     }
 
     /**

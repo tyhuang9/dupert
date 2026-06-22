@@ -53,10 +53,14 @@
 }
 
 .dragHandle {
-  min-width: 2rem;
-  min-height: 2rem;
+  width: 2.25rem;
+  min-width: 2.25rem;
+  height: 2.25rem;
+  min-height: 2.25rem;
+  display: inline-grid;
+  place-items: center;
   touch-action: none;
-  padding: 0 var(--space-2);
+  padding: 0;
   border: 1px solid var(--color-surface-border);
   border-radius: var(--radius-sm);
   background: var(--color-surface-2);
@@ -88,10 +92,16 @@
 }
 
 .emptyState {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-3);
   padding: var(--space-5);
   border: 1px dashed var(--color-border-strong);
   border-radius: var(--radius-md);
-  background: var(--color-shell);
+  background:
+    linear-gradient(135deg, rgba(37, 99, 235, 0.08), rgba(37, 99, 235, 0)),
+    var(--color-shell);
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);
   line-height: var(--line-height-base);
@@ -101,8 +111,60 @@
   margin: 0;
 }
 
+.emptyState p + p {
+  margin-top: var(--space-1);
+}
+
 .emptyState strong {
   color: var(--color-text);
+}
+
+.emptyIcon {
+  width: 40px;
+  height: 40px;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid #bfdbfe;
+  border-radius: var(--radius-md);
+  background: var(--color-primary-soft);
+  color: var(--color-primary-active);
+}
+
+.insertSlot {
+  min-height: 26px;
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: var(--space-3);
+  align-items: center;
+  margin-top: calc(var(--space-3) * -1);
+  color: var(--color-text-subtle);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.insertSlot::before {
+  content: '';
+  justify-self: center;
+  width: 2px;
+  height: 100%;
+  background: repeating-linear-gradient(
+    to bottom,
+    var(--color-border-strong),
+    var(--color-border-strong) 4px,
+    transparent 4px,
+    transparent 8px
+  );
+}
+
+.insertSlot span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  padding: 0 var(--space-3);
+  border: 1px dashed var(--color-surface-border);
+  border-radius: var(--radius-md);
+  background: var(--color-shell);
 }
 
 @media (max-width: 520px) {
@@ -119,9 +181,25 @@
   .dragHandle {
     min-width: 44px;
     min-height: 44px;
+    width: 44px;
+    height: 44px;
   }
 
   .sortableItem::before {
     left: 11px;
+  }
+
+  .insertSlot {
+    grid-template-columns: 24px minmax(0, 1fr);
+    gap: var(--space-2);
+  }
+}
+
+@media (pointer: coarse) {
+  .dragHandle {
+    min-width: 44px;
+    min-height: 44px;
+    width: 44px;
+    height: 44px;
   }
 }

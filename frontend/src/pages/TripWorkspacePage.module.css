@@ -10,7 +10,7 @@
 }
 
 .topNav {
-  min-height: 56px;
+  min-height: 64px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -85,14 +85,15 @@
 }
 
 .globalSearch {
+  position: relative;
   min-width: min(20rem, 34vw);
 }
 
 .globalSearch input {
   width: 100%;
   min-height: 34px;
-  padding: 0 var(--space-4);
-  border: 1px solid var(--color-surface-border);
+  padding: 0 var(--space-4) 0 2.25rem;
+  border: 1px solid var(--color-text-subtle);
   border-radius: var(--radius-md);
   background: var(--color-surface-2);
   color: var(--color-text);
@@ -100,20 +101,45 @@
   outline: none;
 }
 
+.searchIcon {
+  position: absolute;
+  top: 50%;
+  left: var(--space-3);
+  color: var(--color-text-subtle);
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
 .globalSearch input::placeholder {
   color: var(--color-text-muted);
 }
 
 .globalSearch input:focus-visible,
-.dateInput:focus-visible,
 .secondaryLink:focus-visible,
 .secondaryAction:focus-visible,
 .primaryAction:focus-visible,
 .shareLink:focus-visible,
+.calendarControls button:focus-visible,
+.calendarDay:focus-visible,
 .railNav a:focus-visible,
 .mapSegmentedControl button:focus-visible {
   outline: var(--focus-ring-width) solid var(--focus-ring-color);
   outline-offset: var(--focus-ring-offset);
+}
+
+.syncBadge {
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-success) 20%, var(--color-success-bg));
+  border-radius: var(--radius-pill);
+  background: var(--color-success-bg);
+  color: var(--color-success-fg);
+  font-size: var(--font-size-xs);
+  font-weight: 800;
+  white-space: nowrap;
 }
 
 .searchResult {
@@ -144,7 +170,7 @@
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: 264px minmax(360px, 1fr) minmax(380px, 42vw);
+  grid-template-columns: 280px minmax(380px, 1fr) minmax(400px, 40vw);
   overflow: hidden;
 }
 
@@ -154,6 +180,8 @@
 }
 
 .dayPanel {
+  width: 280px;
+  height: 100%;
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
@@ -234,7 +262,7 @@
 
 .railNav {
   display: grid;
-  gap: var(--space-2);
+  gap: var(--space-1);
 }
 
 .railDivider {
@@ -247,6 +275,7 @@
   min-height: 34px;
   display: flex;
   align-items: center;
+  gap: var(--space-3);
   padding: 0 var(--space-3);
   border-radius: var(--radius-md);
   color: var(--color-text-muted);
@@ -258,6 +287,155 @@
 .railNav a:hover {
   background: var(--color-surface-2);
   color: var(--color-primary-text);
+}
+
+.railNav a[aria-current='page'] {
+  background: var(--color-primary-soft);
+  color: var(--color-primary-text);
+}
+
+.calendarCard {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--color-surface-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.calendarHeader,
+.calendarControls {
+  display: flex;
+  align-items: center;
+}
+
+.calendarHeader {
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.calendarHeader h2 {
+  margin: 0;
+  color: var(--color-text);
+  font-size: var(--font-size-base);
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.calendarControls {
+  gap: var(--space-1);
+}
+
+.calendarControls button {
+  width: 30px;
+  height: 30px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-muted);
+}
+
+.calendarControls button:hover:not(:disabled) {
+  border-color: var(--color-surface-border);
+  background: var(--color-surface-2);
+  color: var(--color-primary-text);
+}
+
+.calendarControls button:disabled {
+  cursor: not-allowed;
+  opacity: 0.38;
+}
+
+.calendarWeekdays,
+.calendarGrid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+.calendarWeekdays {
+  gap: var(--space-1);
+  color: var(--color-text-subtle);
+  font-size: var(--font-size-xs);
+  font-weight: 800;
+  text-align: center;
+}
+
+.calendarGrid {
+  gap: 3px;
+}
+
+.calendarDay {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1;
+  min-height: 30px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--font-size-xs);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  transition:
+    background-color var(--transition-base),
+    border-color var(--transition-base),
+    color var(--transition-base);
+}
+
+.calendarDay:hover:not(:disabled),
+.calendarDayOver {
+  border-color: #bfdbfe;
+  background: var(--color-primary-softer);
+  color: var(--color-primary-text);
+}
+
+.calendarDaySelected,
+.calendarDaySelected:hover:not(:disabled) {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+  color: var(--color-primary-fg);
+}
+
+.calendarDayOutside {
+  color: var(--color-text-subtle);
+}
+
+.calendarDayDisabled {
+  color: var(--color-text-subtle);
+  opacity: 0.36;
+}
+
+.calendarDay:disabled {
+  cursor: not-allowed;
+}
+
+.calendarBadge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  min-width: 12px;
+  width: 12px;
+  height: 12px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: var(--radius-pill);
+  background: var(--color-primary);
+  color: var(--color-primary-fg);
+  font-size: 8px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.calendarDaySelected .calendarBadge {
+  border: 1px solid var(--color-primary-fg);
 }
 
 .dayTargets {
@@ -388,6 +566,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: var(--space-2);
   padding: 0 var(--space-4);
   border-radius: var(--radius-md);
   font: inherit;
@@ -398,6 +577,16 @@
     background-color var(--transition-base),
     border-color var(--transition-base),
     color var(--transition-base);
+}
+
+.primaryAction,
+.secondaryLink,
+.secondaryAction,
+.shareLink,
+.calendarControls button,
+.calendarDay,
+.mapSegmentedControl button {
+  cursor: pointer;
 }
 
 .primaryAction {
@@ -519,6 +708,7 @@
   position: relative;
   overflow: hidden;
   background: var(--color-surface-3);
+  --map-bottom-card-offset: 152px;
 }
 
 .mapChrome {
@@ -534,7 +724,7 @@
 
 .mapSegmentedControl,
 .mapCountBadge {
-  border: 1px solid var(--color-surface-border);
+  border: 1px solid var(--color-text-subtle);
   background: rgba(255, 255, 255, 0.94);
   box-shadow: var(--shadow-sm);
   pointer-events: auto;
@@ -550,6 +740,9 @@
 
 .mapSegmentedControl button {
   min-height: 28px;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
   padding: 0 var(--space-3);
   border: 0;
   border-radius: var(--radius-sm);
@@ -567,11 +760,118 @@
 
 .mapCountBadge {
   max-width: 14rem;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
   padding: var(--space-2) var(--space-3);
   border-radius: var(--radius-md);
   color: var(--color-text-muted);
   font-size: var(--font-size-xs);
   font-weight: 800;
+}
+
+.sectionHeader span {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.selectedDayMapCard {
+  position: absolute;
+  right: var(--space-4);
+  bottom: var(--space-4);
+  left: var(--space-4);
+  z-index: 6;
+  display: grid;
+  gap: var(--space-3);
+  max-height: 136px;
+  padding: var(--space-3);
+  overflow: auto;
+  border: 1px solid var(--color-surface-border);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: var(--shadow-md);
+}
+
+.selectedDayMapHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.selectedDayMapHeader h3 {
+  margin: var(--space-1) 0 0;
+  color: var(--color-text);
+  font-size: var(--font-size-base);
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.selectedDayMapHeader span,
+.selectedDayMapEmpty,
+.selectedDayMapList small {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+
+.selectedDayMapHeader span {
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.selectedDayMapList {
+  display: grid;
+  gap: var(--space-2);
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.selectedDayMapList li {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.selectedDayMapIndex {
+  width: 20px;
+  height: 20px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: var(--radius-pill);
+  background: var(--color-primary);
+  color: var(--color-primary-fg);
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.selectedDayMapList strong,
+.selectedDayMapList small {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.selectedDayMapList strong {
+  color: var(--color-text);
+  font-size: var(--font-size-sm);
+  line-height: 1.25;
+}
+
+.selectedDayMapMore {
+  grid-template-columns: 1fr !important;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-weight: 800;
+}
+
+.selectedDayMapEmpty {
+  margin: 0;
 }
 
 .state,
@@ -610,20 +910,27 @@
   }
 
   .workspaceShell {
-    min-height: calc(100vh - 56px);
-    grid-template-columns: 248px minmax(0, 1fr);
+    min-height: calc(100vh - 64px);
+    grid-template-columns: 280px minmax(0, 1fr);
     overflow: visible;
   }
 
-  .dayPanel,
+  .dayPanel {
+    min-height: 420px;
+  }
+
   .timelinePanel {
-    min-height: calc(100vh - 56px);
+    grid-column: 1 / -1;
+    grid-row: 2;
+    min-height: auto;
+    border-top: 1px solid var(--color-surface-border);
   }
 
   .mapPanel {
-    grid-column: 1 / -1;
+    grid-column: 2;
+    grid-row: 1;
     min-height: 420px;
-    border-top: 1px solid var(--color-surface-border);
+    border-left: 1px solid var(--color-surface-border);
   }
 }
 
@@ -645,9 +952,30 @@
     min-width: 0;
   }
 
+  .syncBadge {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+
   .workspaceShell {
     min-height: 0;
     grid-template-columns: 1fr;
+  }
+
+  .dayPanel {
+    width: 100%;
+  }
+
+  .mapPanel {
+    grid-column: 1;
+    grid-row: 2;
+    min-height: 380px;
+    border-top: 1px solid var(--color-surface-border);
+    border-left: 0;
+  }
+
+  .timelinePanel {
+    grid-row: 3;
   }
 
   .dayPanel,
@@ -693,5 +1021,17 @@
 
   .mapChrome {
     display: grid;
+    inset: var(--space-3) var(--space-3) auto var(--space-3);
+  }
+
+  .mapCountBadge {
+    max-width: none;
+  }
+}
+
+@media (pointer: coarse) {
+  .globalSearch input,
+  .mapSegmentedControl button {
+    min-height: 44px;
   }
 }

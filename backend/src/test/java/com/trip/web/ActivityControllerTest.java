@@ -14,6 +14,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -221,6 +222,47 @@ class ActivityControllerTest {
             event.type().equals("activity.updated")
                 && event.activityId().equals(1L)
                 && event.dayDate().equals(DAY_ONE)));
+    }
+
+    @Test
+    void updateClearsExplicitNullableFields() throws Exception {
+        Activity activity = activity(1L, TRIP_PK, DAY_ONE, ActivityCategory.MEAL, "Breakfast", 0);
+        activity.setNotes("Counter seat");
+        activity.setStartTime(LocalTime.of(9, 0));
+        activity.setEndTime(LocalTime.of(10, 0));
+        activity.setMapboxId("mapbox.tsukiji");
+        activity.setPlaceName("Tsukiji Outer Market");
+        activity.setAddress("Tsukiji, Chuo City, Tokyo");
+        activity.setLat(35.6654);
+        activity.setLng(139.7707);
+        when(activityRepository.findById(1L)).thenReturn(Optional.of(activity));
+        when(activityRepository.save(any(Activity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        mvc.perform(patch("/api/trips/" + TRIP_PUBLIC_ID + "/activities/1")
+                .header("Authorization", bearerFor(ALICE_ID))
+                .contentType("application/json")
+                .content("""
+                    {
+                      "notes": null,
+                      "startTime": null,
+                      "endTime": null,
+                      "mapboxId": null,
+                      "placeName": null,
+                      "address": null,
+                      "lat": null,
+                      "lng": null
+                    }
+                    """))
+            .andExpect(status().isOk());
+
+        org.assertj.core.api.Assertions.assertThat(activity.getNotes()).isNull();
+        org.assertj.core.api.Assertions.assertThat(activity.getStartTime()).isNull();
+        org.assertj.core.api.Assertions.assertThat(activity.getEndTime()).isNull();
+        org.assertj.core.api.Assertions.assertThat(activity.getMapboxId()).isNull();
+        org.assertj.core.api.Assertions.assertThat(activity.getPlaceName()).isNull();
+        org.assertj.core.api.Assertions.assertThat(activity.getAddress()).isNull();
+        org.assertj.core.api.Assertions.assertThat(activity.getLat()).isNull();
+        org.assertj.core.api.Assertions.assertThat(activity.getLng()).isNull();
     }
 
     @Test

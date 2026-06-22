@@ -12,13 +12,43 @@ import { TripWorkspacePage } from './TripWorkspacePage'
 
 vi.mock('../components/TripMap', () => ({
   TripMap: ({
+    activeActivityId,
     activities,
     fallbackActivities,
+    mapMode,
+    onActivityActivate,
+    onActiveActivityChange,
+    previewPlace,
   }: {
+    activeActivityId?: number | null
     activities: Array<{ id: number; title: string }>
     fallbackActivities: Array<{ id: number; title: string }>
+    mapMode?: 'map' | 'satellite'
+    onActivityActivate?: (activityId: number) => void
+    onActiveActivityChange?: (activityId: number | null) => void
+    previewPlace?: { placeName?: string | null; title?: string | null } | null
   }) => (
     <div data-testid="trip-map">
+      <div data-testid="active-map-activity">{activeActivityId ?? 'none'}</div>
+      <div data-testid="map-mode">{mapMode}</div>
+      <div data-testid="preview-map-place">
+        {previewPlace?.placeName ?? previewPlace?.title ?? 'none'}
+      </div>
+      <button
+        type="button"
+        onClick={() => onActiveActivityChange?.(activities[0]?.id ?? null)}
+      >
+        Mock hover marker
+      </button>
+      <button
+        type="button"
+        onClick={() => {
+          const activityId = activities[0]?.id
+          if (activityId !== undefined) onActivityActivate?.(activityId)
+        }}
+      >
+        Mock activate marker
+      </button>
       <div data-testid="selected-map-activities">
         {activities.map((activity) => (
           <span key={activity.id}>{activity.title}</span>
@@ -139,6 +169,10 @@ beforeEach(() => {
       queries: { retry: false },
     },
   })
+  Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+    configurable: true,
+    value: vi.fn(),
+  })
 })
 
 afterEach(() => {
@@ -154,9 +188,15 @@ describe('<TripWorkspacePage>', () => {
 
     expect(await screen.findByRole('heading', { name: /tokyo 2026/i })).toBeInTheDocument()
     expect(screen.getByText(/Tokyo, Japan/)).toBeInTheDocument()
-    expect(screen.getByLabelText(/pick a day/i)).toHaveValue('2026-05-01')
+    expect(screen.getByRole('heading', { name: /may 2026/i })).toBeInTheDocument()
+    expect(screen.getByTitle('2026-05-01 (0 activities)')).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('link', { name: /^days$/i })).toHaveAttribute('href', '#days-calendar')
+    expect(screen.getByRole('link', { name: /^timeline$/i })).toHaveAttribute('href', '#timeline-panel-title')
+    expect(screen.getByRole('link', { name: /^notes$/i })).toHaveAttribute('href', '#day-notes')
+    expect(screen.getByRole('link', { name: /^map$/i })).toHaveAttribute('href', '#map-panel-title')
     expect(await screen.findByText(/no activities yet/i)).toBeInTheDocument()
     expect(screen.getByLabelText(/day note/i)).toHaveValue('Check reservation email')
+    expect(screen.getByLabelText(/selected day summary/i)).toHaveTextContent('No items scheduled')
   })
 
   it('shows deep-linked day when /d/:day is present', async () => {
@@ -164,7 +204,7 @@ describe('<TripWorkspacePage>', () => {
 
     renderWorkspace('/trips/abc234def567/d/2026-05-03')
 
-    expect(await screen.findByLabelText(/pick a day/i)).toHaveValue('2026-05-03')
+    expect(await screen.findByTitle('2026-05-03 (0 activities)')).toHaveAttribute('aria-pressed', 'true')
   })
 
   it('switches the workspace when a day rail item is selected', async () => {
@@ -192,9 +232,11 @@ describe('<TripWorkspacePage>', () => {
     expect(await screen.findByDisplayValue('Check reservation email')).toBeInTheDocument()
     await userEvent.click(screen.getByTitle('2026-05-02 (1 activities)'))
 
-    expect(await screen.findByLabelText(/pick a day/i)).toHaveValue('2026-05-02')
+    expect(await screen.findByTitle('2026-05-02 (1 activities)')).toHaveAttribute('aria-pressed', 'true')
+    expect(within(screen.getByTitle('2026-05-02 (1 activities)')).getByLabelText('1 activities')).toBeInTheDocument()
     expect(await screen.findByDisplayValue('Day two note')).toBeInTheDocument()
     expect(screen.getAllByText('Tokyo Tower').length).toBeGreaterThan(0)
+    expect(screen.getByLabelText(/selected day summary/i)).toHaveTextContent('Tokyo Tower')
 
     const selectedMapActivities = within(screen.getByTestId('selected-map-activities'))
     expect(selectedMapActivities.getByText('Tokyo Tower')).toBeInTheDocument()
@@ -226,6 +268,39 @@ describe('<TripWorkspacePage>', () => {
     expect(screen.getByText(/2 activities/i)).toBeInTheDocument()
     expect(screen.getByText('1 of 1')).toBeInTheDocument()
     expect(screen.getByText(/1 mapped stop today/i)).toBeInTheDocument()
+    expect(screen.getAllByText('CONFIRMED').length).toBeGreaterThan(0)
+  })
+
+  it('syncs active activity state between cards and map controls', async () => {
+    const dayTwoActivity = {
+      ...SAMPLE_ACTIVITY,
+      id: 22,
+      dayDate: '2026-05-02',
+      title: 'Tokyo Tower',
+      lat: 35.6586,
+      lng: 139.7454,
+      orderIndex: 0,
+    }
+    mockWorkspace([dayTwoActivity])
+
+    renderWorkspace('/trips/abc234def567/d/2026-05-02')
+
+    expect(await screen.findByTestId('trip-map')).toBeInTheDocument()
+    expect(screen.getByTestId('active-map-activity')).toHaveTextContent('none')
+
+    const activityHeading = await screen.findByRole('heading', { name: /tokyo tower/i })
+    const activityCard = activityHeading.closest('article')
+    expect(activityCard).not.toBeNull()
+
+    await userEvent.hover(activityCard as HTMLElement)
+    expect(screen.getByTestId('active-map-activity')).toHaveTextContent('22')
+
+    await userEvent.click(screen.getByRole('button', { name: /mock activate marker/i }))
+    expect(screen.getByTestId('active-map-activity')).toHaveTextContent('22')
+    expect(document.activeElement).toHaveAttribute('id', 'activity-22')
+
+    await userEvent.click(screen.getByRole('button', { name: /^satellite$/i }))
+    expect(screen.getByTestId('map-mode')).toHaveTextContent('satellite')
   })
 
   it('keeps viewer workspaces read-only while preserving itinerary and map context', async () => {
@@ -281,6 +356,7 @@ describe('<TripWorkspacePage>', () => {
 
     await userEvent.click(await screen.findByRole('button', { name: /mock place search/i }))
     expect(screen.getByLabelText(/^title$/i)).toHaveValue('Tokyo Tower')
+    expect(screen.getByTestId('preview-map-place')).toHaveTextContent('Tokyo Tower')
     await userEvent.click(screen.getByRole('button', { name: /^save activity$/i }))
 
     await waitFor(() => {
@@ -294,6 +370,9 @@ describe('<TripWorkspacePage>', () => {
         lng: 139.7454,
       })
     })
+    expect(await screen.findByTestId('active-map-activity')).toHaveTextContent('20')
+    expect(screen.getByTestId('preview-map-place')).toHaveTextContent('none')
+    expect(await screen.findByText('FREE ENTRY')).toBeInTheDocument()
   })
 
   it('edits an existing activity', async () => {

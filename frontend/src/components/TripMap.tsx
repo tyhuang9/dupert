@@ -9,9 +9,11 @@ import Map, {
   type ViewState,
 } from 'react-map-gl/mapbox'
 import 'mapbox-gl/dist/mapbox-gl.css'
+import { AlertCircle, LoaderCircle, MapPinned, Route } from 'lucide-react'
 import { getDrivingDirections, type DirectionsRoute } from '../api/mapboxDirections'
 import { geocodeDestination, type DestinationCoordinate } from '../api/mapboxGeocode'
 import type { Activity } from '../types/activity'
+import { mapboxAccessTroubleshooting } from '../utils/mapboxAccess'
 import styles from './TripMap.module.css'
 
 interface TripMapProps {
@@ -19,6 +21,18 @@ interface TripMapProps {
   fallbackActivities?: Activity[]
   destination: string | null
   mapMode?: 'map' | 'satellite'
+  previewPlace?: MapPreviewPlace | null
+  activeActivityId?: number | null
+  onActivityActivate?: (activityId: number) => void
+  onActiveActivityChange?: (activityId: number | null) => void
+}
+
+export interface MapPreviewPlace {
+  address?: string | null
+  lat?: number | null
+  lng?: number | null
+  placeName?: string | null
+  title?: string | null
 }
 
 interface CoordinateActivity extends Activity {
@@ -32,8 +46,9 @@ interface DisplayStop {
   lat: number
   lng: number
   markerLabel: string
-  source: 'selected' | 'trip' | 'destination'
+  source: 'selected' | 'trip' | 'destination' | 'preview'
   title: string
+  activityId?: number
 }
 
 const DEFAULT_VIEW_STATE: ViewState = {
@@ -84,6 +99,7 @@ function activityToDisplayStop(
     markerLabel: String(index + 1),
     source,
     title: activity.title,
+    activityId: activity.id,
   }
 }
 
@@ -96,6 +112,31 @@ function destinationToDisplayStop(destinationCoordinate: DestinationCoordinate):
     markerLabel: 'D',
     source: 'destination',
     title: `Destination: ${destinationCoordinate.label}`,
+  }
+}
+
+function previewPlaceToDisplayStop(previewPlace: MapPreviewPlace | null | undefined): DisplayStop | null {
+  if (
+    !previewPlace ||
+    typeof previewPlace.lat !== 'number' ||
+    typeof previewPlace.lng !== 'number'
+  ) {
+    return null
+  }
+
+  const label =
+    previewPlace.placeName ||
+    previewPlace.title ||
+    previewPlace.address ||
+    'Selected place'
+  return {
+    id: `preview-${previewPlace.lng},${previewPlace.lat}`,
+    label,
+    lat: previewPlace.lat,
+    lng: previewPlace.lng,
+    markerLabel: '+',
+    source: 'preview',
+    title: `Selected place: ${label}`,
   }
 }
 
@@ -124,8 +165,12 @@ function formatTravelTime(seconds: number): string {
 export function TripMap({
   activities,
   fallbackActivities = [],
+  activeActivityId = null,
   destination,
   mapMode = 'map',
+  previewPlace = null,
+  onActivityActivate,
+  onActiveActivityChange,
 }: TripMapProps) {
   const token = import.meta.env.VITE_MAPBOX_TOKEN as string | undefined
   const mapRef = useRef<MapRef | null>(null)
@@ -138,13 +183,14 @@ export function TripMap({
     key: '',
     route: null,
   })
+  const [mapLoadFailed, setMapLoadFailed] = useState(false)
   const [destinationState, setDestinationState] = useState<{
     coordinate: DestinationCoordinate | null
-    error: boolean
+    error: 'not-found' | 'request-failed' | null
     key: string
   }>({
     coordinate: null,
-    error: false,
+    error: null,
     key: '',
   })
   const selectedMappedActivities = useMemo(
@@ -161,23 +207,42 @@ export function TripMap({
       : ''
   const destinationCoordinate =
     destinationState.key === destinationKey ? destinationState.coordinate : null
+  const previewDisplayStop = useMemo(
+    () => previewPlaceToDisplayStop(previewPlace),
+    [previewPlace],
+  )
   const destinationError =
-    destinationState.key === destinationKey && destinationState.error
+    destinationState.key === destinationKey ? destinationState.error : null
   const destinationLoading =
     Boolean(token && destinationKey) && destinationState.key !== destinationKey
   const displayStops = useMemo(() => {
+    let stops: DisplayStop[]
     if (selectedMappedActivities.length > 0) {
-      return selectedMappedActivities.map((activity, index) =>
+      stops = selectedMappedActivities.map((activity, index) =>
         activityToDisplayStop(activity, index, 'selected'),
       )
-    }
-    if (fallbackMappedActivities.length > 0) {
-      return fallbackMappedActivities.map((activity, index) =>
+    } else if (fallbackMappedActivities.length > 0) {
+      stops = fallbackMappedActivities.map((activity, index) =>
         activityToDisplayStop(activity, index, 'trip'),
       )
+    } else {
+      stops = destinationCoordinate ? [destinationToDisplayStop(destinationCoordinate)] : []
     }
-    return destinationCoordinate ? [destinationToDisplayStop(destinationCoordinate)] : []
-  }, [destinationCoordinate, fallbackMappedActivities, selectedMappedActivities])
+
+    if (!previewDisplayStop) return stops
+    const previewAlreadySaved = stops.some(
+      (stop) =>
+        stop.source !== 'destination' &&
+        Math.abs(stop.lat - previewDisplayStop.lat) < 0.000001 &&
+        Math.abs(stop.lng - previewDisplayStop.lng) < 0.000001,
+    )
+    return previewAlreadySaved ? stops : [...stops, previewDisplayStop]
+  }, [
+    destinationCoordinate,
+    fallbackMappedActivities,
+    previewDisplayStop,
+    selectedMappedActivities,
+  ])
   const viewState = useMemo(
     () => initialViewState(displayStops),
     [displayStops],
@@ -194,6 +259,12 @@ export function TripMap({
     selectedMappedActivities.length >= 2 &&
     directionsState.key !== routeKey
   const mapNotice = useMemo(() => {
+    if (mapLoadFailed) {
+      return `Mapbox map tiles could not load. ${mapboxAccessTroubleshooting()}`
+    }
+    if (previewDisplayStop) {
+      return 'Previewing selected place. Save the activity to add it to the trip.'
+    }
     if (selectedMappedActivities.length === 0 && fallbackMappedActivities.length > 0) {
       return 'No mapped stops for this day. Showing mapped stops from the full trip.'
     }
@@ -203,7 +274,18 @@ export function TripMap({
     if (selectedMappedActivities.length === 0 && destinationCoordinate) {
       return `No mapped stops yet. Showing ${destinationCoordinate.label}.`
     }
-    if (selectedMappedActivities.length === 0 && destinationKey && destinationError) {
+    if (
+      selectedMappedActivities.length === 0 &&
+      destinationKey &&
+      destinationError === 'request-failed'
+    ) {
+      return `Mapbox could not load trip location. ${mapboxAccessTroubleshooting()}`
+    }
+    if (
+      selectedMappedActivities.length === 0 &&
+      destinationKey &&
+      destinationError === 'not-found'
+    ) {
       return 'Destination could not be mapped. Add a place to start the map.'
     }
     if (selectedMappedActivities.length === 0) {
@@ -219,6 +301,8 @@ export function TripMap({
     destinationKey,
     destinationLoading,
     fallbackMappedActivities.length,
+    mapLoadFailed,
+    previewDisplayStop,
     routeError,
     routeLoading,
     selectedMappedActivities.length,
@@ -285,14 +369,14 @@ export function TripMap({
         if (controller.signal.aborted) return
         setDestinationState({
           coordinate,
-          error: coordinate === null,
+          error: coordinate === null ? 'not-found' : null,
           key: destinationKey,
         })
       })
       .catch((error: unknown) => {
         if (error instanceof DOMException && error.name === 'AbortError') return
         if (controller.signal.aborted) return
-        setDestinationState({ coordinate: null, error: true, key: destinationKey })
+        setDestinationState({ coordinate: null, error: 'request-failed', key: destinationKey })
       })
 
     return () => controller.abort()
@@ -339,8 +423,17 @@ export function TripMap({
 
   if (!token) {
     return (
-      <div className={styles.fallback}>
-        <p>Mapbox token is not configured for this environment.</p>
+      <div className={styles.fallback} role="status">
+        <span className={styles.fallbackIcon} aria-hidden="true">
+          <MapPinned size={24} />
+        </span>
+        <div>
+          <h3>Map unavailable</h3>
+          <p>Mapbox token is not configured for this environment.</p>
+          <p className={styles.fallbackHint}>
+            Add mapped places now; they will render here when the token is available.
+          </p>
+        </div>
       </div>
     )
   }
@@ -357,11 +450,12 @@ export function TripMap({
             : 'mapbox://styles/mapbox/streets-v12'
         }
         attributionControl
+        onError={() => setMapLoadFailed(true)}
         reuseMaps
         style={{ width: '100%', height: '100%', minHeight: '24rem' }}
         aria-label={destination ? `Map for ${destination}` : 'Trip map'}
       >
-        <NavigationControl position="bottom-right" showCompass={false} />
+        <NavigationControl position="bottom-left" showCompass={false} />
         {routeSourceData && (
           <Source id="selected-day-route-source" type="geojson" data={routeSourceData}>
             <Layer {...ROUTE_LINE_LAYER} />
@@ -374,9 +468,12 @@ export function TripMap({
             longitude={stop.lng}
             anchor="center"
           >
-            {stop.source === 'destination' ? (
+            {stop.source === 'destination' || stop.source === 'preview' ? (
               <span
-                className={`${styles.marker} ${styles.destinationMarker}`}
+                className={[
+                  styles.marker,
+                  stop.source === 'destination' ? styles.destinationMarker : styles.previewMarker,
+                ].join(' ')}
                 role="img"
                 aria-label={stop.title}
                 title={stop.title}
@@ -384,14 +481,26 @@ export function TripMap({
                 {stop.markerLabel}
               </span>
             ) : (
-              <span
-                className={styles.marker}
-                role="img"
-                aria-label={`Stop ${stop.markerLabel}: ${stop.title}`}
+              <button
+                type="button"
+                className={[
+                  styles.marker,
+                  activeActivityId === stop.activityId ? styles.markerActive : '',
+                ].filter(Boolean).join(' ')}
+                aria-label={`Show timeline item for stop ${stop.markerLabel}: ${stop.title}`}
                 title={stop.title}
+                onMouseEnter={() => onActiveActivityChange?.(stop.activityId ?? null)}
+                onMouseLeave={() => onActiveActivityChange?.(null)}
+                onFocus={() => onActiveActivityChange?.(stop.activityId ?? null)}
+                onBlur={() => onActiveActivityChange?.(null)}
+                onClick={() => {
+                  if (stop.activityId !== undefined) {
+                    onActivityActivate?.(stop.activityId)
+                  }
+                }}
               >
                 {stop.markerLabel}
-              </span>
+              </button>
             )}
           </Marker>
         ))}
@@ -408,14 +517,33 @@ export function TripMap({
       </Map>
       {mapNotice && (
         <div className={styles.mapNotice} aria-live="polite">
+          {routeLoading || destinationLoading ? (
+            <LoaderCircle size={14} aria-hidden="true" />
+          ) : (
+            <AlertCircle size={14} aria-hidden="true" />
+          )}
           {mapNotice}
+        </div>
+      )}
+      {displayStops.length === 0 && !destinationLoading && (
+        <div className={styles.emptyMapCard}>
+          <MapPinned size={20} aria-hidden="true" />
+          <div>
+            <strong>Map is ready</strong>
+            <span>Add a place with coordinates to pin this trip.</span>
+          </div>
         </div>
       )}
       {currentRoute && (
         <div className={styles.routeSummary} aria-live="polite">
-          <span>
+          <div className={styles.routeSummaryHeader}>
+            <Route size={15} aria-hidden="true" />
+            <span>Selected-day route</span>
+          </div>
+          <strong>
             {formatTravelTime(currentRoute.duration)} total · {(currentRoute.distance / 1000).toFixed(1)} km
-          </span>
+          </strong>
+          <span>{selectedMappedActivities.length} mapped stops</span>
         </div>
       )}
     </div>

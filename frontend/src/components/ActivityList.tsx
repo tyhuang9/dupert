@@ -1,9 +1,10 @@
-import type { CSSProperties } from 'react'
+import { Fragment, type CSSProperties } from 'react'
 import {
   SortableContext,
   useSortable,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
+import { GripVertical, Plus } from 'lucide-react'
 import { ActivityCard } from './ActivityCard'
 import type { Activity } from '../types/activity'
 import { activityDragId } from '../utils/activityDrag'
@@ -15,6 +16,8 @@ interface ActivityListProps {
   maxDate: string
   minDate: string
   readOnly?: boolean
+  activeActivityId?: number | null
+  onActiveActivityChange?: (activityId: number | null) => void
   onEdit: (activity: Activity) => void
   onDelete: (activityId: number) => void
   onMoveDown: (activity: Activity) => void
@@ -47,6 +50,8 @@ function SortableActivityCard({
   minDate,
   position,
   readOnly = false,
+  activeActivityId,
+  onActiveActivityChange,
   onEdit,
   onDelete,
   onMoveDown,
@@ -81,7 +86,7 @@ function SortableActivityCard({
       {...attributes}
       {...listeners}
     >
-      Drag
+      <GripVertical size={16} aria-hidden="true" />
     </button>
   ) : undefined
 
@@ -97,6 +102,7 @@ function SortableActivityCard({
       <div className={styles.cardSlot}>
         <ActivityCard
           activity={activity}
+          active={activeActivityId === activity.id}
           busy={busy}
           canMoveDown={canMoveDown}
           canMoveUp={canMoveUp}
@@ -104,6 +110,7 @@ function SortableActivityCard({
           maxDate={maxDate}
           minDate={minDate}
           readOnly={readOnly}
+          onActiveChange={onActiveActivityChange}
           onEdit={onEdit}
           onDelete={onDelete}
           onMoveDown={onMoveDown}
@@ -121,6 +128,8 @@ export function ActivityList({
   maxDate,
   minDate,
   readOnly = false,
+  activeActivityId = null,
+  onActiveActivityChange,
   onEdit,
   onDelete,
   onMoveDown,
@@ -130,10 +139,17 @@ export function ActivityList({
   if (activities.length === 0) {
     return (
       <div className={styles.emptyState}>
-        <p>
-          <strong>No activities yet.</strong>
-          {!readOnly && <span> Search for a place or add a manual activity to start this day.</span>}
-        </p>
+        <span className={styles.emptyIcon} aria-hidden="true">
+          <Plus size={18} />
+        </span>
+        <div>
+          <p>
+            <strong>No activities yet.</strong>
+          </p>
+          {!readOnly && (
+            <p>Search for a place or add a manual activity to start this day.</p>
+          )}
+        </div>
       </div>
     )
   }
@@ -145,23 +161,31 @@ export function ActivityList({
     >
       <ol className={styles.list}>
         {activities.map((activity, index) => (
-          <SortableActivityCard
-            key={activity.id}
-            activity={activity}
-            busy={busy}
-            canMoveDown={index < activities.length - 1}
-            canMoveUp={index > 0}
-            isLast={index === activities.length - 1}
-            maxDate={maxDate}
-            minDate={minDate}
-            position={index + 1}
-            readOnly={readOnly}
-            onEdit={onEdit}
-            onDelete={onDelete}
-            onMoveDown={onMoveDown}
-            onMoveToDay={onMoveToDay}
-            onMoveUp={onMoveUp}
-          />
+          <Fragment key={activity.id}>
+            <SortableActivityCard
+              activity={activity}
+              activeActivityId={activeActivityId}
+              busy={busy}
+              canMoveDown={index < activities.length - 1}
+              canMoveUp={index > 0}
+              isLast={index === activities.length - 1}
+              maxDate={maxDate}
+              minDate={minDate}
+              position={index + 1}
+              readOnly={readOnly}
+              onActiveActivityChange={onActiveActivityChange}
+              onEdit={onEdit}
+              onDelete={onDelete}
+              onMoveDown={onMoveDown}
+              onMoveToDay={onMoveToDay}
+              onMoveUp={onMoveUp}
+            />
+            {!readOnly && index < activities.length - 1 && (
+              <li className={styles.insertSlot} aria-hidden="true">
+                <span>Insert activity here</span>
+              </li>
+            )}
+          </Fragment>
         ))}
       </ol>
     </SortableContext>
