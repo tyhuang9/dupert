@@ -1,9 +1,7 @@
 import type { FocusEvent, HTMLAttributes, KeyboardEvent, MouseEvent } from 'react'
+import type { SearchBoxOptions } from '@mapbox/search-js-core'
 import {
-  ArrowDown,
-  ArrowUp,
   BedDouble,
-  CalendarDays,
   Coffee,
   Landmark,
   MapPin,
@@ -17,20 +15,14 @@ import styles from './ActivityCard.module.css'
 interface ActivityCardProps {
   activity: Activity
   busy?: boolean
-  canMoveDown: boolean
-  canMoveUp: boolean
   dragAttributes?: HTMLAttributes<HTMLElement>
   dragListeners?: HTMLAttributes<HTMLElement>
   expanded?: boolean
-  maxDate: string
-  minDate: string
+  placeSearchOptions?: Partial<SearchBoxOptions>
   readOnly?: boolean
   active?: boolean
   onActiveChange?: (activityId: number | null) => void
   onDelete: (activityId: number) => void
-  onMoveDown: (activity: Activity) => void
-  onMoveToDay: (activity: Activity, dayDate: string) => void
-  onMoveUp: (activity: Activity) => void
   onSubmitEdit: (activity: Activity, payload: CreateActivityRequest) => Promise<void> | void
   onToggleExpand: (activity: Activity) => void
 }
@@ -106,19 +98,13 @@ export function ActivityCard({
   activity,
   active = false,
   busy = false,
-  canMoveDown,
-  canMoveUp,
   dragAttributes,
   dragListeners,
   expanded = false,
-  maxDate,
-  minDate,
+  placeSearchOptions,
   readOnly = false,
   onActiveChange,
   onDelete,
-  onMoveDown,
-  onMoveToDay,
-  onMoveUp,
   onSubmitEdit,
   onToggleExpand,
 }: ActivityCardProps) {
@@ -177,91 +163,54 @@ export function ActivityCard({
       aria-label={`${expanded ? 'Collapse' : 'Expand'} ${activity.title}`}
       data-active={active ? 'true' : undefined}
     >
-      <div className={styles.summary}>
-        <div className={styles.categoryBlock} data-category={activity.category}>
-          <ActivityCategoryIcon category={activity.category} />
-          <span className={styles.categoryText}>{categoryLabel}</span>
-        </div>
-
-        <div className={styles.content}>
-          <div className={styles.summaryHeader}>
-            <h3 className={styles.title}>{activity.title}</h3>
-            {timeDisplay.dateTime ? (
-              <time className={styles.time} dateTime={timeDisplay.dateTime}>
-                {timeDisplay.label}
-              </time>
-            ) : (
-              <span className={styles.time}>{timeDisplay.label}</span>
-            )}
+      {(!expanded || readOnly) && (
+        <div className={styles.summary}>
+          <div className={styles.categoryBlock} data-category={activity.category}>
+            <ActivityCategoryIcon category={activity.category} />
+            <span className={styles.categoryText}>{categoryLabel}</span>
           </div>
 
-          <div className={styles.metadata}>
-            {locationLabel && (
-              <p className={styles.metadataLine}>
-                <MapPin size={13} aria-hidden="true" />
-                {locationLabel}
-              </p>
-            )}
-            {activity.placeName && activity.address && activity.placeName !== activity.address && (
-              <p className={styles.addressLine}>{activity.address}</p>
-            )}
+          <div className={styles.content}>
+            <div className={styles.summaryHeader}>
+              <h3 className={styles.title}>{activity.title}</h3>
+              {timeDisplay.dateTime ? (
+                <time className={styles.time} dateTime={timeDisplay.dateTime}>
+                  {timeDisplay.label}
+                </time>
+              ) : (
+                <span className={styles.time}>{timeDisplay.label}</span>
+              )}
+            </div>
+
+            <div className={styles.metadata}>
+              {locationLabel && (
+                <p className={styles.metadataLine}>
+                  <MapPin size={13} aria-hidden="true" />
+                  {locationLabel}
+                </p>
+              )}
+              {activity.placeName && activity.address && activity.placeName !== activity.address && (
+                <p className={styles.addressLine}>{activity.address}</p>
+              )}
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {expanded && !readOnly && (
         <div className={styles.editorPanel}>
-          <div className={styles.editorHeader}>
-            <div>
-              <p className={styles.editorKicker}>Edit activity</p>
-              <h4>Edit {activity.title}</h4>
-            </div>
-            <span>Updated by {activity.updatedByUserDisplayName || 'guest'}</span>
-          </div>
           <ActivityForm
             key={`activity-edit-${activity.id}`}
             initialValues={editInitialValues(activity)}
             onSubmit={(payload) => onSubmitEdit(activity, payload)}
             onCancel={() => onToggleExpand(activity)}
             onDelete={handleDelete}
+            placeSearchOptions={placeSearchOptions}
             submitting={busy}
-            submitLabel="Save changes"
+            variant="compactEdit"
+            submitLabel="Save Changes"
             deleteLabel="Delete"
           />
-          <div className={styles.moveControls} aria-label={`Move controls for ${activity.title}`}>
-            <button
-              type="button"
-              className={styles.iconButton}
-              onClick={() => onMoveUp(activity)}
-              disabled={busy || !canMoveUp}
-              aria-label={`Earlier: move ${activity.title} up`}
-              title="Move up"
-            >
-              <ArrowUp size={16} aria-hidden="true" />
-            </button>
-            <button
-              type="button"
-              className={styles.iconButton}
-              onClick={() => onMoveDown(activity)}
-              disabled={busy || !canMoveDown}
-              aria-label={`Later: move ${activity.title} down`}
-              title="Move down"
-            >
-              <ArrowDown size={16} aria-hidden="true" />
-            </button>
-            <label className={styles.moveLabel}>
-              <CalendarDays size={15} aria-hidden="true" />
-              <span>Day</span>
-              <input
-                type="date"
-                value={activity.dayDate}
-                min={minDate}
-                max={maxDate}
-                disabled={busy}
-                onChange={(event) => onMoveToDay(activity, event.target.value)}
-              />
-            </label>
-          </div>
         </div>
       )}
 

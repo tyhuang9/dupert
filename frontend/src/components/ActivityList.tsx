@@ -4,6 +4,7 @@ import {
   useSortable,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
+import type { SearchBoxOptions } from '@mapbox/search-js-core'
 import { CalendarPlus } from 'lucide-react'
 import { ActivityCard } from './ActivityCard'
 import type { Activity, CreateActivityRequest } from '../types/activity'
@@ -13,17 +14,13 @@ import styles from './ActivityList.module.css'
 interface ActivityListProps {
   activities: Activity[]
   busy?: boolean
-  maxDate: string
-  minDate: string
   readOnly?: boolean
   activeActivityId?: number | null
   expandedActivityId?: number | null
+  placeSearchOptions?: Partial<SearchBoxOptions>
   onActiveActivityChange?: (activityId: number | null) => void
   onAddActivity?: () => void
   onDelete: (activityId: number) => void
-  onMoveDown: (activity: Activity) => void
-  onMoveToDay: (activity: Activity, dayDate: string) => void
-  onMoveUp: (activity: Activity) => void
   onSubmitEdit: (activity: Activity, payload: CreateActivityRequest) => Promise<void> | void
   onToggleExpand: (activity: Activity) => void
 }
@@ -37,8 +34,6 @@ function sortableTransformToString(
 
 interface SortableActivityCardProps extends Omit<ActivityListProps, 'activities'> {
   activity: Activity
-  canMoveDown: boolean
-  canMoveUp: boolean
   isLast: boolean
   position: number
 }
@@ -46,20 +41,14 @@ interface SortableActivityCardProps extends Omit<ActivityListProps, 'activities'
 function SortableActivityCard({
   activity,
   busy = false,
-  canMoveDown,
-  canMoveUp,
   isLast,
-  maxDate,
-  minDate,
   position,
   readOnly = false,
   activeActivityId,
   expandedActivityId,
+  placeSearchOptions,
   onActiveActivityChange,
   onDelete,
-  onMoveDown,
-  onMoveToDay,
-  onMoveUp,
   onSubmitEdit,
   onToggleExpand,
 }: SortableActivityCardProps) {
@@ -93,19 +82,13 @@ function SortableActivityCard({
           activity={activity}
           active={activeActivityId === activity.id}
           busy={busy}
-          canMoveDown={canMoveDown}
-          canMoveUp={canMoveUp}
           dragAttributes={attributes}
           dragListeners={listeners}
           expanded={expandedActivityId === activity.id}
-          maxDate={maxDate}
-          minDate={minDate}
+          placeSearchOptions={placeSearchOptions}
           readOnly={readOnly}
           onActiveChange={onActiveActivityChange}
           onDelete={onDelete}
-          onMoveDown={onMoveDown}
-          onMoveToDay={onMoveToDay}
-          onMoveUp={onMoveUp}
           onSubmitEdit={onSubmitEdit}
           onToggleExpand={onToggleExpand}
         />
@@ -117,17 +100,13 @@ function SortableActivityCard({
 export function ActivityList({
   activities,
   busy = false,
-  maxDate,
-  minDate,
   readOnly = false,
   activeActivityId = null,
   expandedActivityId = null,
+  placeSearchOptions,
   onActiveActivityChange,
   onAddActivity,
   onDelete,
-  onMoveDown,
-  onMoveToDay,
-  onMoveUp,
   onSubmitEdit,
   onToggleExpand,
 }: ActivityListProps) {
@@ -166,19 +145,13 @@ export function ActivityList({
             activity={activity}
             activeActivityId={activeActivityId}
             expandedActivityId={expandedActivityId}
+            placeSearchOptions={placeSearchOptions}
             busy={busy}
-            canMoveDown={index < activities.length - 1}
-            canMoveUp={index > 0}
             isLast={index === activities.length - 1}
-            maxDate={maxDate}
-            minDate={minDate}
             position={index + 1}
             readOnly={readOnly}
             onActiveActivityChange={onActiveActivityChange}
             onDelete={onDelete}
-            onMoveDown={onMoveDown}
-            onMoveToDay={onMoveToDay}
-            onMoveUp={onMoveUp}
             onSubmitEdit={onSubmitEdit}
             onToggleExpand={onToggleExpand}
           />

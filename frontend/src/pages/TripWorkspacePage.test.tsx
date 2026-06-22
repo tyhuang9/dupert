@@ -377,7 +377,7 @@ describe('<TripWorkspacePage>', () => {
     expect(screen.getByTestId('active-map-activity')).toHaveTextContent('22')
     expect(activityCard).toHaveAttribute('data-active', 'true')
     expect(activityCard).toHaveAttribute('aria-expanded', 'true')
-    expect(screen.getByLabelText(/^title$/i)).toHaveValue('Tokyo Tower')
+    expect(screen.getByLabelText(/activity name/i)).toHaveValue('Tokyo Tower')
 
     await userEvent.click(activityCard as HTMLElement)
     expect(screen.getByTestId('active-map-activity')).toHaveTextContent('22')
@@ -511,7 +511,7 @@ describe('<TripWorkspacePage>', () => {
     const activityCard = (await screen.findByRole('heading', { name: /tsukiji sushi/i })).closest('article')
     expect(activityCard).not.toBeNull()
     await userEvent.click(activityCard as HTMLElement)
-    const titleInput = screen.getByLabelText(/^title$/i)
+    const titleInput = screen.getByLabelText(/activity name/i)
     await userEvent.clear(titleInput)
     await userEvent.type(titleInput, 'Updated sushi')
     const addressInput = screen.getByLabelText(/^address$/i)
@@ -554,7 +554,7 @@ describe('<TripWorkspacePage>', () => {
     })
   })
 
-  it('sends a reorder request from move controls', async () => {
+  it('uses the compact editor without old move controls', async () => {
     const dinner = {
       ...SAMPLE_ACTIVITY,
       id: 11,
@@ -562,7 +562,6 @@ describe('<TripWorkspacePage>', () => {
       orderIndex: 1,
     }
     mockWorkspace([SAMPLE_ACTIVITY, dinner])
-    apiMock.onPost('/trips/abc234def567/days/2026-05-01/order').reply(204)
 
     renderWorkspace('/trips/abc234def567')
 
@@ -572,14 +571,11 @@ describe('<TripWorkspacePage>', () => {
     const dinnerCard = screen.getByRole('heading', { name: /dinner/i }).closest('article')
     expect(dinnerCard).not.toBeNull()
     await userEvent.click(dinnerCard as HTMLElement)
-    await userEvent.click(await screen.findByRole('button', { name: /move dinner up/i }))
 
-    await waitFor(() => {
-      expect(apiMock.history.post[0].url).toBe('/trips/abc234def567/days/2026-05-01/order')
-      expect(JSON.parse(apiMock.history.post[0].data as string)).toEqual({
-        activityIds: [11, 10],
-      })
-    })
+    expect(screen.getByLabelText(/activity name/i)).toHaveValue('Dinner')
+    expect(screen.getByRole('button', { name: /select on map/i })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /move dinner up/i })).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/^day$/i)).not.toBeInTheDocument()
   })
 
   it('passes the current map center to place search as proximity', async () => {

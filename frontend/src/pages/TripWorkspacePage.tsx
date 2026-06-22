@@ -718,42 +718,6 @@ export function TripWorkspacePage() {
     void deleteActivityMutation.mutateAsync({ publicId, activityId })
   }
 
-  const handleMoveActivity = (activity: Activity, direction: -1 | 1) => {
-    if (!publicId || !selectedDay) return
-    const currentIndex = dayActivities.findIndex((item) => item.id === activity.id)
-    const targetIndex = currentIndex + direction
-    if (currentIndex < 0 || targetIndex < 0 || targetIndex >= dayActivities.length) return
-    const nextActivities = [...dayActivities]
-    const [moved] = nextActivities.splice(currentIndex, 1)
-    nextActivities.splice(targetIndex, 0, moved)
-    void reorderActivitiesMutation.mutateAsync({
-      publicId,
-      dayDate: selectedDay,
-      body: { activityIds: nextActivities.map((item) => item.id) },
-    })
-  }
-
-  const handleMoveActivityToDay = (activity: Activity, dayDate: string) => {
-    if (
-      !publicId ||
-      !tripQuery.data ||
-      !dayInRange(dayDate, tripQuery.data.startDate, tripQuery.data.endDate) ||
-      dayDate === activity.dayDate
-    ) {
-      return
-    }
-    const destinationCount = allActivities.filter((item) => item.dayDate === dayDate).length
-    if (activeEditingActivity?.id === activity.id) {
-      setExpandedActivityId(null)
-      setPlaceDraft(null)
-    }
-    void moveActivityMutation.mutateAsync({
-      activityId: activity.id,
-      publicId,
-      body: { dayDate, orderIndex: destinationCount },
-    })
-  }
-
   const handleSaveDayNote = async (note: string) => {
     if (!publicId || !selectedDay) return
     await updateDayNoteMutation.mutateAsync({
@@ -1023,16 +987,12 @@ export function TripWorkspacePage() {
                           activities={dayActivities}
                           activeActivityId={visibleActiveActivityId}
                           expandedActivityId={expandedActivityId}
+                          placeSearchOptions={placeSearchOptions}
                           busy={isActivityMutationPending}
-                          minDate={tripQuery.data.startDate}
-                          maxDate={tripQuery.data.endDate}
                           readOnly={!canEditTrip}
                           onActiveActivityChange={setActiveActivityId}
                           onAddActivity={openActivityComposer}
                           onDelete={handleDeleteActivity}
-                          onMoveDown={(activity) => handleMoveActivity(activity, 1)}
-                          onMoveToDay={handleMoveActivityToDay}
-                          onMoveUp={(activity) => handleMoveActivity(activity, -1)}
                           onSubmitEdit={handleUpdateActivity}
                           onToggleExpand={handleToggleActivityExpand}
                         />

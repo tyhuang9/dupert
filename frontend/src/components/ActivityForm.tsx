@@ -1,4 +1,16 @@
-import { useState, type FormEvent } from 'react'
+import { useId, useState, type FormEvent } from 'react'
+import {
+  BedDouble,
+  Clock,
+  Coffee,
+  Landmark,
+  MapPin,
+  Plane,
+  Trash2,
+  Utensils,
+} from 'lucide-react'
+import type { SearchBoxOptions } from '@mapbox/search-js-core'
+import { PlaceSearch } from './PlaceSearch'
 import type { ActivityCategory, CreateActivityRequest } from '../types/activity'
 import styles from './ActivityForm.module.css'
 
@@ -18,12 +30,31 @@ interface ActivityFormProps {
   onDelete?: () => void
   submitting: boolean
   deleteLabel?: string
+  placeSearchOptions?: Partial<SearchBoxOptions>
+  variant?: 'default' | 'compactEdit'
   submitLabel?: string
 }
 
 function emptyToNull(value: string): string | null {
   const trimmed = value.trim()
   return trimmed === '' ? null : trimmed
+}
+
+function ActivityCategoryIcon({ category }: { category: ActivityCategory }) {
+  switch (category) {
+    case 'ACTIVITY':
+      return <Landmark size={20} aria-hidden="true" />
+    case 'LODGING':
+      return <BedDouble size={20} aria-hidden="true" />
+    case 'MEAL':
+      return <Utensils size={20} aria-hidden="true" />
+    case 'SNACK':
+      return <Coffee size={20} aria-hidden="true" />
+    case 'TRANSPORT':
+      return <Plane size={20} aria-hidden="true" />
+    case 'OTHER':
+      return <MapPin size={20} aria-hidden="true" />
+  }
 }
 
 export function ActivityForm({
@@ -33,8 +64,15 @@ export function ActivityForm({
   onDelete,
   submitting,
   deleteLabel = 'Delete',
+  placeSearchOptions,
+  variant = 'default',
   submitLabel = 'Save activity',
 }: ActivityFormProps) {
+  const titleId = useId()
+  const timeId = useId()
+  const addressId = useId()
+  const notesId = useId()
+  const searchPanelId = useId()
   const [category, setCategory] = useState<ActivityCategory>(initialValues?.category ?? 'OTHER')
   const [title, setTitle] = useState(initialValues?.title ?? '')
   const [notes, setNotes] = useState(initialValues?.notes ?? '')
@@ -42,6 +80,10 @@ export function ActivityForm({
   const [endTime, setEndTime] = useState(initialValues?.endTime ?? '')
   const [placeName, setPlaceName] = useState(initialValues?.placeName ?? '')
   const [address, setAddress] = useState(initialValues?.address ?? '')
+  const [mapboxId, setMapboxId] = useState<string | null>(initialValues?.mapboxId ?? null)
+  const [lat, setLat] = useState<number | null>(initialValues?.lat ?? null)
+  const [lng, setLng] = useState<number | null>(initialValues?.lng ?? null)
+  const [selectingPlace, setSelectingPlace] = useState(false)
 
   const reset = () => {
     setCategory('OTHER')
@@ -51,6 +93,21 @@ export function ActivityForm({
     setEndTime('')
     setPlaceName('')
     setAddress('')
+    setMapboxId(null)
+    setLat(null)
+    setLng(null)
+    setSelectingPlace(false)
+  }
+
+  const handlePlaceSelect = (place: Partial<CreateActivityRequest>) => {
+    if (place.category) setCategory(place.category)
+    if (place.title) setTitle(place.title)
+    if (place.placeName ?? place.title) setPlaceName(place.placeName ?? place.title ?? '')
+    if (place.address !== undefined) setAddress(place.address ?? '')
+    if (place.mapboxId !== undefined) setMapboxId(place.mapboxId)
+    if (place.lat !== undefined) setLat(place.lat)
+    if (place.lng !== undefined) setLng(place.lng)
+    setSelectingPlace(false)
   }
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
@@ -62,11 +119,11 @@ export function ActivityForm({
       notes: emptyToNull(notes),
       startTime: emptyToNull(startTime),
       endTime: emptyToNull(endTime),
-      mapboxId: initialValues?.mapboxId ?? null,
+      mapboxId,
       placeName: emptyToNull(placeName),
       address: emptyToNull(address),
-      lat: initialValues?.lat ?? null,
-      lng: initialValues?.lng ?? null,
+      lat,
+      lng,
     }
 
     void Promise.resolve(onSubmit(payload)).then(() => {
@@ -74,6 +131,114 @@ export function ActivityForm({
         reset()
       }
     }).catch(() => undefined)
+  }
+
+  const actions = (
+    <div className={styles.actions}>
+      {onDelete && (
+        <button
+          type="button"
+          className={styles.deleteButton}
+          onClick={onDelete}
+          disabled={submitting}
+        >
+          {variant === 'compactEdit' && <Trash2 size={14} aria-hidden="true" />}
+          {deleteLabel}
+        </button>
+      )}
+      {onCancel && (
+        <button type="button" className={styles.cancelButton} onClick={onCancel}>
+          Cancel
+        </button>
+      )}
+      <button type="submit" className={styles.submitButton} disabled={submitting}>
+        {submitting ? 'Saving…' : submitLabel}
+      </button>
+    </div>
+  )
+
+  if (variant === 'compactEdit') {
+    return (
+      <form className={`${styles.form} ${styles.compactEditForm}`} onSubmit={handleSubmit}>
+        <div className={styles.compactTopGrid}>
+          <span
+            className={styles.compactIcon}
+            data-category={category}
+            aria-label={`${category.toLowerCase()} activity`}
+          >
+            <ActivityCategoryIcon category={category} />
+          </span>
+
+          <label className={styles.label} htmlFor={titleId}>
+            Activity name
+            <input
+              id={titleId}
+              className={`${styles.input} ${styles.compactInput}`}
+              value={title}
+              onChange={(event) => setTitle(event.target.value)}
+              placeholder="Breakfast at The Wolseley"
+              required
+            />
+          </label>
+
+          <label className={styles.label} htmlFor={timeId}>
+            Time
+            <span className={styles.timeControl}>
+              <input
+                id={timeId}
+                className={`${styles.input} ${styles.compactInput}`}
+                type="time"
+                value={startTime}
+                onChange={(event) => setStartTime(event.target.value)}
+              />
+              <Clock size={15} aria-hidden="true" />
+            </span>
+          </label>
+        </div>
+
+        <div className={styles.label}>
+          <label htmlFor={addressId}>Address</label>
+          <span className={styles.addressControl}>
+            <MapPin size={15} aria-hidden="true" />
+            <input
+              id={addressId}
+              className={styles.addressInput}
+              value={address}
+              onChange={(event) => setAddress(event.target.value)}
+              placeholder="Street address or neighborhood..."
+            />
+            <button
+              type="button"
+              className={styles.selectMapButton}
+              onClick={() => setSelectingPlace((current) => !current)}
+              aria-controls={searchPanelId}
+              aria-expanded={selectingPlace}
+            >
+              Select on map
+            </button>
+          </span>
+        </div>
+
+        {selectingPlace && (
+          <div id={searchPanelId} className={styles.compactSearchPanel}>
+            <PlaceSearch onPlaceSelect={handlePlaceSelect} searchOptions={placeSearchOptions} />
+          </div>
+        )}
+
+        <label className={styles.label} htmlFor={notesId}>
+          Notes
+          <textarea
+            id={notesId}
+            className={`${styles.textarea} ${styles.compactTextarea}`}
+            value={notes}
+            onChange={(event) => setNotes(event.target.value)}
+            placeholder="Reservation details, tickets, confirmation numbers..."
+          />
+        </label>
+
+        {actions}
+      </form>
+    )
   }
 
   return (
@@ -160,26 +325,7 @@ export function ActivityForm({
         </label>
       </div>
 
-      <div className={styles.actions}>
-        {onDelete && (
-          <button
-            type="button"
-            className={styles.deleteButton}
-            onClick={onDelete}
-            disabled={submitting}
-          >
-            {deleteLabel}
-          </button>
-        )}
-        {onCancel && (
-          <button type="button" className={styles.cancelButton} onClick={onCancel}>
-            Cancel
-          </button>
-        )}
-        <button type="submit" className={styles.submitButton} disabled={submitting}>
-          {submitting ? 'Saving…' : submitLabel}
-        </button>
-      </div>
+      {actions}
     </form>
   )
 }

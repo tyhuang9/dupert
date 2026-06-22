@@ -173,108 +173,7 @@
 .editorPanel {
   min-width: 0;
   display: grid;
-  gap: var(--space-4);
-  padding-top: var(--space-3);
-  border-top: 1px solid var(--color-surface-border);
-}
-
-.editorHeader {
-  min-width: 0;
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--space-3);
-}
-
-.editorHeader h4 {
-  margin: var(--space-1) 0 0;
-  color: var(--color-text);
-  font-size: var(--font-size-base);
-  font-weight: 800;
-  line-height: 1.25;
-}
-
-.editorHeader span,
-.editorKicker {
-  margin: 0;
-  color: var(--color-text-subtle);
-  font-size: var(--font-size-xs);
-  font-weight: 800;
-}
-
-.editorKicker {
-  text-transform: uppercase;
-}
-
-.iconButton {
-  max-width: 100%;
-  width: 2.25rem;
-  min-width: 2.25rem;
-  height: 2.25rem;
-  min-height: 2.25rem;
-  display: inline-grid;
-  place-items: center;
-  padding: 0;
-  border: 1px solid var(--color-surface-border);
-  border-radius: var(--radius-sm);
-  background: var(--color-surface);
-  color: var(--color-text-muted);
-  font: inherit;
-  font-size: var(--font-size-xs);
-  font-weight: 800;
-  cursor: pointer;
-  transition:
-    background-color var(--transition-base),
-    border-color var(--transition-base),
-    color var(--transition-base);
-}
-
-.iconButton:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
-.iconButton:hover,
-.iconButton:focus-visible {
-  border-color: var(--color-primary);
-  background: var(--color-surface-2);
-  color: var(--color-primary-text);
-}
-
-.iconButton:focus-visible,
-.moveLabel input:focus-visible {
-  outline: var(--focus-ring-width) solid var(--focus-ring-color);
-  outline-offset: var(--focus-ring-offset);
-}
-
-.moveControls {
-  min-width: 0;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2);
-}
-
-.moveLabel {
-  min-width: 0;
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  color: var(--color-text-muted);
-  font-size: var(--font-size-xs);
-  font-weight: 800;
-}
-
-.moveLabel input {
-  min-width: 0;
-  min-height: 2rem;
-  max-width: 10rem;
-  padding: var(--space-1) var(--space-2);
-  border: 1px solid var(--color-surface-border);
-  border-radius: var(--radius-sm);
-  background: var(--color-surface-2);
-  color: var(--color-text);
-  font: inherit;
+  gap: 0;
 }
 
 .dragHint {
@@ -298,8 +197,7 @@
     height: 40px;
   }
 
-  .summaryHeader,
-  .editorHeader {
+  .summaryHeader {
     grid-template-columns: 1fr;
     display: grid;
   }
@@ -308,29 +206,4 @@
     justify-self: start;
   }
 
-  .iconButton {
-    flex: 1 1 auto;
-    min-width: 44px;
-    min-height: 44px;
-    height: 44px;
-  }
-
-  .moveLabel {
-    width: 100%;
-    justify-content: space-between;
-  }
-
-  .moveLabel input {
-    min-width: 44px;
-    min-height: 44px;
-    max-width: 100%;
-  }
-}
-
-@media (pointer: coarse) {
-  .iconButton {
-    min-width: 44px;
-    min-height: 44px;
-    height: 44px;
-  }
 }
