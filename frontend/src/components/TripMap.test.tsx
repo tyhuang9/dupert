@@ -17,6 +17,9 @@ const mapControlMock = vi.hoisted(() => ({
 
 const mapMockState = vi.hoisted(() => ({
   onError: null as null | (() => void),
+  onLoad: null as null | (() => void),
+  onMoveEnd: null as null | (() => void),
+  mapStyle: null as null | string,
 }))
 
 vi.mock('../api/mapboxDirections', () => ({
@@ -31,14 +34,25 @@ vi.mock('react-map-gl/mapbox', async () => {
   const React = await import('react')
   const MapMock = React.forwardRef<
     unknown,
-    { children?: ReactNode; onError?: () => void; 'aria-label'?: string }
+    {
+      children?: ReactNode
+      mapStyle?: string
+      onError?: () => void
+      onLoad?: () => void
+      onMoveEnd?: () => void
+      'aria-label'?: string
+    }
   >((props, ref) => {
     React.useImperativeHandle(ref, () => ({
       fitBounds: mapControlMock.fitBounds,
       flyTo: mapControlMock.flyTo,
+      getCenter: () => ({ lng: 139.7454, lat: 35.6586 }),
       getZoom: () => 11,
     }))
     mapMockState.onError = props.onError ?? null
+    mapMockState.onLoad = props.onLoad ?? null
+    mapMockState.onMoveEnd = props.onMoveEnd ?? null
+    mapMockState.mapStyle = props.mapStyle ?? null
     return (
       <div data-testid="map" aria-label={props['aria-label']}>
         {props.children}
@@ -126,6 +140,9 @@ beforeEach(() => {
   mapControlMock.fitBounds.mockClear()
   mapControlMock.flyTo.mockClear()
   mapMockState.onError = null
+  mapMockState.onLoad = null
+  mapMockState.onMoveEnd = null
+  mapMockState.mapStyle = null
   directionsMock.mockResolvedValue({
     distance: 2400,
     duration: 720,
@@ -284,6 +301,44 @@ describe('<TripMap>', () => {
     expect(screen.queryByTestId('route-layer')).not.toBeInTheDocument()
     expect(screen.queryByText(/selected-day route/i)).not.toBeInTheDocument()
     expect(screen.queryByText('Route needs at least two mapped stops.')).not.toBeInTheDocument()
+  })
+
+  it('maps style options to Mapbox style URLs', () => {
+    render(
+      <TripMap
+        activities={[]}
+        fallbackActivities={[]}
+        destination={null}
+        mapStyle="dark"
+      />,
+    )
+
+    expect(mapMockState.mapStyle).toBe('mapbox://styles/mapbox/dark-v11')
+  })
+
+  it('reports viewport context on load and move end', () => {
+    const onViewportContextChange = vi.fn()
+    render(
+      <TripMap
+        activities={[]}
+        fallbackActivities={[]}
+        destination={null}
+        onViewportContextChange={onViewportContextChange}
+      />,
+    )
+
+    act(() => {
+      mapMockState.onLoad?.()
+    })
+    expect(onViewportContextChange).toHaveBeenCalledWith({
+      center: { lng: 139.7454, lat: 35.6586 },
+      zoom: 11,
+    })
+
+    act(() => {
+      mapMockState.onMoveEnd?.()
+    })
+    expect(onViewportContextChange).toHaveBeenCalledTimes(2)
   })
 
   it('shows full-trip fallback markers when the selected day has no mapped stops', async () => {

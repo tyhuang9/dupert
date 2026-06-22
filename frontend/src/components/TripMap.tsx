@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Map, {
   Layer,
   Marker,
@@ -21,11 +21,22 @@ interface TripMapProps {
   fallbackActivities?: Activity[]
   routeActivities?: Activity[]
   destination: string | null
-  mapMode?: 'map' | 'satellite'
+  mapStyle?: MapStyleId
   previewPlace?: MapPreviewPlace | null
   activeActivityId?: number | null
   onActivityActivate?: (activityId: number) => void
   onActiveActivityChange?: (activityId: number | null) => void
+  onViewportContextChange?: (context: MapViewportContext) => void
+}
+
+export type MapStyleId = 'streets' | 'outdoors' | 'light' | 'dark' | 'satellite'
+
+export interface MapViewportContext {
+  center: {
+    lng: number
+    lat: number
+  }
+  zoom?: number
 }
 
 export interface MapPreviewPlace {
@@ -73,6 +84,14 @@ const ROUTE_LINE_LAYER: LayerProps = {
     'line-width': 4,
     'line-opacity': 0.82,
   },
+}
+
+const MAPBOX_STYLE_URLS: Record<MapStyleId, string> = {
+  streets: 'mapbox://styles/mapbox/streets-v12',
+  outdoors: 'mapbox://styles/mapbox/outdoors-v12',
+  light: 'mapbox://styles/mapbox/light-v11',
+  dark: 'mapbox://styles/mapbox/dark-v11',
+  satellite: 'mapbox://styles/mapbox/satellite-streets-v12',
 }
 
 function isFiniteCoordinate(value: unknown): value is number {
@@ -173,10 +192,11 @@ export function TripMap({
   routeActivities = activities,
   activeActivityId = null,
   destination,
-  mapMode = 'map',
+  mapStyle = 'streets',
   previewPlace = null,
   onActivityActivate,
   onActiveActivityChange,
+  onViewportContextChange,
 }: TripMapProps) {
   const token = import.meta.env.VITE_MAPBOX_TOKEN as string | undefined
   const mapRef = useRef<MapRef | null>(null)
@@ -348,6 +368,19 @@ export function TripMap({
     () => displayStops.map((stop) => `${stop.source}:${stop.lng},${stop.lat}`).join(';'),
     [displayStops],
   )
+  const reportViewportContext = useCallback(() => {
+    if (!onViewportContextChange) return
+    const map = mapRef.current as (MapRef & {
+      getCenter?: () => { lng: number; lat: number }
+      getZoom?: () => number
+    }) | null
+    if (!map || typeof map.getCenter !== 'function') return
+    const center = map.getCenter()
+    onViewportContextChange({
+      center: { lng: center.lng, lat: center.lat },
+      zoom: typeof map.getZoom === 'function' ? map.getZoom() : undefined,
+    })
+  }, [onViewportContextChange])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -404,6 +437,7 @@ export function TripMap({
         duration: 0,
         zoom: stop.source === 'destination' ? 9 : 12,
       })
+      window.requestAnimationFrame(reportViewportContext)
       return
     }
 
@@ -420,6 +454,7 @@ export function TripMap({
         duration: 0,
         zoom: 12,
       })
+      window.requestAnimationFrame(reportViewportContext)
       return
     }
 
@@ -430,7 +465,8 @@ export function TripMap({
       ],
       { duration: 0, maxZoom: 12, padding: 64 },
     )
-  }, [displayKey, displayStops])
+    window.requestAnimationFrame(reportViewportContext)
+  }, [displayKey, displayStops, reportViewportContext])
 
   useEffect(() => {
     const map = mapRef.current
@@ -448,7 +484,8 @@ export function TripMap({
       duration: reducedMotion ? 0 : 450,
       zoom: Math.max(currentZoom, 13),
     })
-  }, [activeActivityId, displayStops])
+    window.requestAnimationFrame(reportViewportContext)
+  }, [activeActivityId, displayStops, reportViewportContext])
 
   if (!token) {
     return (
@@ -473,13 +510,11 @@ export function TripMap({
         ref={mapRef}
         mapboxAccessToken={token}
         initialViewState={viewState}
-        mapStyle={
-          mapMode === 'satellite'
-            ? 'mapbox://styles/mapbox/satellite-streets-v12'
-            : 'mapbox://styles/mapbox/streets-v12'
-        }
+        mapStyle={MAPBOX_STYLE_URLS[mapStyle]}
         attributionControl
         onError={() => setMapLoadFailed(true)}
+        onLoad={reportViewportContext}
+        onMoveEnd={reportViewportContext}
         reuseMaps
         style={{ width: '100%', height: '100%', minHeight: '24rem' }}
         aria-label={destination ? `Map for ${destination}` : 'Trip map'}

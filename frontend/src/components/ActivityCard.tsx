@@ -1,4 +1,4 @@
-import type { FocusEvent, KeyboardEvent, MouseEvent, ReactNode } from 'react'
+import type { FocusEvent, HTMLAttributes, KeyboardEvent, MouseEvent } from 'react'
 import {
   ArrowDown,
   ArrowUp,
@@ -7,12 +7,11 @@ import {
   Coffee,
   Landmark,
   MapPin,
-  Pencil,
   Plane,
-  Trash2,
   Utensils,
 } from 'lucide-react'
-import type { Activity } from '../types/activity'
+import { ActivityForm } from './ActivityForm'
+import type { Activity, CreateActivityRequest } from '../types/activity'
 import styles from './ActivityCard.module.css'
 
 interface ActivityCardProps {
@@ -20,18 +19,20 @@ interface ActivityCardProps {
   busy?: boolean
   canMoveDown: boolean
   canMoveUp: boolean
-  dragHandle?: ReactNode
+  dragAttributes?: HTMLAttributes<HTMLElement>
+  dragListeners?: HTMLAttributes<HTMLElement>
+  expanded?: boolean
   maxDate: string
   minDate: string
   readOnly?: boolean
   active?: boolean
   onActiveChange?: (activityId: number | null) => void
-  onActivate?: (activity: Activity) => void
-  onEdit: (activity: Activity) => void
   onDelete: (activityId: number) => void
   onMoveDown: (activity: Activity) => void
   onMoveToDay: (activity: Activity, dayDate: string) => void
   onMoveUp: (activity: Activity) => void
+  onSubmitEdit: (activity: Activity, payload: CreateActivityRequest) => Promise<void> | void
+  onToggleExpand: (activity: Activity) => void
 }
 
 function getTimeDisplay(activity: Activity): { dateTime?: string; label: string } {
@@ -60,22 +61,12 @@ function getCategoryLabel(category: Activity['category']): string {
   }
 }
 
-function getStatusLabel(activity: Activity): 'CONFIRMED' | 'FREE ENTRY' {
-  const searchableText = `${activity.title} ${activity.notes ?? ''}`.toLowerCase()
-  if (
-    activity.category === 'ACTIVITY' &&
-    (searchableText.includes('free') || !searchableText.includes('reservation'))
-  ) {
-    return 'FREE ENTRY'
-  }
-  return 'CONFIRMED'
-}
-
 function isInteractiveTarget(target: EventTarget | null, currentTarget: HTMLElement): boolean {
   if (!(target instanceof Element)) return false
   const interactiveTarget = target.closest(
-    'a, button, input, label, select, textarea, [role="button"], [role="link"]',
+    'a, button, form, input, label, select, textarea, [role="button"], [role="link"]',
   )
+  if (interactiveTarget === currentTarget) return false
   return Boolean(interactiveTarget && currentTarget.contains(interactiveTarget))
 }
 
@@ -96,49 +87,67 @@ function ActivityCategoryIcon({ category }: { category: Activity['category'] }) 
   }
 }
 
+function editInitialValues(activity: Activity): CreateActivityRequest {
+  return {
+    category: activity.category,
+    title: activity.title,
+    notes: activity.notes,
+    startTime: activity.startTime,
+    endTime: activity.endTime,
+    mapboxId: activity.mapboxId,
+    placeName: activity.placeName,
+    address: activity.address,
+    lat: activity.lat,
+    lng: activity.lng,
+  }
+}
+
 export function ActivityCard({
   activity,
   active = false,
   busy = false,
   canMoveDown,
   canMoveUp,
-  dragHandle,
+  dragAttributes,
+  dragListeners,
+  expanded = false,
   maxDate,
   minDate,
   readOnly = false,
   onActiveChange,
-  onActivate,
-  onEdit,
   onDelete,
   onMoveDown,
   onMoveToDay,
   onMoveUp,
+  onSubmitEdit,
+  onToggleExpand,
 }: ActivityCardProps) {
+  const timeDisplay = getTimeDisplay(activity)
+  const categoryLabel = getCategoryLabel(activity.category)
+  const locationLabel = activity.placeName || activity.address
+  const cardClassName = [
+    styles.card,
+    active ? styles.cardActive : '',
+    expanded ? styles.cardExpanded : '',
+  ].filter(Boolean).join(' ')
   const handleDelete = () => {
     if (confirm('Delete this activity?')) {
       onDelete(activity.id)
     }
   }
-  const hasActions = Boolean(dragHandle) || !readOnly
-  const timeDisplay = getTimeDisplay(activity)
-  const categoryLabel = getCategoryLabel(activity.category)
-  const statusLabel = getStatusLabel(activity)
-  const cardClassName = [styles.card, active ? styles.cardActive : '']
-    .filter(Boolean)
-    .join(' ')
   const handleBlurCapture = (event: FocusEvent<HTMLElement>) => {
     const nextTarget = event.relatedTarget
     if (!nextTarget || !event.currentTarget.contains(nextTarget as Node)) {
       onActiveChange?.(null)
     }
   }
-  const activateCard = () => {
+  const toggleCard = () => {
     onActiveChange?.(activity.id)
-    onActivate?.(activity)
+    onToggleExpand(activity)
   }
   const handleClick = (event: MouseEvent<HTMLElement>) => {
     if (isInteractiveTarget(event.target, event.currentTarget)) return
-    activateCard()
+    toggleCard()
   }
   const handleKeyDown = (event: KeyboardEvent<HTMLElement>) => {
     if (
@@ -149,141 +158,128 @@ export function ActivityCard({
       return
     }
     event.preventDefault()
-    activateCard()
+    toggleCard()
   }
 
   return (
     <article
       id={`activity-${activity.id}`}
       className={cardClassName}
+      {...(!readOnly && !busy && !expanded ? dragAttributes : undefined)}
+      {...(!readOnly && !busy && !expanded ? dragListeners : undefined)}
       tabIndex={0}
       onClick={handleClick}
       onKeyDown={handleKeyDown}
       onMouseEnter={() => onActiveChange?.(activity.id)}
       onFocusCapture={() => onActiveChange?.(activity.id)}
       onBlurCapture={handleBlurCapture}
+      aria-expanded={expanded}
+      aria-label={`${expanded ? 'Collapse' : 'Expand'} ${activity.title}`}
       data-active={active ? 'true' : undefined}
     >
-      <div className={styles.main}>
+      <div className={styles.summary}>
         <div className={styles.categoryBlock} data-category={activity.category}>
           <ActivityCategoryIcon category={activity.category} />
           <span className={styles.categoryText}>{categoryLabel}</span>
         </div>
 
         <div className={styles.content}>
-          <div className={styles.cardHeader}>
-            <div className={styles.titleBlock}>
-              {timeDisplay.dateTime ? (
-                <time className={styles.time} dateTime={timeDisplay.dateTime}>
-                  {timeDisplay.label}
-                </time>
-              ) : (
-                <span className={styles.time}>{timeDisplay.label}</span>
-              )}
-              <h3 className={styles.title}>{activity.title}</h3>
-            </div>
-            <span className={styles.statusTag} data-status={statusLabel}>
-              {statusLabel}
-            </span>
+          <div className={styles.summaryHeader}>
+            <h3 className={styles.title}>{activity.title}</h3>
+            {timeDisplay.dateTime ? (
+              <time className={styles.time} dateTime={timeDisplay.dateTime}>
+                {timeDisplay.label}
+              </time>
+            ) : (
+              <span className={styles.time}>{timeDisplay.label}</span>
+            )}
           </div>
 
           <div className={styles.metadata}>
-            <p className={styles.metadataLine}>
-              <span>Category</span>
-              {activity.category.toLowerCase()}
-            </p>
-            {activity.placeName && (
+            {locationLabel && (
               <p className={styles.metadataLine}>
-                <span>Location</span>
-                {activity.placeName}
+                <MapPin size={13} aria-hidden="true" />
+                {locationLabel}
               </p>
             )}
-            {activity.address && (
-              <p className={styles.metadataLine}>
-                <span>Address</span>
-                {activity.address}
-              </p>
-            )}
-            {activity.notes && (
-              <p className={styles.metadataLine}>
-                <span>{statusLabel === 'CONFIRMED' ? 'Reference' : 'Notes'}</span>
-                {activity.notes}
-              </p>
+            {activity.placeName && activity.address && activity.placeName !== activity.address && (
+              <p className={styles.addressLine}>{activity.address}</p>
             )}
           </div>
         </div>
-
-        {hasActions && (
-          <div className={styles.actions}>
-            {dragHandle}
-            {!readOnly && (
-              <>
-                <button
-                  type="button"
-                  className={styles.iconButton}
-                  title="Edit activity"
-                  onClick={() => onEdit(activity)}
-                  disabled={busy}
-                  aria-label={`Edit: ${activity.title}`}
-                >
-                  <Pencil size={16} aria-hidden="true" />
-                </button>
-                <button
-                  type="button"
-                  className={styles.iconButton}
-                  title="Delete activity"
-                  onClick={handleDelete}
-                  disabled={busy}
-                  aria-label={`Delete: ${activity.title}`}
-                >
-                  <Trash2 size={16} aria-hidden="true" />
-                </button>
-              </>
-            )}
-          </div>
-        )}
       </div>
 
-      {!readOnly && (
-        <div className={styles.moveControls} aria-label={`Move controls for ${activity.title}`}>
-          <button
-            type="button"
-            className={styles.iconButton}
-            onClick={() => onMoveUp(activity)}
-            disabled={busy || !canMoveUp}
-            aria-label={`Earlier: move ${activity.title} up`}
-            title="Move up"
-          >
-            <ArrowUp size={16} aria-hidden="true" />
-          </button>
-          <button
-            type="button"
-            className={styles.iconButton}
-            onClick={() => onMoveDown(activity)}
-            disabled={busy || !canMoveDown}
-            aria-label={`Later: move ${activity.title} down`}
-            title="Move down"
-          >
-            <ArrowDown size={16} aria-hidden="true" />
-          </button>
-          <label className={styles.moveLabel}>
-            <CalendarDays size={15} aria-hidden="true" />
-            <span>Day</span>
-            <input
-              type="date"
-              value={activity.dayDate}
-              min={minDate}
-              max={maxDate}
-              disabled={busy}
-              onChange={(event) => onMoveToDay(activity, event.target.value)}
-            />
-          </label>
+      {expanded && !readOnly && (
+        <div className={styles.editorPanel}>
+          <div className={styles.editorHeader}>
+            <div>
+              <p className={styles.editorKicker}>Edit activity</p>
+              <h4>Edit {activity.title}</h4>
+            </div>
+            <span>Updated by {activity.updatedByUserDisplayName || 'guest'}</span>
+          </div>
+          <ActivityForm
+            key={`activity-edit-${activity.id}`}
+            initialValues={editInitialValues(activity)}
+            onSubmit={(payload) => onSubmitEdit(activity, payload)}
+            onCancel={() => onToggleExpand(activity)}
+            onDelete={handleDelete}
+            submitting={busy}
+            submitLabel="Save changes"
+            deleteLabel="Delete"
+          />
+          <div className={styles.moveControls} aria-label={`Move controls for ${activity.title}`}>
+            <button
+              type="button"
+              className={styles.iconButton}
+              onClick={() => onMoveUp(activity)}
+              disabled={busy || !canMoveUp}
+              aria-label={`Earlier: move ${activity.title} up`}
+              title="Move up"
+            >
+              <ArrowUp size={16} aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              className={styles.iconButton}
+              onClick={() => onMoveDown(activity)}
+              disabled={busy || !canMoveDown}
+              aria-label={`Later: move ${activity.title} down`}
+              title="Move down"
+            >
+              <ArrowDown size={16} aria-hidden="true" />
+            </button>
+            <label className={styles.moveLabel}>
+              <CalendarDays size={15} aria-hidden="true" />
+              <span>Day</span>
+              <input
+                type="date"
+                value={activity.dayDate}
+                min={minDate}
+                max={maxDate}
+                disabled={busy}
+                onChange={(event) => onMoveToDay(activity, event.target.value)}
+              />
+            </label>
+          </div>
         </div>
       )}
 
-      <p className={styles.attribution}>
-        Updated by {activity.updatedByUserDisplayName || 'guest'}
-      </p>
+      {expanded && readOnly && activity.notes && (
+        <p className={styles.readOnlyNotes}>{activity.notes}</p>
+      )}
+
+      {!expanded && !readOnly && (
+        <span className={styles.dragHint} aria-hidden="true">
+          Drag to reorder
+        </span>
+      )}
+
+      {expanded && readOnly && (
+        <p className={styles.attribution}>
+          Updated by {activity.updatedByUserDisplayName || 'guest'}
+        </p>
+      )}
     </article>
   )
 }

@@ -4,9 +4,9 @@ import {
   useSortable,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
-import { GripVertical, Plus } from 'lucide-react'
+import { CalendarPlus } from 'lucide-react'
 import { ActivityCard } from './ActivityCard'
-import type { Activity } from '../types/activity'
+import type { Activity, CreateActivityRequest } from '../types/activity'
 import { activityDragId } from '../utils/activityDrag'
 import styles from './ActivityList.module.css'
 
@@ -17,13 +17,15 @@ interface ActivityListProps {
   minDate: string
   readOnly?: boolean
   activeActivityId?: number | null
+  expandedActivityId?: number | null
   onActiveActivityChange?: (activityId: number | null) => void
-  onActivityActivate?: (activity: Activity) => void
-  onEdit: (activity: Activity) => void
+  onAddActivity?: () => void
   onDelete: (activityId: number) => void
   onMoveDown: (activity: Activity) => void
   onMoveToDay: (activity: Activity, dayDate: string) => void
   onMoveUp: (activity: Activity) => void
+  onSubmitEdit: (activity: Activity, payload: CreateActivityRequest) => Promise<void> | void
+  onToggleExpand: (activity: Activity) => void
 }
 
 function sortableTransformToString(
@@ -52,19 +54,19 @@ function SortableActivityCard({
   position,
   readOnly = false,
   activeActivityId,
+  expandedActivityId,
   onActiveActivityChange,
-  onActivityActivate,
-  onEdit,
   onDelete,
   onMoveDown,
   onMoveToDay,
   onMoveUp,
+  onSubmitEdit,
+  onToggleExpand,
 }: SortableActivityCardProps) {
   const {
     attributes,
     isDragging,
     listeners,
-    setActivatorNodeRef,
     setNodeRef,
     transform,
     transition,
@@ -76,21 +78,6 @@ function SortableActivityCard({
     transform: sortableTransformToString(transform),
     transition,
   }
-
-  const dragHandle = !readOnly ? (
-    <button
-      ref={setActivatorNodeRef}
-      type="button"
-      className={styles.dragHandle}
-      disabled={busy}
-      title="Drag to reorder or move"
-      aria-label={`Drag ${activity.title}`}
-      {...attributes}
-      {...listeners}
-    >
-      <GripVertical size={16} aria-hidden="true" />
-    </button>
-  ) : undefined
 
   return (
     <li
@@ -108,17 +95,19 @@ function SortableActivityCard({
           busy={busy}
           canMoveDown={canMoveDown}
           canMoveUp={canMoveUp}
-          dragHandle={dragHandle}
+          dragAttributes={attributes}
+          dragListeners={listeners}
+          expanded={expandedActivityId === activity.id}
           maxDate={maxDate}
           minDate={minDate}
           readOnly={readOnly}
           onActiveChange={onActiveActivityChange}
-          onActivate={onActivityActivate}
-          onEdit={onEdit}
           onDelete={onDelete}
           onMoveDown={onMoveDown}
           onMoveToDay={onMoveToDay}
           onMoveUp={onMoveUp}
+          onSubmitEdit={onSubmitEdit}
+          onToggleExpand={onToggleExpand}
         />
       </div>
     </li>
@@ -132,28 +121,35 @@ export function ActivityList({
   minDate,
   readOnly = false,
   activeActivityId = null,
+  expandedActivityId = null,
   onActiveActivityChange,
-  onActivityActivate,
-  onEdit,
+  onAddActivity,
   onDelete,
   onMoveDown,
   onMoveToDay,
   onMoveUp,
+  onSubmitEdit,
+  onToggleExpand,
 }: ActivityListProps) {
   if (activities.length === 0) {
     return (
       <div className={styles.emptyState}>
         <span className={styles.emptyIcon} aria-hidden="true">
-          <Plus size={18} />
+          <CalendarPlus size={28} />
         </span>
         <div>
           <p>
-            <strong>No activities yet.</strong>
+            <strong>No activities planned for this day</strong>
           </p>
           {!readOnly && (
-            <p>Search for a place or add a manual activity to start this day.</p>
+            <p>Start building your itinerary by searching for places or adding a custom activity.</p>
           )}
         </div>
+        {!readOnly && onAddActivity && (
+          <button type="button" className={styles.emptyAction} onClick={onAddActivity}>
+            Add Activity
+          </button>
+        )}
       </div>
     )
   }
@@ -169,6 +165,7 @@ export function ActivityList({
             key={activity.id}
             activity={activity}
             activeActivityId={activeActivityId}
+            expandedActivityId={expandedActivityId}
             busy={busy}
             canMoveDown={index < activities.length - 1}
             canMoveUp={index > 0}
@@ -178,12 +175,12 @@ export function ActivityList({
             position={index + 1}
             readOnly={readOnly}
             onActiveActivityChange={onActiveActivityChange}
-            onActivityActivate={onActivityActivate}
-            onEdit={onEdit}
             onDelete={onDelete}
             onMoveDown={onMoveDown}
             onMoveToDay={onMoveToDay}
             onMoveUp={onMoveUp}
+            onSubmitEdit={onSubmitEdit}
+            onToggleExpand={onToggleExpand}
           />
         ))}
       </ol>

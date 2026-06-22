@@ -94,7 +94,8 @@
 }
 
 .submitButton,
-.cancelButton {
+.cancelButton,
+.deleteButton {
   min-height: 36px;
   display: inline-flex;
   align-items: center;
@@ -128,13 +129,22 @@
   color: var(--color-text-muted);
 }
 
+.deleteButton {
+  margin-right: auto;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--color-danger-fg);
+}
+
 .submitButton:focus-visible,
-.cancelButton:focus-visible {
+.cancelButton:focus-visible,
+.deleteButton:focus-visible {
   outline: var(--focus-ring-width) solid var(--focus-ring-color);
   outline-offset: var(--focus-ring-offset);
 }
 
-.submitButton:disabled {
+.submitButton:disabled,
+.deleteButton:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }
@@ -146,13 +156,24 @@
   color: var(--color-primary-text);
 }
 
+.deleteButton:hover,
+.deleteButton:focus-visible {
+  background: var(--color-danger-bg);
+  border-color: #fecaca;
+}
+
 @media (max-width: 640px) {
   .fieldGrid {
     grid-template-columns: 1fr;
   }
 
   .submitButton,
-  .cancelButton {
+  .cancelButton,
+  .deleteButton {
     width: 100%;
+  }
+
+  .deleteButton {
+    margin-right: 0;
   }
 }

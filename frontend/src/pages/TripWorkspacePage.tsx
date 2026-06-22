@@ -12,24 +12,25 @@ import {
   type DragEndEvent,
 } from '@dnd-kit/core'
 import { sortableKeyboardCoordinates } from '@dnd-kit/sortable'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
+  AlertTriangle,
   CalendarDays,
   ChevronLeft,
   ChevronRight,
   Layers,
-  Map as MapIcon,
   MapPin,
   Plane,
   Plus,
   Route as TimelineIcon,
   Search,
   Share2,
-  UsersRound,
+  Settings,
+  X,
 } from 'lucide-react'
 import { parseApiError } from '../api/errors'
-import { useTrip } from '../hooks/useTrips'
+import { useTrip, useUpdateTrip } from '../hooks/useTrips'
 import {
   useActivities,
   useCreateActivity,
@@ -47,8 +48,9 @@ import { ActivityForm } from '../components/ActivityForm'
 import { ActivityList } from '../components/ActivityList'
 import { DayNoteEditor } from '../components/DayNoteEditor'
 import { PlaceSearch } from '../components/PlaceSearch'
-import { TripMap } from '../components/TripMap'
+import { TripMap, type MapStyleId, type MapViewportContext } from '../components/TripMap'
 import type { Activity, CreateActivityRequest } from '../types/activity'
+import type { Trip, UpdateTripRequest } from '../types/trip'
 import {
   dayDropId,
   getActivityDragOperation,
@@ -115,6 +117,32 @@ interface CalendarCell {
 }
 
 type WorkspaceMode = 'days' | 'timeline'
+
+const MAP_STYLE_OPTIONS: Array<{ id: MapStyleId; label: string }> = [
+  { id: 'streets', label: 'Streets' },
+  { id: 'outdoors', label: 'Outdoors' },
+  { id: 'light', label: 'Light' },
+  { id: 'dark', label: 'Dark' },
+  { id: 'satellite', label: 'Satellite streets' },
+]
+
+const DAY_MS = 24 * 60 * 60 * 1000
+
+function daysBetweenInclusive(startDate: string, endDate: string): number {
+  if (!startDate || !endDate || startDate > endDate) return 0
+  return Math.round((parseDateKey(endDate).getTime() - parseDateKey(startDate).getTime()) / DAY_MS) + 1
+}
+
+function optionalText(value: string): string | null {
+  const trimmed = value.trim()
+  return trimmed === '' ? null : trimmed
+}
+
+function nearestTripDay(dayDate: string | undefined, startDate: string, endDate: string): string {
+  if (!dayDate || dayDate < startDate) return startDate
+  if (dayDate > endDate) return endDate
+  return dayDate
+}
 
 function buildCalendarCells(monthKey: string, startDate: string, endDate: string): CalendarCell[] {
   const firstOfMonth = `${monthKey}-01`
@@ -297,15 +325,185 @@ function CompactMonthCalendar({
   )
 }
 
+interface TripSettingsModalProps {
+  activities: Activity[]
+  error: unknown
+  onClose: () => void
+  onSave: (payload: UpdateTripRequest) => Promise<void>
+  saving: boolean
+  trip: Trip
+}
+
+function TripSettingsModal({
+  activities,
+  error,
+  onClose,
+  onSave,
+  saving,
+  trip,
+}: TripSettingsModalProps) {
+  const [name, setName] = useState(trip.name)
+  const [destination, setDestination] = useState(trip.destination ?? '')
+  const [startDate, setStartDate] = useState(trip.startDate)
+  const [endDate, setEndDate] = useState(trip.endDate)
+  const [formError, setFormError] = useState<string | null>(null)
+
+  const durationDays = daysBetweenInclusive(startDate, endDate)
+  const nights = Math.max(0, durationDays - 1)
+  const hiddenActivities = useMemo(
+    () =>
+      activities.filter(
+        (activity) => activity.dayDate < startDate || activity.dayDate > endDate,
+      ),
+    [activities, endDate, startDate],
+  )
+  const dateError =
+    startDate && endDate && startDate > endDate ? 'Start date must be before end date.' : null
+  const apiErrorMessage = error ? parseApiError(error).topMessage : null
+  const settingsErrorMessage = formError || dateError || apiErrorMessage
+
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    const trimmedName = name.trim()
+    if (!trimmedName) {
+      setFormError('Trip name is required.')
+      return
+    }
+    if (!startDate || !endDate) {
+      setFormError('Start and end dates are required.')
+      return
+    }
+    if (dateError) {
+      setFormError(dateError)
+      return
+    }
+    setFormError(null)
+    void onSave({
+      name: trimmedName,
+      destination: optionalText(destination),
+      startDate,
+      endDate,
+    }).catch(() => undefined)
+  }
+
+  return (
+    <div className={styles.modalBackdrop} role="presentation">
+      <section
+        className={styles.tripSettingsModal}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="trip-settings-title"
+      >
+        <header className={styles.modalHeader}>
+          <div>
+            <h2 id="trip-settings-title">Trip Settings</h2>
+            <p>Update logistics and dates</p>
+          </div>
+          <button
+            type="button"
+            className={styles.iconOnlyButton}
+            onClick={onClose}
+            aria-label="Close trip settings"
+          >
+            <X size={18} aria-hidden="true" />
+          </button>
+        </header>
+        <form className={styles.modalBody} onSubmit={handleSubmit}>
+          <label className={styles.modalLabel}>
+            Trip Name
+            <input
+              className={styles.modalInput}
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              required
+            />
+          </label>
+          <label className={styles.modalLabel}>
+            Destination
+            <input
+              className={styles.modalInput}
+              value={destination}
+              onChange={(event) => setDestination(event.target.value)}
+              placeholder="City, region, or theme"
+            />
+          </label>
+          <div className={styles.modalGrid}>
+            <label className={styles.modalLabel}>
+              Start Date
+              <input
+                className={styles.modalInput}
+                type="date"
+                value={startDate}
+                onChange={(event) => setStartDate(event.target.value)}
+                required
+              />
+            </label>
+            <label className={styles.modalLabel}>
+              End Date
+              <input
+                className={styles.modalInput}
+                type="date"
+                value={endDate}
+                onChange={(event) => setEndDate(event.target.value)}
+                required
+              />
+            </label>
+          </div>
+          <div className={styles.durationPreview} aria-live="polite">
+            <div className={styles.durationPreviewHeader}>
+              <span>Duration Preview</span>
+              <strong>{durationDays > 0 ? pluralize(nights, 'Night') : 'Invalid dates'}</strong>
+            </div>
+            <div className={styles.durationTrack} aria-hidden="true">
+              <span />
+            </div>
+            <div className={styles.durationDates}>
+              <span>{startDate || 'Start'}</span>
+              <span>{endDate || 'End'}</span>
+            </div>
+          </div>
+          {hiddenActivities.length > 0 && !dateError && (
+            <p className={styles.warningText} role="status">
+              <AlertTriangle size={15} aria-hidden="true" />
+              {pluralize(hiddenActivities.length, 'activity', 'activities')} will be outside the
+              visible trip date range after saving.
+            </p>
+          )}
+          {settingsErrorMessage && (
+            <p className={styles.modalError} role="alert">
+              {settingsErrorMessage}
+            </p>
+          )}
+          <div className={styles.modalActions}>
+            <button
+              type="button"
+              className={styles.secondaryAction}
+              onClick={onClose}
+              disabled={saving}
+            >
+              Cancel
+            </button>
+            <button type="submit" className={styles.primaryAction} disabled={saving}>
+              {saving ? 'Saving…' : 'Save Changes'}
+            </button>
+          </div>
+        </form>
+      </section>
+    </div>
+  )
+}
+
 export function TripWorkspacePage() {
   const { publicId, day } = useParams()
   const navigate = useNavigate()
-  const [editingActivity, setEditingActivity] = useState<Activity | null>(null)
+  const [expandedActivityId, setExpandedActivityId] = useState<number | null>(null)
   const [placeDraft, setPlaceDraft] = useState<Partial<CreateActivityRequest> | null>(null)
+  const [isTripSettingsOpen, setIsTripSettingsOpen] = useState(false)
   const [isDraggingActivity, setIsDraggingActivity] = useState(false)
   const [workspaceMode, setWorkspaceMode] = useState<WorkspaceMode>('days')
   const [activitySearch, setActivitySearch] = useState('')
-  const [mapMode, setMapMode] = useState<'map' | 'satellite'>('map')
+  const [mapStyle, setMapStyle] = useState<MapStyleId>('streets')
+  const [mapViewportContext, setMapViewportContext] = useState<MapViewportContext | null>(null)
   const [activeActivityId, setActiveActivityId] = useState<number | null>(null)
   const [calendarMonth, setCalendarMonth] = useState(() =>
     getMonthKey(day ?? new Date().toISOString().slice(0, 10)),
@@ -320,6 +518,7 @@ export function TripWorkspacePage() {
   const dayNoteQuery = useDayNote(publicId, selectedDay)
   const createActivityMutation = useCreateActivity()
   const updateActivityMutation = useUpdateActivity()
+  const updateTripMutation = useUpdateTrip()
   const deleteActivityMutation = useDeleteActivity()
   const reorderActivitiesMutation = useReorderActivities()
   const moveActivityMutation = useMoveActivity()
@@ -341,8 +540,9 @@ export function TripWorkspacePage() {
   useEffect(() => {
     if (!publicId || !tripQuery.data || !day) return
     if (!dayInRange(day, tripQuery.data.startDate, tripQuery.data.endDate)) {
+      const nextDay = nearestTripDay(day, tripQuery.data.startDate, tripQuery.data.endDate)
       navigate(
-        `/trips/${encodeURIComponent(publicId)}/d/${encodeURIComponent(tripQuery.data.startDate)}`,
+        `/trips/${encodeURIComponent(publicId)}/d/${encodeURIComponent(nextDay)}`,
         { replace: true },
       )
     }
@@ -426,14 +626,18 @@ export function TripWorkspacePage() {
   const mutationError =
     createActivityMutation.error ||
     updateActivityMutation.error ||
+    updateTripMutation.error ||
     deleteActivityMutation.error ||
     reorderActivitiesMutation.error ||
     moveActivityMutation.error ||
     updateDayNoteMutation.error
 
   const activeEditingActivity =
-    editingActivity && editingActivity.dayDate === selectedDay ? editingActivity : null
+    dayActivities.find((activity) => activity.id === expandedActivityId) ?? null
   const canEditTrip = tripQuery.data?.role !== 'VIEWER'
+  const placeSearchOptions = mapViewportContext?.center
+    ? { proximity: mapViewportContext.center }
+    : undefined
 
   const handleSelectDay = (nextDay: string) => {
     if (
@@ -442,7 +646,7 @@ export function TripWorkspacePage() {
       dayInRange(nextDay, tripQuery.data.startDate, tripQuery.data.endDate)
     ) {
       setWorkspaceMode('days')
-      setEditingActivity(null)
+      setExpandedActivityId(null)
       setPlaceDraft(null)
       setActiveActivityId(null)
       setCalendarMonth(getMonthKey(nextDay))
@@ -452,7 +656,7 @@ export function TripWorkspacePage() {
 
   const openActivityComposer = () => {
     setWorkspaceMode('days')
-    setEditingActivity(null)
+    setExpandedActivityId(null)
     setPlaceDraft({})
     const reducedMotion =
       typeof window.matchMedia === 'function' &&
@@ -479,8 +683,10 @@ export function TripWorkspacePage() {
     target.focus({ preventScroll: true })
   }
 
-  const handleCardActivityActivate = (activity: Activity) => {
+  const handleToggleActivityExpand = (activity: Activity) => {
     setActiveActivityId(activity.id)
+    setPlaceDraft(null)
+    setExpandedActivityId((currentId) => (currentId === activity.id ? null : activity.id))
   }
 
   const handleCreateActivity = async (payload: CreateActivityRequest) => {
@@ -494,20 +700,20 @@ export function TripWorkspacePage() {
     setActiveActivityId(created.id)
   }
 
-  const handleUpdateActivity = async (payload: CreateActivityRequest) => {
-    if (!publicId || !activeEditingActivity) return
+  const handleUpdateActivity = async (activity: Activity, payload: CreateActivityRequest) => {
+    if (!publicId) return
     await updateActivityMutation.mutateAsync({
       publicId,
-      activityId: activeEditingActivity.id,
+      activityId: activity.id,
       body: payload,
     })
-    setEditingActivity(null)
+    setExpandedActivityId(null)
   }
 
   const handleDeleteActivity = (activityId: number) => {
     if (!publicId) return
     if (activeEditingActivity?.id === activityId) {
-      setEditingActivity(null)
+      setExpandedActivityId(null)
     }
     void deleteActivityMutation.mutateAsync({ publicId, activityId })
   }
@@ -538,7 +744,7 @@ export function TripWorkspacePage() {
     }
     const destinationCount = allActivities.filter((item) => item.dayDate === dayDate).length
     if (activeEditingActivity?.id === activity.id) {
-      setEditingActivity(null)
+      setExpandedActivityId(null)
       setPlaceDraft(null)
     }
     void moveActivityMutation.mutateAsync({
@@ -577,7 +783,7 @@ export function TripWorkspacePage() {
     }
 
     if (activeEditingActivity?.id === operation.activity.id) {
-      setEditingActivity(null)
+      setExpandedActivityId(null)
       setPlaceDraft(null)
     }
     void moveActivityMutation.mutateAsync({
@@ -592,20 +798,20 @@ export function TripWorkspacePage() {
     setIsDraggingActivity(false)
   }
 
-  const activityFormInitialValues = activeEditingActivity
-    ? {
-        category: activeEditingActivity.category,
-        title: activeEditingActivity.title,
-        notes: activeEditingActivity.notes,
-        startTime: activeEditingActivity.startTime,
-        endTime: activeEditingActivity.endTime,
-        mapboxId: activeEditingActivity.mapboxId,
-        placeName: activeEditingActivity.placeName,
-        address: activeEditingActivity.address,
-        lat: activeEditingActivity.lat,
-        lng: activeEditingActivity.lng,
-      }
-    : placeDraft ?? undefined
+  const handleSaveTripSettings = async (payload: UpdateTripRequest) => {
+    if (!publicId || !tripQuery.data) return
+    const updatedTrip = await updateTripMutation.mutateAsync({ publicId, body: payload })
+    const nextDay = nearestTripDay(selectedDay, updatedTrip.startDate, updatedTrip.endDate)
+    setIsTripSettingsOpen(false)
+    setExpandedActivityId(null)
+    setPlaceDraft(null)
+    setCalendarMonth(getMonthKey(nextDay))
+    if (nextDay !== selectedDay) {
+      navigate(`/trips/${encodeURIComponent(publicId)}/d/${encodeURIComponent(nextDay)}`, {
+        replace: true,
+      })
+    }
+  }
 
   const createFormKey = placeDraft
     ? [
@@ -660,9 +866,6 @@ export function TripWorkspacePage() {
                 </span>
                 <span>TripPlanner</span>
               </Link>
-              <nav className={styles.topNavLinks} aria-label="Primary">
-                <Link to="/trips" aria-current="page">Trips</Link>
-              </nav>
             </div>
             <div className={styles.topNavActions}>
               <label className={styles.globalSearch}>
@@ -679,25 +882,6 @@ export function TripWorkspacePage() {
                   {pluralize(matchingActivityCount, 'match', 'matches')}
                 </span>
               )}
-              <span className={styles.syncBadge}>
-                <UsersRound size={14} aria-hidden="true" />
-                Shared workspace
-              </span>
-              <div className={styles.topUtilityActions}>
-                <div className={styles.topAvatarStack} aria-label="Trip collaborators">
-                  {collaboratorNames.slice(0, 2).map((name) => (
-                    <span key={name} className={styles.topAvatar} title={name}>
-                      {getInitials(name)}
-                    </span>
-                  ))}
-                  {collaboratorNames.length > 2 && (
-                    <span className={styles.avatarOverflow}>+{collaboratorNames.length - 2}</span>
-                  )}
-                </div>
-                <span className={styles.profileAvatar} aria-label="Current user">
-                  {getInitials(collaboratorNames[0] ?? 'You')}
-                </span>
-              </div>
             </div>
           </header>
 
@@ -737,7 +921,7 @@ export function TripWorkspacePage() {
                     aria-pressed={workspaceMode === 'timeline'}
                     onClick={() => {
                       setWorkspaceMode('timeline')
-                      setEditingActivity(null)
+                      setExpandedActivityId(null)
                       setPlaceDraft(null)
                     }}
                   >
@@ -748,6 +932,25 @@ export function TripWorkspacePage() {
 
                 <div className={styles.railSpacer} />
                 <div className={styles.railFooter}>
+                  {canEditTrip && (
+                    <>
+                      <button
+                        type="button"
+                        className={styles.sidebarAction}
+                        onClick={() => setIsTripSettingsOpen(true)}
+                      >
+                        <Settings size={15} aria-hidden="true" />
+                        Trip Settings
+                      </button>
+                      <Link
+                        to={`/trips/${tripQuery.data.publicId}/members`}
+                        className={styles.shareLink}
+                      >
+                        <Share2 size={15} aria-hidden="true" />
+                        Share
+                      </Link>
+                    </>
+                  )}
                   <Link to="/trips" className={styles.secondaryLink}>
                     Back to trips
                   </Link>
@@ -781,26 +984,15 @@ export function TripWorkspacePage() {
                         </span>
                       ))}
                     </div>
-                    {canEditTrip && (
-                      <>
-                        {workspaceMode === 'days' && (
-                          <button
-                            type="button"
-                            className={styles.primaryAction}
-                            onClick={openActivityComposer}
-                          >
-                            <Plus size={16} aria-hidden="true" />
-                            Add Activity
-                          </button>
-                        )}
-                        <Link
-                          to={`/trips/${tripQuery.data.publicId}/members`}
-                          className={styles.shareLink}
-                        >
-                          <Share2 size={15} aria-hidden="true" />
-                          Share
-                        </Link>
-                      </>
+                    {canEditTrip && workspaceMode === 'days' && (
+                      <button
+                        type="button"
+                        className={styles.primaryAction}
+                        onClick={openActivityComposer}
+                      >
+                        <Plus size={16} aria-hidden="true" />
+                        Add Activity
+                      </button>
                     )}
                   </div>
                 </div>
@@ -830,28 +1022,27 @@ export function TripWorkspacePage() {
                         <ActivityList
                           activities={dayActivities}
                           activeActivityId={visibleActiveActivityId}
+                          expandedActivityId={expandedActivityId}
                           busy={isActivityMutationPending}
                           minDate={tripQuery.data.startDate}
                           maxDate={tripQuery.data.endDate}
                           readOnly={!canEditTrip}
                           onActiveActivityChange={setActiveActivityId}
-                          onActivityActivate={handleCardActivityActivate}
-                          onEdit={(activity) => {
-                            setPlaceDraft(null)
-                            setEditingActivity(activity)
-                          }}
+                          onAddActivity={openActivityComposer}
                           onDelete={handleDeleteActivity}
                           onMoveDown={(activity) => handleMoveActivity(activity, 1)}
                           onMoveToDay={handleMoveActivityToDay}
                           onMoveUp={(activity) => handleMoveActivity(activity, -1)}
+                          onSubmitEdit={handleUpdateActivity}
+                          onToggleExpand={handleToggleActivityExpand}
                         />
-                        {canEditTrip && (activeEditingActivity || placeDraft !== null || dayActivities.length === 0) && (
+                        {canEditTrip && placeDraft !== null && (
                           <div id="activity-composer" className={styles.composer}>
                             <div className={styles.composerIntro}>
                               <div>
                                 <p className={styles.panelKicker}>Add to this day</p>
                                 <h3 className={styles.formHeading}>
-                                  {activeEditingActivity ? 'Edit activity' : 'Create an activity'}
+                                  Create an activity
                                 </h3>
                               </div>
                               <span className={styles.composerHint}>
@@ -859,20 +1050,12 @@ export function TripWorkspacePage() {
                               </span>
                             </div>
                             <ActivityForm
-                              key={activeEditingActivity ? `edit-${activeEditingActivity.id}` : createFormKey}
-                              initialValues={activityFormInitialValues}
-                              onSubmit={activeEditingActivity ? handleUpdateActivity : handleCreateActivity}
-                              onCancel={
-                                activeEditingActivity
-                                  ? () => setEditingActivity(null)
-                                  : () => setPlaceDraft(null)
-                              }
-                              submitting={
-                                activeEditingActivity
-                                  ? updateActivityMutation.isPending
-                                  : createActivityMutation.isPending
-                              }
-                              submitLabel={activeEditingActivity ? 'Save changes' : 'Save activity'}
+                              key={createFormKey}
+                              initialValues={placeDraft ?? undefined}
+                              onSubmit={handleCreateActivity}
+                              onCancel={() => setPlaceDraft(null)}
+                              submitting={createActivityMutation.isPending}
+                              submitLabel="Save activity"
                             />
                           </div>
                         )}
@@ -964,9 +1147,10 @@ export function TripWorkspacePage() {
                   {canEditTrip && (
                     <div className={styles.mapSearchOverlay}>
                       <PlaceSearch
+                        searchOptions={placeSearchOptions}
                         onPlaceSelect={(place) => {
                           setWorkspaceMode('days')
-                          setEditingActivity(null)
+                          setExpandedActivityId(null)
                           setPlaceDraft(place)
                           setActiveActivityId(null)
                         }}
@@ -975,26 +1159,22 @@ export function TripWorkspacePage() {
                   )}
                   <div className={styles.mapChrome}>
                     <h2 id="map-panel-title" className="sr-only">Map</h2>
-                    <div className={styles.mapSegmentedControl} aria-label="Map display mode">
-                      <button
-                        type="button"
-                        aria-pressed={mapMode === 'map'}
-                        onClick={() => setMapMode('map')}
-                        title="Show street map"
-                      >
-                        <MapIcon size={14} aria-hidden="true" />
-                        Map
-                      </button>
-                      <button
-                        type="button"
-                        aria-pressed={mapMode === 'satellite'}
-                        onClick={() => setMapMode('satellite')}
-                        title="Show satellite map"
-                      >
+                    <label className={styles.mapStyleSelect}>
+                      <span>
                         <Layers size={14} aria-hidden="true" />
-                        Satellite
-                      </button>
-                    </div>
+                        Map style
+                      </span>
+                      <select
+                        value={mapStyle}
+                        onChange={(event) => setMapStyle(event.target.value as MapStyleId)}
+                      >
+                        {MAP_STYLE_OPTIONS.map((option) => (
+                          <option key={option.id} value={option.id}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
                     <div className={styles.mapCountBadge}>
                       <MapPin size={14} aria-hidden="true" />
                       {mapMappedActivityCount} mapped {mapMappedActivityCount === 1 ? 'stop' : 'stops'} in view
@@ -1007,10 +1187,11 @@ export function TripWorkspacePage() {
                   routeActivities={workspaceMode === 'timeline' ? [] : dayActivities}
                   activeActivityId={visibleActiveActivityId}
                   destination={tripQuery.data.destination}
-                  mapMode={mapMode}
+                  mapStyle={mapStyle}
                   previewPlace={placeDraft}
                   onActivityActivate={handleActivityActivate}
                   onActiveActivityChange={setActiveActivityId}
+                  onViewportContextChange={setMapViewportContext}
                 />
                 <div
                   className={styles.selectedDayMapCard}
@@ -1055,6 +1236,16 @@ export function TripWorkspacePage() {
               </aside>
             </section>
           </DndContext>
+          {isTripSettingsOpen && (
+            <TripSettingsModal
+              activities={allActivities}
+              error={updateTripMutation.error}
+              onClose={() => setIsTripSettingsOpen(false)}
+              onSave={handleSaveTripSettings}
+              saving={updateTripMutation.isPending}
+              trip={tripQuery.data}
+            />
+          )}
         </>
       ) : null}
     </main>

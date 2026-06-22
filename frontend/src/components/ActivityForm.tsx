@@ -15,7 +15,9 @@ interface ActivityFormProps {
   initialValues?: Partial<CreateActivityRequest>
   onSubmit: (payload: CreateActivityRequest) => Promise<void> | void
   onCancel?: () => void
+  onDelete?: () => void
   submitting: boolean
+  deleteLabel?: string
   submitLabel?: string
 }
 
@@ -28,7 +30,9 @@ export function ActivityForm({
   initialValues,
   onSubmit,
   onCancel,
+  onDelete,
   submitting,
+  deleteLabel = 'Delete',
   submitLabel = 'Save activity',
 }: ActivityFormProps) {
   const [category, setCategory] = useState<ActivityCategory>(initialValues?.category ?? 'OTHER')
@@ -36,7 +40,8 @@ export function ActivityForm({
   const [notes, setNotes] = useState(initialValues?.notes ?? '')
   const [startTime, setStartTime] = useState(initialValues?.startTime ?? '')
   const [endTime, setEndTime] = useState(initialValues?.endTime ?? '')
-  const hasPlace = Boolean(initialValues?.placeName || initialValues?.address)
+  const [placeName, setPlaceName] = useState(initialValues?.placeName ?? '')
+  const [address, setAddress] = useState(initialValues?.address ?? '')
 
   const reset = () => {
     setCategory('OTHER')
@@ -44,6 +49,8 @@ export function ActivityForm({
     setNotes('')
     setStartTime('')
     setEndTime('')
+    setPlaceName('')
+    setAddress('')
   }
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
@@ -56,8 +63,8 @@ export function ActivityForm({
       startTime: emptyToNull(startTime),
       endTime: emptyToNull(endTime),
       mapboxId: initialValues?.mapboxId ?? null,
-      placeName: initialValues?.placeName ?? null,
-      address: initialValues?.address ?? null,
+      placeName: emptyToNull(placeName),
+      address: emptyToNull(address),
       lat: initialValues?.lat ?? null,
       lng: initialValues?.lng ?? null,
     }
@@ -109,13 +116,27 @@ export function ActivityForm({
         />
       </label>
 
-      {hasPlace && (
-        <div className={styles.placeSummary}>
-          <span>Selected place</span>
-          <p>{initialValues?.placeName}</p>
-          {initialValues?.address && <p>{initialValues.address}</p>}
-        </div>
-      )}
+      <div className={styles.fieldGrid}>
+        <label className={styles.label}>
+          Place
+          <input
+            className={styles.input}
+            value={placeName}
+            onChange={(event) => setPlaceName(event.target.value)}
+            placeholder="Restaurant, museum, hotel..."
+          />
+        </label>
+
+        <label className={styles.label}>
+          Address
+          <input
+            className={styles.input}
+            value={address}
+            onChange={(event) => setAddress(event.target.value)}
+            placeholder="Street address or neighborhood..."
+          />
+        </label>
+      </div>
 
       <div className={styles.fieldGrid}>
         <label className={styles.label}>
@@ -140,14 +161,24 @@ export function ActivityForm({
       </div>
 
       <div className={styles.actions}>
-        <button type="submit" className={styles.submitButton} disabled={submitting}>
-          {submitting ? 'Saving…' : submitLabel}
-        </button>
+        {onDelete && (
+          <button
+            type="button"
+            className={styles.deleteButton}
+            onClick={onDelete}
+            disabled={submitting}
+          >
+            {deleteLabel}
+          </button>
+        )}
         {onCancel && (
           <button type="button" className={styles.cancelButton} onClick={onCancel}>
             Cancel
           </button>
         )}
+        <button type="submit" className={styles.submitButton} disabled={submitting}>
+          {submitting ? 'Saving…' : submitLabel}
+        </button>
       </div>
     </form>
   )

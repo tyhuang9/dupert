@@ -1,6 +1,6 @@
 import { act, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { SearchBoxRetrieveResponse } from '@mapbox/search-js-core'
+import type { SearchBoxOptions, SearchBoxRetrieveResponse } from '@mapbox/search-js-core'
 import { PlaceSearch } from './PlaceSearch'
 
 const searchBoxState = vi.hoisted(() => ({
@@ -8,6 +8,7 @@ const searchBoxState = vi.hoisted(() => ({
     onRetrieve?: (res: SearchBoxRetrieveResponse) => void
     onSuggest?: () => void
     onSuggestError?: (error: Error) => void
+    options?: Partial<SearchBoxOptions>
   },
 }))
 
@@ -84,5 +85,19 @@ describe('<PlaceSearch>', () => {
       }),
     )
     expect(screen.queryByText(/ready to add/i)).not.toBeInTheDocument()
+  })
+
+  it('forwards proximity options to Mapbox search', () => {
+    render(
+      <PlaceSearch
+        onPlaceSelect={vi.fn()}
+        searchOptions={{ proximity: { lng: 139.7454, lat: 35.6586 } }}
+      />,
+    )
+
+    expect(searchBoxState.props?.options).toMatchObject({
+      language: 'en',
+      proximity: { lng: 139.7454, lat: 35.6586 },
+    })
   })
 })

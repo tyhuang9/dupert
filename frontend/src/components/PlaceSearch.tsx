@@ -1,12 +1,13 @@
 import { useState } from 'react'
 import { SearchBox } from '@mapbox/search-js-react'
-import type { SearchBoxRetrieveResponse } from '@mapbox/search-js-core'
+import type { SearchBoxOptions, SearchBoxRetrieveResponse } from '@mapbox/search-js-core'
 import type { ActivityCategory, CreateActivityRequest } from '../types/activity'
 import { mapboxAccessTroubleshooting } from '../utils/mapboxAccess'
 import styles from './PlaceSearch.module.css'
 
 interface PlaceSearchProps {
   onPlaceSelect: (place: Partial<CreateActivityRequest>) => void
+  searchOptions?: Partial<SearchBoxOptions>
 }
 
 type RetrievedFeature = SearchBoxRetrieveResponse['features'][number]
@@ -55,7 +56,7 @@ function placePayload(res: SearchBoxRetrieveResponse): Partial<CreateActivityReq
   }
 }
 
-export function PlaceSearch({ onPlaceSelect }: PlaceSearchProps) {
+export function PlaceSearch({ onPlaceSelect, searchOptions }: PlaceSearchProps) {
   const accessToken = import.meta.env.VITE_MAPBOX_TOKEN as string | undefined
   const [value, setValue] = useState('')
   const [searchError, setSearchError] = useState<string | null>(null)
@@ -96,7 +97,7 @@ export function PlaceSearch({ onPlaceSelect }: PlaceSearchProps) {
               setSearchError(null)
             }}
             placeholder="Search restaurants, sights, hotels..."
-            options={{ language: 'en' }}
+            options={{ language: 'en', ...searchOptions }}
           />
         </span>
       </label>
