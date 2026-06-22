@@ -28,26 +28,31 @@ jobs:
 
       - name: Restore dependency-check data
         id: dependency-check-cache
-        uses: actions/cache@v5
+        uses: actions/cache/restore@v5
         with:
           path: ~/.gradle/dependency-check-data
-          key: dependency-check-scan-${{ runner.os }}-${{ hashFiles('backend/build.gradle', 'backend/gradle/wrapper/gradle-wrapper.properties') }}-${{ github.run_id }}
+          key: dependency-check-${{ runner.os }}-odc-data-v1-${{ github.run_id }}
           restore-keys: |
-            dependency-check-${{ runner.os }}-${{ hashFiles('backend/build.gradle', 'backend/gradle/wrapper/gradle-wrapper.properties') }}-
+            dependency-check-${{ runner.os }}-odc-data-v1-
 
       - name: Run backend tests
         working-directory: backend
         run: ./gradlew test
 
-      - name: Verify dependency-check cache
+      - name: Check dependency-check data
+        id: dependency-check-data
         shell: bash
         run: |
-          if [ ! -d "$HOME/.gradle/dependency-check-data" ] || ! find "$HOME/.gradle/dependency-check-data" -name '*.mv.db' -print -quit | grep -q .; then
-            echo "::error title=Dependency-Check cache missing::Run the Dependency-Check Data workflow manually, or wait for the scheduled cache refresh, before running CI."
-            exit 1
+          if [ -d "$HOME/.gradle/dependency-check-data" ] && find "$HOME/.gradle/dependency-check-data" -name '*.mv.db' -print -quit | grep -q .; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
 
+          echo "::warning title=Dependency-Check skipped::No cached Dependency-Check database was found. Run the Dependency-Check Data workflow manually, or wait for the scheduled cache refresh, to enable this scan in CI."
+          echo "available=false" >> "$GITHUB_OUTPUT"
+
       - name: Run dependency check
+        if: steps.dependency-check-data.outputs.available == 'true'
         working-directory: backend
         env:
           DEPENDENCY_CHECK_AUTO_UPDATE: 'false'

@@ -38,9 +38,9 @@ jobs:
         uses: actions/cache@v5
         with:
           path: ~/.gradle/dependency-check-data
-          key: dependency-check-${{ runner.os }}-${{ hashFiles('backend/build.gradle', 'backend/gradle/wrapper/gradle-wrapper.properties') }}-${{ github.run_id }}
+          key: dependency-check-${{ runner.os }}-odc-data-v1-${{ github.run_id }}
           restore-keys: |
-            dependency-check-${{ runner.os }}-${{ hashFiles('backend/build.gradle', 'backend/gradle/wrapper/gradle-wrapper.properties') }}-
+            dependency-check-${{ runner.os }}-odc-data-v1-
 
       - name: Update dependency-check data
         working-directory: backend
@@ -48,3 +48,11 @@ jobs:
           NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
           DEPENDENCY_CHECK_AUTO_UPDATE: 'true'
         run: ./gradlew dependencyCheckUpdate
+
+      - name: Verify dependency-check data
+        shell: bash
+        run: |
+          if [ ! -d "$HOME/.gradle/dependency-check-data" ] || ! find "$HOME/.gradle/dependency-check-data" -name '*.mv.db' -print -quit | grep -q .; then
+            echo "::error title=Dependency-Check data missing::dependencyCheckUpdate completed without creating a usable Dependency-Check database."
+            exit 1
+          fi
