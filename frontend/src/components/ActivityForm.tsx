@@ -1,8 +1,9 @@
 import { useId, useState, type FormEvent } from 'react'
 import {
   BedDouble,
-  Clock,
+  ChevronDown,
   Coffee,
+  FileText,
   Landmark,
   MapPin,
   Plane,
@@ -16,12 +17,21 @@ import styles from './ActivityForm.module.css'
 
 const categories: ActivityCategory[] = [
   'MEAL',
+  'LODGING',
+  'TRANSPORT',
   'ACTIVITY',
   'SNACK',
-  'TRANSPORT',
-  'LODGING',
   'OTHER',
 ]
+
+const categoryLabels: Record<ActivityCategory, string> = {
+  ACTIVITY: 'Activity',
+  LODGING: 'Hotel',
+  MEAL: 'Meal',
+  OTHER: 'Other',
+  SNACK: 'Snack',
+  TRANSPORT: 'Transport',
+}
 
 interface ActivityFormProps {
   initialValues?: Partial<CreateActivityRequest>
@@ -31,7 +41,7 @@ interface ActivityFormProps {
   submitting: boolean
   deleteLabel?: string
   placeSearchOptions?: Partial<SearchBoxOptions>
-  variant?: 'default' | 'compactEdit'
+  variant?: 'default' | 'compact'
   submitLabel?: string
 }
 
@@ -65,14 +75,17 @@ export function ActivityForm({
   submitting,
   deleteLabel = 'Delete',
   placeSearchOptions,
-  variant = 'default',
+  variant = 'compact',
   submitLabel = 'Save activity',
 }: ActivityFormProps) {
   const titleId = useId()
   const timeId = useId()
+  const placeId = useId()
   const addressId = useId()
   const notesId = useId()
   const searchPanelId = useId()
+  const categoryMenuId = useId()
+  const notesPanelId = useId()
   const [category, setCategory] = useState<ActivityCategory>(initialValues?.category ?? 'OTHER')
   const [title, setTitle] = useState(initialValues?.title ?? '')
   const [notes, setNotes] = useState(initialValues?.notes ?? '')
@@ -84,6 +97,8 @@ export function ActivityForm({
   const [lat, setLat] = useState<number | null>(initialValues?.lat ?? null)
   const [lng, setLng] = useState<number | null>(initialValues?.lng ?? null)
   const [selectingPlace, setSelectingPlace] = useState(false)
+  const [categoryMenuOpen, setCategoryMenuOpen] = useState(false)
+  const [notesOpen, setNotesOpen] = useState(Boolean(initialValues?.notes))
 
   const reset = () => {
     setCategory('OTHER')
@@ -97,6 +112,8 @@ export function ActivityForm({
     setLat(null)
     setLng(null)
     setSelectingPlace(false)
+    setCategoryMenuOpen(false)
+    setNotesOpen(false)
   }
 
   const handlePlaceSelect = (place: Partial<CreateActivityRequest>) => {
@@ -142,7 +159,7 @@ export function ActivityForm({
           onClick={onDelete}
           disabled={submitting}
         >
-          {variant === 'compactEdit' && <Trash2 size={14} aria-hidden="true" />}
+          {variant === 'compact' && <Trash2 size={14} aria-hidden="true" />}
           {deleteLabel}
         </button>
       )}
@@ -157,17 +174,47 @@ export function ActivityForm({
     </div>
   )
 
-  if (variant === 'compactEdit') {
+  if (variant === 'compact') {
     return (
-      <form className={`${styles.form} ${styles.compactEditForm}`} onSubmit={handleSubmit}>
+      <form className={`${styles.form} ${styles.compactForm}`} onSubmit={handleSubmit}>
         <div className={styles.compactTopGrid}>
-          <span
-            className={styles.compactIcon}
-            data-category={category}
-            aria-label={`${category.toLowerCase()} activity`}
-          >
-            <ActivityCategoryIcon category={category} />
-          </span>
+          <div className={styles.categoryPicker}>
+            <button
+              type="button"
+              className={styles.compactIcon}
+              data-category={category}
+              aria-label={`Category: ${categoryLabels[category]}`}
+              aria-controls={categoryMenuId}
+              aria-expanded={categoryMenuOpen}
+              onClick={() => setCategoryMenuOpen((current) => !current)}
+            >
+              <ActivityCategoryIcon category={category} />
+              <ChevronDown size={12} aria-hidden="true" />
+            </button>
+            {categoryMenuOpen && (
+              <div id={categoryMenuId} className={styles.categoryMenu} role="menu">
+                {categories.map((value) => (
+                  <button
+                    key={value}
+                    type="button"
+                    className={styles.categoryMenuItem}
+                    data-selected={category === value ? 'true' : undefined}
+                    role="menuitemradio"
+                    aria-checked={category === value}
+                    onClick={() => {
+                      setCategory(value)
+                      setCategoryMenuOpen(false)
+                    }}
+                  >
+                    <span className={styles.categoryMenuIcon} data-category={value}>
+                      <ActivityCategoryIcon category={value} />
+                    </span>
+                    {categoryLabels[value]}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
 
           <label className={styles.label} htmlFor={titleId}>
             Activity name
@@ -191,50 +238,85 @@ export function ActivityForm({
                 value={startTime}
                 onChange={(event) => setStartTime(event.target.value)}
               />
-              <Clock size={15} aria-hidden="true" />
             </span>
           </label>
         </div>
 
-        <div className={styles.label}>
-          <label htmlFor={addressId}>Address</label>
-          <span className={styles.addressControl}>
-            <MapPin size={15} aria-hidden="true" />
-            <input
-              id={addressId}
-              className={styles.addressInput}
-              value={address}
-              onChange={(event) => setAddress(event.target.value)}
-              placeholder="Street address or neighborhood..."
-            />
+        <section className={styles.locationEditor} aria-label="Location">
+          <div className={styles.locationHeader}>
+            <span className={styles.locationTitle}>
+              <MapPin size={15} aria-hidden="true" />
+              Location
+            </span>
             <button
               type="button"
-              className={styles.selectMapButton}
+              className={styles.locationMapButton}
               onClick={() => setSelectingPlace((current) => !current)}
               aria-controls={searchPanelId}
               aria-expanded={selectingPlace}
             >
-              Select on map
+              {selectingPlace ? 'Close map search' : 'Change on map'}
             </button>
-          </span>
-        </div>
-
-        {selectingPlace && (
-          <div id={searchPanelId} className={styles.compactSearchPanel}>
-            <PlaceSearch onPlaceSelect={handlePlaceSelect} searchOptions={placeSearchOptions} />
           </div>
-        )}
 
-        <label className={styles.label} htmlFor={notesId}>
-          Notes
-          <textarea
-            id={notesId}
-            className={`${styles.textarea} ${styles.compactTextarea}`}
-            value={notes}
-            onChange={(event) => setNotes(event.target.value)}
-            placeholder="Reservation details, tickets, confirmation numbers..."
-          />
-        </label>
+          <div className={styles.locationFields}>
+            <label className={styles.locationField} htmlFor={placeId}>
+              Place name
+              <input
+                id={placeId}
+                className={styles.locationInput}
+                value={placeName}
+                onChange={(event) => setPlaceName(event.target.value)}
+                placeholder="Restaurant, museum, hotel..."
+              />
+            </label>
+
+            <label className={styles.locationField} htmlFor={addressId}>
+              Address
+              <input
+                id={addressId}
+                className={styles.locationInput}
+                value={address}
+                onChange={(event) => setAddress(event.target.value)}
+                placeholder="Street address or neighborhood..."
+              />
+            </label>
+          </div>
+
+          {selectingPlace && (
+            <div id={searchPanelId} className={styles.compactSearchPanel}>
+              <PlaceSearch onPlaceSelect={handlePlaceSelect} searchOptions={placeSearchOptions} />
+            </div>
+          )}
+        </section>
+
+        <div className={styles.notesDisclosure}>
+          <button
+            type="button"
+            className={styles.notesToggle}
+            aria-controls={notesPanelId}
+            aria-expanded={notesOpen}
+            onClick={() => setNotesOpen((current) => !current)}
+          >
+            <span>
+              <FileText size={15} aria-hidden="true" />
+              Notes & Details
+            </span>
+            <ChevronDown size={16} aria-hidden="true" />
+          </button>
+          {notesOpen && (
+            <label id={notesPanelId} className={styles.notesPanel} htmlFor={notesId}>
+              <span className="sr-only">Notes</span>
+              <textarea
+                id={notesId}
+                className={`${styles.textarea} ${styles.compactTextarea}`}
+                value={notes}
+                onChange={(event) => setNotes(event.target.value)}
+                placeholder="Reservation details, tickets, confirmation numbers..."
+              />
+            </label>
+          )}
+        </div>
 
         {actions}
       </form>

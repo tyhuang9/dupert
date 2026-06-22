@@ -417,14 +417,14 @@ describe('<TripWorkspacePage>', () => {
     renderWorkspace('/trips/abc234def567')
 
     expect(await screen.findByText(/no activities planned for this day/i)).toBeInTheDocument()
-    expect(screen.queryByLabelText(/^title$/i)).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/activity name/i)).not.toBeInTheDocument()
 
     const addButtons = await screen.findAllByRole('button', { name: /add activity/i })
     await userEvent.click(addButtons[addButtons.length - 1])
-    expect(screen.getByLabelText(/^title$/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/activity name/i)).toBeInTheDocument()
 
     await userEvent.click(screen.getByRole('button', { name: /^cancel$/i }))
-    expect(screen.queryByLabelText(/^title$/i)).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/activity name/i)).not.toBeInTheDocument()
     expect(screen.getByText(/no activities planned for this day/i)).toBeInTheDocument()
   })
 
@@ -438,12 +438,15 @@ describe('<TripWorkspacePage>', () => {
     renderWorkspace('/trips/abc234def567')
 
     await userEvent.click((await screen.findAllByRole('button', { name: /add activity/i }))[0])
-    await userEvent.type(await screen.findByLabelText(/^title$/i), 'Tsukiji sushi')
+    await userEvent.click(await screen.findByRole('button', { name: /category: other/i }))
+    await userEvent.click(screen.getByRole('menuitemradio', { name: /meal/i }))
+    await userEvent.type(await screen.findByLabelText(/activity name/i), 'Tsukiji sushi')
     await userEvent.click(screen.getByRole('button', { name: /^save activity$/i }))
 
     expect(await screen.findAllByText('Tsukiji sushi')).not.toHaveLength(0)
     expect(apiMock.history.post[0].url).toBe('/trips/abc234def567/activities?dayDate=2026-05-01')
     expect(JSON.parse(apiMock.history.post[0].data as string)).toMatchObject({
+      category: 'MEAL',
       title: 'Tsukiji sushi',
       mapboxId: null,
       placeName: null,
@@ -472,7 +475,7 @@ describe('<TripWorkspacePage>', () => {
     await userEvent.click(await screen.findByRole('button', { name: /mock place search/i }))
     expect(screen.queryByRole('heading', { name: /search results/i })).not.toBeInTheDocument()
     expect(screen.queryByText(/ready to add/i)).not.toBeInTheDocument()
-    expect(screen.getByLabelText(/^title$/i)).toHaveValue('Tokyo Tower')
+    expect(screen.getByLabelText(/activity name/i)).toHaveValue('Tokyo Tower')
     expect(screen.getByTestId('preview-map-place')).toHaveTextContent('Tokyo Tower')
     await userEvent.click(screen.getByRole('button', { name: /^save activity$/i }))
 
@@ -514,6 +517,9 @@ describe('<TripWorkspacePage>', () => {
     const titleInput = screen.getByLabelText(/activity name/i)
     await userEvent.clear(titleInput)
     await userEvent.type(titleInput, 'Updated sushi')
+    const placeNameInput = screen.getByLabelText(/place name/i)
+    await userEvent.clear(placeNameInput)
+    await userEvent.type(placeNameInput, 'Updated Tsukiji Market')
     const addressInput = screen.getByLabelText(/^address$/i)
     await userEvent.clear(addressInput)
     await userEvent.type(addressInput, 'New Tsukiji address')
@@ -528,7 +534,7 @@ describe('<TripWorkspacePage>', () => {
       title: 'Updated sushi',
       notes: 'Updated notes',
       mapboxId: 'mapbox.tsukiji',
-      placeName: 'Tsukiji Outer Market',
+      placeName: 'Updated Tsukiji Market',
       address: 'New Tsukiji address',
       lat: 35.6654,
       lng: 139.7707,
@@ -573,7 +579,9 @@ describe('<TripWorkspacePage>', () => {
     await userEvent.click(dinnerCard as HTMLElement)
 
     expect(screen.getByLabelText(/activity name/i)).toHaveValue('Dinner')
-    expect(screen.getByRole('button', { name: /select on map/i })).toBeInTheDocument()
+    expect(screen.getByLabelText(/^time$/i)).toHaveAttribute('type', 'time')
+    expect(screen.getByLabelText(/place name/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /change on map/i })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /move dinner up/i })).not.toBeInTheDocument()
     expect(screen.queryByLabelText(/^day$/i)).not.toBeInTheDocument()
   })

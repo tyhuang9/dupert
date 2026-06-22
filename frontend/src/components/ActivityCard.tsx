@@ -207,7 +207,7 @@ export function ActivityCard({
             onDelete={handleDelete}
             placeSearchOptions={placeSearchOptions}
             submitting={busy}
-            variant="compactEdit"
+            variant="compact"
             submitLabel="Save Changes"
             deleteLabel="Delete"
           />

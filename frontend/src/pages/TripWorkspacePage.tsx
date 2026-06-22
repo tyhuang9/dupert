@@ -998,22 +998,13 @@ export function TripWorkspacePage() {
                         />
                         {canEditTrip && placeDraft !== null && (
                           <div id="activity-composer" className={styles.composer}>
-                            <div className={styles.composerIntro}>
-                              <div>
-                                <p className={styles.panelKicker}>Add to this day</p>
-                                <h3 className={styles.formHeading}>
-                                  Create an activity
-                                </h3>
-                              </div>
-                              <span className={styles.composerHint}>
-                                Search the map, then save details here.
-                              </span>
-                            </div>
+                            <h3 className="sr-only">Create an activity</h3>
                             <ActivityForm
                               key={createFormKey}
                               initialValues={placeDraft ?? undefined}
                               onSubmit={handleCreateActivity}
                               onCancel={() => setPlaceDraft(null)}
+                              placeSearchOptions={placeSearchOptions}
                               submitting={createActivityMutation.isPending}
                               submitLabel="Save activity"
                             />
