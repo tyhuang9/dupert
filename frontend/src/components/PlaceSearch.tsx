@@ -1,19 +1,19 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type FocusEvent } from 'react'
 import { SearchBox } from '@mapbox/search-js-react'
 import type { SearchBoxOptions, SearchBoxRetrieveResponse } from '@mapbox/search-js-core'
-import type { ActivityCategory, CreateActivityRequest } from '../types/activity'
+import type { ActivityCategory } from '../types/activity'
+import type { PlaceSelection } from '../types/place'
 import { mapboxAccessTroubleshooting } from '../utils/mapboxAccess'
 import styles from './PlaceSearch.module.css'
 
 interface PlaceSearchProps {
-  onPlaceSelect: (place: Partial<CreateActivityRequest>) => void
-  onPlacePreview?: (place: Partial<CreateActivityRequest> | null) => void
+  onPlaceSelect: (place: PlaceSelection) => void
+  onPlacePreview?: (place: PlaceSelection | null) => void
   onSearchValueChange?: (value: string) => void
   contextLabel?: string
   focusKey?: number
   searchOptions?: Partial<SearchBoxOptions>
   searchValue?: string
-  selectionLabel?: string
 }
 
 type RetrievedFeature = SearchBoxRetrieveResponse['features'][number]
@@ -39,26 +39,34 @@ function categoryForPlace(properties: RetrievedFeature['properties']): ActivityC
   return 'ACTIVITY'
 }
 
-function placePayload(res: SearchBoxRetrieveResponse): Partial<CreateActivityRequest> | null {
+function normalizePlaceCategory(properties: RetrievedFeature['properties']): string | null {
+  return properties.poi_category?.[0] || properties.maki || properties.feature_type || null
+}
+
+function placePayload(res: SearchBoxRetrieveResponse): PlaceSelection | null {
   const feature = res.features[0]
   if (!feature) return null
   const [lng, lat] = feature.geometry.coordinates
   const properties = feature.properties
-  const title = properties.name_preferred || properties.name
+  const preferredName = properties.name_preferred || properties.name || null
   const address =
     properties.full_address ||
     properties.address ||
     properties.place_formatted ||
     null
+  const title = preferredName || address || 'Selected place'
 
   return {
     category: categoryForPlace(properties),
     title,
     mapboxId: properties.mapbox_id,
-    placeName: title,
+    placeName: preferredName,
     address,
+    coordinatesLabel: `${lat.toFixed(5)}, ${lng.toFixed(5)}`,
+    featureType: properties.feature_type ?? null,
     lat,
     lng,
+    placeCategory: normalizePlaceCategory(properties),
   }
 }
 
@@ -70,15 +78,22 @@ export function PlaceSearch({
   focusKey,
   searchOptions,
   searchValue,
-  selectionLabel,
 }: PlaceSearchProps) {
   const accessToken = import.meta.env.VITE_MAPBOX_TOKEN as string | undefined
   const shellRef = useRef<HTMLDivElement>(null)
   const [value, setValue] = useState(searchValue ?? '')
-  const [pendingPlace, setPendingPlace] = useState<Partial<CreateActivityRequest> | null>(null)
   const [searchError, setSearchError] = useState<string | null>(null)
   const [searchBoxVersion, setSearchBoxVersion] = useState(0)
   const displayedValue = searchValue ?? value
+
+  const scheduleSelectAll = (input: HTMLInputElement) => {
+    const select = () => input.select()
+    if (window.requestAnimationFrame) {
+      window.requestAnimationFrame(select)
+    } else {
+      window.setTimeout(select, 0)
+    }
+  }
 
   useEffect(() => {
     if (focusKey === undefined) return undefined
@@ -96,6 +111,12 @@ export function PlaceSearch({
     return () => cancelFrame(frame)
   }, [focusKey])
 
+  const handleFocusCapture = (event: FocusEvent<HTMLDivElement>) => {
+    if (event.target instanceof HTMLInputElement) {
+      scheduleSelectAll(event.target)
+    }
+  }
+
   if (!accessToken) {
     return (
       <div className={styles.fallback}>
@@ -109,19 +130,13 @@ export function PlaceSearch({
     onSearchValueChange?.(nextValue)
   }
 
-  const clearPendingPlace = () => {
-    if (!pendingPlace) return
-    setPendingPlace(null)
-    onPlacePreview?.(null)
-  }
-
   const closeSuggestions = () => {
     shellRef.current?.querySelector('input')?.blur()
     setSearchBoxVersion((current) => current + 1)
   }
 
   return (
-    <div ref={shellRef} className={styles.searchShell}>
+    <div ref={shellRef} className={styles.searchShell} onFocusCapture={handleFocusCapture}>
       {contextLabel && <p className={styles.context}>{contextLabel}</p>}
       <label className={styles.label}>
         Search places
@@ -134,7 +149,7 @@ export function PlaceSearch({
             onChange={(nextValue) => {
               updateValue(nextValue)
               if (!nextValue) setSearchError(null)
-              clearPendingPlace()
+              onPlacePreview?.(null)
             }}
             onSuggest={() => setSearchError(null)}
             onSuggestError={() => {
@@ -146,17 +161,12 @@ export function PlaceSearch({
               setSearchError(null)
               updateValue(payload.address ?? payload.placeName ?? payload.title ?? '')
               closeSuggestions()
-              if (selectionLabel) {
-                setPendingPlace(payload)
-                onPlacePreview?.(payload)
-              } else {
-                onPlaceSelect(payload)
-              }
+              onPlaceSelect(payload)
             }}
             onClear={() => {
               setSearchError(null)
               updateValue('')
-              clearPendingPlace()
+              onPlacePreview?.(null)
             }}
             placeholder="Search restaurants, sights, hotels..."
             options={{ language: 'en', ...searchOptions }}
@@ -167,21 +177,6 @@ export function PlaceSearch({
         <p className={styles.searchError} role="alert">
           {searchError}
         </p>
-      )}
-      {selectionLabel && pendingPlace && (
-        <div className={styles.resultCard} aria-live="polite">
-          <div>
-            <strong>{pendingPlace.placeName ?? pendingPlace.title}</strong>
-            {pendingPlace.address && <span>{pendingPlace.address}</span>}
-          </div>
-          <button
-            type="button"
-            className={styles.resultButton}
-            onClick={() => onPlaceSelect(pendingPlace)}
-          >
-            {selectionLabel}
-          </button>
-        </div>
       )}
     </div>
   )

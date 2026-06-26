@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SearchBoxOptions, SearchBoxRetrieveResponse } from '@mapbox/search-js-core'
 import { PlaceSearch } from './PlaceSearch'
@@ -85,6 +85,8 @@ describe('<PlaceSearch>', () => {
         title: 'Tokyo Tower',
         placeName: 'Tokyo Tower',
         address: '4 Chome-2-8 Shibakoen, Minato City, Tokyo',
+        coordinatesLabel: '35.65860, 139.74540',
+        placeCategory: 'landmark',
         lat: 35.6586,
         lng: 139.7454,
       }),
@@ -93,14 +95,13 @@ describe('<PlaceSearch>', () => {
     expect(screen.queryByText(/ready to add/i)).not.toBeInTheDocument()
   })
 
-  it('previews a place and waits for confirmation when a selection label is provided', () => {
+  it('selects a place immediately without an update confirmation', () => {
     const onPlacePreview = vi.fn()
     const onPlaceSelect = vi.fn()
     render(
       <PlaceSearch
         onPlacePreview={onPlacePreview}
         onPlaceSelect={onPlaceSelect}
-        selectionLabel="Update Location"
       />,
     )
 
@@ -120,21 +121,15 @@ describe('<PlaceSearch>', () => {
       } as SearchBoxRetrieveResponse)
     })
 
-    expect(onPlacePreview).toHaveBeenCalledWith(
-      expect.objectContaining({
-        placeName: 'Tokyo Tower',
-      }),
-    )
-    expect(onPlaceSelect).not.toHaveBeenCalled()
-    expect(screen.getByText('Tokyo Tower')).toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: /update location/i }))
-
     expect(onPlaceSelect).toHaveBeenCalledWith(
       expect.objectContaining({
         placeName: 'Tokyo Tower',
       }),
     )
+    expect(onPlacePreview).not.toHaveBeenCalledWith(expect.objectContaining({
+      placeName: 'Tokyo Tower',
+    }))
+    expect(screen.queryByRole('button', { name: /update location/i })).not.toBeInTheDocument()
   })
 
   it('passes a prefilled search value to Mapbox search', () => {
@@ -142,6 +137,18 @@ describe('<PlaceSearch>', () => {
 
     expect(searchBoxState.props?.value).toBe('160 Piccadilly')
     expect(screen.getByLabelText(/mock mapbox search/i)).toHaveValue('160 Piccadilly')
+  })
+
+  it('selects the full search value when the input receives focus', async () => {
+    render(<PlaceSearch onPlaceSelect={vi.fn()} searchValue="160 Piccadilly" />)
+
+    const input = screen.getByLabelText(/mock mapbox search/i) as HTMLInputElement
+    input.focus()
+
+    await waitFor(() => {
+      expect(input.selectionStart).toBe(0)
+      expect(input.selectionEnd).toBe('160 Piccadilly'.length)
+    })
   })
 
   it('forwards proximity options to Mapbox search', () => {

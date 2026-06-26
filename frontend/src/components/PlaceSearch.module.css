@@ -53,49 +53,6 @@
   line-height: var(--line-height-base);
 }
 
-.resultCard {
-  display: grid;
-  gap: var(--space-3);
-  padding: var(--space-3);
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-md);
-  background: var(--color-surface);
-  box-shadow: var(--shadow-sm);
-}
-
-.resultCard strong,
-.resultCard span {
-  display: block;
-  min-width: 0;
-}
-
-.resultCard strong {
-  overflow: hidden;
-  color: var(--color-text);
-  font-size: var(--font-size-sm);
-  line-height: 1.25;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.resultCard span {
-  margin-top: var(--space-1);
-  color: var(--color-text-muted);
-  font-size: var(--font-size-xs);
-  line-height: var(--line-height-base);
-}
-
-.resultButton {
-  min-height: 36px;
-  border: 0;
-  border-radius: var(--radius-md);
-  background: var(--color-primary);
-  color: var(--color-primary-fg);
-  font-size: var(--font-size-sm);
-  font-weight: 800;
-  cursor: pointer;
-}
-
 .fallback {
   padding: var(--space-3);
   border: 1px dashed var(--color-border-strong);

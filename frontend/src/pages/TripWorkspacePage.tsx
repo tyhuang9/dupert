@@ -1207,7 +1207,6 @@ export function TripWorkspacePage() {
                         }
                         focusKey={mapSearchFocusKey}
                         searchValue={mapSearchValue}
-                        selectionLabel={mapLocationTarget ? 'Update Location' : undefined}
                         searchOptions={placeSearchOptions}
                         onPlacePreview={setMapSearchPreview}
                         onPlaceSelect={(place) => void handleMapPlaceSelect(place)}

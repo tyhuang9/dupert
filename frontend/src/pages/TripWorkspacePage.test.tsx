@@ -96,14 +96,12 @@ vi.mock('../components/PlaceSearch', () => ({
     onPlaceSelect,
     onPlacePreview,
     searchValue,
-    selectionLabel,
     searchOptions,
   }: {
     contextLabel?: string
     onPlaceSelect: (place: Record<string, unknown>) => void
     onPlacePreview?: (place: Record<string, unknown> | null) => void
     searchValue?: string
-    selectionLabel?: string
     searchOptions?: { proximity?: { lng: number; lat: number } }
   }) => {
     placeSearchMockState.searchOptions = searchOptions ?? null
@@ -120,7 +118,6 @@ vi.mock('../components/PlaceSearch', () => ({
       <div>
         {contextLabel && <div>{contextLabel}</div>}
         <div data-testid="place-search-value">{searchValue ?? ''}</div>
-        <div data-testid="place-search-selection-label">{selectionLabel ?? 'none'}</div>
         <div data-testid="place-search-proximity">
           {searchOptions?.proximity
             ? `${searchOptions.proximity.lng},${searchOptions.proximity.lat}`
@@ -130,16 +127,11 @@ vi.mock('../components/PlaceSearch', () => ({
           type="button"
           onClick={() => {
             onPlacePreview?.(place)
-            if (!selectionLabel) onPlaceSelect(place)
+            onPlaceSelect(place)
           }}
         >
           Mock place search
         </button>
-        {selectionLabel && (
-          <button type="button" onClick={() => onPlaceSelect(place)}>
-            {selectionLabel}
-          </button>
-        )}
       </div>
     )
   },
@@ -562,7 +554,7 @@ describe('<TripWorkspacePage>', () => {
     })
   })
 
-  it('links activity location editing to the map pane before updating the activity', async () => {
+  it('links activity location editing to the map pane and updates after selecting a place', async () => {
     const placedActivity = {
       ...SAMPLE_ACTIVITY,
       mapboxId: 'mapbox.tsukiji',
@@ -593,12 +585,9 @@ describe('<TripWorkspacePage>', () => {
     await userEvent.click(screen.getByRole('button', { name: /change on map/i }))
 
     expect(screen.getByTestId('place-search-value')).toHaveTextContent('Tsukiji, Chuo City, Tokyo')
-    expect(screen.getByTestId('place-search-selection-label')).toHaveTextContent('Update Location')
     expect(screen.getByText(/updating location for tsukiji sushi/i)).toBeInTheDocument()
 
     await userEvent.click(screen.getByRole('button', { name: /mock place search/i }))
-    expect(screen.getByTestId('preview-map-place')).toHaveTextContent('Tokyo Tower')
-    await userEvent.click(screen.getByRole('button', { name: /update location/i }))
 
     await waitFor(() => {
       expect(apiMock.history.patch[0].url).toBe('/trips/abc234def567/activities/10')
