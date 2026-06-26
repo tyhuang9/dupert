@@ -422,8 +422,8 @@ describe('<NewTripPage>', () => {
     )
     expect(searchBoxState.props?.options).toMatchObject({
       language: 'en',
-      proximity: 'none',
     })
+    expect(searchBoxState.props?.options).not.toHaveProperty('proximity')
   })
 
   it('surfaces server validation errors', async () => {

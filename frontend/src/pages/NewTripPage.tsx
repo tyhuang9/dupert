@@ -26,7 +26,6 @@ const EMPTY_FORM: FormState = {
 
 const DESTINATION_SEARCH_OPTIONS: Partial<SearchBoxOptions> = {
   language: 'en',
-  proximity: 'none',
 }
 
 function validateForm(form: FormState): Record<string, string> {
