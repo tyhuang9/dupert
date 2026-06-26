@@ -12,18 +12,29 @@ const searchBoxState = vi.hoisted(() => ({
     value?: string
     options?: Partial<SearchBoxOptions>
   },
+  focus: vi.fn(),
+  search: vi.fn(),
 }))
 
-vi.mock('@mapbox/search-js-react', () => ({
-  SearchBox: (props: typeof searchBoxState.props) => {
-    searchBoxState.props = props
-    return <input aria-label="Mock Mapbox search" value={props?.value ?? ''} readOnly />
-  },
-}))
+vi.mock('@mapbox/search-js-react', async () => {
+  const React = await import('react')
+  return {
+    SearchBox: React.forwardRef((props: typeof searchBoxState.props, ref) => {
+      searchBoxState.props = props
+      React.useImperativeHandle(ref, () => ({
+        focus: searchBoxState.focus,
+        search: searchBoxState.search,
+      }))
+      return <input aria-label="Mock Mapbox search" value={props?.value ?? ''} readOnly />
+    }),
+  }
+})
 
 beforeEach(() => {
   vi.stubEnv('VITE_MAPBOX_TOKEN', 'pk.test')
   searchBoxState.props = null
+  searchBoxState.focus.mockClear()
+  searchBoxState.search.mockClear()
 })
 
 afterEach(() => {
@@ -176,13 +187,20 @@ describe('<PlaceSearch>', () => {
         onSearchValueChange={onSearchValueChange}
       />,
     )
+    const input = screen.getByLabelText(/mock mapbox search/i)
+    const inputEvents = vi.fn()
+    input.addEventListener('input', inputEvents)
 
     await userEvent.click(screen.getByRole('button', { name: /restaurants/i }))
 
     await waitFor(() => {
-      expect(searchBoxState.props?.value).toBe('Restaurant')
+      expect(searchBoxState.props?.value).toBe('restaurants')
     })
-    expect(onSearchValueChange).toHaveBeenCalledWith('Restaurant')
+    await waitFor(() => {
+      expect(searchBoxState.search).toHaveBeenCalledWith('restaurants')
+    })
+    expect(inputEvents).not.toHaveBeenCalled()
+    expect(onSearchValueChange).toHaveBeenCalledWith('restaurants')
     expect(onPlacePreview).toHaveBeenCalledWith(null)
   })
 })

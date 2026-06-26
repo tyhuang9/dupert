@@ -1001,7 +1001,7 @@
 }
 
 .mapSearchOverlay {
-  width: min(100%, 48rem);
+  width: min(100%, 34rem);
 }
 
 .mapStyleSelect {

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FocusEvent } from 'react'
-import { SearchBox } from '@mapbox/search-js-react'
+import { SearchBox, type SearchBoxRefType } from '@mapbox/search-js-react'
 import type { SearchBoxOptions, SearchBoxRetrieveResponse } from '@mapbox/search-js-core'
 import { Coffee, Fuel, ShoppingCart, Utensils } from 'lucide-react'
 import type { ActivityCategory } from '../types/activity'
@@ -20,10 +20,10 @@ interface PlaceSearchProps {
 type RetrievedFeature = SearchBoxRetrieveResponse['features'][number]
 
 const CATEGORY_SHORTCUTS = [
-  { label: 'Coffee', query: 'Coffee', icon: Coffee },
-  { label: 'Restaurants', query: 'Restaurant', icon: Utensils },
-  { label: 'Gas', query: 'Gas station', icon: Fuel },
-  { label: 'Shopping', query: 'Shopping', icon: ShoppingCart },
+  { label: 'Coffee', query: 'coffee', icon: Coffee },
+  { label: 'Restaurants', query: 'restaurants', icon: Utensils },
+  { label: 'Gas', query: 'gas station', icon: Fuel },
+  { label: 'Shopping', query: 'shopping', icon: ShoppingCart },
 ]
 
 function categoryForPlace(properties: RetrievedFeature['properties']): ActivityCategory {
@@ -89,6 +89,7 @@ export function PlaceSearch({
 }: PlaceSearchProps) {
   const accessToken = import.meta.env.VITE_MAPBOX_TOKEN as string | undefined
   const shellRef = useRef<HTMLDivElement>(null)
+  const searchBoxRef = useRef<SearchBoxRefType | null>(null)
   const [value, setValue] = useState(searchValue ?? '')
   const [searchError, setSearchError] = useState<string | null>(null)
   const [searchBoxVersion, setSearchBoxVersion] = useState(0)
@@ -138,6 +139,24 @@ export function PlaceSearch({
     onSearchValueChange?.(nextValue)
   }
 
+  const openSuggestionsForQuery = (query: string) => {
+    const input = shellRef.current?.querySelector('input')
+    if (!input) return
+
+    const valueSetter = Object.getOwnPropertyDescriptor(
+      window.HTMLInputElement.prototype,
+      'value',
+    )?.set
+    valueSetter?.call(input, query)
+    input.focus()
+    input.setSelectionRange(query.length, query.length)
+    if (searchBoxRef.current) {
+      searchBoxRef.current.search(query)
+      return
+    }
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+  }
+
   const closeSuggestions = () => {
     shellRef.current?.querySelector('input')?.blur()
     setSearchBoxVersion((current) => current + 1)
@@ -148,9 +167,7 @@ export function PlaceSearch({
     updateValue(query)
     onPlacePreview?.(null)
     window.requestAnimationFrame(() => {
-      const input = shellRef.current?.querySelector('input')
-      input?.focus()
-      input?.select()
+      openSuggestionsForQuery(query)
     })
   }
 
@@ -162,6 +179,7 @@ export function PlaceSearch({
           <span className="sr-only">Search places</span>
           <span className={styles.searchBox}>
             <SearchBox
+              ref={searchBoxRef}
               key={searchBoxVersion}
               accessToken={accessToken}
               value={displayedValue}
