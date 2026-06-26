@@ -6,13 +6,14 @@ import {
   Plus,
   Search,
   SlidersHorizontal,
+  Trash2,
   UserRound,
   X,
 } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth'
 import { parseApiError } from '../api/errors'
-import { useTrips } from '../hooks/useTrips'
+import { useDeleteTrip, useTrips } from '../hooks/useTrips'
 import type { Trip, TripRole } from '../types/trip'
 import coastalCard from '../assets/trips/coastal-card.webp'
 import emptyPlanner from '../assets/trips/empty-planner.webp'
@@ -105,7 +106,10 @@ export function TripsPage() {
   const [loggingOut, setLoggingOut] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [roleFilter, setRoleFilter] = useState<RoleFilter>('ALL')
+  const [deletingTripId, setDeletingTripId] = useState<string | null>(null)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
   const tripsQuery = useTrips()
+  const deleteTripMutation = useDeleteTrip()
   const trips = useMemo(() => tripsQuery.data ?? [], [tripsQuery.data])
 
   const visibleTrips = useMemo(
@@ -120,6 +124,10 @@ export function TripsPage() {
 
   const hasTrips = trips.length > 0
   const hasActiveFilters = searchTerm.trim().length > 0 || roleFilter !== 'ALL'
+  const tripGridClassName =
+    visibleTrips.length === 1
+      ? `${styles.tripGrid} ${styles.tripGridSingle}`
+      : styles.tripGrid
 
   function clearFilters() {
     setSearchTerm('')
@@ -136,6 +144,23 @@ export function TripsPage() {
       // the auth store has already been cleared by the context handler.
       navigate('/login', { replace: true })
       setLoggingOut(false)
+    }
+  }
+
+  async function onDeleteTrip(trip: Trip) {
+    const confirmed = window.confirm(
+      `Delete "${trip.name}"? This cannot be undone.`,
+    )
+    if (!confirmed) return
+
+    setDeletingTripId(trip.publicId)
+    setDeleteError(null)
+    try {
+      await deleteTripMutation.mutateAsync(trip.publicId)
+    } catch (err) {
+      setDeleteError(parseApiError(err).topMessage)
+    } finally {
+      setDeletingTripId(null)
     }
   }
 
@@ -233,56 +258,77 @@ export function TripsPage() {
             {trips.length === 1 ? 'trip' : 'trips'}
           </p>
 
+          {deleteError ? (
+            <p className={styles.inlineError} role="alert">
+              {deleteError}
+            </p>
+          ) : null}
+
           {visibleTrips.length > 0 ? (
-            <ul className={styles.tripGrid} aria-label="Trips">
+            <ul className={tripGridClassName} aria-label="Trips">
               {visibleTrips.map((trip) => {
                 const visual = TRIP_VISUALS[selectTripVisualKey(trip)]
                 const destination = trip.destination ?? 'Destination pending'
                 const dateRange = formatTripDateRange(trip)
                 const duration = formatTripDuration(trip)
                 const role = formatRole(trip.role)
+                const isDeleting = deletingTripId === trip.publicId
 
                 return (
                   <li key={trip.publicId} className={styles.tripCardItem}>
-                    <Link
-                      to={`/trips/${trip.publicId}`}
-                      className={styles.tripCard}
-                      aria-label={[
-                        `Open ${trip.name}`,
-                        destination,
-                        dateRange,
-                        duration,
-                        role,
-                      ].join(', ')}
-                    >
-                      <span className={styles.cardMedia}>
-                        <img
-                          src={visual}
-                          alt=""
-                          width="1200"
-                          height="676"
-                          loading="lazy"
-                        />
-                        <span className={styles.role}>{role}</span>
-                      </span>
-                      <span className={styles.cardBody}>
-                        <span className={styles.tripName}>{trip.name}</span>
-                        <span className={styles.tripMeta}>
-                          <span>
-                            <MapPin aria-hidden="true" size={16} />
-                            {destination}
-                          </span>
-                          <span>
-                            <CalendarDays aria-hidden="true" size={16} />
-                            {dateRange}
-                          </span>
-                          <span>
-                            <UserRound aria-hidden="true" size={16} />
-                            {duration}
+                    <div className={styles.tripCardFrame}>
+                      <Link
+                        to={`/trips/${trip.publicId}`}
+                        className={styles.tripCard}
+                        aria-label={[
+                          `Open ${trip.name}`,
+                          destination,
+                          dateRange,
+                          duration,
+                          role,
+                        ].join(', ')}
+                      >
+                        <span className={styles.cardMedia}>
+                          <img
+                            src={visual}
+                            alt=""
+                            width="1200"
+                            height="676"
+                            loading="lazy"
+                          />
+                          <span className={styles.role}>{role}</span>
+                        </span>
+                        <span className={styles.cardBody}>
+                          <span className={styles.tripName}>{trip.name}</span>
+                          <span className={styles.tripMeta}>
+                            <span>
+                              <MapPin aria-hidden="true" size={16} />
+                              {destination}
+                            </span>
+                            <span>
+                              <CalendarDays aria-hidden="true" size={16} />
+                              {dateRange}
+                            </span>
+                            <span>
+                              <UserRound aria-hidden="true" size={16} />
+                              {duration}
+                            </span>
                           </span>
                         </span>
-                      </span>
-                    </Link>
+                      </Link>
+                      {trip.role === 'OWNER' ? (
+                        <button
+                          type="button"
+                          className={styles.tripDeleteButton}
+                          disabled={isDeleting}
+                          onClick={() => void onDeleteTrip(trip)}
+                          aria-label={`Delete ${trip.name}`}
+                        >
+                          <Trash2 aria-hidden="true" size={15} />
+                          {isDeleting ? 'Deleting...' : 'Delete'}
+                        </button>
+                      ) : null}
+                    </div>
                   </li>
                 )
               })}

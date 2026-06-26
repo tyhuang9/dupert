@@ -171,6 +171,9 @@ describe('<TripsPage>', () => {
     expect(
       screen.getByRole('link', { name: /open paris spring/i }),
     ).toBeInTheDocument()
+    expect(screen.getByRole('list', { name: /^trips$/i }).className).toContain(
+      'tripGridSingle',
+    )
     expect(
       screen.queryByRole('link', { name: /open tokyo 2026/i }),
     ).not.toBeInTheDocument()
@@ -190,6 +193,41 @@ describe('<TripsPage>', () => {
       screen.getByRole('link', { name: /open coastal reset/i }),
     ).toBeInTheDocument()
     expect(screen.getByText(/showing 3 of 3 trips/i)).toBeInTheDocument()
+  })
+
+  it('deletes owner trips from the navigator', async () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
+    apiMock
+      .onGet('/trips')
+      .reply(200, [SAMPLE_TRIP, PARIS_TRIP])
+      .onDelete('/trips/abc234def567')
+      .reply(204)
+
+    renderTrips()
+
+    expect(
+      await screen.findByRole('link', { name: /open tokyo 2026/i }),
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole('button', { name: /delete paris spring/i }),
+    ).not.toBeInTheDocument()
+
+    await userEvent.click(
+      screen.getByRole('button', { name: /delete tokyo 2026/i }),
+    )
+
+    expect(confirmSpy).toHaveBeenCalledWith(
+      'Delete "Tokyo 2026"? This cannot be undone.',
+    )
+    await waitFor(() => {
+      expect(apiMock.history.delete[0].url).toBe('/trips/abc234def567')
+    })
+    expect(
+      screen.queryByRole('link', { name: /open tokyo 2026/i }),
+    ).not.toBeInTheDocument()
+    expect(
+      screen.getByRole('link', { name: /open paris spring/i }),
+    ).toBeInTheDocument()
   })
 
   it('renders an empty state with a create link', async () => {

@@ -279,6 +279,18 @@
   line-height: var(--line-height-base);
 }
 
+.inlineError {
+  margin: 0;
+  padding: var(--space-3);
+  border: 1px solid #fecaca;
+  border-radius: var(--radius-md);
+  background: var(--color-danger-bg);
+  color: var(--color-danger-fg);
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  line-height: var(--line-height-base);
+}
+
 .tripGrid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
@@ -288,8 +300,18 @@
   list-style: none;
 }
 
+.tripGridSingle {
+  grid-template-columns: minmax(0, min(100%, 22rem));
+}
+
 .tripCardItem {
   min-width: 0;
+}
+
+.tripCardFrame {
+  position: relative;
+  min-width: 0;
+  height: 100%;
 }
 
 .tripCard {
@@ -314,6 +336,44 @@
   border-color: color-mix(in srgb, var(--color-primary) 54%, var(--color-surface-border));
   box-shadow: var(--shadow-lg);
   transform: translateY(-2px);
+}
+
+.tripDeleteButton {
+  position: absolute;
+  right: var(--space-3);
+  bottom: var(--space-3);
+  z-index: 2;
+  min-height: 2rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  padding: 0 var(--space-2);
+  border: 1px solid color-mix(in srgb, var(--color-danger) 35%, var(--color-surface-border));
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.94);
+  color: var(--color-danger-fg);
+  font: inherit;
+  font-size: var(--font-size-xs);
+  font-weight: 800;
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+}
+
+.tripDeleteButton:hover:not(:disabled),
+.tripDeleteButton:focus-visible {
+  border-color: var(--color-danger);
+  background: var(--color-danger-bg);
+}
+
+.tripDeleteButton:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.tripDeleteButton:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
 }
 
 .cardMedia {
@@ -349,7 +409,7 @@
   display: grid;
   align-content: start;
   gap: var(--space-3);
-  padding: var(--space-4);
+  padding: var(--space-4) var(--space-4) calc(var(--space-4) + 2rem);
 }
 
 .tripName {
