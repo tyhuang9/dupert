@@ -73,6 +73,7 @@
 }
 
 .routeSummary,
+.placeDetailsCard,
 .mapNotice {
   position: absolute;
   max-width: calc(100% - var(--space-6));
@@ -104,6 +105,97 @@
   align-items: center;
   gap: var(--space-2);
   color: var(--color-primary-text);
+}
+
+.placeDetailsCard {
+  left: var(--space-3);
+  bottom: var(--space-3);
+  z-index: 3;
+  width: min(23rem, calc(100% - var(--space-6)));
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  color: var(--color-text);
+}
+
+.placeDetailsCard > svg {
+  color: var(--color-primary-text);
+}
+
+.placeDetailsBody {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-1);
+}
+
+.placeDetailsKicker,
+.placeDetailsAddress,
+.placeDetailsCard h3,
+.placeDetailsMetadata {
+  margin: 0;
+}
+
+.placeDetailsKicker {
+  color: var(--color-text-muted);
+  font-size: 0.68rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.placeDetailsCard h3 {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-text);
+  font-size: var(--font-size-sm);
+  font-weight: 850;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.placeDetailsAddress {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.placeDetailsMetadata {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  padding-top: var(--space-1);
+}
+
+.placeDetailsMetadata div {
+  min-height: 24px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--color-surface-border);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-2);
+  color: var(--color-text-muted);
+  font-size: 0.68rem;
+  font-weight: 800;
+}
+
+.placeDetailsMetadata dt,
+.placeDetailsMetadata dd {
+  margin: 0;
+}
+
+.placeDetailsMetadata dt::after {
+  content: ':';
+}
+
+.placeDetailsMetadata dd {
+  color: var(--color-text);
 }
 
 .mapStyleControl {
@@ -265,9 +357,14 @@
   }
 
   .routeSummary,
-  .emptyMapCard {
+  .emptyMapCard,
+  .placeDetailsCard {
     right: var(--space-3);
     min-width: 0;
+  }
+
+  .routeSummaryWithPlaceDetails {
+    bottom: calc(var(--space-3) + 9rem);
   }
 }
 

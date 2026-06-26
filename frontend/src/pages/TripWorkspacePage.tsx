@@ -48,6 +48,7 @@ import { DayNoteEditor } from '../components/DayNoteEditor'
 import { PlaceSearch } from '../components/PlaceSearch'
 import { TripMap, type MapStyleId, type MapViewportContext } from '../components/TripMap'
 import type { Activity, CreateActivityRequest } from '../types/activity'
+import type { PlaceSelection } from '../types/place'
 import type { Trip, UpdateTripRequest } from '../types/trip'
 import {
   dayDropId,
@@ -184,13 +185,13 @@ function locationSearchQuery(
 function activityUpdateWithPlace(
   activity: Activity,
   basePayload: CreateActivityRequest,
-  place: Partial<CreateActivityRequest>,
+  place: PlaceSelection,
 ): CreateActivityRequest {
   return {
     ...basePayload,
     title: basePayload.title.trim() || activity.title,
     mapboxId: place.mapboxId ?? null,
-    placeName: place.placeName ?? place.title ?? basePayload.placeName ?? null,
+    placeName: place.placeName ?? null,
     address: place.address ?? null,
     lat: place.lat ?? null,
     lng: place.lng ?? null,
@@ -523,7 +524,7 @@ export function TripWorkspacePage() {
   const { publicId, day } = useParams()
   const navigate = useNavigate()
   const [expandedActivityId, setExpandedActivityId] = useState<number | null>(null)
-  const [placeDraft, setPlaceDraft] = useState<Partial<CreateActivityRequest> | null>(null)
+  const [placeDraft, setPlaceDraft] = useState<PlaceSelection | null>(null)
   const [isTripSettingsOpen, setIsTripSettingsOpen] = useState(false)
   const [isDraggingActivity, setIsDraggingActivity] = useState(false)
   const [workspaceMode, setWorkspaceMode] = useState<WorkspaceMode>('days')
@@ -533,7 +534,7 @@ export function TripWorkspacePage() {
   const [mapLocationTarget, setMapLocationTarget] = useState<MapLocationTarget | null>(null)
   const [mapSearchValue, setMapSearchValue] = useState('')
   const [mapSearchFocusKey, setMapSearchFocusKey] = useState(0)
-  const [mapSearchPreview, setMapSearchPreview] = useState<Partial<CreateActivityRequest> | null>(null)
+  const [mapSearchPreview, setMapSearchPreview] = useState<PlaceSelection | null>(null)
   const [activeActivityId, setActiveActivityId] = useState<number | null>(null)
   const [calendarMonth, setCalendarMonth] = useState(() =>
     getMonthKey(day ?? new Date().toISOString().slice(0, 10)),
@@ -781,7 +782,7 @@ export function TripWorkspacePage() {
     })
   }
 
-  const handleMapPlaceSelect = async (place: Partial<CreateActivityRequest>) => {
+  const handleMapPlaceSelect = async (place: PlaceSelection) => {
     if (!mapLocationTarget) {
       setWorkspaceMode('days')
       setExpandedActivityId(null)

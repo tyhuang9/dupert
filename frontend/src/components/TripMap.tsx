@@ -13,6 +13,7 @@ import { AlertCircle, Layers, LoaderCircle, MapPinned, Route } from 'lucide-reac
 import { getDrivingDirections, type DirectionsRoute } from '../api/mapboxDirections'
 import { geocodeDestination, type DestinationCoordinate } from '../api/mapboxGeocode'
 import type { Activity } from '../types/activity'
+import type { PlaceSelection } from '../types/place'
 import { mapboxAccessTroubleshooting } from '../utils/mapboxAccess'
 import styles from './TripMap.module.css'
 
@@ -40,13 +41,17 @@ export interface MapViewportContext {
   zoom?: number
 }
 
-export interface MapPreviewPlace {
-  address?: string | null
-  lat?: number | null
-  lng?: number | null
-  placeName?: string | null
-  title?: string | null
-}
+export interface MapPreviewPlace extends Pick<
+  PlaceSelection,
+  | 'address'
+  | 'coordinatesLabel'
+  | 'featureType'
+  | 'lat'
+  | 'lng'
+  | 'placeCategory'
+  | 'placeName'
+  | 'title'
+> {}
 
 interface CoordinateActivity extends Activity {
   lat: number
@@ -62,6 +67,12 @@ interface DisplayStop {
   source: 'selected' | 'trip' | 'destination' | 'preview'
   title: string
   activityId?: number
+}
+
+interface PreviewPlaceDetails {
+  address: string | null
+  metadata: Array<{ label: string; value: string }>
+  title: string
 }
 
 const DEFAULT_VIEW_STATE: ViewState = {
@@ -173,6 +184,45 @@ function previewPlaceToDisplayStop(previewPlace: MapPreviewPlace | null | undefi
   }
 }
 
+function formatMetadataValue(value: string): string {
+  const trimmed = value.trim()
+  if (!trimmed) return ''
+  return trimmed
+    .replace(/[_-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .replace(/\b\w/g, (letter) => letter.toUpperCase())
+}
+
+function previewPlaceToDetails(
+  previewPlace: MapPreviewPlace | null | undefined,
+  previewDisplayStop: DisplayStop | null,
+): PreviewPlaceDetails | null {
+  if (!previewPlace || !previewDisplayStop) return null
+
+  const title =
+    previewPlace.placeName ||
+    previewPlace.title ||
+    previewPlace.address ||
+    previewDisplayStop.label
+  const address = previewPlace.address && previewPlace.address !== title
+    ? previewPlace.address
+    : null
+  const coordinates =
+    previewPlace.coordinatesLabel ||
+    `${previewDisplayStop.lat.toFixed(5)}, ${previewDisplayStop.lng.toFixed(5)}`
+  const metadata = [
+    previewPlace.placeCategory
+      ? { label: 'Category', value: formatMetadataValue(previewPlace.placeCategory) }
+      : null,
+    previewPlace.featureType
+      ? { label: 'Type', value: formatMetadataValue(previewPlace.featureType) }
+      : null,
+    { label: 'Coordinates', value: coordinates },
+  ].filter((item): item is { label: string; value: string } => Boolean(item?.value))
+
+  return { address, metadata, title }
+}
+
 function initialViewState(stops: DisplayStop[]): ViewState {
   if (stops.length === 0) {
     return DEFAULT_VIEW_STATE
@@ -251,6 +301,10 @@ export function TripMap({
   const previewDisplayStop = useMemo(
     () => previewPlaceToDisplayStop(previewPlace),
     [previewPlace],
+  )
+  const previewPlaceDetails = useMemo(
+    () => previewPlaceToDetails(previewPlace, previewDisplayStop),
+    [previewDisplayStop, previewPlace],
   )
   const destinationError =
     destinationState.key === destinationKey ? destinationState.error : null
@@ -626,8 +680,34 @@ export function TripMap({
           </div>
         </div>
       )}
+      {previewPlaceDetails && (
+        <aside className={styles.placeDetailsCard} aria-label="Selected place details">
+          <MapPinned size={20} aria-hidden="true" />
+          <div className={styles.placeDetailsBody}>
+            <p className={styles.placeDetailsKicker}>Selected place</p>
+            <h3>{previewPlaceDetails.title}</h3>
+            {previewPlaceDetails.address ? (
+              <p className={styles.placeDetailsAddress}>{previewPlaceDetails.address}</p>
+            ) : null}
+            <dl className={styles.placeDetailsMetadata}>
+              {previewPlaceDetails.metadata.map((item) => (
+                <div key={item.label}>
+                  <dt>{item.label}</dt>
+                  <dd>{item.value}</dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+        </aside>
+      )}
       {currentRoute && (
-        <div className={styles.routeSummary} aria-live="polite">
+        <div
+          className={[
+            styles.routeSummary,
+            previewPlaceDetails ? styles.routeSummaryWithPlaceDetails : '',
+          ].filter(Boolean).join(' ')}
+          aria-live="polite"
+        >
           <div className={styles.routeSummaryHeader}>
             <Route size={15} aria-hidden="true" />
             <span>Selected-day route</span>
