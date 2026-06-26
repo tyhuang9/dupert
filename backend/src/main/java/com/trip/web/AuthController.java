@@ -1,5 +1,7 @@
 package com.trip.web;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.Map;
 import java.util.Optional;
 
@@ -70,6 +72,7 @@ public class AuthController {
 
     private static final String UNAUTHENTICATED_BODY_KEY = "error";
     private static final String UNAUTHENTICATED_BODY_VALUE = "unauthenticated";
+    private static final String DEV_RESET_SECRET_HEADER = "X-TripPlanner-Dev-Reset";
 
     /**
      * Static dummy bcrypt hash used to keep login wall-clock time uniform when the
@@ -87,6 +90,7 @@ public class AuthController {
     private final RateLimitRegistry rateLimitRegistry;
     private final boolean trustProxy;
     private final boolean devPasswordResetEnabled;
+    private final String devPasswordResetSecret;
 
     public AuthController(UserRepository userRepository,
                           PasswordEncoder passwordEncoder,
@@ -105,7 +109,10 @@ public class AuthController {
         this.breachedPasswordChecker = breachedPasswordChecker;
         this.rateLimitRegistry = rateLimitRegistry;
         this.trustProxy = appProperties.isTrustProxy();
-        this.devPasswordResetEnabled = environment.acceptsProfiles(Profiles.of("!prod"));
+        this.devPasswordResetSecret = appProperties.getDevPasswordResetSecret();
+        this.devPasswordResetEnabled = environment.acceptsProfiles(Profiles.of("dev"))
+            && !environment.acceptsProfiles(Profiles.of("prod"))
+            && !this.devPasswordResetSecret.isBlank();
         this.dummyHash = passwordEncoder.encode("dummy-password-for-anti-enumeration");
     }
 
@@ -252,8 +259,9 @@ public class AuthController {
 
     @PostMapping("/dev/reset-password")
     @Transactional
-    public ResponseEntity<?> devResetPassword(@Valid @RequestBody DevPasswordResetRequest body) {
-        if (!devPasswordResetEnabled) {
+    public ResponseEntity<?> devResetPassword(@Valid @RequestBody DevPasswordResetRequest body,
+                                              HttpServletRequest request) {
+        if (!devResetSecretMatches(request.getHeader(DEV_RESET_SECRET_HEADER))) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(Map.of("error", "not_found"));
         }
@@ -376,5 +384,14 @@ public class AuthController {
             return id;
         }
         return null;
+    }
+
+    private boolean devResetSecretMatches(String providedSecret) {
+        if (!devPasswordResetEnabled || providedSecret == null || providedSecret.isBlank()) {
+            return false;
+        }
+        return MessageDigest.isEqual(
+            providedSecret.getBytes(StandardCharsets.UTF_8),
+            devPasswordResetSecret.getBytes(StandardCharsets.UTF_8));
     }
 }

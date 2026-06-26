@@ -73,9 +73,9 @@ import com.trip.web.dto.RegisterRequest;
  * (no Postgres needed). The actual rate-limit and Spring-Security wiring is intact and
  * runs against the test profile (HSTS off, real CORS, etc.).
  */
-@SpringBootTest
+@SpringBootTest(properties = "app.dev-password-reset-secret=test-dev-secret")
 @AutoConfigureMockMvc
-@ActiveProfiles("test")
+@ActiveProfiles({"test", "dev"})
 class AuthControllerTest {
 
     @Autowired
@@ -354,6 +354,7 @@ class AuthControllerTest {
         when(passwordEncoder.encode("new-password-123")).thenReturn("new-hash");
 
         mvc.perform(post("/api/auth/dev/reset-password")
+                .header("X-TripPlanner-Dev-Reset", "test-dev-secret")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(
                     new DevPasswordResetRequest("ALICE@Example.com", "new-password-123"))))
@@ -371,6 +372,7 @@ class AuthControllerTest {
             .thenReturn(Optional.empty());
 
         mvc.perform(post("/api/auth/dev/reset-password")
+                .header("X-TripPlanner-Dev-Reset", "test-dev-secret")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(
                     new DevPasswordResetRequest("missing@example.com", "new-password-123"))))
@@ -379,6 +381,20 @@ class AuthControllerTest {
 
         verify(passwordEncoder, never()).encode("new-password-123");
         verify(userRepository, never()).save(any(User.class));
+        verify(refreshTokenService, never()).revokeAllForUser(any());
+    }
+
+    @Test
+    void devResetPasswordWithoutSecretHeaderReturns404WithoutSideEffects() throws Exception {
+        mvc.perform(post("/api/auth/dev/reset-password")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(
+                    new DevPasswordResetRequest("alice@example.com", "new-password-123"))))
+            .andExpect(status().isNotFound())
+            .andExpect(jsonPath("$.error").value("not_found"));
+
+        verify(userRepository, never()).findByEmailIgnoreCase(anyString());
+        verify(passwordEncoder, never()).encode("new-password-123");
         verify(refreshTokenService, never()).revokeAllForUser(any());
     }
 
@@ -399,7 +415,8 @@ class AuthControllerTest {
         );
 
         ResponseEntity<?> response = controller.devResetPassword(
-            new DevPasswordResetRequest("alice@example.com", "new-password-123"));
+            new DevPasswordResetRequest("alice@example.com", "new-password-123"),
+            new org.springframework.mock.web.MockHttpServletRequest());
 
         org.assertj.core.api.Assertions.assertThat(response.getStatusCode())
             .isEqualTo(org.springframework.http.HttpStatus.NOT_FOUND);

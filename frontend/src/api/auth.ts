@@ -33,7 +33,10 @@ export async function login(body: LoginRequest): Promise<AuthResponse> {
 }
 
 export async function resetDevPassword(body: DevPasswordResetRequest): Promise<void> {
-  await apiClient.post('/auth/dev/reset-password', body)
+  const secret = import.meta.env.VITE_DEV_PASSWORD_RESET_SECRET
+  await apiClient.post('/auth/dev/reset-password', body, secret
+    ? { headers: { 'X-TripPlanner-Dev-Reset': secret } }
+    : undefined)
 }
 
 export async function logout(): Promise<void> {

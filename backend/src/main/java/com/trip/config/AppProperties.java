@@ -22,6 +22,9 @@ public class AppProperties {
     /** Cookie-related toggles. */
     private Cookies cookies = new Cookies();
 
+    /** Secret required by the local-only dev password reset helper. */
+    private String devPasswordResetSecret = "";
+
     /** Password-policy knobs (breached-password threshold, etc.). */
     private Password password = new Password();
 
@@ -64,6 +67,14 @@ public class AppProperties {
 
     public void setCookies(Cookies cookies) {
         this.cookies = cookies == null ? new Cookies() : cookies;
+    }
+
+    public String getDevPasswordResetSecret() {
+        return devPasswordResetSecret;
+    }
+
+    public void setDevPasswordResetSecret(String devPasswordResetSecret) {
+        this.devPasswordResetSecret = devPasswordResetSecret == null ? "" : devPasswordResetSecret;
     }
 
     public Password getPassword() {

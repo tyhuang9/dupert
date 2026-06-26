@@ -55,6 +55,8 @@ app:
   # so dev browsers (http://localhost) actually receive the cookie.
   cookies:
     secure: false
+  # Local-only helper for POST /api/auth/dev/reset-password. Empty disables the route.
+  dev-password-reset-secret: ${APP_DEV_PASSWORD_RESET_SECRET:}
   # Honor X-Forwarded-For for client-IP resolution. Default false; flip to true only
   # behind a proxy that overwrites (not appends) the header (Fly, Vercel).
   trust-proxy: false

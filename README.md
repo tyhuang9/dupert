@@ -162,7 +162,9 @@ trip-planner/
 | `JWT_SECRET` | backend | 32 random bytes (hex) for signing access tokens |
 | `LOG_EMAIL_PEPPER` | backend | 16 random bytes (hex) for hashing emails in logs |
 | `APP_FRONTEND_ORIGIN` | backend | Exact origin allowed by CORS (e.g. `http://localhost:3000`) |
+| `APP_DEV_PASSWORD_RESET_SECRET` | backend | Local-only secret required by `/api/auth/dev/reset-password`; leave unset outside dev |
 | `VITE_MAPBOX_TOKEN` | frontend | Public Mapbox token; URL-restricted in the Mapbox dashboard |
+| `VITE_DEV_PASSWORD_RESET_SECRET` | frontend | Dev-only value sent by the login-page reset helper; match `APP_DEV_PASSWORD_RESET_SECRET` locally |
 | `NVD_API_KEY` | backend/CI | Optional but strongly recommended key for reliable OWASP Dependency-Check NVD updates |
 
 Values containing shell metacharacters (`&`, `;`, `$`, spaces) **must** be wrapped in single quotes in `.env`, otherwise `source .env` will silently truncate them.
@@ -171,6 +173,7 @@ Values containing shell metacharacters (`&`, `;`, `$`, spaces) **must** be wrapp
 
 - Trip URLs are identifiers, not access grants. Every `/api/trips/**` request goes through the backend access guard and requires either a member JWT or a valid guest-session cookie.
 - Access tokens stay in memory; refresh tokens and guest-session tokens are opaque `HttpOnly` cookies.
+- Production-like backend starts require `app.cookies.secure=true` and `secure.hsts.enabled=true`; the `prod` profile sets both.
 - Share links store only a SHA-256 hash of the raw token and can be revoked by the trip owner.
 - Anonymous guest writes require the guest cookie plus the `X-TripPlanner-Guest-Write: 1` header, and guest/share endpoints are rate limited.
 - SSE events on `/api/trips/{publicId}/stream` contain only pointers such as event type, trip id, activity id, or day date; clients refetch the real data through authenticated API calls.

@@ -1,0 +1,7 @@
+app:
+  cookies:
+    secure: true
+
+secure:
+  hsts:
+    enabled: true
