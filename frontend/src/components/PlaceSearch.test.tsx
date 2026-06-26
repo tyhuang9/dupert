@@ -59,6 +59,10 @@ describe('<PlaceSearch>', () => {
   it('selects a place without rendering a map-side ready panel', () => {
     const onPlaceSelect = vi.fn()
     render(<PlaceSearch onPlaceSelect={onPlaceSelect} />)
+    const input = screen.getByLabelText(/mock mapbox search/i)
+
+    input.focus()
+    expect(input).toHaveFocus()
 
     act(() => {
       searchBoxState.props?.onRetrieve?.({
@@ -85,6 +89,7 @@ describe('<PlaceSearch>', () => {
         lng: 139.7454,
       }),
     )
+    expect(input).not.toHaveFocus()
     expect(screen.queryByText(/ready to add/i)).not.toBeInTheDocument()
   })
 

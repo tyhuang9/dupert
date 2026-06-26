@@ -253,8 +253,10 @@ export function ActivityForm({
                 id={placeId}
                 className={styles.locationInput}
                 value={placeName}
-                onChange={(event) => setPlaceName(event.target.value)}
                 placeholder="Restaurant, museum, hotel..."
+                readOnly
+                aria-readonly="true"
+                tabIndex={-1}
               />
             </label>
 
@@ -264,8 +266,10 @@ export function ActivityForm({
                 id={addressId}
                 className={styles.locationInput}
                 value={address}
-                onChange={(event) => setAddress(event.target.value)}
                 placeholder="Street address or neighborhood..."
+                readOnly
+                aria-readonly="true"
+                tabIndex={-1}
               />
             </label>
           </div>

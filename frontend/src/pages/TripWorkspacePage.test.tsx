@@ -536,11 +536,9 @@ describe('<TripWorkspacePage>', () => {
     await userEvent.clear(titleInput)
     await userEvent.type(titleInput, 'Updated sushi')
     const placeNameInput = screen.getByLabelText(/place name/i)
-    await userEvent.clear(placeNameInput)
-    await userEvent.type(placeNameInput, 'Updated Tsukiji Market')
+    expect(placeNameInput).toHaveAttribute('readonly')
     const addressInput = screen.getByLabelText(/^address$/i)
-    await userEvent.clear(addressInput)
-    await userEvent.type(addressInput, 'New Tsukiji address')
+    expect(addressInput).toHaveAttribute('readonly')
     const notesInput = screen.getByLabelText(/^notes$/i)
     await userEvent.clear(notesInput)
     await userEvent.type(notesInput, 'Updated notes')
@@ -552,8 +550,8 @@ describe('<TripWorkspacePage>', () => {
       title: 'Updated sushi',
       notes: 'Updated notes',
       mapboxId: 'mapbox.tsukiji',
-      placeName: 'Updated Tsukiji Market',
-      address: 'New Tsukiji address',
+      placeName: 'Tsukiji Outer Market',
+      address: 'Tsukiji, Chuo City, Tokyo',
       lat: 35.6654,
       lng: 139.7707,
     })
@@ -653,7 +651,8 @@ describe('<TripWorkspacePage>', () => {
 
     expect(screen.getByLabelText(/activity name/i)).toHaveValue('Dinner')
     expect(screen.getByLabelText(/^time$/i)).toHaveAttribute('type', 'time')
-    expect(screen.getByLabelText(/place name/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/place name/i)).toHaveAttribute('readonly')
+    expect(screen.getByLabelText(/^address$/i)).toHaveAttribute('readonly')
     expect(screen.getByRole('button', { name: /change on map/i })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /move dinner up/i })).not.toBeInTheDocument()
     expect(screen.queryByLabelText(/^day$/i)).not.toBeInTheDocument()

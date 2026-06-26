@@ -333,6 +333,12 @@
   font-weight: 500;
 }
 
+.locationInput[readonly] {
+  background: #e8edf5;
+  color: var(--color-text-muted);
+  cursor: default;
+}
+
 .locationInput:focus-visible {
   outline: var(--focus-ring-width) solid var(--focus-ring-color);
   outline-offset: var(--focus-ring-offset);

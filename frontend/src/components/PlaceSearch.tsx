@@ -77,6 +77,7 @@ export function PlaceSearch({
   const [value, setValue] = useState(searchValue ?? '')
   const [pendingPlace, setPendingPlace] = useState<Partial<CreateActivityRequest> | null>(null)
   const [searchError, setSearchError] = useState<string | null>(null)
+  const [searchBoxVersion, setSearchBoxVersion] = useState(0)
   const displayedValue = searchValue ?? value
 
   useEffect(() => {
@@ -114,6 +115,11 @@ export function PlaceSearch({
     onPlacePreview?.(null)
   }
 
+  const closeSuggestions = () => {
+    shellRef.current?.querySelector('input')?.blur()
+    setSearchBoxVersion((current) => current + 1)
+  }
+
   return (
     <div ref={shellRef} className={styles.searchShell}>
       {contextLabel && <p className={styles.context}>{contextLabel}</p>}
@@ -122,6 +128,7 @@ export function PlaceSearch({
         <span className={styles.helpText}>Restaurants, sights, hotels, airports, and transit stops.</span>
         <span className={styles.searchBox}>
           <SearchBox
+            key={searchBoxVersion}
             accessToken={accessToken}
             value={displayedValue}
             onChange={(nextValue) => {
@@ -138,6 +145,7 @@ export function PlaceSearch({
               if (!payload) return
               setSearchError(null)
               updateValue(payload.address ?? payload.placeName ?? payload.title ?? '')
+              closeSuggestions()
               if (selectionLabel) {
                 setPendingPlace(payload)
                 onPlacePreview?.(payload)
