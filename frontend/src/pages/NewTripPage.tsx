@@ -1,7 +1,10 @@
 import { useId, useMemo, useState, type FormEvent } from 'react'
+import { SearchBox } from '@mapbox/search-js-react'
+import type { SearchBoxRetrieveResponse } from '@mapbox/search-js-core'
 import { Link, useNavigate } from 'react-router-dom'
 import { parseApiError, type ParsedApiError } from '../api/errors'
 import { useCreateTrip } from '../hooks/useTrips'
+import { mapboxAccessTroubleshooting } from '../utils/mapboxAccess'
 import { usePageTitle } from '../utils/usePageTitle'
 import styles from './TripsPage.module.css'
 
@@ -36,14 +39,33 @@ function validateForm(form: FormState): Record<string, string> {
   return errors
 }
 
+function destinationFromRetrieve(res: SearchBoxRetrieveResponse): string {
+  const feature = res.features[0]
+  if (!feature) return ''
+  const properties = feature.properties
+  const name = properties.name_preferred || properties.name || ''
+  const formatted =
+    properties.full_address ||
+    properties.place_formatted ||
+    properties.address ||
+    ''
+
+  if (name && formatted && !formatted.toLowerCase().includes(name.toLowerCase())) {
+    return `${name}, ${formatted}`
+  }
+  return formatted || name
+}
+
 export function NewTripPage() {
   usePageTitle('New trip – TripPlanner')
 
   const navigate = useNavigate()
   const createTrip = useCreateTrip()
+  const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN as string | undefined
   const [form, setForm] = useState<FormState>(EMPTY_FORM)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [apiError, setApiError] = useState<ParsedApiError | null>(null)
+  const [destinationSearchError, setDestinationSearchError] = useState<string | null>(null)
 
   const nameId = useId()
   const destinationId = useId()
@@ -142,14 +164,50 @@ export function NewTripPage() {
           <label className={styles.label} htmlFor={destinationId}>
             Destination
           </label>
-          <input
-            id={destinationId}
-            className={styles.input}
-            value={form.destination}
-            onChange={(event) => setField('destination', event.target.value)}
-            maxLength={200}
-            disabled={isSubmitting}
-          />
+          {mapboxToken ? (
+            <span className={styles.destinationSearchBox}>
+              <SearchBox
+                accessToken={mapboxToken}
+                value={form.destination}
+                onChange={(nextValue) => {
+                  setField('destination', nextValue)
+                  if (!nextValue) setDestinationSearchError(null)
+                }}
+                onRetrieve={(res) => {
+                  const destination = destinationFromRetrieve(res)
+                  if (!destination) return
+                  setDestinationSearchError(null)
+                  setField('destination', destination)
+                }}
+                onSuggest={() => setDestinationSearchError(null)}
+                onSuggestError={() => {
+                  setDestinationSearchError(
+                    `Mapbox search failed. ${mapboxAccessTroubleshooting()}`,
+                  )
+                }}
+                onClear={() => {
+                  setDestinationSearchError(null)
+                  setField('destination', '')
+                }}
+                placeholder="Search a city, address, or region"
+                options={{ language: 'en' }}
+              />
+            </span>
+          ) : (
+            <input
+              id={destinationId}
+              className={styles.input}
+              value={form.destination}
+              onChange={(event) => setField('destination', event.target.value)}
+              maxLength={200}
+              disabled={isSubmitting}
+            />
+          )}
+          {destinationSearchError ? (
+            <span className={styles.fieldError} role="alert">
+              {destinationSearchError}
+            </span>
+          ) : null}
         </div>
 
         <div className={styles.dateGrid}>

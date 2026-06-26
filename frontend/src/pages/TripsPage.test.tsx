@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import MockAdapter from 'axios-mock-adapter'
 import type { PropsWithChildren } from 'react'
@@ -11,6 +11,27 @@ import type { Trip } from '../types/trip'
 import { selectTripVisualKey } from '../utils/tripVisuals'
 import { NewTripPage } from './NewTripPage'
 import { TripsPage } from './TripsPage'
+
+const searchBoxState = vi.hoisted(() => ({
+  props: null as null | {
+    onChange?: (value: string) => void
+    onRetrieve?: (res: unknown) => void
+    value?: string
+  },
+}))
+
+vi.mock('@mapbox/search-js-react', () => ({
+  SearchBox: (props: typeof searchBoxState.props) => {
+    searchBoxState.props = props
+    return (
+      <input
+        aria-label="Destination"
+        value={props?.value ?? ''}
+        onChange={(event) => props?.onChange?.(event.target.value)}
+      />
+    )
+  },
+}))
 
 let apiMock: MockAdapter
 let queryClient: QueryClient
@@ -116,6 +137,8 @@ function renderNewTrip() {
 }
 
 beforeEach(() => {
+  vi.stubEnv('VITE_MAPBOX_TOKEN', 'pk.test')
+  searchBoxState.props = null
   apiMock = new MockAdapter(apiClient)
   queryClient = new QueryClient({
     defaultOptions: {
@@ -128,6 +151,7 @@ beforeEach(() => {
 afterEach(() => {
   apiMock.restore()
   queryClient.clear()
+  vi.unstubAllEnvs()
   vi.restoreAllMocks()
 })
 
@@ -361,6 +385,29 @@ describe('<NewTripPage>', () => {
       startDate: '2026-05-01',
       endDate: '2026-05-05',
     })
+  })
+
+  it('fills the destination from a selected Mapbox suggestion', async () => {
+    renderNewTrip()
+
+    await userEvent.type(screen.getByLabelText(/trip name/i), 'Madison weekend')
+    await userEvent.type(screen.getByLabelText(/destination/i), 'Madison')
+    act(() => {
+      searchBoxState.props?.onRetrieve?.({
+        features: [
+          {
+            properties: {
+              name: 'Madison',
+              place_formatted: 'Wisconsin, United States',
+            },
+          },
+        ],
+      })
+    })
+
+    expect(screen.getByLabelText(/destination/i)).toHaveValue(
+      'Madison, Wisconsin, United States',
+    )
   })
 
   it('surfaces server validation errors', async () => {
