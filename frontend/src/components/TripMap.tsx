@@ -9,7 +9,7 @@ import Map, {
   type ViewState,
 } from 'react-map-gl/mapbox'
 import 'mapbox-gl/dist/mapbox-gl.css'
-import { AlertCircle, LoaderCircle, MapPinned, Route } from 'lucide-react'
+import { AlertCircle, Layers, LoaderCircle, MapPinned, Route } from 'lucide-react'
 import { getDrivingDirections, type DirectionsRoute } from '../api/mapboxDirections'
 import { geocodeDestination, type DestinationCoordinate } from '../api/mapboxGeocode'
 import type { Activity } from '../types/activity'
@@ -22,6 +22,7 @@ interface TripMapProps {
   routeActivities?: Activity[]
   destination: string | null
   mapStyle?: MapStyleId
+  onMapStyleChange?: (mapStyle: MapStyleId) => void
   previewPlace?: MapPreviewPlace | null
   activeActivityId?: number | null
   onActivityActivate?: (activityId: number) => void
@@ -93,6 +94,14 @@ const MAPBOX_STYLE_URLS: Record<MapStyleId, string> = {
   dark: 'mapbox://styles/mapbox/dark-v11',
   satellite: 'mapbox://styles/mapbox/satellite-streets-v12',
 }
+
+const MAP_STYLE_OPTIONS: Array<{ id: MapStyleId; label: string }> = [
+  { id: 'streets', label: 'Streets' },
+  { id: 'outdoors', label: 'Outdoors' },
+  { id: 'light', label: 'Light' },
+  { id: 'dark', label: 'Dark' },
+  { id: 'satellite', label: 'Satellite streets' },
+]
 
 function isFiniteCoordinate(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value)
@@ -193,6 +202,7 @@ export function TripMap({
   activeActivityId = null,
   destination,
   mapStyle = 'streets',
+  onMapStyleChange,
   previewPlace = null,
   onActivityActivate,
   onActiveActivityChange,
@@ -219,6 +229,7 @@ export function TripMap({
     error: null,
     key: '',
   })
+  const [styleMenuOpen, setStyleMenuOpen] = useState(false)
   const selectedMappedActivities = useMemo(
     () => activities.filter(hasCoordinates),
     [activities],
@@ -292,17 +303,8 @@ export function TripMap({
     if (mapLoadFailed) {
       return `Mapbox map tiles could not load. ${mapboxAccessTroubleshooting()}`
     }
-    if (previewDisplayStop) {
-      return 'Previewing selected place. Save the activity to add it to the trip.'
-    }
-    if (selectedMappedActivities.length === 0 && fallbackMappedActivities.length > 0) {
-      return 'No mapped stops for this day. Showing mapped stops from the full trip.'
-    }
     if (selectedMappedActivities.length === 0 && destinationLoading) {
       return 'Finding trip destination...'
-    }
-    if (selectedMappedActivities.length === 0 && destinationCoordinate) {
-      return `No mapped stops yet. Showing ${destinationCoordinate.label}.`
     }
     if (
       selectedMappedActivities.length === 0 &&
@@ -318,24 +320,16 @@ export function TripMap({
     ) {
       return 'Destination could not be mapped. Add a place to start the map.'
     }
-    if (selectedMappedActivities.length === 0) {
-      return 'No mapped stops yet. Add a place to start the map.'
-    }
-    if (routeMappedActivities.length === 1) return 'Route needs at least two mapped stops.'
     if (routeLoading) return 'Calculating route...'
     if (routeError) return 'Route unavailable.'
     return null
   }, [
-    destinationCoordinate,
     destinationError,
     destinationKey,
     destinationLoading,
-    fallbackMappedActivities.length,
     mapLoadFailed,
-    previewDisplayStop,
     routeError,
     routeLoading,
-    routeMappedActivities.length,
     selectedMappedActivities.length,
   ])
   const routeSourceData = useMemo(
@@ -579,6 +573,40 @@ export function TripMap({
           </Marker>
         ))}
       </Map>
+      {onMapStyleChange && (
+        <div className={styles.mapStyleControl}>
+          <button
+            type="button"
+            className={styles.mapStyleButton}
+            aria-label="Map style"
+            aria-haspopup="menu"
+            aria-expanded={styleMenuOpen}
+            title="Map style"
+            onClick={() => setStyleMenuOpen((current) => !current)}
+          >
+            <Layers size={18} aria-hidden="true" />
+          </button>
+          {styleMenuOpen && (
+            <div className={styles.mapStyleMenu} role="menu" aria-label="Map styles">
+              {MAP_STYLE_OPTIONS.map((option) => (
+                <button
+                  key={option.id}
+                  type="button"
+                  role="menuitemradio"
+                  aria-checked={mapStyle === option.id}
+                  className={styles.mapStyleMenuItem}
+                  onClick={() => {
+                    onMapStyleChange(option.id)
+                    setStyleMenuOpen(false)
+                  }}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
       {mapNotice && (
         <div className={styles.mapNotice} aria-live="polite">
           {routeLoading || destinationLoading ? (

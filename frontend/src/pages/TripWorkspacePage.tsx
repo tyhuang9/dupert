@@ -19,7 +19,6 @@ import {
   CalendarDays,
   ChevronLeft,
   ChevronRight,
-  Layers,
   Plane,
   Plus,
   Route as TimelineIcon,
@@ -122,14 +121,6 @@ interface MapLocationTarget {
   activityTitle: string
   payload: CreateActivityRequest
 }
-
-const MAP_STYLE_OPTIONS: Array<{ id: MapStyleId; label: string }> = [
-  { id: 'streets', label: 'Streets' },
-  { id: 'outdoors', label: 'Outdoors' },
-  { id: 'light', label: 'Light' },
-  { id: 'dark', label: 'Dark' },
-  { id: 'satellite', label: 'Satellite streets' },
-]
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
@@ -1224,25 +1215,7 @@ export function TripWorkspacePage() {
                       />
                     </div>
                   )}
-                  <div className={styles.mapChrome}>
-                    <h2 id="map-panel-title" className="sr-only">Map</h2>
-                    <label className={styles.mapStyleSelect}>
-                      <span>
-                        <Layers size={14} aria-hidden="true" />
-                        Map style
-                      </span>
-                      <select
-                        value={mapStyle}
-                        onChange={(event) => setMapStyle(event.target.value as MapStyleId)}
-                      >
-                        {MAP_STYLE_OPTIONS.map((option) => (
-                          <option key={option.id} value={option.id}>
-                            {option.label}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  </div>
+                  <h2 id="map-panel-title" className="sr-only">Map</h2>
                 </div>
                 <TripMap
                   activities={mapActivities}
@@ -1251,6 +1224,7 @@ export function TripWorkspacePage() {
                   activeActivityId={visibleActiveActivityId}
                   destination={tripQuery.data.destination}
                   mapStyle={mapStyle}
+                  onMapStyleChange={setMapStyle}
                   previewPlace={mapPreviewPlace}
                   onActivityActivate={handleActivityActivate}
                   onActiveActivityChange={setActiveActivityId}

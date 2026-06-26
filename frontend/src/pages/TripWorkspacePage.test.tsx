@@ -22,6 +22,7 @@ vi.mock('../components/TripMap', () => ({
     mapStyle,
     onActivityActivate,
     onActiveActivityChange,
+    onMapStyleChange,
     onViewportContextChange,
     previewPlace,
     routeActivities = activities,
@@ -32,6 +33,7 @@ vi.mock('../components/TripMap', () => ({
     mapStyle?: string
     onActivityActivate?: (activityId: number) => void
     onActiveActivityChange?: (activityId: number | null) => void
+    onMapStyleChange?: (mapStyle: string) => void
     onViewportContextChange?: (context: { center: { lng: number; lat: number }; zoom?: number }) => void
     previewPlace?: { placeName?: string | null; title?: string | null } | null
     routeActivities?: Array<{ id: number; title: string }>
@@ -65,6 +67,9 @@ vi.mock('../components/TripMap', () => ({
         })}
       >
         Mock viewport center
+      </button>
+      <button type="button" onClick={() => onMapStyleChange?.('satellite')}>
+        Mock satellite map style
       </button>
       <div data-testid="selected-map-activities">
         {activities.map((activity) => (
@@ -405,7 +410,7 @@ describe('<TripWorkspacePage>', () => {
     expect(screen.getByTestId('active-map-activity')).toHaveTextContent('22')
     expect(document.activeElement).toHaveAttribute('id', 'activity-22')
 
-    await userEvent.selectOptions(screen.getByRole('combobox', { name: /map style/i }), 'satellite')
+    await userEvent.click(screen.getByRole('button', { name: /mock satellite map style/i }))
     expect(screen.getByTestId('map-style')).toHaveTextContent('satellite')
   })
 

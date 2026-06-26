@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { PropsWithChildren, ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -222,7 +222,7 @@ describe('<TripMap>', () => {
 
     expect(directionsMock).not.toHaveBeenCalled()
     expect(screen.queryByTestId('route-layer')).not.toBeInTheDocument()
-    expect(screen.getByText('Route needs at least two mapped stops.')).toBeInTheDocument()
+    expect(screen.queryByText('Route needs at least two mapped stops.')).not.toBeInTheDocument()
   })
 
   it('ignores activities with missing, null, undefined, or non-finite coordinates', () => {
@@ -246,7 +246,7 @@ describe('<TripMap>', () => {
     )
 
     expect(screen.queryByTestId('marker')).not.toBeInTheDocument()
-    expect(screen.getByText('No mapped stops yet. Add a place to start the map.')).toBeInTheDocument()
+    expect(screen.queryByText('No mapped stops yet. Add a place to start the map.')).not.toBeInTheDocument()
     expect(screen.getByText('Map is ready')).toBeInTheDocument()
     expect(directionsMock).not.toHaveBeenCalled()
     expect(mapControlMock.fitBounds).not.toHaveBeenCalled()
@@ -323,6 +323,33 @@ describe('<TripMap>', () => {
     expect(mapMockState.mapStyle).toBe('mapbox://styles/mapbox/dark-v11')
   })
 
+  it('opens compact map style menu and reports selected style', async () => {
+    const onMapStyleChange = vi.fn()
+
+    render(
+      <TripMap
+        activities={[]}
+        fallbackActivities={[]}
+        destination={null}
+        mapStyle="light"
+        onMapStyleChange={onMapStyleChange}
+      />,
+    )
+
+    await userEvent.click(screen.getByRole('button', { name: /map style/i }))
+
+    const menu = screen.getByRole('menu', { name: /map styles/i })
+    expect(within(menu).getByRole('menuitemradio', { name: /light/i })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    )
+
+    await userEvent.click(within(menu).getByRole('menuitemradio', { name: /satellite streets/i }))
+
+    expect(onMapStyleChange).toHaveBeenCalledWith('satellite')
+    expect(screen.queryByRole('menu', { name: /map styles/i })).not.toBeInTheDocument()
+  })
+
   it('reports viewport context on load and move end', () => {
     const onViewportContextChange = vi.fn()
     render(
@@ -355,7 +382,7 @@ describe('<TripMap>', () => {
     expect(geocodeMock.geocodeDestination).not.toHaveBeenCalled()
     expect(screen.getByRole('button', { name: /stop 1: tokyo tower/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /stop 2: tsukiji market/i })).toBeInTheDocument()
-    expect(screen.getByText(/showing mapped stops from the full trip/i)).toBeInTheDocument()
+    expect(screen.queryByText(/showing mapped stops from the full trip/i)).not.toBeInTheDocument()
 
     await waitFor(() => {
       expect(mapControlMock.fitBounds).toHaveBeenCalled()
@@ -373,7 +400,7 @@ describe('<TripMap>', () => {
 
     expect(screen.getByText('Finding trip destination...')).toBeInTheDocument()
     expect(await screen.findByRole('img', { name: /destination: tokyo, japan/i })).toBeInTheDocument()
-    expect(screen.getByText('No mapped stops yet. Showing Tokyo, Japan.')).toBeInTheDocument()
+    expect(screen.queryByText('No mapped stops yet. Showing Tokyo, Japan.')).not.toBeInTheDocument()
     expect(directionsMock).not.toHaveBeenCalled()
 
     await waitFor(() => {
@@ -401,7 +428,7 @@ describe('<TripMap>', () => {
     )
 
     expect(screen.getByRole('img', { name: /selected place: tsukiji market/i })).toBeInTheDocument()
-    expect(screen.getByText(/previewing selected place/i)).toBeInTheDocument()
+    expect(screen.queryByText(/previewing selected place/i)).not.toBeInTheDocument()
 
     await waitFor(() => {
       expect(mapControlMock.fitBounds).toHaveBeenCalledWith(
@@ -443,7 +470,7 @@ describe('<TripMap>', () => {
       )
       expect(screen.queryByRole('img', { name: new RegExp(previewPlace.title, 'i') })).not.toBeInTheDocument()
     }
-    expect(screen.getByText('No mapped stops yet. Add a place to start the map.')).toBeInTheDocument()
+    expect(screen.queryByText('No mapped stops yet. Add a place to start the map.')).not.toBeInTheDocument()
     expect(directionsMock).not.toHaveBeenCalled()
     expect(mapControlMock.fitBounds).not.toHaveBeenCalled()
     expect(mapControlMock.flyTo).not.toHaveBeenCalled()
@@ -471,7 +498,7 @@ describe('<TripMap>', () => {
   it('shows a clear empty map message when there is no destination', () => {
     render(<TripMap activities={[]} fallbackActivities={[]} destination={null} />)
 
-    expect(screen.getByText('No mapped stops yet. Add a place to start the map.')).toBeInTheDocument()
+    expect(screen.queryByText('No mapped stops yet. Add a place to start the map.')).not.toBeInTheDocument()
     expect(screen.getByText('Map is ready')).toBeInTheDocument()
     expect(geocodeMock.geocodeDestination).not.toHaveBeenCalled()
     expect(directionsMock).not.toHaveBeenCalled()
