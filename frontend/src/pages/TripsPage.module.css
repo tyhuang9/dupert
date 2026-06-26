@@ -305,6 +305,12 @@
   min-width: 0;
 }
 
+@media (min-width: 60rem) {
+  .tripGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
 .tripCardFrame {
   position: relative;
   min-width: 0;
