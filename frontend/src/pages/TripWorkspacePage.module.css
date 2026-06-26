@@ -774,7 +774,27 @@
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
+  scrollbar-color: color-mix(in srgb, var(--color-surface-border) 66%, var(--color-surface)) transparent;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
   padding: var(--space-5);
+}
+
+.timelineScroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.timelineScroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.timelineScroll::-webkit-scrollbar-thumb {
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--color-surface-border) 66%, var(--color-surface));
+}
+
+.timelineScroll::-webkit-scrollbar-thumb:hover {
+  background: var(--color-border-strong);
 }
 
 .composer {

@@ -31,7 +31,38 @@ describe('TripWorkspacePage layout scroll contract', () => {
 
     expect(cssBlocks(workspaceCss, '.timelineScroll').join('\n')).toMatch(/overflow-y:\s*auto/)
     expect(cssBlocks(workspaceCss, '.timelineScroll').join('\n')).toMatch(/overflow-x:\s*hidden/)
+    expect(cssBlocks(workspaceCss, '.timelineScroll').join('\n')).toMatch(
+      /scrollbar-gutter:\s*stable/,
+    )
+    expect(cssBlocks(workspaceCss, '.timelineScroll').join('\n')).toMatch(
+      /scrollbar-width:\s*thin/,
+    )
     expect(cssBlocks(workspaceCss, '.timelineScroll').join('\n')).not.toMatch(/overflow:\s*auto/)
+  })
+
+  it('keeps immersive scrollbar styling scoped to the activity timeline', () => {
+    expect(cssBlocks(workspaceCss, '.timelineScroll::-webkit-scrollbar').join('\n')).toMatch(
+      /width:\s*6px/,
+    )
+    expect(cssBlocks(workspaceCss, '.timelineScroll::-webkit-scrollbar-track').join('\n')).toMatch(
+      /background:\s*transparent/,
+    )
+    expect(cssBlocks(workspaceCss, '.timelineScroll::-webkit-scrollbar-thumb').join('\n')).toMatch(
+      /background:\s*color-mix/,
+    )
+    expect(
+      cssBlocks(workspaceCss, '.timelineScroll::-webkit-scrollbar-thumb:hover').join('\n'),
+    ).toMatch(/background:\s*var\(--color-border-strong\)/)
+
+    for (const selector of [
+      '.shell',
+      '.workspaceShell',
+      '.dayPanel',
+      '.timelinePanel',
+      '.mapPanel',
+    ]) {
+      expect(cssBlocks(workspaceCss, selector).join('\n')).not.toMatch(/scrollbar-/)
+    }
   })
 
   it('keeps the map sized by its bounded workspace panel', () => {
