@@ -210,8 +210,7 @@
 }
 
 .compactInput,
-.compactTextarea,
-.locationInput {
+.compactTextarea {
   border-color: #cbd5e1;
   background: #f3f5fb;
   box-shadow: inset 0 1px 0 rgba(15, 23, 42, 0.04);
@@ -234,112 +233,75 @@
 .locationEditor {
   min-width: 0;
   display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  align-items: center;
   gap: var(--space-3);
-  padding: var(--space-3);
-  border: 1px solid #cbd5e1;
-  border-radius: var(--radius-md);
-  background: linear-gradient(135deg, #f8fafc 0%, #f3f5fb 100%);
-  box-shadow: inset 0 1px 0 rgba(15, 23, 42, 0.04);
+  min-height: 76px;
+  padding: var(--space-3) 0;
 }
 
-.locationHeader {
-  min-width: 0;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-}
-
-.locationTitle {
-  min-width: 0;
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  color: var(--color-text-muted);
-  font-size: var(--font-size-xs);
-  font-weight: 900;
-  text-transform: uppercase;
-}
-
-.locationTitle svg {
+.locationIcon {
   color: var(--color-primary);
+}
+
+.locationText {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.locationPrimary,
+.locationSecondary {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.locationPrimary {
+  color: var(--color-text);
+  font-size: var(--font-size-md);
+  font-weight: 650;
+}
+
+.locationSecondary {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  line-height: 1.35;
+}
+
+.locationAction {
+  display: flex;
+  justify-content: flex-end;
 }
 
 .locationMapButton {
-  min-height: 30px;
+  min-height: 36px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 0 var(--space-2);
+  padding: 0;
   border: 0;
-  border-radius: var(--radius-sm);
-  background: var(--color-primary-softer);
+  background: transparent;
   color: var(--color-primary);
   font: inherit;
-  font-size: 0.68rem;
+  font-size: var(--font-size-xs);
   font-weight: 900;
   text-transform: uppercase;
+  letter-spacing: 0;
   white-space: nowrap;
   cursor: pointer;
 }
 
 .locationMapButton:hover,
 .locationMapButton:focus-visible {
-  background: #dbeafe;
   color: var(--color-primary-active);
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .locationMapButton:focus-visible {
-  outline: var(--focus-ring-width) solid var(--focus-ring-color);
-  outline-offset: var(--focus-ring-offset);
-}
-
-.locationFields {
-  min-width: 0;
-  display: grid;
-  grid-template-columns: minmax(0, 0.42fr) minmax(0, 1fr);
-  gap: var(--space-3);
-}
-
-.locationField {
-  min-width: 0;
-  display: grid;
-  gap: var(--space-1);
-  color: var(--color-text-muted);
-  font-size: var(--font-size-xs);
-  font-weight: 800;
-  text-transform: uppercase;
-}
-
-.locationInput {
-  min-width: 0;
-  width: 100%;
-  min-height: 38px;
-  padding: var(--space-2) var(--space-3);
-  border: 1px solid #cbd5e1;
-  border-radius: var(--radius-md);
-  color: var(--color-text);
-  font: inherit;
-  font-size: var(--font-size-sm);
-  font-weight: 600;
-  text-transform: none;
-  transition:
-    border-color var(--transition-base),
-    box-shadow var(--transition-base);
-}
-
-.locationInput::placeholder {
-  color: var(--color-text-subtle);
-  font-weight: 500;
-}
-
-.locationInput[readonly] {
-  background: #e8edf5;
-  color: var(--color-text-muted);
-  cursor: default;
-}
-
-.locationInput:focus-visible {
   outline: var(--focus-ring-width) solid var(--focus-ring-color);
   outline-offset: var(--focus-ring-offset);
 }
@@ -510,12 +472,13 @@
     min-width: min(12rem, calc(100vw - 4rem));
   }
 
-  .locationHeader {
-    align-items: flex-start;
+  .locationEditor {
+    grid-template-columns: 28px minmax(0, 1fr);
   }
 
-  .locationFields {
-    grid-template-columns: 1fr;
+  .locationAction {
+    grid-column: 2;
+    justify-content: flex-start;
   }
 
   .submitButton,

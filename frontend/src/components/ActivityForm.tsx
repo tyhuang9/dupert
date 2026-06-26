@@ -78,8 +78,6 @@ export function ActivityForm({
 }: ActivityFormProps) {
   const titleId = useId()
   const timeId = useId()
-  const placeId = useId()
-  const addressId = useId()
   const notesId = useId()
   const categoryMenuId = useId()
   const notesPanelId = useId()
@@ -123,6 +121,12 @@ export function ActivityForm({
     lat,
     lng,
   })
+
+  const locationPrimary = placeName.trim() || address.trim() || 'Location not set'
+  const locationSecondary =
+    placeName.trim() && address.trim() && placeName.trim() !== address.trim()
+      ? address.trim()
+      : null
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -229,11 +233,14 @@ export function ActivityForm({
         </div>
 
         <section className={styles.locationEditor} aria-label="Location">
-          <div className={styles.locationHeader}>
-            <span className={styles.locationTitle}>
-              <MapPin size={15} aria-hidden="true" />
-              Location
-            </span>
+          <MapPin className={styles.locationIcon} size={24} aria-hidden="true" />
+          <div className={styles.locationText}>
+            <p className={styles.locationPrimary}>{locationPrimary}</p>
+            {locationSecondary ? (
+              <p className={styles.locationSecondary}>{locationSecondary}</p>
+            ) : null}
+          </div>
+          <div className={styles.locationAction}>
             {onRequestMapLocation && (
               <button
                 type="button"
@@ -241,37 +248,9 @@ export function ActivityForm({
                 onClick={() => onRequestMapLocation(buildPayload())}
                 disabled={submitting}
               >
-                Change on map
+                CHANGE ON MAP
               </button>
             )}
-          </div>
-
-          <div className={styles.locationFields}>
-            <label className={styles.locationField} htmlFor={placeId}>
-              Place name
-              <input
-                id={placeId}
-                className={styles.locationInput}
-                value={placeName}
-                placeholder="Restaurant, museum, hotel..."
-                readOnly
-                aria-readonly="true"
-                tabIndex={-1}
-              />
-            </label>
-
-            <label className={styles.locationField} htmlFor={addressId}>
-              Address
-              <input
-                id={addressId}
-                className={styles.locationInput}
-                value={address}
-                placeholder="Street address or neighborhood..."
-                readOnly
-                aria-readonly="true"
-                tabIndex={-1}
-              />
-            </label>
           </div>
         </section>
 
