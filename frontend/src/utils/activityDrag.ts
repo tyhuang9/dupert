@@ -7,6 +7,7 @@ const DAY_PREFIX = 'day:'
 
 export interface ReorderDragOperation {
   type: 'reorder'
+  dayDate: string
   activityIds: number[]
 }
 
@@ -54,6 +55,12 @@ export function listTripDays(startDate: string, endDate: string): string[] {
   return days
 }
 
+function activitiesForDay(allActivities: Activity[], dayDate: string): Activity[] {
+  return allActivities
+    .filter((activity) => activity.dayDate === dayDate)
+    .sort((left, right) => left.orderIndex - right.orderIndex)
+}
+
 export function getActivityDragOperation({
   activeId,
   overId,
@@ -81,6 +88,7 @@ export function getActivityDragOperation({
 
     return {
       type: 'reorder',
+      dayDate: draggedActivity.dayDate,
       activityIds: arrayMove(selectedDayActivities, oldIndex, newIndex).map((activity) => activity.id),
     }
   }
@@ -93,5 +101,63 @@ export function getActivityDragOperation({
     activity: draggedActivity,
     dayDate: targetDay,
     orderIndex: allActivities.filter((activity) => activity.dayDate === targetDay).length,
+  }
+}
+
+export function getTimelineDragOperation({
+  activeId,
+  allActivities,
+  overId,
+}: {
+  activeId: UniqueIdentifier
+  allActivities: Activity[]
+  overId: UniqueIdentifier | null | undefined
+}): ActivityDragOperation | null {
+  if (!overId) return null
+
+  const activityId = parseActivityDragId(activeId)
+  if (activityId === null) return null
+
+  const draggedActivity = allActivities.find((activity) => activity.id === activityId)
+  if (!draggedActivity) return null
+
+  const overActivityId = parseActivityDragId(overId)
+  if (overActivityId !== null) {
+    if (overActivityId === activityId) return null
+
+    const overActivity = allActivities.find((activity) => activity.id === overActivityId)
+    if (!overActivity) return null
+
+    const targetActivities = activitiesForDay(allActivities, overActivity.dayDate)
+    const newIndex = targetActivities.findIndex((activity) => activity.id === overActivityId)
+    if (newIndex < 0) return null
+
+    if (draggedActivity.dayDate === overActivity.dayDate) {
+      const oldIndex = targetActivities.findIndex((activity) => activity.id === activityId)
+      if (oldIndex < 0 || oldIndex === newIndex) return null
+
+      return {
+        type: 'reorder',
+        dayDate: draggedActivity.dayDate,
+        activityIds: arrayMove(targetActivities, oldIndex, newIndex).map((activity) => activity.id),
+      }
+    }
+
+    return {
+      type: 'move',
+      activity: draggedActivity,
+      dayDate: overActivity.dayDate,
+      orderIndex: newIndex,
+    }
+  }
+
+  const targetDay = parseDayDropId(overId)
+  if (!targetDay || targetDay === draggedActivity.dayDate) return null
+
+  return {
+    type: 'move',
+    activity: draggedActivity,
+    dayDate: targetDay,
+    orderIndex: activitiesForDay(allActivities, targetDay).length,
   }
 }

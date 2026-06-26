@@ -4,6 +4,7 @@ import {
   activityDragId,
   dayDropId,
   getActivityDragOperation,
+  getTimelineDragOperation,
   listTripDays,
   parseActivityDragId,
   parseDayDropId,
@@ -79,7 +80,49 @@ describe('activity drag helpers', () => {
       }),
     ).toEqual({
       type: 'reorder',
+      dayDate: '2026-05-01',
       activityIds: [12, 10, 11],
+    })
+  })
+
+  it('builds a full-timeline same-day reorder operation', () => {
+    const allActivities = [
+      activity(10, '2026-05-01', 0),
+      activity(11, '2026-05-01', 1),
+      activity(12, '2026-05-02', 0),
+    ]
+
+    expect(
+      getTimelineDragOperation({
+        activeId: activityDragId(11),
+        overId: activityDragId(10),
+        allActivities,
+      }),
+    ).toEqual({
+      type: 'reorder',
+      dayDate: '2026-05-01',
+      activityIds: [11, 10],
+    })
+  })
+
+  it('builds a full-timeline move operation when dropped over another day row', () => {
+    const allActivities = [
+      activity(10, '2026-05-01', 0),
+      activity(11, '2026-05-02', 0),
+      activity(12, '2026-05-02', 1),
+    ]
+
+    expect(
+      getTimelineDragOperation({
+        activeId: activityDragId(10),
+        overId: activityDragId(12),
+        allActivities,
+      }),
+    ).toEqual({
+      type: 'move',
+      activity: allActivities[0],
+      dayDate: '2026-05-02',
+      orderIndex: 1,
     })
   })
 

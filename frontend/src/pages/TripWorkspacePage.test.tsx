@@ -350,12 +350,14 @@ describe('<TripWorkspacePage>', () => {
 
     expect(screen.getByRole('button', { name: /^timeline$/i })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByRole('heading', { name: /full trip timeline/i })).toBeInTheDocument()
-    expect(screen.getByText(/2 activities across 5 days/i)).toBeInTheDocument()
+    expect(screen.getByText(/2 activities across 2 days/i)).toBeInTheDocument()
 
     const fullTimeline = screen.getByLabelText(/trip days timeline/i)
     expect(within(fullTimeline).getByText('Tsukiji sushi')).toBeInTheDocument()
     expect(within(fullTimeline).getByText('Tokyo Tower')).toBeInTheDocument()
     expect(within(fullTimeline).getAllByText('Counter seat').length).toBeGreaterThan(0)
+    expect(within(fullTimeline).getAllByText('9:00 AM').length).toBeGreaterThan(0)
+    expect(within(fullTimeline).queryByRole('heading', { name: /sunday, may 3/i })).not.toBeInTheDocument()
     expect(within(fullTimeline).queryByText(/mapped/i)).not.toBeInTheDocument()
     expect(within(fullTimeline).queryByText(/^day \d/i)).not.toBeInTheDocument()
 

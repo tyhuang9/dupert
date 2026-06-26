@@ -11,8 +11,13 @@ import {
   type CollisionDetection,
   type DragEndEvent,
 } from '@dnd-kit/core'
-import { sortableKeyboardCoordinates } from '@dnd-kit/sortable'
-import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable'
+import { useEffect, useMemo, useState, type CSSProperties, type FormEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
   AlertTriangle,
@@ -56,8 +61,10 @@ import type { Activity, CreateActivityRequest } from '../types/activity'
 import type { PlaceSelection } from '../types/place'
 import type { Trip, UpdateTripRequest } from '../types/trip'
 import {
+  activityDragId,
   dayDropId,
   getActivityDragOperation,
+  getTimelineDragOperation,
   listTripDays,
 } from '../utils/activityDrag'
 
@@ -170,10 +177,24 @@ function buildCalendarCells(monthKey: string, startDate: string, endDate: string
   })
 }
 
+function formatClockTime(value: string): string {
+  const [hourPart, minutePart = '00'] = value.split(':')
+  const hour = Number(hourPart)
+  const minute = Number(minutePart)
+  if (!Number.isInteger(hour) || !Number.isInteger(minute)) {
+    return value
+  }
+  const period = hour >= 12 ? 'PM' : 'AM'
+  const hour12 = hour % 12 || 12
+  return `${hour12}:${String(minute).padStart(2, '0')} ${period}`
+}
+
 function formatActivityTime(activity: Activity): string {
-  if (activity.startTime && activity.endTime) return `${activity.startTime}-${activity.endTime}`
-  if (activity.startTime) return activity.startTime
-  if (activity.endTime) return `Ends ${activity.endTime}`
+  if (activity.startTime && activity.endTime) {
+    return `${formatClockTime(activity.startTime)}-${formatClockTime(activity.endTime)}`
+  }
+  if (activity.startTime) return formatClockTime(activity.startTime)
+  if (activity.endTime) return `Ends ${formatClockTime(activity.endTime)}`
   return 'Any time'
 }
 
@@ -198,6 +219,141 @@ function TimelineCategoryIcon({ category }: { category: Activity['category'] }) 
     case 'OTHER':
       return <MapPin size={18} aria-hidden="true" />
   }
+}
+
+function sortableTransformToString(
+  transform: { x: number; y: number; scaleX: number; scaleY: number } | null,
+): string | undefined {
+  if (!transform) return undefined
+  return `translate3d(${Math.round(transform.x)}px, ${Math.round(transform.y)}px, 0) scaleX(${transform.scaleX}) scaleY(${transform.scaleY})`
+}
+
+interface TimelineGroup {
+  activities: Activity[]
+  dayDate: string
+}
+
+function SortableTimelineActivity({
+  active,
+  activity,
+  busy,
+  onSelect,
+  readOnly,
+}: {
+  active: boolean
+  activity: Activity
+  busy: boolean
+  onSelect: (activityId: number) => void
+  readOnly: boolean
+}) {
+  const {
+    attributes,
+    isDragging,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+  } = useSortable({
+    id: activityDragId(activity.id),
+    disabled: readOnly || busy,
+  })
+  const style: CSSProperties = {
+    transform: sortableTransformToString(transform),
+    transition,
+  }
+
+  return (
+    <li
+      ref={setNodeRef}
+      style={style}
+      className={isDragging ? styles.timelineActivityDragging : undefined}
+    >
+      <article className={styles.timelineActivityEntry}>
+        <button
+          id={`activity-${activity.id}`}
+          type="button"
+          {...attributes}
+          aria-pressed={active}
+          className={[
+            styles.timelineActivityButton,
+            active ? styles.timelineActivityActive : '',
+          ].filter(Boolean).join(' ')}
+          onClick={() => onSelect(activity.id)}
+          {...listeners}
+        >
+          <span
+            className={styles.timelineActivityIcon}
+            data-category={activity.category}
+          >
+            <TimelineCategoryIcon category={activity.category} />
+          </span>
+          <span className={styles.timelineActivityContent}>
+            <strong>{activity.title}</strong>
+            <small className={styles.timelineActivitySummary}>
+              {timelineActivitySummary(activity)}
+            </small>
+          </span>
+          <span className={styles.timelineActivityTime}>
+            {formatActivityTime(activity)}
+          </span>
+        </button>
+      </article>
+    </li>
+  )
+}
+
+function TimelineDayGroup({
+  activeActivityId,
+  busy,
+  group,
+  onSelectActivity,
+  readOnly,
+}: {
+  activeActivityId: number | null
+  busy: boolean
+  group: TimelineGroup
+  onSelectActivity: (activityId: number) => void
+  readOnly: boolean
+}) {
+  const { isOver, setNodeRef } = useDroppable({
+    id: dayDropId(group.dayDate),
+    disabled: readOnly || busy,
+  })
+
+  return (
+    <section
+      ref={setNodeRef}
+      className={[
+        styles.timelineDayGroup,
+        isOver ? styles.timelineDayGroupOver : '',
+      ].filter(Boolean).join(' ')}
+      aria-labelledby={`timeline-day-${group.dayDate}`}
+    >
+      <header className={styles.timelineDayHeader}>
+        <div>
+          <h3 id={`timeline-day-${group.dayDate}`}>{formatReadableDate(group.dayDate)}</h3>
+        </div>
+        <span>{pluralize(group.activities.length, 'item')}</span>
+      </header>
+      <SortableContext
+        items={group.activities.map((activity) => activityDragId(activity.id))}
+        strategy={verticalListSortingStrategy}
+      >
+        <ol className={styles.timelineDayActivities}>
+          {group.activities.map((activity) => (
+            <SortableTimelineActivity
+              key={activity.id}
+              activity={activity}
+              active={activeActivityId === activity.id}
+              busy={busy}
+              readOnly={readOnly}
+              onSelect={onSelectActivity}
+            />
+          ))}
+        </ol>
+      </SortableContext>
+    </section>
+  )
 }
 
 function hasFiniteCoordinates(activity: Pick<Activity, 'lat' | 'lng'>): boolean {
@@ -676,11 +832,23 @@ export function TripWorkspacePage() {
     [allActivities],
   )
   const timelineGroups = useMemo(
-    () =>
-      tripDays.map((tripDay) => ({
-        activities: fullTimelineActivities.filter((activity) => activity.dayDate === tripDay),
-        dayDate: tripDay,
-      })),
+    () => {
+      const tripDaySet = new Set(tripDays)
+      const groupedActivities = new Map<string, Activity[]>()
+      for (const activity of fullTimelineActivities) {
+        if (!tripDaySet.has(activity.dayDate)) continue
+        const activities = groupedActivities.get(activity.dayDate) ?? []
+        activities.push(activity)
+        groupedActivities.set(activity.dayDate, activities)
+      }
+
+      return tripDays.flatMap((tripDay): TimelineGroup[] => {
+        const activities = groupedActivities.get(tripDay)
+        return activities && activities.length > 0
+          ? [{ activities, dayDate: tripDay }]
+          : []
+      })
+    },
     [fullTimelineActivities, tripDays],
   )
   const normalizedActivitySearch = activitySearch.trim().toLowerCase()
@@ -881,18 +1049,24 @@ export function TripWorkspacePage() {
 
   const handleDragEnd = (event: DragEndEvent) => {
     if (!publicId || !selectedDay || isActivityMutationPending) return
-    const operation = getActivityDragOperation({
-      activeId: event.active.id,
-      overId: event.over?.id,
-      selectedDayActivities: dayActivities,
-      allActivities,
-    })
+    const operation = workspaceMode === 'timeline'
+      ? getTimelineDragOperation({
+          activeId: event.active.id,
+          overId: event.over?.id,
+          allActivities,
+        })
+      : getActivityDragOperation({
+          activeId: event.active.id,
+          overId: event.over?.id,
+          selectedDayActivities: dayActivities,
+          allActivities,
+        })
     if (!operation) return
 
     if (operation.type === 'reorder') {
       void reorderActivitiesMutation.mutateAsync({
         publicId,
-        dayDate: selectedDay,
+        dayDate: operation.dayDate,
         body: { activityIds: operation.activityIds },
       })
       return
@@ -1092,7 +1266,7 @@ export function TripWorkspacePage() {
                     </h2>
                     <p className={styles.panelDescription}>
                       {workspaceMode === 'timeline'
-                        ? `${pluralize(totalActivities, 'activity', 'activities')} across ${pluralize(tripDays.length, 'day')}`
+                        ? `${pluralize(totalActivities, 'activity', 'activities')} across ${pluralize(timelineGroups.length, 'day')}`
                         : `${tripQuery.data.destination || 'Destination TBD'} · ${pluralize(dayActivities.length, 'activity', 'activities')} scheduled today · ${selectedDayMappedCount} mapped`}
                     </p>
                   </div>
@@ -1191,58 +1365,20 @@ export function TripWorkspacePage() {
                       </>
                     ) : (
                       <div className={styles.fullTimeline} aria-label="Trip days timeline">
-                        {timelineGroups.map((group) => (
-                          <section
-                            key={group.dayDate}
-                            className={styles.timelineDayGroup}
-                            aria-labelledby={`timeline-day-${group.dayDate}`}
-                          >
-                            <header className={styles.timelineDayHeader}>
-                              <div>
-                                <h3 id={`timeline-day-${group.dayDate}`}>{formatReadableDate(group.dayDate)}</h3>
-                              </div>
-                              <span>{pluralize(group.activities.length, 'item')}</span>
-                            </header>
-                            {group.activities.length > 0 ? (
-                              <ol className={styles.timelineDayActivities}>
-                                {group.activities.map((activity) => (
-                                  <li key={activity.id}>
-                                    <article className={styles.timelineActivityEntry}>
-                                      <button
-                                        id={`activity-${activity.id}`}
-                                        type="button"
-                                        aria-pressed={visibleActiveActivityId === activity.id}
-                                        className={[
-                                          styles.timelineActivityButton,
-                                          visibleActiveActivityId === activity.id ? styles.timelineActivityActive : '',
-                                        ].filter(Boolean).join(' ')}
-                                        onClick={() => setActiveActivityId(activity.id)}
-                                      >
-                                        <span
-                                          className={styles.timelineActivityIcon}
-                                          data-category={activity.category}
-                                        >
-                                          <TimelineCategoryIcon category={activity.category} />
-                                        </span>
-                                        <span className={styles.timelineActivityContent}>
-                                          <strong>{activity.title}</strong>
-                                          <small className={styles.timelineActivitySummary}>
-                                            {timelineActivitySummary(activity)}
-                                          </small>
-                                        </span>
-                                        <span className={styles.timelineActivityTime}>
-                                          {formatActivityTime(activity)}
-                                        </span>
-                                      </button>
-                                    </article>
-                                  </li>
-                                ))}
-                              </ol>
-                            ) : (
-                              <p className={styles.emptyTimelineDay}>No scheduled activities.</p>
-                            )}
-                          </section>
-                        ))}
+                        {timelineGroups.length > 0 ? (
+                          timelineGroups.map((group) => (
+                            <TimelineDayGroup
+                              key={group.dayDate}
+                              activeActivityId={visibleActiveActivityId}
+                              busy={isActivityMutationPending}
+                              group={group}
+                              readOnly={!canEditTrip}
+                              onSelectActivity={setActiveActivityId}
+                            />
+                          ))
+                        ) : (
+                          <p className={styles.emptyTimelineDay}>No scheduled activities yet.</p>
+                        )}
                       </div>
                     )}
                   </div>
