@@ -69,12 +69,6 @@ interface DisplayStop {
   activityId?: number
 }
 
-interface PreviewPlaceDetails {
-  address: string | null
-  metadata: Array<{ label: string; value: string }>
-  title: string
-}
-
 const DEFAULT_VIEW_STATE: ViewState = {
   longitude: -98.5795,
   latitude: 39.8283,
@@ -172,7 +166,7 @@ function previewPlaceToDisplayStop(previewPlace: MapPreviewPlace | null | undefi
     previewPlace.placeName ||
     previewPlace.title ||
     previewPlace.address ||
-    'Selected place'
+    'Search preview'
   return {
     id: `preview-${previewPlace.lng},${previewPlace.lat}`,
     label,
@@ -180,47 +174,8 @@ function previewPlaceToDisplayStop(previewPlace: MapPreviewPlace | null | undefi
     lng: previewPlace.lng,
     markerLabel: '+',
     source: 'preview',
-    title: `Selected place: ${label}`,
+    title: `Search preview: ${label}`,
   }
-}
-
-function formatMetadataValue(value: string): string {
-  const trimmed = value.trim()
-  if (!trimmed) return ''
-  return trimmed
-    .replace(/[_-]+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .replace(/\b\w/g, (letter) => letter.toUpperCase())
-}
-
-function previewPlaceToDetails(
-  previewPlace: MapPreviewPlace | null | undefined,
-  previewDisplayStop: DisplayStop | null,
-): PreviewPlaceDetails | null {
-  if (!previewPlace || !previewDisplayStop) return null
-
-  const title =
-    previewPlace.placeName ||
-    previewPlace.title ||
-    previewPlace.address ||
-    previewDisplayStop.label
-  const address = previewPlace.address && previewPlace.address !== title
-    ? previewPlace.address
-    : null
-  const coordinates =
-    previewPlace.coordinatesLabel ||
-    `${previewDisplayStop.lat.toFixed(5)}, ${previewDisplayStop.lng.toFixed(5)}`
-  const metadata = [
-    previewPlace.placeCategory
-      ? { label: 'Category', value: formatMetadataValue(previewPlace.placeCategory) }
-      : null,
-    previewPlace.featureType
-      ? { label: 'Type', value: formatMetadataValue(previewPlace.featureType) }
-      : null,
-    { label: 'Coordinates', value: coordinates },
-  ].filter((item): item is { label: string; value: string } => Boolean(item?.value))
-
-  return { address, metadata, title }
 }
 
 function initialViewState(stops: DisplayStop[]): ViewState {
@@ -301,10 +256,6 @@ export function TripMap({
   const previewDisplayStop = useMemo(
     () => previewPlaceToDisplayStop(previewPlace),
     [previewPlace],
-  )
-  const previewPlaceDetails = useMemo(
-    () => previewPlaceToDetails(previewPlace, previewDisplayStop),
-    [previewDisplayStop, previewPlace],
   )
   const destinationError =
     destinationState.key === destinationKey ? destinationState.error : null
@@ -516,25 +467,6 @@ export function TripMap({
     window.requestAnimationFrame(reportViewportContext)
   }, [displayKey, displayStops, reportViewportContext])
 
-  useEffect(() => {
-    const map = mapRef.current
-    if (!map || activeActivityId === null) return
-
-    const activeStop = displayStops.find((stop) => stop.activityId === activeActivityId)
-    if (!activeStop) return
-
-    const reducedMotion =
-      typeof window.matchMedia === 'function' &&
-      window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    const currentZoom = typeof map.getZoom === 'function' ? map.getZoom() : 12
-    map.flyTo({
-      center: [activeStop.lng, activeStop.lat],
-      duration: reducedMotion ? 0 : 450,
-      zoom: Math.max(currentZoom, 13),
-    })
-    window.requestAnimationFrame(reportViewportContext)
-  }, [activeActivityId, displayStops, reportViewportContext])
-
   if (!token) {
     return (
       <div className={styles.fallback} role="status">
@@ -680,34 +612,8 @@ export function TripMap({
           </div>
         </div>
       )}
-      {previewPlaceDetails && (
-        <aside className={styles.placeDetailsCard} aria-label="Selected place details">
-          <MapPinned size={20} aria-hidden="true" />
-          <div className={styles.placeDetailsBody}>
-            <p className={styles.placeDetailsKicker}>Selected place</p>
-            <h3>{previewPlaceDetails.title}</h3>
-            {previewPlaceDetails.address ? (
-              <p className={styles.placeDetailsAddress}>{previewPlaceDetails.address}</p>
-            ) : null}
-            <dl className={styles.placeDetailsMetadata}>
-              {previewPlaceDetails.metadata.map((item) => (
-                <div key={item.label}>
-                  <dt>{item.label}</dt>
-                  <dd>{item.value}</dd>
-                </div>
-              ))}
-            </dl>
-          </div>
-        </aside>
-      )}
       {currentRoute && (
-        <div
-          className={[
-            styles.routeSummary,
-            previewPlaceDetails ? styles.routeSummaryWithPlaceDetails : '',
-          ].filter(Boolean).join(' ')}
-          aria-live="polite"
-        >
+        <div className={styles.routeSummary} aria-live="polite">
           <div className={styles.routeSummaryHeader}>
             <Route size={15} aria-hidden="true" />
             <span>Selected-day route</span>

@@ -1,4 +1,5 @@
 import { act, render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SearchBoxOptions, SearchBoxRetrieveResponse } from '@mapbox/search-js-core'
 import { PlaceSearch } from './PlaceSearch'
@@ -163,5 +164,25 @@ describe('<PlaceSearch>', () => {
       language: 'en',
       proximity: { lng: 139.7454, lat: 35.6586 },
     })
+  })
+
+  it('offers compact category shortcuts for map search', async () => {
+    const onSearchValueChange = vi.fn()
+    const onPlacePreview = vi.fn()
+    render(
+      <PlaceSearch
+        onPlacePreview={onPlacePreview}
+        onPlaceSelect={vi.fn()}
+        onSearchValueChange={onSearchValueChange}
+      />,
+    )
+
+    await userEvent.click(screen.getByRole('button', { name: /restaurants/i }))
+
+    await waitFor(() => {
+      expect(searchBoxState.props?.value).toBe('Restaurant')
+    })
+    expect(onSearchValueChange).toHaveBeenCalledWith('Restaurant')
+    expect(onPlacePreview).toHaveBeenCalledWith(null)
   })
 })

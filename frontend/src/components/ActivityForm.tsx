@@ -213,7 +213,7 @@ export function ActivityForm({
               className={`${styles.input} ${styles.compactInput}`}
               value={title}
               onChange={(event) => setTitle(event.target.value)}
-              placeholder="Breakfast at The Wolseley"
+              placeholder="Add a title"
               required
             />
           </label>

@@ -431,13 +431,8 @@ describe('<TripMap>', () => {
       />,
     )
 
-    expect(screen.getByRole('img', { name: /selected place: tsukiji market/i })).toBeInTheDocument()
-    const details = screen.getByRole('complementary', { name: /selected place details/i })
-    expect(within(details).getByRole('heading', { name: /tsukiji market/i })).toBeInTheDocument()
-    expect(within(details).getByText('5 Chome-2 Tsukiji, Chuo City, Tokyo')).toBeInTheDocument()
-    expect(within(details).getByText('Food And Drink')).toBeInTheDocument()
-    expect(within(details).getByText('Poi')).toBeInTheDocument()
-    expect(within(details).getByText('35.66540, 139.77070')).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: /search preview: tsukiji market/i })).toBeInTheDocument()
+    expect(screen.queryByRole('complementary', { name: /selected place details/i })).not.toBeInTheDocument()
     expect(screen.queryByText(/previewing selected place/i)).not.toBeInTheDocument()
 
     await waitFor(() => {
@@ -531,6 +526,12 @@ describe('<TripMap>', () => {
     const marker = screen.getByRole('button', { name: /stop 1: tokyo tower/i })
     await userEvent.hover(marker)
     expect(onActiveActivityChange).toHaveBeenCalledWith(10)
+    expect(mapControlMock.flyTo).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        center: [139.7454, 35.6586],
+        zoom: 13,
+      }),
+    )
     await userEvent.unhover(marker)
     expect(onActiveActivityChange).toHaveBeenCalledWith(null)
     await userEvent.click(marker)

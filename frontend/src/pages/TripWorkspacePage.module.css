@@ -992,12 +992,7 @@
 }
 
 .mapSearchOverlay {
-  width: min(100%, 24rem);
-  padding: var(--space-3);
-  border: 1px solid var(--color-text-subtle);
-  border-radius: var(--radius-md);
-  background: rgba(255, 255, 255, 0.96);
-  box-shadow: var(--shadow-md);
+  width: min(100%, 48rem);
 }
 
 .mapStyleSelect {

@@ -1,7 +1,7 @@
 .searchShell {
   min-width: 0;
   display: grid;
-  gap: var(--space-3);
+  gap: var(--space-2);
 }
 
 .context {
@@ -18,18 +18,18 @@
 
 .label {
   min-width: 0;
-  display: grid;
-  gap: var(--space-1);
+  flex: 1 1 20rem;
+  display: block;
   color: var(--color-text);
   font-size: var(--font-size-xs);
   font-weight: 800;
 }
 
-.helpText {
-  color: var(--color-text-muted);
-  font-size: var(--font-size-xs);
-  font-weight: 500;
-  line-height: var(--line-height-base);
+.searchRow {
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
 }
 
 .searchBox {
@@ -38,7 +38,53 @@
 }
 
 .searchBox input {
-  border-radius: var(--radius-md) !important;
+  min-height: 44px !important;
+  border: 1px solid #9aa8bd !important;
+  border-radius: var(--radius-sm) !important;
+  background: rgba(255, 255, 255, 0.98) !important;
+  box-shadow: var(--shadow-sm) !important;
+  font-size: var(--font-size-base) !important;
+}
+
+.categoryShortcuts {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.shortcutButton {
+  min-width: 44px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-surface-border);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.96);
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  box-shadow: var(--shadow-md);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.shortcutButton:hover,
+.shortcutButton:focus-visible {
+  border-color: var(--color-primary);
+  color: var(--color-primary-text);
+}
+
+.shortcutButton:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.moreShortcutButton {
+  min-width: 5rem;
 }
 
 .searchError {
@@ -61,4 +107,20 @@
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);
   line-height: var(--line-height-base);
+}
+
+@media (max-width: 900px) {
+  .searchRow {
+    flex-direction: column;
+  }
+
+  .label,
+  .categoryShortcuts {
+    width: 100%;
+  }
+
+  .categoryShortcuts {
+    overflow-x: auto;
+    padding-bottom: 2px;
+  }
 }

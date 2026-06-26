@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FocusEvent } from 'react'
 import { SearchBox } from '@mapbox/search-js-react'
 import type { SearchBoxOptions, SearchBoxRetrieveResponse } from '@mapbox/search-js-core'
+import { Coffee, Fuel, ShoppingCart, Utensils } from 'lucide-react'
 import type { ActivityCategory } from '../types/activity'
 import type { PlaceSelection } from '../types/place'
 import { mapboxAccessTroubleshooting } from '../utils/mapboxAccess'
@@ -17,6 +18,13 @@ interface PlaceSearchProps {
 }
 
 type RetrievedFeature = SearchBoxRetrieveResponse['features'][number]
+
+const CATEGORY_SHORTCUTS = [
+  { label: 'Coffee', query: 'Coffee', icon: Coffee },
+  { label: 'Restaurants', query: 'Restaurant', icon: Utensils },
+  { label: 'Gas', query: 'Gas station', icon: Fuel },
+  { label: 'Shopping', query: 'Shopping', icon: ShoppingCart },
+]
 
 function categoryForPlace(properties: RetrievedFeature['properties']): ActivityCategory {
   const categories = [
@@ -135,44 +143,77 @@ export function PlaceSearch({
     setSearchBoxVersion((current) => current + 1)
   }
 
+  const applyShortcut = (query: string) => {
+    setSearchError(null)
+    updateValue(query)
+    onPlacePreview?.(null)
+    window.requestAnimationFrame(() => {
+      const input = shellRef.current?.querySelector('input')
+      input?.focus()
+      input?.select()
+    })
+  }
+
   return (
     <div ref={shellRef} className={styles.searchShell} onFocusCapture={handleFocusCapture}>
       {contextLabel && <p className={styles.context}>{contextLabel}</p>}
-      <label className={styles.label}>
-        Search places
-        <span className={styles.helpText}>Restaurants, sights, hotels, airports, and transit stops.</span>
-        <span className={styles.searchBox}>
-          <SearchBox
-            key={searchBoxVersion}
-            accessToken={accessToken}
-            value={displayedValue}
-            onChange={(nextValue) => {
-              updateValue(nextValue)
-              if (!nextValue) setSearchError(null)
-              onPlacePreview?.(null)
-            }}
-            onSuggest={() => setSearchError(null)}
-            onSuggestError={() => {
-              setSearchError(`Mapbox search failed. ${mapboxAccessTroubleshooting()}`)
-            }}
-            onRetrieve={(res) => {
-              const payload = placePayload(res)
-              if (!payload) return
-              setSearchError(null)
-              updateValue(payload.address ?? payload.placeName ?? payload.title ?? '')
-              closeSuggestions()
-              onPlaceSelect(payload)
-            }}
-            onClear={() => {
-              setSearchError(null)
-              updateValue('')
-              onPlacePreview?.(null)
-            }}
-            placeholder="Search restaurants, sights, hotels..."
-            options={{ language: 'en', ...searchOptions }}
-          />
-        </span>
-      </label>
+      <div className={styles.searchRow}>
+        <label className={styles.label}>
+          <span className="sr-only">Search places</span>
+          <span className={styles.searchBox}>
+            <SearchBox
+              key={searchBoxVersion}
+              accessToken={accessToken}
+              value={displayedValue}
+              onChange={(nextValue) => {
+                updateValue(nextValue)
+                if (!nextValue) setSearchError(null)
+                onPlacePreview?.(null)
+              }}
+              onSuggest={() => setSearchError(null)}
+              onSuggestError={() => {
+                setSearchError(`Mapbox search failed. ${mapboxAccessTroubleshooting()}`)
+              }}
+              onRetrieve={(res) => {
+                const payload = placePayload(res)
+                if (!payload) return
+                setSearchError(null)
+                updateValue(payload.address ?? payload.placeName ?? payload.title ?? '')
+                closeSuggestions()
+                onPlaceSelect(payload)
+              }}
+              onClear={() => {
+                setSearchError(null)
+                updateValue('')
+                onPlacePreview?.(null)
+              }}
+              placeholder="Search restaurants, sights, hotels..."
+              options={{ language: 'en', ...searchOptions }}
+            />
+          </span>
+        </label>
+        <div className={styles.categoryShortcuts} aria-label="Place categories">
+          {CATEGORY_SHORTCUTS.map(({ icon: Icon, label, query }) => (
+            <button
+              key={label}
+              type="button"
+              className={styles.shortcutButton}
+              aria-label={label}
+              title={label}
+              onClick={() => applyShortcut(query)}
+            >
+              <Icon size={20} aria-hidden="true" />
+            </button>
+          ))}
+          <button
+            type="button"
+            className={`${styles.shortcutButton} ${styles.moreShortcutButton}`}
+            onClick={() => applyShortcut('Things to do')}
+          >
+            More
+          </button>
+        </div>
+      </div>
       {searchError && (
         <p className={styles.searchError} role="alert">
           {searchError}
