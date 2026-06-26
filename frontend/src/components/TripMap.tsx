@@ -41,7 +41,7 @@ export interface MapViewportContext {
   zoom?: number
 }
 
-export interface MapPreviewPlace extends Pick<
+export type MapPreviewPlace = Pick<
   PlaceSelection,
   | 'address'
   | 'coordinatesLabel'
@@ -51,7 +51,7 @@ export interface MapPreviewPlace extends Pick<
   | 'placeCategory'
   | 'placeName'
   | 'title'
-> {}
+>
 
 interface CoordinateActivity extends Activity {
   lat: number
