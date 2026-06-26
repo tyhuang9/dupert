@@ -1,4 +1,10 @@
-import type { FocusEvent, HTMLAttributes, KeyboardEvent, MouseEvent } from 'react'
+import {
+  useState,
+  type FocusEvent,
+  type HTMLAttributes,
+  type KeyboardEvent,
+  type MouseEvent,
+} from 'react'
 import {
   BedDouble,
   Coffee,
@@ -8,6 +14,7 @@ import {
   Utensils,
 } from 'lucide-react'
 import { ActivityForm } from './ActivityForm'
+import { ConfirmDialog } from './ConfirmDialog'
 import type { Activity, CreateActivityRequest } from '../types/activity'
 import styles from './ActivityCard.module.css'
 
@@ -107,6 +114,7 @@ export function ActivityCard({
   onSubmitEdit,
   onToggleExpand,
 }: ActivityCardProps) {
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const timeDisplay = getTimeDisplay(activity)
   const categoryLabel = getCategoryLabel(activity.category)
   const locationLabel = activity.placeName || activity.address
@@ -116,9 +124,7 @@ export function ActivityCard({
     expanded ? styles.cardExpanded : '',
   ].filter(Boolean).join(' ')
   const handleDelete = () => {
-    if (confirm('Delete this activity?')) {
-      onDelete(activity.id)
-    }
+    setDeleteDialogOpen(true)
   }
   const handleBlurCapture = (event: FocusEvent<HTMLElement>) => {
     const nextTarget = event.relatedTarget
@@ -215,6 +221,19 @@ export function ActivityCard({
             deleteLabel="Delete"
           />
         </div>
+      )}
+
+      {deleteDialogOpen && (
+        <ConfirmDialog
+          title="Delete activity?"
+          description={`Delete "${activity.title}"? This cannot be undone.`}
+          confirmLabel="Delete activity"
+          onCancel={() => setDeleteDialogOpen(false)}
+          onConfirm={() => {
+            setDeleteDialogOpen(false)
+            onDelete(activity.id)
+          }}
+        />
       )}
 
       {expanded && readOnly && activity.notes && (

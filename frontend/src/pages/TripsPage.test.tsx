@@ -220,7 +220,6 @@ describe('<TripsPage>', () => {
   })
 
   it('deletes owner trips from the navigator', async () => {
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true)
     apiMock
       .onGet('/trips')
       .reply(200, [SAMPLE_TRIP, PARIS_TRIP])
@@ -240,9 +239,10 @@ describe('<TripsPage>', () => {
       screen.getByRole('button', { name: /delete tokyo 2026/i }),
     )
 
-    expect(confirmSpy).toHaveBeenCalledWith(
-      'Delete "Tokyo 2026"? This cannot be undone.',
-    )
+    const dialog = screen.getByRole('alertdialog', { name: /delete trip/i })
+    expect(dialog).toHaveTextContent('Delete "Tokyo 2026"? This cannot be undone.')
+    await userEvent.click(screen.getByRole('button', { name: /^delete trip$/i }))
+
     await waitFor(() => {
       expect(apiMock.history.delete[0].url).toBe('/trips/abc234def567')
     })

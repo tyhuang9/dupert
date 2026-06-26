@@ -14,6 +14,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth'
 import { parseApiError } from '../api/errors'
 import { useDeleteTrip, useTrips } from '../hooks/useTrips'
+import { ConfirmDialog } from '../components/ConfirmDialog'
 import type { Trip, TripRole } from '../types/trip'
 import coastalCard from '../assets/trips/coastal-card.webp'
 import emptyPlanner from '../assets/trips/empty-planner.webp'
@@ -107,6 +108,7 @@ export function TripsPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [roleFilter, setRoleFilter] = useState<RoleFilter>('ALL')
   const [deletingTripId, setDeletingTripId] = useState<string | null>(null)
+  const [tripPendingDelete, setTripPendingDelete] = useState<Trip | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const tripsQuery = useTrips()
   const deleteTripMutation = useDeleteTrip()
@@ -147,16 +149,14 @@ export function TripsPage() {
     }
   }
 
-  async function onDeleteTrip(trip: Trip) {
-    const confirmed = window.confirm(
-      `Delete "${trip.name}"? This cannot be undone.`,
-    )
-    if (!confirmed) return
-
+  async function confirmDeleteTrip() {
+    const trip = tripPendingDelete
+    if (!trip) return
     setDeletingTripId(trip.publicId)
     setDeleteError(null)
     try {
       await deleteTripMutation.mutateAsync(trip.publicId)
+      setTripPendingDelete(null)
     } catch (err) {
       setDeleteError(parseApiError(err).topMessage)
     } finally {
@@ -321,7 +321,10 @@ export function TripsPage() {
                           type="button"
                           className={styles.tripDeleteButton}
                           disabled={isDeleting}
-                          onClick={() => void onDeleteTrip(trip)}
+                          onClick={() => {
+                            setDeleteError(null)
+                            setTripPendingDelete(trip)
+                          }}
                           aria-label={`Delete ${trip.name}`}
                         >
                           <Trash2 aria-hidden="true" size={15} />
@@ -370,6 +373,17 @@ export function TripsPage() {
           </div>
         </section>
       )}
+
+      {tripPendingDelete ? (
+        <ConfirmDialog
+          title="Delete trip?"
+          description={`Delete "${tripPendingDelete.name}"? This cannot be undone.`}
+          confirmLabel="Delete trip"
+          confirming={deletingTripId === tripPendingDelete.publicId}
+          onCancel={() => setTripPendingDelete(null)}
+          onConfirm={() => void confirmDeleteTrip()}
+        />
+      ) : null}
     </main>
   )
 }

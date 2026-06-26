@@ -554,6 +554,26 @@ describe('<TripWorkspacePage>', () => {
     })
   })
 
+  it('confirms activity deletion with an in-app dialog', async () => {
+    mockWorkspace([SAMPLE_ACTIVITY])
+    apiMock.onDelete('/trips/abc234def567/activities/10').reply(204)
+
+    renderWorkspace('/trips/abc234def567')
+
+    const activityCard = (await screen.findByRole('heading', { name: /tsukiji sushi/i })).closest('article')
+    expect(activityCard).not.toBeNull()
+    await userEvent.click(activityCard as HTMLElement)
+    await userEvent.click(screen.getByRole('button', { name: /^delete$/i }))
+
+    const dialog = screen.getByRole('alertdialog', { name: /delete activity/i })
+    expect(dialog).toHaveTextContent('Delete "Tsukiji sushi"? This cannot be undone.')
+    await userEvent.click(screen.getByRole('button', { name: /^delete activity$/i }))
+
+    await waitFor(() => {
+      expect(apiMock.history.delete[0].url).toBe('/trips/abc234def567/activities/10')
+    })
+  })
+
   it('links activity location editing to the map pane and updates after selecting a place', async () => {
     const placedActivity = {
       ...SAMPLE_ACTIVITY,

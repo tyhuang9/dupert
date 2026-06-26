@@ -1,0 +1,112 @@
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: var(--space-4);
+  background: rgba(15, 23, 42, 0.42);
+}
+
+.dialog {
+  width: min(100%, 26rem);
+  display: grid;
+  gap: var(--space-5);
+  padding: var(--space-5);
+  border: 1px solid var(--color-surface-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-lg);
+}
+
+.body {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.body h2,
+.body p {
+  margin: 0;
+}
+
+.body h2 {
+  color: var(--color-text);
+  font-size: var(--font-size-lg);
+  font-weight: 800;
+}
+
+.body p {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  line-height: 1.5;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.cancelButton,
+.destructiveButton {
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-sm);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.cancelButton {
+  border: 1px solid var(--color-surface-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+.destructiveButton {
+  border: 1px solid var(--color-danger);
+  background: var(--color-danger);
+  color: #fff;
+}
+
+.cancelButton:hover,
+.cancelButton:focus-visible {
+  border-color: var(--color-primary);
+  color: var(--color-primary-text);
+}
+
+.destructiveButton:hover,
+.destructiveButton:focus-visible {
+  background: #991b1b;
+  border-color: #991b1b;
+}
+
+.cancelButton:focus-visible,
+.destructiveButton:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.destructiveButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+
+@media (max-width: 520px) {
+  .dialog {
+    padding: var(--space-4);
+  }
+
+  .actions {
+    flex-direction: column-reverse;
+  }
+
+  .cancelButton,
+  .destructiveButton {
+    width: 100%;
+  }
+}
