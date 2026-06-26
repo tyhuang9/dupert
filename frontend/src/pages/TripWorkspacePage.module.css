@@ -820,87 +820,82 @@
 
 .fullTimeline {
   display: grid;
-  gap: var(--space-4);
+  gap: var(--space-8);
 }
 
 .timelineDayGroup {
   display: grid;
-  gap: var(--space-3);
-  padding: var(--space-4);
-  border: 1px solid var(--color-surface-border);
-  border-radius: var(--radius-lg);
-  background: var(--color-surface);
-  box-shadow: var(--shadow-sm);
+  gap: var(--space-2);
+  padding: 0 0 var(--space-2);
 }
 
 .timelineDayHeader {
   display: flex;
-  align-items: flex-start;
+  align-items: baseline;
   justify-content: space-between;
   gap: var(--space-3);
+  padding: 0 var(--space-1) var(--space-2);
 }
 
 .timelineDayHeader h3 {
-  margin: var(--space-1) 0 0;
+  margin: 0;
   color: var(--color-text);
-  font-size: var(--font-size-base);
+  font-size: var(--font-size-lg);
   font-weight: 800;
   line-height: 1.25;
 }
 
 .timelineDayHeader span,
-.timelineActivityMeta,
-.timelineActivityStatus,
-.timelineActivityLocation,
+.timelineActivitySummary,
 .emptyTimelineDay {
   color: var(--color-text-muted);
   font-size: var(--font-size-xs);
 }
 
 .timelineDayHeader span,
-.timelineActivityMeta,
-.timelineActivityStatus {
+.timelineActivityTime {
   font-weight: 800;
   white-space: nowrap;
 }
 
 .timelineDayActivities {
   display: grid;
-  gap: var(--space-2);
+  gap: 2px;
   padding: 0;
   margin: 0;
   list-style: none;
 }
 
+.timelineActivityEntry {
+  min-width: 0;
+}
+
 .timelineActivityButton {
   width: 100%;
-  min-height: 56px;
+  min-height: 64px;
   display: grid;
-  grid-template-columns: 5.25rem minmax(0, 1fr) auto;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
   align-items: center;
   gap: var(--space-3);
-  padding: var(--space-3);
-  border: 1px solid var(--color-surface-border);
+  padding: var(--space-2);
+  border: 0;
   border-radius: var(--radius-md);
-  background: var(--color-shell);
+  background: transparent;
   color: var(--color-text);
   font: inherit;
   text-align: left;
   transition:
     background-color var(--transition-base),
-    border-color var(--transition-base),
-    box-shadow var(--transition-base);
+    color var(--transition-base);
 }
 
 .timelineActivityButton:hover,
 .timelineActivityActive {
-  border-color: #bfdbfe;
-  background: var(--color-primary-softer);
-  box-shadow: 0 8px 20px rgba(37, 99, 235, 0.08);
+  background: color-mix(in srgb, var(--color-primary-softer) 54%, transparent);
 }
 
 .timelineActivityButton strong,
-.timelineActivityLocation {
+.timelineActivitySummary {
   display: block;
   min-width: 0;
   overflow: hidden;
@@ -914,8 +909,53 @@
   line-height: 1.25;
 }
 
+.timelineActivityIcon {
+  width: 40px;
+  height: 40px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: var(--radius-md);
+  background: var(--color-primary-softer);
+  color: var(--color-primary-text);
+}
+
+.timelineActivityIcon[data-category='ACTIVITY'] {
+  background: var(--color-success-bg);
+  color: var(--color-success-fg);
+}
+
+.timelineActivityIcon[data-category='TRANSPORT'] {
+  background: var(--color-primary);
+  color: var(--color-primary-fg);
+}
+
+.timelineActivityIcon[data-category='LODGING'] {
+  background: var(--color-danger-bg);
+  color: var(--color-danger-fg);
+}
+
+.timelineActivityContent {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.timelineActivityTime {
+  min-height: 28px;
+  display: inline-grid;
+  place-items: center;
+  justify-self: end;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--color-surface-border);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+
 .emptyTimelineDay {
   margin: 0;
+  padding: var(--space-2) var(--space-1);
 }
 
 .mapPanel {
@@ -1356,10 +1396,12 @@
   }
 
   .timelineActivityButton {
-    grid-template-columns: 1fr;
+    grid-template-columns: 44px minmax(0, 1fr);
+    align-items: start;
   }
 
-  .timelineActivityStatus {
+  .timelineActivityTime {
+    grid-column: 2;
     justify-self: start;
   }
 
@@ -1393,8 +1435,7 @@
 
   .calendarCard,
   .noteSection,
-  .composer,
-  .timelineDayGroup {
+  .composer {
     padding: var(--space-3);
   }
 

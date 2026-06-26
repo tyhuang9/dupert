@@ -16,15 +16,20 @@ import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
   AlertTriangle,
+  BedDouble,
   CalendarDays,
   ChevronLeft,
   ChevronRight,
+  Coffee,
+  Landmark,
+  MapPin,
   Plane,
   Plus,
   Route as TimelineIcon,
   Search,
   Share2,
   Settings,
+  Utensils,
   X,
 } from 'lucide-react'
 import { parseApiError } from '../api/errors'
@@ -162,6 +167,29 @@ function formatActivityTime(activity: Activity): string {
   if (activity.startTime) return activity.startTime
   if (activity.endTime) return `Ends ${activity.endTime}`
   return 'Any time'
+}
+
+function timelineActivitySummary(activity: Activity): string {
+  const location = activity.placeName || activity.address
+  if (activity.notes && location) return `${activity.notes} - ${location}`
+  return activity.notes || location || 'Location TBD'
+}
+
+function TimelineCategoryIcon({ category }: { category: Activity['category'] }) {
+  switch (category) {
+    case 'ACTIVITY':
+      return <Landmark size={18} aria-hidden="true" />
+    case 'LODGING':
+      return <BedDouble size={18} aria-hidden="true" />
+    case 'MEAL':
+      return <Utensils size={18} aria-hidden="true" />
+    case 'SNACK':
+      return <Coffee size={18} aria-hidden="true" />
+    case 'TRANSPORT':
+      return <Plane size={18} aria-hidden="true" />
+    case 'OTHER':
+      return <MapPin size={18} aria-hidden="true" />
+  }
 }
 
 function hasFiniteCoordinates(activity: Pick<Activity, 'lat' | 'lng'>): boolean {
@@ -624,10 +652,9 @@ export function TripWorkspacePage() {
   )
   const timelineGroups = useMemo(
     () =>
-      tripDays.map((tripDay, index) => ({
+      tripDays.map((tripDay) => ({
         activities: fullTimelineActivities.filter((activity) => activity.dayDate === tripDay),
         dayDate: tripDay,
-        dayIndex: index + 1,
       })),
     [fullTimelineActivities, tripDays],
   )
@@ -1147,7 +1174,6 @@ export function TripWorkspacePage() {
                           >
                             <header className={styles.timelineDayHeader}>
                               <div>
-                                <p className={styles.panelKicker}>Day {group.dayIndex}</p>
                                 <h3 id={`timeline-day-${group.dayDate}`}>{formatReadableDate(group.dayDate)}</h3>
                               </div>
                               <span>{pluralize(group.activities.length, 'item')}</span>
@@ -1156,29 +1182,34 @@ export function TripWorkspacePage() {
                               <ol className={styles.timelineDayActivities}>
                                 {group.activities.map((activity) => (
                                   <li key={activity.id}>
-                                    <button
-                                      id={`activity-${activity.id}`}
-                                      type="button"
-                                      aria-pressed={visibleActiveActivityId === activity.id}
-                                      className={[
-                                        styles.timelineActivityButton,
-                                        visibleActiveActivityId === activity.id ? styles.timelineActivityActive : '',
-                                      ].filter(Boolean).join(' ')}
-                                      onClick={() => setActiveActivityId(activity.id)}
-                                    >
-                                      <span className={styles.timelineActivityMeta}>
-                                        {formatActivityTime(activity)}
-                                      </span>
-                                      <span>
-                                        <strong>{activity.title}</strong>
-                                        <small className={styles.timelineActivityLocation}>
-                                          {activity.placeName || activity.address || activity.notes || 'Location TBD'}
-                                        </small>
-                                      </span>
-                                      <span className={styles.timelineActivityStatus}>
-                                        {hasFiniteCoordinates(activity) ? 'Mapped' : 'Unmapped'}
-                                      </span>
-                                    </button>
+                                    <article className={styles.timelineActivityEntry}>
+                                      <button
+                                        id={`activity-${activity.id}`}
+                                        type="button"
+                                        aria-pressed={visibleActiveActivityId === activity.id}
+                                        className={[
+                                          styles.timelineActivityButton,
+                                          visibleActiveActivityId === activity.id ? styles.timelineActivityActive : '',
+                                        ].filter(Boolean).join(' ')}
+                                        onClick={() => setActiveActivityId(activity.id)}
+                                      >
+                                        <span
+                                          className={styles.timelineActivityIcon}
+                                          data-category={activity.category}
+                                        >
+                                          <TimelineCategoryIcon category={activity.category} />
+                                        </span>
+                                        <span className={styles.timelineActivityContent}>
+                                          <strong>{activity.title}</strong>
+                                          <small className={styles.timelineActivitySummary}>
+                                            {timelineActivitySummary(activity)}
+                                          </small>
+                                        </span>
+                                        <span className={styles.timelineActivityTime}>
+                                          {formatActivityTime(activity)}
+                                        </span>
+                                      </button>
+                                    </article>
                                   </li>
                                 ))}
                               </ol>

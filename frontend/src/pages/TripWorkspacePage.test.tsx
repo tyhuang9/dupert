@@ -354,6 +354,9 @@ describe('<TripWorkspacePage>', () => {
     const fullTimeline = screen.getByLabelText(/trip days timeline/i)
     expect(within(fullTimeline).getByText('Tsukiji sushi')).toBeInTheDocument()
     expect(within(fullTimeline).getByText('Tokyo Tower')).toBeInTheDocument()
+    expect(within(fullTimeline).getAllByText('Counter seat').length).toBeGreaterThan(0)
+    expect(within(fullTimeline).queryByText(/mapped/i)).not.toBeInTheDocument()
+    expect(within(fullTimeline).queryByText(/^day \d/i)).not.toBeInTheDocument()
 
     const selectedMapActivities = within(screen.getByTestId('selected-map-activities'))
     const routeMapActivities = within(screen.getByTestId('route-map-activities'))
