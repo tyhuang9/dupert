@@ -25,14 +25,6 @@
   font-weight: 800;
 }
 
-.searchRow {
-  min-width: 0;
-  display: grid;
-  grid-template-columns: minmax(12rem, 1fr) auto;
-  align-items: start;
-  gap: var(--space-2);
-}
-
 .searchBox {
   min-width: 0;
   display: block;
@@ -45,50 +37,6 @@
   background: rgba(255, 255, 255, 0.98) !important;
   box-shadow: var(--shadow-sm) !important;
   font-size: var(--font-size-base) !important;
-}
-
-.categoryShortcuts {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-2);
-}
-
-.shortcutButton {
-  width: 44px;
-  min-width: 44px;
-  height: 44px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  border: 1px solid var(--color-surface-border);
-  border-radius: var(--radius-md);
-  background: rgba(255, 255, 255, 0.96);
-  color: var(--color-text-muted);
-  font: inherit;
-  font-size: var(--font-size-sm);
-  font-weight: 700;
-  box-shadow: var(--shadow-md);
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-.shortcutButton:hover,
-.shortcutButton:focus-visible {
-  border-color: var(--color-primary);
-  color: var(--color-primary-text);
-}
-
-.shortcutButton:focus-visible {
-  outline: var(--focus-ring-width) solid var(--focus-ring-color);
-  outline-offset: var(--focus-ring-offset);
-}
-
-.moreShortcutButton {
-  width: auto;
-  min-width: 4.75rem;
-  padding: 0 var(--space-3);
 }
 
 .searchError {
@@ -111,20 +59,4 @@
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);
   line-height: var(--line-height-base);
-}
-
-@media (max-width: 900px) {
-  .searchRow {
-    grid-template-columns: 1fr;
-  }
-
-  .label,
-  .categoryShortcuts {
-    width: 100%;
-  }
-
-  .categoryShortcuts {
-    overflow-x: auto;
-    padding-bottom: 2px;
-  }
 }

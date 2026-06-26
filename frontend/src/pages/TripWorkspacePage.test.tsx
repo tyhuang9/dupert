@@ -369,7 +369,10 @@ describe('<TripWorkspacePage>', () => {
     expect(routeMapActivities.queryByText('Tokyo Tower')).not.toBeInTheDocument()
     expect(screen.queryByLabelText(/full trip map summary/i)).not.toBeInTheDocument()
 
-    await userEvent.click(within(fullTimeline).getByRole('button', { name: /tokyo tower/i }))
+    expect(within(fullTimeline).queryByRole('button', { name: /drag tokyo tower/i }))
+      .not.toBeInTheDocument()
+
+    await userEvent.click(within(fullTimeline).getByRole('button', { name: /^tokyo tower/i }))
     expect(screen.getByTestId('active-map-activity')).toHaveTextContent('22')
   })
 
@@ -393,6 +396,10 @@ describe('<TripWorkspacePage>', () => {
     const activityHeading = await screen.findByRole('heading', { name: /tokyo tower/i })
     const activityCard = activityHeading.closest('article')
     expect(activityCard).not.toBeNull()
+
+    expect(screen.queryByRole('button', { name: /drag tokyo tower/i })).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/activity name/i)).not.toBeInTheDocument()
+    expect(activityCard).toHaveAttribute('aria-expanded', 'false')
 
     await userEvent.click(activityCard as HTMLElement)
     expect(screen.getByTestId('active-map-activity')).toHaveTextContent('22')

@@ -126,6 +126,27 @@ describe('activity drag helpers', () => {
     })
   })
 
+  it('builds a full-timeline append move operation when dropped on a calendar day', () => {
+    const allActivities = [
+      activity(10, '2026-05-01', 0),
+      activity(11, '2026-05-02', 0),
+      activity(12, '2026-05-02', 1),
+    ]
+
+    expect(
+      getTimelineDragOperation({
+        activeId: activityDragId(10),
+        overId: dayDropId('2026-05-02'),
+        allActivities,
+      }),
+    ).toEqual({
+      type: 'move',
+      activity: allActivities[0],
+      dayDate: '2026-05-02',
+      orderIndex: 2,
+    })
+  })
+
   it('builds a cross-day move operation at the end of the target day', () => {
     const allActivities = [
       activity(10, '2026-05-01', 0),

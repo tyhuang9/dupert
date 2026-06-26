@@ -1,7 +1,6 @@
 import axios from 'axios'
 import {
   closestCenter,
-  DragOverlay,
   DndContext,
   KeyboardSensor,
   PointerSensor,
@@ -254,6 +253,7 @@ function SortableTimelineActivity({
     isDragging,
     listeners,
     setNodeRef,
+    setActivatorNodeRef,
     transform,
     transition,
   } = useSortable({
@@ -264,6 +264,7 @@ function SortableTimelineActivity({
     transform: sortableTransformToString(transform),
     transition,
   }
+  const canDrag = !readOnly && !busy
 
   return (
     <li
@@ -271,18 +272,28 @@ function SortableTimelineActivity({
       style={style}
       className={isDragging ? styles.timelineActivityDragging : undefined}
     >
-      <article className={styles.timelineActivityEntry}>
+      <article
+        className={[
+          styles.timelineActivityEntry,
+          canDrag ? styles.timelineActivityDraggable : '',
+        ].filter(Boolean).join(' ')}
+      >
         <button
+          ref={canDrag ? setActivatorNodeRef : undefined}
           id={`activity-${activity.id}`}
           type="button"
-          {...attributes}
+          {...(canDrag ? attributes : undefined)}
           aria-pressed={active}
           className={[
             styles.timelineActivityButton,
             active ? styles.timelineActivityActive : '',
           ].filter(Boolean).join(' ')}
           onClick={() => onSelect(activity.id)}
-          {...listeners}
+          onPointerDown={(event) => {
+            if (canDrag) {
+              listeners?.onPointerDown?.(event)
+            }
+          }}
         >
           <span
             className={styles.timelineActivityIcon}
@@ -308,26 +319,30 @@ function SortableTimelineActivity({
 function TimelineDayGroup({
   activeActivityId,
   busy,
+  dragging,
   group,
   onSelectActivity,
   readOnly,
 }: {
   activeActivityId: number | null
   busy: boolean
+  dragging: boolean
   group: TimelineGroup
   onSelectActivity: (activityId: number) => void
   readOnly: boolean
 }) {
   const { isOver, setNodeRef } = useDroppable({
     id: dayDropId(group.dayDate),
-    disabled: readOnly || busy,
+    disabled: readOnly || busy || !dragging,
   })
+  const showDropTarget = dragging && !readOnly && !busy
 
   return (
     <section
       ref={setNodeRef}
       className={[
         styles.timelineDayGroup,
+        showDropTarget ? styles.timelineDayGroupDropTarget : '',
         isOver ? styles.timelineDayGroupOver : '',
       ].filter(Boolean).join(' ')}
       aria-labelledby={`timeline-day-${group.dayDate}`}
@@ -356,26 +371,6 @@ function TimelineDayGroup({
         </ol>
       </SortableContext>
     </section>
-  )
-}
-
-function ActivityDragOverlayCard({ activity }: { activity: Activity }) {
-  return (
-    <article className={styles.dragOverlayCard} aria-hidden="true">
-      <span
-        className={styles.timelineActivityIcon}
-        data-category={activity.category}
-      >
-        <TimelineCategoryIcon category={activity.category} />
-      </span>
-      <span className={styles.dragOverlayContent}>
-        <strong>{activity.title}</strong>
-        <small>{timelineActivitySummary(activity)}</small>
-      </span>
-      <span className={styles.timelineActivityTime}>
-        {formatActivityTime(activity)}
-      </span>
-    </article>
   )
 }
 
@@ -447,21 +442,24 @@ function CalendarDayCell({
   disabled,
   onSelectDay,
   selected,
+  showDropTarget,
 }: {
   activityCount: number
   cell: CalendarCell
   disabled: boolean
   onSelectDay: (dayDate: string) => void
   selected: boolean
+  showDropTarget: boolean
 }) {
   const { isOver, setNodeRef } = useDroppable({
     id: dayDropId(cell.dayDate),
-    disabled: disabled || !cell.inTripRange,
+    disabled: disabled || !showDropTarget || !cell.inTripRange,
   })
   const className = [
     styles.calendarDay,
     !cell.inMonth ? styles.calendarDayOutside : '',
     !cell.inTripRange ? styles.calendarDayDisabled : '',
+    showDropTarget && cell.inTripRange ? styles.calendarDayDropTarget : '',
     selected ? styles.calendarDaySelected : '',
     isOver ? styles.calendarDayOver : '',
   ].filter(Boolean).join(' ')
@@ -489,6 +487,7 @@ function CalendarDayCell({
 function CompactMonthCalendar({
   activities,
   disabled,
+  dragging,
   endDate,
   monthKey,
   onMonthChange,
@@ -499,6 +498,7 @@ function CompactMonthCalendar({
   activities: Activity[]
   endDate: string
   disabled: boolean
+  dragging: boolean
   monthKey: string
   onMonthChange: (monthKey: string) => void
   onSelectDay: (dayDate: string) => void
@@ -560,6 +560,7 @@ function CompactMonthCalendar({
             disabled={disabled}
             onSelectDay={onSelectDay}
             selected={cell.dayDate === selectedDay}
+            showDropTarget={dragging && !disabled}
           />
         ))}
       </div>
@@ -759,7 +760,6 @@ export function TripWorkspacePage() {
   const [placeDraft, setPlaceDraft] = useState<PlaceSelection | null>(null)
   const [isTripSettingsOpen, setIsTripSettingsOpen] = useState(false)
   const [isDraggingActivity, setIsDraggingActivity] = useState(false)
-  const [draggingActivityId, setDraggingActivityId] = useState<number | null>(null)
   const [workspaceMode, setWorkspaceMode] = useState<WorkspaceMode>('days')
   const [activitySearch, setActivitySearch] = useState('')
   const [mapStyle, setMapStyle] = useState<MapStyleId>('light')
@@ -911,10 +911,6 @@ export function TripWorkspacePage() {
     ? { proximity: mapViewportContext.center }
     : undefined
   const mapPreviewPlace = mapSearchPreview ?? placeDraft
-  const draggingActivity = useMemo(
-    () => allActivities.find((activity) => activity.id === draggingActivityId) ?? null,
-    [allActivities, draggingActivityId],
-  )
 
   const handleSelectDay = (nextDay: string) => {
     if (
@@ -982,8 +978,8 @@ export function TripWorkspacePage() {
       body: payload,
     })
     setPlaceDraft(null)
-    setMapSearchPreview(null)
     setMapLocationTarget(null)
+    setMapSearchPreview(null)
     setActiveActivityId(created.id)
   }
 
@@ -1054,6 +1050,11 @@ export function TripWorkspacePage() {
     setMapSearchPreview(null)
   }
 
+  const handleActiveActivityChange = (activityId: number | null) => {
+    if (isDraggingActivity) return
+    setActiveActivityId(activityId)
+  }
+
   const handleDeleteActivity = (activityId: number) => {
     if (!publicId) return
     if (activeEditingActivity?.id === activityId) {
@@ -1116,18 +1117,15 @@ export function TripWorkspacePage() {
   const handleWorkspaceDragEnd = (event: DragEndEvent) => {
     handleDragEnd(event)
     setIsDraggingActivity(false)
-    setDraggingActivityId(null)
   }
 
   const handleWorkspaceDragStart = (event: DragStartEvent) => {
     const activityId = parseActivityDragId(event.active.id)
-    setDraggingActivityId(activityId)
     setIsDraggingActivity(activityId !== null)
   }
 
   const handleWorkspaceDragCancel = () => {
     setIsDraggingActivity(false)
-    setDraggingActivityId(null)
   }
 
   const handleSaveTripSettings = async (payload: UpdateTripRequest) => {
@@ -1233,6 +1231,7 @@ export function TripWorkspacePage() {
                 <CompactMonthCalendar
                   activities={allActivities}
                   disabled={!canEditTrip || isActivityMutationPending}
+                  dragging={isDraggingActivity}
                   endDate={tripQuery.data.endDate}
                   monthKey={displayedCalendarMonth}
                   onMonthChange={setCalendarMonth}
@@ -1359,7 +1358,7 @@ export function TripWorkspacePage() {
                           expandedActivityId={expandedActivityId}
                           busy={isActivityMutationPending}
                           readOnly={!canEditTrip}
-                          onActiveActivityChange={setActiveActivityId}
+                          onActiveActivityChange={handleActiveActivityChange}
                           onAddActivity={openActivityComposer}
                           onDelete={handleDeleteActivity}
                           onRequestMapLocation={handleRequestActivityLocationOnMap}
@@ -1411,6 +1410,7 @@ export function TripWorkspacePage() {
                               key={group.dayDate}
                               activeActivityId={visibleActiveActivityId}
                               busy={isActivityMutationPending}
+                              dragging={isDraggingActivity}
                               group={group}
                               readOnly={!canEditTrip}
                               onSelectActivity={setActiveActivityId}
@@ -1459,16 +1459,11 @@ export function TripWorkspacePage() {
                   onMapStyleChange={setMapStyle}
                   previewPlace={mapPreviewPlace}
                   onActivityActivate={handleActivityActivate}
-                  onActiveActivityChange={setActiveActivityId}
+                  onActiveActivityChange={handleActiveActivityChange}
                   onViewportContextChange={setMapViewportContext}
                 />
               </aside>
             </section>
-            <DragOverlay dropAnimation={null} zIndex={60}>
-              {draggingActivity ? (
-                <ActivityDragOverlayCard activity={draggingActivity} />
-              ) : null}
-            </DragOverlay>
           </DndContext>
           {isTripSettingsOpen && (
             <TripSettingsModal

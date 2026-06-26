@@ -8,7 +8,7 @@
   border-radius: var(--radius-md);
   background: var(--color-surface);
   box-shadow: var(--shadow-sm);
-  cursor: grab;
+  cursor: pointer;
   transition:
     border-color var(--transition-base),
     background-color var(--transition-base),
@@ -29,6 +29,14 @@
 }
 
 .card:active {
+  cursor: pointer;
+}
+
+.cardDraggable {
+  cursor: grab;
+}
+
+.cardDraggable:active {
   cursor: grabbing;
 }
 
@@ -145,8 +153,7 @@
 .metadataLine,
 .addressLine,
 .attribution,
-.readOnlyNotes,
-.dragHint {
+.readOnlyNotes {
   min-width: 0;
   margin: 0;
   color: var(--color-text-muted);
@@ -176,17 +183,6 @@
   gap: 0;
 }
 
-.dragHint {
-  justify-self: end;
-  opacity: 0;
-  transition: opacity var(--transition-base);
-}
-
-.card:hover .dragHint,
-.card:focus-within .dragHint {
-  opacity: 1;
-}
-
 @media (max-width: 560px) {
   .summary {
     grid-template-columns: 40px minmax(0, 1fr);
@@ -205,5 +201,4 @@
   .time {
     justify-self: start;
   }
-
 }

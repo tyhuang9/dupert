@@ -47,6 +47,70 @@ function sortActivities(activities: Activity[]): Activity[] {
   })
 }
 
+function reindexActivities(activities: Activity[]): Activity[] {
+  return activities.map((activity, orderIndex) => ({
+    ...activity,
+    orderIndex,
+  }))
+}
+
+function reorderActivitiesInCache(
+  activities: Activity[],
+  dayDate: string,
+  activityIds: number[],
+): Activity[] {
+  const activityById = new Map(activities.map((activity) => [activity.id, activity]))
+  const orderedIds = new Set(activityIds)
+  const orderedDayActivities = activityIds
+    .map((activityId) => activityById.get(activityId))
+    .filter((activity): activity is Activity => Boolean(activity))
+  const remainingDayActivities = sortActivities(
+    activities.filter((activity) => activity.dayDate === dayDate && !orderedIds.has(activity.id)),
+  )
+  const nextDayActivities = reindexActivities([
+    ...orderedDayActivities,
+    ...remainingDayActivities,
+  ])
+  const nextById = new Map(nextDayActivities.map((activity) => [activity.id, activity]))
+
+  return sortActivities(activities.map((activity) => nextById.get(activity.id) ?? activity))
+}
+
+function moveActivityInCache(
+  activities: Activity[],
+  activityId: number,
+  body: MoveActivityRequest,
+): Activity[] {
+  const activity = activities.find((item) => item.id === activityId)
+  if (!activity) return activities
+
+  const sourceDay = activity.dayDate
+  const targetDay = body.dayDate
+  const sourceActivities = sortActivities(
+    activities.filter((item) => item.dayDate === sourceDay && item.id !== activityId),
+  )
+  const targetActivities = sortActivities(
+    activities.filter((item) => item.dayDate === targetDay && item.id !== activityId),
+  )
+  const boundedIndex = Math.max(0, Math.min(body.orderIndex, targetActivities.length))
+  const movedActivity: Activity = {
+    ...activity,
+    dayDate: targetDay,
+    orderIndex: boundedIndex,
+  }
+  const nextTargetActivities = [
+    ...targetActivities.slice(0, boundedIndex),
+    movedActivity,
+    ...targetActivities.slice(boundedIndex),
+  ]
+  const nextById = new Map<number, Activity>()
+
+  reindexActivities(sourceActivities).forEach((item) => nextById.set(item.id, item))
+  reindexActivities(nextTargetActivities).forEach((item) => nextById.set(item.id, item))
+
+  return sortActivities(activities.map((item) => nextById.get(item.id) ?? item))
+}
+
 /**
  * Hook: List all activities for a trip.
  */
@@ -136,7 +200,25 @@ export function useReorderActivities(): UseMutationResult<
   return useMutation({
     mutationFn: ({ publicId, dayDate, body }) =>
       reorderActivitiesForDay(publicId, dayDate, body),
-    onSuccess: (_unused, { publicId }) => {
+    onMutate: async ({ publicId, dayDate, body }) => {
+      await queryClient.cancelQueries({ queryKey: activityKeys.list(publicId) })
+      const previousActivities =
+        queryClient.getQueryData<Activity[]>(activityKeys.list(publicId))
+
+      queryClient.setQueryData<Activity[]>(activityKeys.list(publicId), (existing) =>
+        existing
+          ? reorderActivitiesInCache(existing, dayDate, body.activityIds)
+          : existing,
+      )
+
+      return { previousActivities }
+    },
+    onError: (_error, { publicId }, context) => {
+      if (context?.previousActivities) {
+        queryClient.setQueryData(activityKeys.list(publicId), context.previousActivities)
+      }
+    },
+    onSettled: (_data, _error, { publicId }) => {
       void queryClient.invalidateQueries({
         queryKey: activityKeys.list(publicId),
       })
@@ -157,12 +239,33 @@ export function useMoveActivity(): UseMutationResult<
   return useMutation({
     mutationFn: ({ activityId, publicId, body }) =>
       moveActivity(activityId, publicId, body),
+    onMutate: async ({ activityId, publicId, body }) => {
+      await queryClient.cancelQueries({ queryKey: activityKeys.list(publicId) })
+      const previousActivities =
+        queryClient.getQueryData<Activity[]>(activityKeys.list(publicId))
+
+      queryClient.setQueryData<Activity[]>(activityKeys.list(publicId), (existing) =>
+        existing ? moveActivityInCache(existing, activityId, body) : existing,
+      )
+
+      return { previousActivities }
+    },
+    onError: (_error, { publicId }, context) => {
+      if (context?.previousActivities) {
+        queryClient.setQueryData(activityKeys.list(publicId), context.previousActivities)
+      }
+    },
     onSuccess: (activity, { publicId }) => {
       queryClient.setQueryData<Activity[]>(activityKeys.list(publicId), (existing) =>
         sortActivities(
           existing?.map((item) => (item.id === activity.id ? activity : item)) ?? [activity],
         ),
       )
+    },
+    onSettled: (_data, _error, { publicId }) => {
+      void queryClient.invalidateQueries({
+        queryKey: activityKeys.list(publicId),
+      })
     },
   })
 }

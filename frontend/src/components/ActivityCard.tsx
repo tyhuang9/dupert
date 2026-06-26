@@ -1,10 +1,14 @@
 import {
   useState,
   type FocusEvent,
-  type HTMLAttributes,
   type KeyboardEvent,
   type MouseEvent,
+  type PointerEvent,
 } from 'react'
+import type {
+  DraggableAttributes,
+  DraggableSyntheticListeners,
+} from '@dnd-kit/core'
 import {
   BedDouble,
   Coffee,
@@ -21,8 +25,9 @@ import styles from './ActivityCard.module.css'
 interface ActivityCardProps {
   activity: Activity
   busy?: boolean
-  dragAttributes?: HTMLAttributes<HTMLElement>
-  dragListeners?: HTMLAttributes<HTMLElement>
+  dragActivatorRef?: (node: HTMLElement | null) => void
+  dragAttributes?: DraggableAttributes
+  dragListeners?: DraggableSyntheticListeners
   expanded?: boolean
   readOnly?: boolean
   active?: boolean
@@ -104,6 +109,7 @@ export function ActivityCard({
   activity,
   active = false,
   busy = false,
+  dragActivatorRef,
   dragAttributes,
   dragListeners,
   expanded = false,
@@ -118,8 +124,10 @@ export function ActivityCard({
   const timeDisplay = getTimeDisplay(activity)
   const categoryLabel = getCategoryLabel(activity.category)
   const locationLabel = activity.placeName || activity.address
+  const canDrag = !readOnly && !busy && !expanded
   const cardClassName = [
     styles.card,
+    canDrag ? styles.cardDraggable : '',
     active ? styles.cardActive : '',
     expanded ? styles.cardExpanded : '',
   ].filter(Boolean).join(' ')
@@ -140,6 +148,10 @@ export function ActivityCard({
     if (isInteractiveTarget(event.target, event.currentTarget)) return
     toggleCard()
   }
+  const handlePointerDown = (event: PointerEvent<HTMLElement>) => {
+    if (!canDrag || isInteractiveTarget(event.target, event.currentTarget)) return
+    dragListeners?.onPointerDown?.(event)
+  }
   const handleKeyDown = (event: KeyboardEvent<HTMLElement>) => {
     if (
       event.defaultPrevented ||
@@ -148,19 +160,24 @@ export function ActivityCard({
     ) {
       return
     }
+    if (canDrag) {
+      dragListeners?.onKeyDown?.(event)
+      if (event.defaultPrevented) return
+    }
     event.preventDefault()
     toggleCard()
   }
 
   return (
     <article
+      ref={canDrag ? dragActivatorRef : undefined}
       id={`activity-${activity.id}`}
       className={cardClassName}
-      {...(!readOnly && !busy && !expanded ? dragAttributes : undefined)}
-      {...(!readOnly && !busy && !expanded ? dragListeners : undefined)}
+      {...(canDrag ? dragAttributes : undefined)}
       tabIndex={0}
       onClick={handleClick}
       onKeyDown={handleKeyDown}
+      onPointerDown={handlePointerDown}
       onMouseEnter={() => onActiveChange?.(activity.id)}
       onFocusCapture={() => onActiveChange?.(activity.id)}
       onBlurCapture={handleBlurCapture}
@@ -199,6 +216,7 @@ export function ActivityCard({
               )}
             </div>
           </div>
+
         </div>
       )}
 
@@ -238,12 +256,6 @@ export function ActivityCard({
 
       {expanded && readOnly && activity.notes && (
         <p className={styles.readOnlyNotes}>{activity.notes}</p>
-      )}
-
-      {!expanded && !readOnly && (
-        <span className={styles.dragHint} aria-hidden="true">
-          Drag to reorder
-        </span>
       )}
 
       {expanded && readOnly && (

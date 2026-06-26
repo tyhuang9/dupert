@@ -1,5 +1,4 @@
 import { act, render, screen, waitFor } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { SearchBoxOptions, SearchBoxRetrieveResponse } from '@mapbox/search-js-core'
 import { PlaceSearch } from './PlaceSearch'
@@ -177,30 +176,12 @@ describe('<PlaceSearch>', () => {
     })
   })
 
-  it('offers compact category shortcuts for map search', async () => {
-    const onSearchValueChange = vi.fn()
-    const onPlacePreview = vi.fn()
-    render(
-      <PlaceSearch
-        onPlacePreview={onPlacePreview}
-        onPlaceSelect={vi.fn()}
-        onSearchValueChange={onSearchValueChange}
-      />,
-    )
-    const input = screen.getByLabelText(/mock mapbox search/i)
-    const inputEvents = vi.fn()
-    input.addEventListener('input', inputEvents)
+  it('does not render category shortcut buttons around the Mapbox search', () => {
+    render(<PlaceSearch onPlaceSelect={vi.fn()} />)
 
-    await userEvent.click(screen.getByRole('button', { name: /restaurants/i }))
-
-    await waitFor(() => {
-      expect(searchBoxState.props?.value).toBe('restaurants')
-    })
-    await waitFor(() => {
-      expect(searchBoxState.search).toHaveBeenCalledWith('restaurants')
-    })
-    expect(inputEvents).not.toHaveBeenCalled()
-    expect(onSearchValueChange).toHaveBeenCalledWith('restaurants')
-    expect(onPlacePreview).toHaveBeenCalledWith(null)
+    expect(screen.queryByRole('button', { name: /coffee/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /restaurants/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /gas/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /shopping/i })).not.toBeInTheDocument()
   })
 })

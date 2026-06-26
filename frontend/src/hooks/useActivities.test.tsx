@@ -11,6 +11,8 @@ import {
   useCreateActivity,
   useDayNote,
   useDeleteActivity,
+  useMoveActivity,
+  useReorderActivities,
   useUpdateActivity,
   useUpdateDayNote,
 } from './useActivities'
@@ -46,6 +48,23 @@ const SAMPLE_NOTE: DayNote = {
   updatedByUserDisplayName: 'Alice',
   updatedAt: '2026-05-22T16:00:00Z',
   version: 0,
+}
+
+const SECOND_ACTIVITY: Activity = {
+  ...SAMPLE_ACTIVITY,
+  id: 11,
+  title: 'Museum',
+  category: 'ACTIVITY',
+  orderIndex: 1,
+}
+
+const NEXT_DAY_ACTIVITY: Activity = {
+  ...SAMPLE_ACTIVITY,
+  id: 12,
+  dayDate: '2026-05-02',
+  title: 'Train station',
+  category: 'TRANSPORT',
+  orderIndex: 0,
 }
 
 function wrapper({ children }: PropsWithChildren) {
@@ -131,6 +150,115 @@ describe('useActivities', () => {
     })
 
     expect(queryClient.getQueryData(activityKeys.list('abc234def567'))).toEqual([])
+  })
+
+  it('optimistically reorders activities before the reorder request resolves', async () => {
+    let resolveReorder: (() => void) | undefined
+    queryClient.setQueryData(activityKeys.list('abc234def567'), [
+      SAMPLE_ACTIVITY,
+      SECOND_ACTIVITY,
+      NEXT_DAY_ACTIVITY,
+    ])
+    apiMock
+      .onPost('/trips/abc234def567/days/2026-05-01/order')
+      .reply(() => new Promise((resolve) => {
+        resolveReorder = () => resolve([204])
+      }))
+
+    const reorder = renderHook(() => useReorderActivities(), { wrapper })
+
+    act(() => {
+      reorder.result.current.mutate({
+        publicId: 'abc234def567',
+        dayDate: '2026-05-01',
+        body: { activityIds: [11, 10] },
+      })
+    })
+
+    await waitFor(() => {
+      expect(
+        queryClient
+          .getQueryData<Activity[]>(activityKeys.list('abc234def567'))
+          ?.filter((activity) => activity.dayDate === '2026-05-01')
+          .map((activity) => [activity.id, activity.orderIndex]),
+      ).toEqual([
+        [11, 0],
+        [10, 1],
+      ])
+    })
+
+    await act(async () => {
+      resolveReorder?.()
+    })
+  })
+
+  it('optimistically moves an activity across days before the move request resolves', async () => {
+    let resolveMove: (() => void) | undefined
+    queryClient.setQueryData(activityKeys.list('abc234def567'), [
+      SAMPLE_ACTIVITY,
+      SECOND_ACTIVITY,
+      NEXT_DAY_ACTIVITY,
+    ])
+    apiMock
+      .onPost('/activities/10/move?publicId=abc234def567')
+      .reply(() => new Promise((resolve) => {
+        resolveMove = () => resolve([200, {
+          ...SAMPLE_ACTIVITY,
+          dayDate: '2026-05-02',
+          orderIndex: 1,
+          version: 1,
+        }])
+      }))
+
+    const move = renderHook(() => useMoveActivity(), { wrapper })
+
+    act(() => {
+      move.result.current.mutate({
+        publicId: 'abc234def567',
+        activityId: 10,
+        body: { dayDate: '2026-05-02', orderIndex: 1 },
+      })
+    })
+
+    await waitFor(() => {
+      expect(
+        queryClient
+          .getQueryData<Activity[]>(activityKeys.list('abc234def567'))
+          ?.map((activity) => [activity.id, activity.dayDate, activity.orderIndex]),
+      ).toEqual([
+        [11, '2026-05-01', 0],
+        [12, '2026-05-02', 0],
+        [10, '2026-05-02', 1],
+      ])
+    })
+
+    await act(async () => {
+      resolveMove?.()
+    })
+  })
+
+  it('rolls back an optimistic move if the request fails', async () => {
+    const existingActivities = [
+      SAMPLE_ACTIVITY,
+      SECOND_ACTIVITY,
+      NEXT_DAY_ACTIVITY,
+    ]
+    queryClient.setQueryData(activityKeys.list('abc234def567'), existingActivities)
+    apiMock.onPost('/activities/10/move?publicId=abc234def567').reply(500)
+
+    const move = renderHook(() => useMoveActivity(), { wrapper })
+
+    await expect(
+      act(async () => {
+        await move.result.current.mutateAsync({
+          publicId: 'abc234def567',
+          activityId: 10,
+          body: { dayDate: '2026-05-02', orderIndex: 1 },
+        })
+      }),
+    ).rejects.toThrow()
+
+    expect(queryClient.getQueryData(activityKeys.list('abc234def567'))).toEqual(existingActivities)
   })
 
   it('fetches and updates a selected day note', async () => {

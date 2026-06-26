@@ -51,16 +51,18 @@ function SortableActivityCard({
   onSubmitEdit,
   onToggleExpand,
 }: SortableActivityCardProps) {
+  const isExpanded = expandedActivityId === activity.id
   const {
     attributes,
     isDragging,
     listeners,
+    setActivatorNodeRef,
     setNodeRef,
     transform,
     transition,
   } = useSortable({
     id: activityDragId(activity.id),
-    disabled: readOnly || busy,
+    disabled: readOnly || busy || isExpanded,
   })
   const style: CSSProperties = {
     transform: sortableTransformToString(transform),
@@ -81,9 +83,10 @@ function SortableActivityCard({
           activity={activity}
           active={activeActivityId === activity.id}
           busy={busy}
+          dragActivatorRef={setActivatorNodeRef}
           dragAttributes={attributes}
           dragListeners={listeners}
-          expanded={expandedActivityId === activity.id}
+          expanded={isExpanded}
           readOnly={readOnly}
           onActiveChange={onActiveActivityChange}
           onDelete={onDelete}
