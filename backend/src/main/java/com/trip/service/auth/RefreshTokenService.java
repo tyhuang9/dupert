@@ -99,6 +99,10 @@ public class RefreshTokenService {
      *   <li>Valid token → mint a new one, point the old row at it via {@code replaced_by},
      *       stamp the old row's {@code revoked_at}, return the new token.</li>
      * </ul>
+     *
+     * <p>The lookup is a {@code SELECT ... FOR UPDATE} repository method. The parent
+     * token row must be locked before minting a child so two concurrent refresh calls
+     * cannot both observe the parent as active and commit multiple descendants.
      */
     @Transactional
     public Optional<IssuedRefreshToken> rotate(String rawToken) {
@@ -107,7 +111,7 @@ public class RefreshTokenService {
         }
         OffsetDateTime now = OffsetDateTime.now();
         String hash = sha256Hex(rawToken);
-        Optional<RefreshToken> maybe = repo.findByTokenHash(hash);
+        Optional<RefreshToken> maybe = repo.findByTokenHashForUpdate(hash);
         if (maybe.isEmpty()) {
             return Optional.empty();
         }

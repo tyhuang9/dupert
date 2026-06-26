@@ -72,6 +72,8 @@ class RefreshTokenServiceTest {
         });
         when(repo.findByTokenHash(any())).thenAnswer(inv ->
             Optional.ofNullable(byHash.get(inv.<String>getArgument(0))));
+        when(repo.findByTokenHashForUpdate(any())).thenAnswer(inv ->
+            Optional.ofNullable(byHash.get(inv.<String>getArgument(0))));
         when(repo.findById(anyLong())).thenAnswer(inv ->
             Optional.ofNullable(store.get(inv.<Long>getArgument(0))));
         when(repo.findByReplacedBy(anyLong())).thenAnswer(inv -> {
@@ -198,6 +200,17 @@ class RefreshTokenServiceTest {
         assertThat(first.entity().getRevokedAt()).isNotNull();
         assertThat(second.entity().getReplacedBy()).isNull();
         assertThat(second.entity().getRevokedAt()).isNull();
+    }
+
+    @Test
+    void rotateUsesLockedLookupBeforeMintingSuccessor() {
+        IssuedRefreshToken first = service.issueFor(userWithId(1L));
+        String originalHash = first.entity().getTokenHash();
+
+        service.rotate(first.rawToken()).orElseThrow();
+
+        verify(repo).findByTokenHashForUpdate(originalHash);
+        verify(repo, never()).findByTokenHash(originalHash);
     }
 
     @Test
