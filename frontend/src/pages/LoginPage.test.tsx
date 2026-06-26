@@ -6,13 +6,6 @@ import { AxiosError, AxiosHeaders } from 'axios'
 import { LoginPage } from './LoginPage'
 import { AuthContext, type AuthContextValue } from '../auth/authContextValue'
 import { useAuthStore } from '../auth/authStore'
-import { resetDevPassword } from '../api/auth'
-
-vi.mock('../api/auth', () => ({
-  resetDevPassword: vi.fn(async () => {}),
-}))
-
-const resetDevPasswordMock = vi.mocked(resetDevPassword)
 
 function makeAuth(overrides: Partial<AuthContextValue> = {}): AuthContextValue {
   return {
@@ -62,7 +55,6 @@ function makeAxiosError(status: number, data: unknown): AxiosError {
 
 beforeEach(() => {
   useAuthStore.getState().clearSession()
-  resetDevPasswordMock.mockClear()
 })
 
 afterEach(() => {
@@ -75,6 +67,8 @@ describe('<LoginPage>', () => {
     expect(screen.getByLabelText('Email')).toBeInTheDocument()
     expect(screen.getByLabelText('Password')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /sign in/i })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: /dev reset password/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /update password/i })).not.toBeInTheDocument()
   })
 
   it('calls auth.login on submit and navigates to /trips by default', async () => {
@@ -152,23 +146,6 @@ describe('<LoginPage>', () => {
     ).toBeInTheDocument()
     const emailInput = screen.getByLabelText('Email')
     expect(emailInput.getAttribute('aria-invalid')).toBe('true')
-  })
-
-  it('submits the dev password reset and fills the login form with the new credentials', async () => {
-    renderLogin(makeAuth())
-
-    const user = userEvent.setup()
-    await user.type(screen.getByLabelText('Account email'), 'me@example.com')
-    await user.type(screen.getByLabelText('New password'), 'new-password-123')
-    await user.click(screen.getByRole('button', { name: /update password/i }))
-
-    expect(resetDevPasswordMock).toHaveBeenCalledWith({
-      email: 'me@example.com',
-      password: 'new-password-123',
-    })
-    expect(await screen.findByRole('status')).toHaveTextContent(/password updated/i)
-    expect(screen.getByLabelText('Email')).toHaveValue('me@example.com')
-    expect(screen.getByLabelText('Password')).toHaveValue('new-password-123')
   })
 
   it('redirects already-logged-in users immediately', () => {

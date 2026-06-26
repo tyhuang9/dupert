@@ -2,7 +2,6 @@ import { useId, useRef, useState, type FormEvent } from 'react'
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth'
 import { useIsAuthenticated } from '../auth/authStore'
-import { resetDevPassword } from '../api/auth'
 import { parseApiError, type ParsedApiError } from '../api/errors'
 import { safeReturnPath } from '../auth/safeReturnPath'
 import { usePageTitle } from '../utils/usePageTitle'
@@ -25,27 +24,14 @@ export function LoginPage() {
   const [errorInfo, setErrorInfo] = useState<ParsedApiError | null>(null)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [resetEmail, setResetEmail] = useState('')
-  const [resetPassword, setResetPassword] = useState('')
-  const [resetErrorInfo, setResetErrorInfo] = useState<ParsedApiError | null>(null)
-  const [resetFieldErrors, setResetFieldErrors] = useState<Record<string, string>>({})
-  const [resetSuccess, setResetSuccess] = useState<string | null>(null)
-  const [isResetting, setIsResetting] = useState(false)
 
   const emailRef = useRef<HTMLInputElement>(null)
   const passwordRef = useRef<HTMLInputElement>(null)
-  const resetEmailRef = useRef<HTMLInputElement>(null)
-  const resetPasswordRef = useRef<HTMLInputElement>(null)
 
   const emailId = useId()
   const passwordId = useId()
-  const resetEmailId = useId()
-  const resetPasswordId = useId()
   const emailErrorId = `${emailId}-error`
   const passwordErrorId = `${passwordId}-error`
-  const resetEmailErrorId = `${resetEmailId}-error`
-  const resetPasswordErrorId = `${resetPasswordId}-error`
-  const showDevReset = import.meta.env.DEV
 
   // Withhold the redirect while the silent-refresh probe is in-flight,
   // otherwise a user with a valid refresh cookie sees a brief flash of
@@ -79,40 +65,10 @@ export function LoginPage() {
     }
   }
 
-  async function onDevResetSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    if (isResetting) return
-    setIsResetting(true)
-    setResetErrorInfo(null)
-    setResetFieldErrors({})
-    setResetSuccess(null)
-    try {
-      await resetDevPassword({ email: resetEmail, password: resetPassword })
-      setEmail(resetEmail)
-      setPassword(resetPassword)
-      setResetSuccess('Password updated. Sign in with the new password.')
-      setIsResetting(false)
-    } catch (err) {
-      const parsed = parseApiError(err)
-      setResetErrorInfo(parsed)
-      setResetFieldErrors(parsed.fieldErrors)
-      setIsResetting(false)
-      if (parsed.fieldErrors.email) {
-        resetEmailRef.current?.focus()
-      } else if (parsed.fieldErrors.password) {
-        resetPasswordRef.current?.focus()
-      }
-    }
-  }
-
   const topMessage = errorInfo?.topMessage ?? null
   const isWarning = errorInfo?.severity === 'warning'
   const bannerClass = isWarning ? styles.bannerWarning : styles.banner
   const bannerIcon = '!'
-  const resetTopMessage = resetErrorInfo?.topMessage ?? null
-  const isResetWarning = resetErrorInfo?.severity === 'warning'
-  const resetBannerClass = isResetWarning ? styles.bannerWarning : styles.banner
-  const resetBannerIcon = '!'
 
   return (
     <main id="main" className={styles.shell}>
@@ -204,93 +160,6 @@ export function LoginPage() {
         <p className={styles.altLink}>
           Don&apos;t have an account? <Link to={registerHref}>Create account</Link>
         </p>
-
-        {showDevReset ? (
-          <section className={styles.devPanel} aria-labelledby="dev-reset-title">
-            <h2 id="dev-reset-title" className={styles.devTitle}>
-              Dev reset password
-            </h2>
-
-            {resetTopMessage ? (
-              <div className={resetBannerClass} role="alert">
-                <span className={styles.bannerIcon} aria-hidden="true">
-                  {resetBannerIcon}
-                </span>
-                <span>{resetTopMessage}</span>
-              </div>
-            ) : null}
-
-            {resetSuccess ? (
-              <div className={styles.bannerSuccess} role="status">
-                {resetSuccess}
-              </div>
-            ) : null}
-
-            <form className={styles.form} onSubmit={onDevResetSubmit} noValidate>
-              <div className={styles.field}>
-                <label className={styles.label} htmlFor={resetEmailId}>
-                  Account email
-                </label>
-                <input
-                  id={resetEmailId}
-                  ref={resetEmailRef}
-                  className={styles.input}
-                  type="email"
-                  autoComplete="username"
-                  required
-                  value={resetEmail}
-                  onChange={(e) => setResetEmail(e.target.value)}
-                  disabled={isResetting}
-                  aria-invalid={resetFieldErrors.email ? true : undefined}
-                  aria-describedby={resetEmailErrorId}
-                />
-                <span
-                  id={resetEmailErrorId}
-                  className={styles.fieldError}
-                  aria-live="polite"
-                  aria-atomic="true"
-                >
-                  {resetFieldErrors.email ?? ''}
-                </span>
-              </div>
-
-              <div className={styles.field}>
-                <label className={styles.label} htmlFor={resetPasswordId}>
-                  New password
-                </label>
-                <input
-                  id={resetPasswordId}
-                  ref={resetPasswordRef}
-                  className={styles.input}
-                  type="password"
-                  autoComplete="new-password"
-                  required
-                  value={resetPassword}
-                  onChange={(e) => setResetPassword(e.target.value)}
-                  disabled={isResetting}
-                  aria-invalid={resetFieldErrors.password ? true : undefined}
-                  aria-describedby={resetPasswordErrorId}
-                />
-                <span
-                  id={resetPasswordErrorId}
-                  className={styles.fieldError}
-                  aria-live="polite"
-                  aria-atomic="true"
-                >
-                  {resetFieldErrors.password ?? ''}
-                </span>
-              </div>
-
-              <button
-                className={styles.submit}
-                type="submit"
-                disabled={isResetting}
-              >
-                {isResetting ? 'Updating…' : 'Update password'}
-              </button>
-            </form>
-          </section>
-        ) : null}
       </div>
     </main>
   )
