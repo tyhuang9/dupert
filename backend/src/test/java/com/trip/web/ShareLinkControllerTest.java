@@ -29,6 +29,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.trip.domain.GuestSession;
@@ -391,17 +392,19 @@ class ShareLinkControllerTest {
     }
 
     @Test
-    void shareAcceptIsRateLimitedPerIpAndToken() throws Exception {
+    void shareAcceptIsRateLimitedPerIp() throws Exception {
         when(shareLinkRepository.findByTokenHash(shareTokenService.sha256Hex(RATE_LIMIT_TOKEN)))
             .thenReturn(Optional.empty());
 
         for (int i = 0; i < 10; i++) {
             mvc.perform(post("/api/share/" + RATE_LIMIT_TOKEN + "/accept")
+                    .with(remoteAddr("203.0.113.60"))
                     .header("Authorization", bearerFor(BOB_ID)))
                 .andExpect(status().isNotFound());
         }
 
         mvc.perform(post("/api/share/" + RATE_LIMIT_TOKEN + "/accept")
+                .with(remoteAddr("203.0.113.60"))
                 .header("Authorization", bearerFor(BOB_ID)))
             .andExpect(status().isTooManyRequests())
             .andExpect(jsonPath("$.error").value("rate_limited"));
@@ -409,6 +412,13 @@ class ShareLinkControllerTest {
 
     private String bearerFor(long userId) {
         return "Bearer " + realJwtService.issueAccessToken(userId);
+    }
+
+    private static RequestPostProcessor remoteAddr(String remoteAddr) {
+        return request -> {
+            request.setRemoteAddr(remoteAddr);
+            return request;
+        };
     }
 
     private static ShareLink link(long id, long tripId, String tokenHash, TripRole role,

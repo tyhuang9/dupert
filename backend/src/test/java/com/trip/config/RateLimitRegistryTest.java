@@ -9,6 +9,8 @@ import java.time.ZoneOffset;
 
 import org.junit.jupiter.api.Test;
 
+import io.github.bucket4j.Bucket;
+
 /**
  * Unit tests for the eviction sweep in {@link RateLimitRegistry}. Pure logic; uses
  * a {@link Clock}-driven test seam rather than {@code Thread.sleep} so the tests
@@ -83,5 +85,21 @@ class RateLimitRegistryTest {
         registry.evictIdle();
 
         assertThat(registry.size()).isEqualTo(1);
+    }
+
+    @Test
+    void resolveUsesOverflowBucketAfterPerNameCap() {
+        MutableClock clock = new MutableClock(Instant.parse("2026-01-01T00:00:00Z"));
+        RateLimitRegistry registry = new RateLimitRegistry(clock, 2);
+
+        Bucket first = registry.resolve(RateLimitRegistry.Named.AUTH_LOGIN, "1.2.3.4");
+        Bucket second = registry.resolve(RateLimitRegistry.Named.AUTH_LOGIN, "5.6.7.8");
+        Bucket overflow = registry.resolve(RateLimitRegistry.Named.AUTH_LOGIN, "9.9.9.9");
+        Bucket sameOverflow = registry.resolve(RateLimitRegistry.Named.AUTH_LOGIN, "10.10.10.10");
+
+        assertThat(registry.size()).isEqualTo(3);
+        assertThat(overflow).isSameAs(sameOverflow);
+        assertThat(overflow).isNotSameAs(first);
+        assertThat(overflow).isNotSameAs(second);
     }
 }

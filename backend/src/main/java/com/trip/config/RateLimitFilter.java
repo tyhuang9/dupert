@@ -84,8 +84,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
                     return;
                 }
             } else if (isShareAcceptPath(path)) {
-                if (!tryConsume(response, RateLimitRegistry.Named.SHARE_ACCEPT,
-                        clientIp + ":" + shareToken(path))) {
+                if (!tryConsume(response, RateLimitRegistry.Named.SHARE_ACCEPT, clientIp)) {
                     return;
                 }
             }
@@ -104,12 +103,6 @@ public class RateLimitFilter extends OncePerRequestFilter {
         }
         String action = path.substring(tokenEnd + 1);
         return "accept".equals(action) || "guest".equals(action);
-    }
-
-    private static String shareToken(String path) {
-        int tokenStart = SHARE_PATH_PREFIX.length();
-        int tokenEnd = path.indexOf('/', tokenStart);
-        return tokenEnd < 0 ? "" : path.substring(tokenStart, tokenEnd);
     }
 
     private boolean tryConsume(HttpServletResponse response,

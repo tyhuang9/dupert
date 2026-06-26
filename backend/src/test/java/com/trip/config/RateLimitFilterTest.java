@@ -4,8 +4,13 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import org.junit.jupiter.api.Test;
+import java.util.concurrent.atomic.AtomicInteger;
 
+import org.junit.jupiter.api.Test;
+import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.mock.web.MockHttpServletResponse;
+
+import jakarta.servlet.FilterChain;
 import jakarta.servlet.http.HttpServletRequest;
 
 /**
@@ -59,5 +64,34 @@ class RateLimitFilterTest {
         when(req.getRemoteAddr()).thenReturn("10.0.0.1");
 
         assertThat(RateLimitFilter.clientIp(req, true)).isEqualTo("10.0.0.1");
+    }
+
+    @Test
+    void shareAcceptRateLimitIgnoresTokenDiscriminator() throws Exception {
+        RateLimitRegistry registry = new RateLimitRegistry();
+        RateLimitFilter filter = new RateLimitFilter(registry, new AppProperties());
+        AtomicInteger passed = new AtomicInteger();
+        FilterChain chain = (_request, _response) -> passed.incrementAndGet();
+
+        for (int i = 0; i < 10; i++) {
+            MockHttpServletResponse response = new MockHttpServletResponse();
+            filter.doFilter(shareRequest("token-" + i), response, chain);
+            assertThat(response.getStatus()).isEqualTo(200);
+        }
+
+        assertThat(registry.size()).isEqualTo(1);
+
+        MockHttpServletResponse limited = new MockHttpServletResponse();
+        filter.doFilter(shareRequest("token-overflow"), limited, chain);
+
+        assertThat(passed.get()).isEqualTo(10);
+        assertThat(limited.getStatus()).isEqualTo(429);
+        assertThat(limited.getContentAsString()).isEqualTo(RateLimitFilter.RATE_LIMITED_BODY);
+    }
+
+    private static MockHttpServletRequest shareRequest(String token) {
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/share/" + token + "/accept");
+        request.setRemoteAddr("203.0.113.40");
+        return request;
     }
 }

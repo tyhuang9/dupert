@@ -66,7 +66,7 @@ public class GuestAuthenticationFilter extends OncePerRequestFilter {
                 writeJson(response, 403, "{\"error\":\"guest_write_header_required\"}", null);
                 return;
             }
-            if (!consumeGuestWrite(response, request, rawToken)) {
+            if (!consumeGuestWrite(response, request)) {
                 return;
             }
         }
@@ -78,11 +78,9 @@ public class GuestAuthenticationFilter extends OncePerRequestFilter {
     }
 
     private boolean consumeGuestWrite(HttpServletResponse response,
-                                      HttpServletRequest request,
-                                      String rawToken) throws IOException {
+                                      HttpServletRequest request) throws IOException {
         String clientIp = RateLimitFilter.clientIp(request, trustProxy);
-        var bucket = rateLimitRegistry.resolve(
-            RateLimitRegistry.Named.GUEST_WRITE, clientIp + ":" + rawToken);
+        var bucket = rateLimitRegistry.resolve(RateLimitRegistry.Named.GUEST_WRITE, clientIp);
         ConsumptionProbe probe = bucket.tryConsumeAndReturnRemaining(1);
         if (probe.isConsumed()) {
             return true;

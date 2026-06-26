@@ -24,10 +24,10 @@ import io.github.bucket4j.Bucket;
  * wiring an endpoint later is a one-liner.
  *
  * <p>Keys are {@code "{bucketName}:{discriminator}"}, where the discriminator is
- * typically {@code ip} or {@code ip:email}. The map is lock-free and bounded only by
- * distinct keys seen; a scheduled sweep ({@link #evictIdle()}) drops entries that
- * have been idle longer than {@link #MAX_IDLE} so a sustained scan against many IPs
- * can't grow the map without bound.
+ * typically {@code ip} or {@code ip:email}. Each named bucket family has a hard
+ * discriminator cap plus an overflow bucket; a scheduled sweep ({@link #evictIdle()})
+ * drops entries that have been idle longer than {@link #MAX_IDLE} so a sustained scan
+ * against many IPs can't grow the map without bound.
  */
 @Component
 public class RateLimitRegistry {
@@ -39,6 +39,8 @@ public class RateLimitRegistry {
      * from that key lazily re-allocate a fresh bucket.
      */
     static final Duration MAX_IDLE = Duration.ofHours(1);
+    static final int DEFAULT_MAX_BUCKETS_PER_NAME = 4096;
+    static final String OVERFLOW_DISCRIMINATOR = "__overflow__";
 
     /**
      * Definitions of the named buckets. All values mirror §5 of the plan. Each is a
@@ -71,12 +73,12 @@ public class RateLimitRegistry {
             .addLimit(Bandwidth.builder().capacity(10).refillGreedy(10, Duration.ofHours(1)).build())
             .build()),
 
-        /** 10 share-accept attempts per minute per (ip, token). */
+        /** 10 share-accept / guest-join attempts per minute per IP before token validation. */
         SHARE_ACCEPT(() -> Bucket.builder()
             .addLimit(Bandwidth.builder().capacity(10).refillGreedy(10, Duration.ofMinutes(1)).build())
             .build()),
 
-        /** 60 writes per minute per guest session. */
+        /** 60 guest writes per minute per IP before guest-session validation. */
         GUEST_WRITE(() -> Bucket.builder()
             .addLimit(Bandwidth.builder().capacity(60).refillGreedy(60, Duration.ofMinutes(1)).build())
             .build());
@@ -101,6 +103,7 @@ public class RateLimitRegistry {
 
     private final Map<String, TrackedBucket> buckets = new ConcurrentHashMap<>();
     private final Clock clock;
+    private final int maxBucketsPerName;
 
     public RateLimitRegistry() {
         this(Clock.systemUTC());
@@ -111,7 +114,12 @@ public class RateLimitRegistry {
      * no-arg constructor.
      */
     RateLimitRegistry(Clock clock) {
+        this(clock, DEFAULT_MAX_BUCKETS_PER_NAME);
+    }
+
+    RateLimitRegistry(Clock clock, int maxBucketsPerName) {
         this.clock = clock;
+        this.maxBucketsPerName = maxBucketsPerName;
     }
 
     /**
@@ -119,8 +127,11 @@ public class RateLimitRegistry {
      * Callers pass something stable and scoped — e.g., {@code clientIp} — to
      * differentiate offenders while still allowing a shared pool where appropriate.
      */
-    public Bucket resolve(Named name, String discriminator) {
-        String key = name.name() + ":" + discriminator;
+    public synchronized Bucket resolve(Named name, String discriminator) {
+        String key = keyFor(name, discriminator);
+        if (!buckets.containsKey(key) && bucketCount(name) >= maxBucketsPerName) {
+            key = keyFor(name, OVERFLOW_DISCRIMINATOR);
+        }
         long now = clock.millis();
         TrackedBucket tracked = buckets.computeIfAbsent(key,
             k -> new TrackedBucket(name.newBucket(), new AtomicLong(now)));
@@ -135,7 +146,7 @@ public class RateLimitRegistry {
      * just race on the {@link ConcurrentHashMap} contract.
      */
     @Scheduled(fixedDelayString = "PT15M")
-    public void evictIdle() {
+    public synchronized void evictIdle() {
         long cutoff = clock.millis() - MAX_IDLE.toMillis();
         buckets.entrySet().removeIf(e -> e.getValue().lastAccessMillis().get() < cutoff);
     }
@@ -143,5 +154,16 @@ public class RateLimitRegistry {
     /** Visible for tests — current entry count. */
     int size() {
         return buckets.size();
+    }
+
+    private static String keyFor(Named name, String discriminator) {
+        return name.name() + ":" + discriminator;
+    }
+
+    private long bucketCount(Named name) {
+        String prefix = name.name() + ":";
+        return buckets.keySet().stream()
+            .filter(key -> key.startsWith(prefix))
+            .count();
     }
 }
