@@ -1,6 +1,7 @@
 package com.trip.service.realtime;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -18,15 +19,33 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 public class TripEventBroker {
 
     static final long EMITTER_TIMEOUT_MILLIS = 30L * 60L * 1000L;
+    static final int MAX_SUBSCRIBERS_PER_ACTOR_TRIP = 2;
+    static final int MAX_SUBSCRIBERS_PER_IP = 32;
+    static final int MAX_SUBSCRIBERS_PER_TRIP = 64;
+    static final int MAX_GLOBAL_SUBSCRIBERS = 256;
 
-    private final ConcurrentMap<Long, CopyOnWriteArrayList<SseEmitter>> emittersByTrip =
+    private final ConcurrentMap<Long, CopyOnWriteArrayList<Subscription>> subscriptionsByTrip =
         new ConcurrentHashMap<>();
+    private int globalSubscriberCount;
 
-    public SseEmitter subscribe(Long tripId) {
+    public SseEmitter subscribe(Long tripId, String actorKey, String clientIp) {
         SseEmitter emitter = new SseEmitter(EMITTER_TIMEOUT_MILLIS);
-        emittersByTrip.computeIfAbsent(tripId, ignored -> new CopyOnWriteArrayList<>()).add(emitter);
+        String normalizedActorKey = normalizeKey(actorKey);
+        String normalizedClientIp = normalizeKey(clientIp);
+        Subscription subscription = new Subscription(emitter, normalizedActorKey, normalizedClientIp);
 
-        Runnable cleanup = () -> remove(tripId, emitter);
+        synchronized (this) {
+            CopyOnWriteArrayList<Subscription> subscriptions = subscriptionsByTrip.get(tripId);
+            if (subscriptions == null) {
+                subscriptions = new CopyOnWriteArrayList<>();
+            }
+            assertCapacity(subscriptions, normalizedActorKey, normalizedClientIp);
+            subscriptions.add(subscription);
+            subscriptionsByTrip.putIfAbsent(tripId, subscriptions);
+            globalSubscriberCount++;
+        }
+
+        Runnable cleanup = () -> remove(tripId, subscription);
         emitter.onCompletion(cleanup);
         emitter.onTimeout(cleanup);
         emitter.onError(_error -> cleanup.run());
@@ -36,7 +55,7 @@ public class TripEventBroker {
                 .name("connected")
                 .data(Map.of("type", "connected")));
         } catch (IOException | IllegalStateException ex) {
-            remove(tripId, emitter);
+            remove(tripId, subscription);
             emitter.completeWithError(ex);
         }
 
@@ -44,45 +63,92 @@ public class TripEventBroker {
     }
 
     public void publish(Long tripId, TripEvent event) {
-        CopyOnWriteArrayList<SseEmitter> emitters = emittersByTrip.get(tripId);
-        if (emitters == null || emitters.isEmpty()) {
+        CopyOnWriteArrayList<Subscription> subscriptions = subscriptionsByTrip.get(tripId);
+        if (subscriptions == null || subscriptions.isEmpty()) {
             return;
         }
 
-        for (SseEmitter emitter : emitters) {
+        for (Subscription subscription : subscriptions) {
             try {
-                emitter.send(SseEmitter.event()
+                subscription.emitter().send(SseEmitter.event()
                     .name("trip-event")
                     .data(event));
             } catch (IOException | IllegalStateException ex) {
-                remove(tripId, emitter);
-                emitter.completeWithError(ex);
+                remove(tripId, subscription);
+                subscription.emitter().completeWithError(ex);
             }
         }
     }
 
     public void disconnect(Long tripId) {
-        CopyOnWriteArrayList<SseEmitter> emitters = emittersByTrip.remove(tripId);
-        if (emitters == null || emitters.isEmpty()) {
-            return;
+        List<Subscription> subscriptions;
+        synchronized (this) {
+            subscriptions = subscriptionsByTrip.remove(tripId);
+            if (subscriptions == null || subscriptions.isEmpty()) {
+                return;
+            }
+            globalSubscriberCount = Math.max(0, globalSubscriberCount - subscriptions.size());
         }
-        for (SseEmitter emitter : emitters) {
-            emitter.complete();
+        for (Subscription subscription : subscriptions) {
+            subscription.emitter().complete();
         }
     }
 
     int subscriberCountForTest(Long tripId) {
-        return emittersByTrip.getOrDefault(tripId, new CopyOnWriteArrayList<>()).size();
+        return subscriptionsByTrip.getOrDefault(tripId, new CopyOnWriteArrayList<>()).size();
     }
 
-    private void remove(Long tripId, SseEmitter emitter) {
-        CopyOnWriteArrayList<SseEmitter> emitters = emittersByTrip.get(tripId);
-        if (emitters == null) {
+    int globalSubscriberCountForTest() {
+        synchronized (this) {
+            return globalSubscriberCount;
+        }
+    }
+
+    private void assertCapacity(List<Subscription> subscriptions, String actorKey, String clientIp) {
+        if (globalSubscriberCount >= MAX_GLOBAL_SUBSCRIBERS
+                || subscriptions.size() >= MAX_SUBSCRIBERS_PER_TRIP
+                || countByActor(subscriptions, actorKey) >= MAX_SUBSCRIBERS_PER_ACTOR_TRIP
+                || countByClientIp(clientIp) >= MAX_SUBSCRIBERS_PER_IP) {
+            throw new StreamLimitExceededException();
+        }
+    }
+
+    private static long countByActor(List<Subscription> subscriptions, String actorKey) {
+        return subscriptions.stream()
+            .filter(subscription -> subscription.actorKey().equals(actorKey))
+            .count();
+    }
+
+    private long countByClientIp(String clientIp) {
+        return subscriptionsByTrip.values().stream()
+            .flatMap(List::stream)
+            .filter(subscription -> subscription.clientIp().equals(clientIp))
+            .count();
+    }
+
+    private synchronized void remove(Long tripId, Subscription subscription) {
+        CopyOnWriteArrayList<Subscription> subscriptions = subscriptionsByTrip.get(tripId);
+        if (subscriptions == null) {
             return;
         }
-        emitters.remove(emitter);
-        if (emitters.isEmpty()) {
-            emittersByTrip.remove(tripId, emitters);
+        if (subscriptions.remove(subscription)) {
+            globalSubscriberCount = Math.max(0, globalSubscriberCount - 1);
         }
+        if (subscriptions.isEmpty()) {
+            subscriptionsByTrip.remove(tripId, subscriptions);
+        }
+    }
+
+    private static String normalizeKey(String key) {
+        if (key == null || key.isBlank()) {
+            return "unknown";
+        }
+        return key;
+    }
+
+    private record Subscription(SseEmitter emitter, String actorKey, String clientIp) {
+    }
+
+    public static class StreamLimitExceededException extends RuntimeException {
     }
 }

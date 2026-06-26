@@ -1,13 +1,15 @@
 package com.trip.web;
 
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.request;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-import static org.mockito.Mockito.when;
 
 import java.time.LocalDate;
 import java.util.Optional;
 
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -30,6 +32,7 @@ import com.trip.repo.TripRepository;
 import com.trip.repo.UserRepository;
 import com.trip.service.auth.JwtService;
 import com.trip.service.auth.password.BreachedPasswordChecker;
+import com.trip.service.realtime.TripEventBroker;
 import com.trip.service.trip.ReflectionIds;
 
 @SpringBootTest
@@ -46,6 +49,9 @@ class TripStreamControllerTest {
 
     @Autowired
     JwtService realJwtService;
+
+    @Autowired
+    TripEventBroker tripEventBroker;
 
     @MockitoBean
     UserRepository userRepository;
@@ -89,6 +95,11 @@ class TripStreamControllerTest {
             .thenReturn(Optional.of(new TripMember(TRIP_PK, ALICE_ID, TripRole.VIEWER)));
     }
 
+    @AfterEach
+    void disconnectStreams() {
+        tripEventBroker.disconnect(TRIP_PK);
+    }
+
     @Test
     void streamRequiresAuthentication() throws Exception {
         mvc.perform(get("/api/trips/" + TRIP_PUBLIC_ID + "/stream"))
@@ -101,6 +112,35 @@ class TripStreamControllerTest {
                 .header("Authorization", bearerFor(ALICE_ID)))
             .andExpect(status().isOk())
             .andExpect(request().asyncStarted());
+    }
+
+    @Test
+    void streamRejectsExcessActorSubscriptions() throws Exception {
+        mvc.perform(get("/api/trips/" + TRIP_PUBLIC_ID + "/stream")
+                .header("Authorization", bearerFor(ALICE_ID))
+                .with(request -> {
+                    request.setRemoteAddr("203.0.113.10");
+                    return request;
+                }))
+            .andExpect(status().isOk())
+            .andExpect(request().asyncStarted());
+        mvc.perform(get("/api/trips/" + TRIP_PUBLIC_ID + "/stream")
+                .header("Authorization", bearerFor(ALICE_ID))
+                .with(request -> {
+                    request.setRemoteAddr("203.0.113.10");
+                    return request;
+                }))
+            .andExpect(status().isOk())
+            .andExpect(request().asyncStarted());
+
+        mvc.perform(get("/api/trips/" + TRIP_PUBLIC_ID + "/stream")
+                .header("Authorization", bearerFor(ALICE_ID))
+                .with(request -> {
+                    request.setRemoteAddr("203.0.113.10");
+                    return request;
+                }))
+            .andExpect(status().isTooManyRequests())
+            .andExpect(jsonPath("$.error").value("rate_limited"));
     }
 
     @Test

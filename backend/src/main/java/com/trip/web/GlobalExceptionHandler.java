@@ -20,6 +20,7 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 import org.springframework.web.servlet.NoHandlerFoundException;
 
 import com.trip.config.CorrelationIdFilter;
+import com.trip.service.realtime.TripEventBroker.StreamLimitExceededException;
 import com.trip.web.exception.NotFoundException;
 import com.trip.web.exception.ValidationException;
 
@@ -127,6 +128,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ErrorResponse> handleDenied(AccessDeniedException ex) {
         return respond(HttpStatus.FORBIDDEN, "forbidden", "Access denied.", null);
+    }
+
+    @ExceptionHandler(StreamLimitExceededException.class)
+    public ResponseEntity<ErrorResponse> handleStreamLimitExceeded(StreamLimitExceededException ex) {
+        return respond(HttpStatus.TOO_MANY_REQUESTS, "rate_limited", "Too many realtime streams.", null);
     }
 
     /**
