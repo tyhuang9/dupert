@@ -1,6 +1,7 @@
 import axios from 'axios'
 import {
   closestCenter,
+  DragOverlay,
   DndContext,
   KeyboardSensor,
   PointerSensor,
@@ -10,6 +11,7 @@ import {
   useSensors,
   type CollisionDetection,
   type DragEndEvent,
+  type DragStartEvent,
 } from '@dnd-kit/core'
 import {
   SortableContext,
@@ -66,6 +68,7 @@ import {
   getActivityDragOperation,
   getTimelineDragOperation,
   listTripDays,
+  parseActivityDragId,
 } from '../utils/activityDrag'
 
 function isNotFoundError(err: unknown): boolean {
@@ -353,6 +356,26 @@ function TimelineDayGroup({
         </ol>
       </SortableContext>
     </section>
+  )
+}
+
+function ActivityDragOverlayCard({ activity }: { activity: Activity }) {
+  return (
+    <article className={styles.dragOverlayCard} aria-hidden="true">
+      <span
+        className={styles.timelineActivityIcon}
+        data-category={activity.category}
+      >
+        <TimelineCategoryIcon category={activity.category} />
+      </span>
+      <span className={styles.dragOverlayContent}>
+        <strong>{activity.title}</strong>
+        <small>{timelineActivitySummary(activity)}</small>
+      </span>
+      <span className={styles.timelineActivityTime}>
+        {formatActivityTime(activity)}
+      </span>
+    </article>
   )
 }
 
@@ -736,6 +759,7 @@ export function TripWorkspacePage() {
   const [placeDraft, setPlaceDraft] = useState<PlaceSelection | null>(null)
   const [isTripSettingsOpen, setIsTripSettingsOpen] = useState(false)
   const [isDraggingActivity, setIsDraggingActivity] = useState(false)
+  const [draggingActivityId, setDraggingActivityId] = useState<number | null>(null)
   const [workspaceMode, setWorkspaceMode] = useState<WorkspaceMode>('days')
   const [activitySearch, setActivitySearch] = useState('')
   const [mapStyle, setMapStyle] = useState<MapStyleId>('light')
@@ -887,6 +911,10 @@ export function TripWorkspacePage() {
     ? { proximity: mapViewportContext.center }
     : undefined
   const mapPreviewPlace = mapSearchPreview ?? placeDraft
+  const draggingActivity = useMemo(
+    () => allActivities.find((activity) => activity.id === draggingActivityId) ?? null,
+    [allActivities, draggingActivityId],
+  )
 
   const handleSelectDay = (nextDay: string) => {
     if (
@@ -1088,6 +1116,18 @@ export function TripWorkspacePage() {
   const handleWorkspaceDragEnd = (event: DragEndEvent) => {
     handleDragEnd(event)
     setIsDraggingActivity(false)
+    setDraggingActivityId(null)
+  }
+
+  const handleWorkspaceDragStart = (event: DragStartEvent) => {
+    const activityId = parseActivityDragId(event.active.id)
+    setDraggingActivityId(activityId)
+    setIsDraggingActivity(activityId !== null)
+  }
+
+  const handleWorkspaceDragCancel = () => {
+    setIsDraggingActivity(false)
+    setDraggingActivityId(null)
   }
 
   const handleSaveTripSettings = async (payload: UpdateTripRequest) => {
@@ -1182,9 +1222,9 @@ export function TripWorkspacePage() {
           <DndContext
             sensors={sensors}
             collisionDetection={pointerFirstCollisionDetection}
-            onDragCancel={() => setIsDraggingActivity(false)}
+            onDragCancel={handleWorkspaceDragCancel}
             onDragEnd={handleWorkspaceDragEnd}
-            onDragStart={() => setIsDraggingActivity(true)}
+            onDragStart={handleWorkspaceDragStart}
           >
             <section className={styles.workspaceShell}>
               <aside className={`${styles.panel} ${styles.dayPanel}`} aria-label="Trip workspace navigation">
@@ -1424,6 +1464,11 @@ export function TripWorkspacePage() {
                 />
               </aside>
             </section>
+            <DragOverlay dropAnimation={null} zIndex={60}>
+              {draggingActivity ? (
+                <ActivityDragOverlayCard activity={draggingActivity} />
+              ) : null}
+            </DragOverlay>
           </DndContext>
           {isTripSettingsOpen && (
             <TripSettingsModal

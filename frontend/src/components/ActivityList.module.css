@@ -13,6 +13,7 @@
   grid-template-columns: 28px minmax(0, 1fr);
   gap: var(--space-3);
   align-items: start;
+  will-change: transform;
 }
 
 .sortableItem::before {
@@ -50,6 +51,7 @@
 
 .dragging {
   opacity: 0.64;
+  will-change: transform;
 }
 
 .emptyState {
