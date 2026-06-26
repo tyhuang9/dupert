@@ -20,6 +20,7 @@ public record TripResponse(
     String destination,
     LocalDate startDate,
     LocalDate endDate,
+    String imageUrl,
     OffsetDateTime createdAt,
     TripRole role
 ) {
@@ -31,6 +32,7 @@ public record TripResponse(
             trip.getDestination(),
             trip.getStartDate(),
             trip.getEndDate(),
+            trip.getImageUrl(),
             trip.getCreatedAt(),
             role
         );

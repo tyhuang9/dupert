@@ -126,10 +126,7 @@ export function TripsPage() {
 
   const hasTrips = trips.length > 0
   const hasActiveFilters = searchTerm.trim().length > 0 || roleFilter !== 'ALL'
-  const tripGridClassName =
-    visibleTrips.length === 1
-      ? `${styles.tripGrid} ${styles.tripGridSingle}`
-      : styles.tripGrid
+  const tripGridClassName = styles.tripGrid
 
   function clearFilters() {
     setSearchTerm('')
@@ -267,7 +264,8 @@ export function TripsPage() {
           {visibleTrips.length > 0 ? (
             <ul className={tripGridClassName} aria-label="Trips">
               {visibleTrips.map((trip) => {
-                const visual = TRIP_VISUALS[selectTripVisualKey(trip)]
+                const fallbackVisual = TRIP_VISUALS[selectTripVisualKey(trip)]
+                const visual = trip.imageUrl || fallbackVisual
                 const destination = trip.destination ?? 'Destination pending'
                 const dateRange = formatTripDateRange(trip)
                 const duration = formatTripDuration(trip)
@@ -295,6 +293,10 @@ export function TripsPage() {
                             width="1200"
                             height="676"
                             loading="lazy"
+                            onError={(event) => {
+                              event.currentTarget.onerror = null
+                              event.currentTarget.src = fallbackVisual
+                            }}
                           />
                           <span className={styles.role}>{role}</span>
                         </span>

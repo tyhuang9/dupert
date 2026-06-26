@@ -31,6 +31,9 @@ public class Trip {
     @Column(name = "destination", length = 200)
     private String destination;
 
+    @Column(name = "image_url", length = 2048)
+    private String imageUrl;
+
     @Column(name = "start_date", nullable = false)
     private LocalDate startDate;
 
@@ -80,6 +83,14 @@ public class Trip {
 
     public void setDestination(String destination) {
         this.destination = destination;
+    }
+
+    public String getImageUrl() {
+        return imageUrl;
+    }
+
+    public void setImageUrl(String imageUrl) {
+        this.imageUrl = imageUrl;
     }
 
     public LocalDate getStartDate() {

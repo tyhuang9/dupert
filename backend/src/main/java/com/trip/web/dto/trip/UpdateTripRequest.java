@@ -23,6 +23,14 @@ public record UpdateTripRequest(
 
     LocalDate startDate,
 
-    LocalDate endDate
+    LocalDate endDate,
+
+    @Size(max = 2048)
+    @Pattern(regexp = "^(https://[^\\u0000-\\u001F\\u007F]+)?$", message = "must be a valid HTTPS image URL")
+    String imageUrl
 ) {
+    public UpdateTripRequest(String name, String destination, LocalDate startDate,
+                             LocalDate endDate) {
+        this(name, destination, startDate, endDate, null);
+    }
 }

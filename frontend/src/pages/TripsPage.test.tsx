@@ -5,6 +5,7 @@ import MockAdapter from 'axios-mock-adapter'
 import type { PropsWithChildren } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import type { SearchBoxOptions } from '@mapbox/search-js-core'
 import { apiClient } from '../api/client'
 import { AuthContext, type AuthContextValue } from '../auth/authContextValue'
 import type { Trip } from '../types/trip'
@@ -16,6 +17,7 @@ const searchBoxState = vi.hoisted(() => ({
   props: null as null | {
     onChange?: (value: string) => void
     onRetrieve?: (res: unknown) => void
+    options?: Partial<SearchBoxOptions>
     value?: string
   },
 }))
@@ -42,6 +44,7 @@ const SAMPLE_TRIP: Trip = {
   destination: 'Tokyo, Japan',
   startDate: '2026-05-01',
   endDate: '2026-05-05',
+  imageUrl: null,
   createdAt: '2026-05-22T16:00:00Z',
   role: 'OWNER',
 }
@@ -52,6 +55,7 @@ const PARIS_TRIP: Trip = {
   destination: 'Paris, France',
   startDate: '2026-04-10',
   endDate: '2026-04-14',
+  imageUrl: null,
   createdAt: '2026-01-10T16:00:00Z',
   role: 'EDITOR',
 }
@@ -62,6 +66,7 @@ const COASTAL_TRIP: Trip = {
   destination: 'Oregon Coast',
   startDate: '2026-08-01',
   endDate: '2026-08-03',
+  imageUrl: null,
   createdAt: '2026-01-12T16:00:00Z',
   role: 'VIEWER',
 }
@@ -157,7 +162,9 @@ afterEach(() => {
 
 describe('<TripsPage>', () => {
   it('renders trips from the API', async () => {
-    apiMock.onGet('/trips').reply(200, [SAMPLE_TRIP])
+    apiMock.onGet('/trips').reply(200, [
+      { ...SAMPLE_TRIP, imageUrl: 'https://example.com/tokyo.jpg' },
+    ])
 
     const { container } = renderTrips()
 
@@ -170,7 +177,7 @@ describe('<TripsPage>', () => {
     expect(tripLink).toHaveAccessibleName(/5 days/i)
     expect(container.querySelector('img')).toHaveAttribute(
       'src',
-      expect.stringContaining('tokyo-card'),
+      'https://example.com/tokyo.jpg',
     )
     expect(screen.getByText(/Tokyo, Japan/)).toBeInTheDocument()
     expect(screen.getByText(/May 1, 2026 - May 5, 2026/)).toBeInTheDocument()
@@ -195,7 +202,7 @@ describe('<TripsPage>', () => {
     expect(
       screen.getByRole('link', { name: /open paris spring/i }),
     ).toBeInTheDocument()
-    expect(screen.getByRole('list', { name: /^trips$/i }).className).toContain(
+    expect(screen.getByRole('list', { name: /^trips$/i }).className).not.toContain(
       'tripGridSingle',
     )
     expect(
@@ -382,6 +389,7 @@ describe('<NewTripPage>', () => {
     expect(JSON.parse(apiMock.history.post[0].data as string)).toEqual({
       name: 'Tokyo 2026',
       destination: 'Tokyo, Japan',
+      imageUrl: null,
       startDate: '2026-05-01',
       endDate: '2026-05-05',
     })
@@ -399,6 +407,7 @@ describe('<NewTripPage>', () => {
             properties: {
               name: 'Madison',
               place_formatted: 'Wisconsin, United States',
+              image_url: 'https://example.com/madison.webp',
             },
           },
         ],
@@ -408,6 +417,13 @@ describe('<NewTripPage>', () => {
     expect(screen.getByLabelText(/destination/i)).toHaveValue(
       'Madison, Wisconsin, United States',
     )
+    expect(screen.getByLabelText(/cover image url/i)).toHaveValue(
+      'https://example.com/madison.webp',
+    )
+    expect(searchBoxState.props?.options).toMatchObject({
+      language: 'en',
+      proximity: 'none',
+    })
   })
 
   it('surfaces server validation errors', async () => {

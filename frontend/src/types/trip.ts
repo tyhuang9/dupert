@@ -6,6 +6,7 @@ export interface Trip {
   destination: string | null
   startDate: string
   endDate: string
+  imageUrl: string | null
   createdAt: string
   role: TripRole
 }
@@ -15,6 +16,7 @@ export interface CreateTripRequest {
   destination?: string | null
   startDate: string
   endDate: string
+  imageUrl?: string | null
 }
 
 export interface UpdateTripRequest {
@@ -22,4 +24,5 @@ export interface UpdateTripRequest {
   destination?: string | null
   startDate?: string
   endDate?: string
+  imageUrl?: string | null
 }

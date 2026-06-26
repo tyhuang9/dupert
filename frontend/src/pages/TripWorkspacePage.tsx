@@ -140,6 +140,14 @@ function optionalText(value: string): string | null {
   return trimmed === '' ? null : trimmed
 }
 
+function isHttpsUrl(value: string): boolean {
+  try {
+    return new URL(value.trim()).protocol === 'https:'
+  } catch {
+    return false
+  }
+}
+
 function nearestTripDay(dayDate: string | undefined, startDate: string, endDate: string): string {
   if (!dayDate || dayDate < startDate) return startDate
   if (dayDate > endDate) return endDate
@@ -399,6 +407,7 @@ function TripSettingsModal({
 }: TripSettingsModalProps) {
   const [name, setName] = useState(trip.name)
   const [destination, setDestination] = useState(trip.destination ?? '')
+  const [imageUrl, setImageUrl] = useState(trip.imageUrl ?? '')
   const [startDate, setStartDate] = useState(trip.startDate)
   const [endDate, setEndDate] = useState(trip.endDate)
   const [formError, setFormError] = useState<string | null>(null)
@@ -432,10 +441,15 @@ function TripSettingsModal({
       setFormError(dateError)
       return
     }
+    if (imageUrl.trim() && !isHttpsUrl(imageUrl)) {
+      setFormError('Cover image must be an HTTPS URL.')
+      return
+    }
     setFormError(null)
     void onSave({
       name: trimmedName,
       destination: optionalText(destination),
+      imageUrl: imageUrl.trim(),
       startDate,
       endDate,
     }).catch(() => undefined)
@@ -480,6 +494,17 @@ function TripSettingsModal({
               value={destination}
               onChange={(event) => setDestination(event.target.value)}
               placeholder="City, region, or theme"
+            />
+          </label>
+          <label className={styles.modalLabel}>
+            Cover Image URL
+            <input
+              className={styles.modalInput}
+              type="url"
+              inputMode="url"
+              value={imageUrl}
+              onChange={(event) => setImageUrl(event.target.value)}
+              placeholder="https://example.com/photo.jpg"
             />
           </label>
           <div className={styles.modalGrid}>

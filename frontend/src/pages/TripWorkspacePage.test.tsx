@@ -146,6 +146,7 @@ const SAMPLE_TRIP: Trip = {
   destination: 'Tokyo, Japan',
   startDate: '2026-05-01',
   endDate: '2026-05-05',
+  imageUrl: null,
   createdAt: '2026-05-22T16:00:00Z',
   role: 'OWNER',
 }
@@ -708,6 +709,7 @@ describe('<TripWorkspacePage>', () => {
       ...SAMPLE_TRIP,
       name: 'Tokyo and Kyoto',
       destination: 'Kyoto, Japan',
+      imageUrl: 'https://example.com/kyoto.jpg',
       startDate: '2026-05-02',
       endDate: '2026-05-03',
     })
@@ -723,6 +725,7 @@ describe('<TripWorkspacePage>', () => {
     const destinationInput = screen.getByLabelText(/destination/i)
     await userEvent.clear(destinationInput)
     await userEvent.type(destinationInput, 'Kyoto, Japan')
+    await userEvent.type(screen.getByLabelText(/cover image url/i), 'https://example.com/kyoto.jpg')
     await userEvent.clear(screen.getByLabelText(/start date/i))
     await userEvent.type(screen.getByLabelText(/start date/i), '2026-05-02')
     await userEvent.clear(screen.getByLabelText(/end date/i))
@@ -737,6 +740,7 @@ describe('<TripWorkspacePage>', () => {
     expect(JSON.parse(apiMock.history.patch[0].data as string)).toEqual({
       name: 'Tokyo and Kyoto',
       destination: 'Kyoto, Japan',
+      imageUrl: 'https://example.com/kyoto.jpg',
       startDate: '2026-05-02',
       endDate: '2026-05-03',
     })

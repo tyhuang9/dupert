@@ -28,7 +28,7 @@ public class ContentSecurityPolicyFilter extends OncePerRequestFilter {
         "script-src 'self'",
         // Mapbox GL inlines a small amount of CSS at runtime, so we can't go strict here.
         "style-src 'self' 'unsafe-inline'",
-        "img-src 'self' data: https://api.mapbox.com https://*.tiles.mapbox.com",
+        "img-src 'self' data: https:",
         "connect-src 'self' https://api.mapbox.com https://events.mapbox.com",
         // mapbox-gl uses a worker created from a blob URL.
         "worker-src 'self' blob:",

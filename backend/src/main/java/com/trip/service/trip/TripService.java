@@ -61,9 +61,10 @@ public class TripService {
             publicId,
             ownerId,
             request.name().trim(),
-            request.destination() == null ? null : request.destination().trim(),
+            normalizeOptionalText(request.destination()),
             request.startDate(),
             request.endDate());
+        trip.setImageUrl(normalizeOptionalText(request.imageUrl()));
         Trip saved = tripRepository.save(trip);
 
         // Atomic with the trip insert — both share this @Transactional method, so a
@@ -117,7 +118,10 @@ public class TripService {
             trip.setName(request.name().trim());
         }
         if (request.destination() != null) {
-            trip.setDestination(request.destination().trim());
+            trip.setDestination(normalizeOptionalText(request.destination()));
+        }
+        if (request.imageUrl() != null) {
+            trip.setImageUrl(normalizeOptionalText(request.imageUrl()));
         }
 
         // Re-validate against the post-merge state. If only one date is provided in the
@@ -155,6 +159,14 @@ public class TripService {
             throw new ValidationException("invalid_date_range",
                 "trip duration exceeds maximum of " + MAX_TRIP_DAYS + " days");
         }
+    }
+
+    private static String normalizeOptionalText(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 
     private String generateUniquePublicId() {

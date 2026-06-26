@@ -18,6 +18,7 @@ const SAMPLE_TRIP: Trip = {
   destination: 'Tokyo, Japan',
   startDate: '2026-05-01',
   endDate: '2026-05-05',
+  imageUrl: null,
   createdAt: '2026-05-22T16:00:00Z',
   role: 'OWNER',
 }

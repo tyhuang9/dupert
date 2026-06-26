@@ -293,15 +293,12 @@
 
 .tripGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 18rem), 22rem));
+  justify-content: start;
   gap: var(--space-4);
   padding: 0;
   margin: 0;
   list-style: none;
-}
-
-.tripGridSingle {
-  grid-template-columns: minmax(0, min(100%, 22rem));
 }
 
 .tripCardItem {
@@ -578,10 +575,25 @@
   min-width: 0;
 }
 
+.destinationSearchBox :global(mapbox-search-box) {
+  display: block;
+  width: 100%;
+  min-width: 0;
+}
+
+.destinationSearchBox :global(.Input),
+.destinationSearchBox :global(.InputWrapper),
+.destinationSearchBox :global(.SearchBox),
+.destinationSearchBox :global(.SearchBoxInput) {
+  width: 100%;
+  min-width: 0;
+}
+
 .destinationSearchBox input {
   width: 100%;
   min-height: 2.75rem;
-  padding: var(--space-2) var(--space-3);
+  padding: var(--space-2) var(--space-3) var(--space-2) 2.5rem;
+  box-sizing: border-box;
   border: 1px solid var(--color-surface-border);
   border-radius: var(--radius-md);
   background-color: var(--color-surface);

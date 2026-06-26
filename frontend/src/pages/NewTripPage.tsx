@@ -1,6 +1,6 @@
 import { useId, useMemo, useState, type FormEvent } from 'react'
 import { SearchBox } from '@mapbox/search-js-react'
-import type { SearchBoxRetrieveResponse } from '@mapbox/search-js-core'
+import type { SearchBoxOptions, SearchBoxRetrieveResponse } from '@mapbox/search-js-core'
 import { Link, useNavigate } from 'react-router-dom'
 import { parseApiError, type ParsedApiError } from '../api/errors'
 import { useCreateTrip } from '../hooks/useTrips'
@@ -11,6 +11,7 @@ import styles from './TripsPage.module.css'
 interface FormState {
   name: string
   destination: string
+  imageUrl: string
   startDate: string
   endDate: string
 }
@@ -18,8 +19,14 @@ interface FormState {
 const EMPTY_FORM: FormState = {
   name: '',
   destination: '',
+  imageUrl: '',
   startDate: '',
   endDate: '',
+}
+
+const DESTINATION_SEARCH_OPTIONS: Partial<SearchBoxOptions> = {
+  language: 'en',
+  proximity: 'none',
 }
 
 function validateForm(form: FormState): Record<string, string> {
@@ -36,7 +43,18 @@ function validateForm(form: FormState): Record<string, string> {
   if (form.startDate && form.endDate && form.startDate > form.endDate) {
     errors.endDate = 'End date must be on or after start date.'
   }
+  if (form.imageUrl.trim() && !isHttpsUrl(form.imageUrl)) {
+    errors.imageUrl = 'Cover image must be an HTTPS URL.'
+  }
   return errors
+}
+
+function isHttpsUrl(value: string): boolean {
+  try {
+    return new URL(value.trim()).protocol === 'https:'
+  } catch {
+    return false
+  }
 }
 
 function destinationFromRetrieve(res: SearchBoxRetrieveResponse): string {
@@ -54,6 +72,40 @@ function destinationFromRetrieve(res: SearchBoxRetrieveResponse): string {
     return `${name}, ${formatted}`
   }
   return formatted || name
+}
+
+function looksLikeImageUrl(value: string, keyHint = ''): boolean {
+  if (!isHttpsUrl(value)) return false
+  return (
+    /image|img|photo|picture|thumbnail|cover/i.test(keyHint) ||
+    /\.(?:avif|gif|jpe?g|png|webp)(?:[?#].*)?$/i.test(value)
+  )
+}
+
+function findFirstImageUrl(value: unknown, keyHint = ''): string | null {
+  if (typeof value === 'string') {
+    return looksLikeImageUrl(value, keyHint) ? value.trim() : null
+  }
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      const found = findFirstImageUrl(item, keyHint)
+      if (found) return found
+    }
+    return null
+  }
+  if (value && typeof value === 'object') {
+    for (const [key, nestedValue] of Object.entries(value)) {
+      const found = findFirstImageUrl(nestedValue, key)
+      if (found) return found
+    }
+  }
+  return null
+}
+
+function imageUrlFromRetrieve(res: SearchBoxRetrieveResponse): string | null {
+  const feature = res.features[0]
+  if (!feature) return null
+  return findFirstImageUrl(feature.properties)
 }
 
 export function NewTripPage() {
@@ -89,6 +141,18 @@ export function NewTripPage() {
     setApiError(null)
   }
 
+  function setFields(fields: Partial<FormState>) {
+    setForm((current) => ({ ...current, ...fields }))
+    setFieldErrors((current) => {
+      const next = { ...current }
+      for (const field of Object.keys(fields) as Array<keyof FormState>) {
+        delete next[field]
+      }
+      return next
+    })
+    setApiError(null)
+  }
+
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const nextErrors = validateForm(form)
@@ -102,6 +166,7 @@ export function NewTripPage() {
       const trip = await createTrip.mutateAsync({
         name: form.name.trim(),
         destination: form.destination.trim() || null,
+        imageUrl: form.imageUrl.trim() || null,
         startDate: form.startDate,
         endDate: form.endDate,
       })
@@ -176,8 +241,12 @@ export function NewTripPage() {
                 onRetrieve={(res) => {
                   const destination = destinationFromRetrieve(res)
                   if (!destination) return
+                  const imageUrl = imageUrlFromRetrieve(res)
                   setDestinationSearchError(null)
-                  setField('destination', destination)
+                  setFields({
+                    destination,
+                    ...(imageUrl ? { imageUrl } : {}),
+                  })
                 }}
                 onSuggest={() => setDestinationSearchError(null)}
                 onSuggestError={() => {
@@ -190,7 +259,7 @@ export function NewTripPage() {
                   setField('destination', '')
                 }}
                 placeholder="Search a city, address, or region"
-                options={{ language: 'en' }}
+                options={DESTINATION_SEARCH_OPTIONS}
               />
             </span>
           ) : (
@@ -206,6 +275,32 @@ export function NewTripPage() {
           {destinationSearchError ? (
             <span className={styles.fieldError} role="alert">
               {destinationSearchError}
+            </span>
+          ) : null}
+        </div>
+
+        <div className={styles.field}>
+          <label className={styles.label} htmlFor={`${destinationId}-image`}>
+            Cover image URL
+          </label>
+          <input
+            id={`${destinationId}-image`}
+            className={styles.input}
+            type="url"
+            inputMode="url"
+            value={form.imageUrl}
+            onChange={(event) => setField('imageUrl', event.target.value)}
+            maxLength={2048}
+            disabled={isSubmitting}
+            placeholder="https://example.com/photo.jpg"
+            aria-invalid={Boolean(mergedFieldErrors.imageUrl)}
+            aria-describedby={
+              mergedFieldErrors.imageUrl ? `${destinationId}-image-error` : undefined
+            }
+          />
+          {mergedFieldErrors.imageUrl ? (
+            <span className={styles.fieldError} id={`${destinationId}-image-error`}>
+              {mergedFieldErrors.imageUrl}
             </span>
           ) : null}
         </div>
