@@ -15,21 +15,18 @@
 
 .topNav {
   flex: 0 0 auto;
-  min-height: 50px;
+  min-height: 58px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-4);
   padding: 0 var(--space-4);
   border-bottom: 1px solid var(--color-surface-border);
-  background: rgba(255, 255, 255, 0.96);
-  box-shadow: var(--shadow-sm);
+  background: rgba(249, 249, 255, 0.98);
   z-index: 20;
 }
 
 .brandCluster,
-.topNavActions,
-.topUtilityActions,
 .timelineHeaderActions,
 .avatarStack,
 .actions {
@@ -39,7 +36,7 @@
 
 .brandCluster {
   min-width: 0;
-  gap: var(--space-5);
+  gap: var(--space-6);
 }
 
 .brandMark {
@@ -47,15 +44,15 @@
   align-items: center;
   gap: var(--space-2);
   color: var(--color-text);
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-base);
   font-weight: 800;
   text-decoration: none;
   white-space: nowrap;
 }
 
 .brandIcon {
-  width: 26px;
-  height: 26px;
+  width: 32px;
+  height: 32px;
   display: inline-grid;
   place-items: center;
   border-radius: var(--radius-md);
@@ -74,8 +71,8 @@
   min-height: 32px;
   display: inline-flex;
   align-items: center;
-  padding: 0 var(--space-3);
-  border-radius: var(--radius-md);
+  padding: 0 var(--space-1);
+  border-radius: 0;
   color: var(--color-text-muted);
   font-size: var(--font-size-xs);
   font-weight: 700;
@@ -83,59 +80,27 @@
 }
 
 .topNavLinks a:hover {
-  background: var(--color-surface-2);
+  background: transparent;
   color: var(--color-primary-text);
 }
 
 .topNavLinks a[aria-current='page'] {
+  max-width: min(18rem, 34vw);
   background: transparent;
   box-shadow: inset 0 -2px 0 var(--color-primary);
   color: var(--color-primary-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.topNavActions {
-  justify-content: flex-end;
-  gap: var(--space-3);
-  min-width: 0;
-}
-
-.globalSearch {
-  position: relative;
-  min-width: min(20rem, 34vw);
-}
-
-.globalSearch input {
-  width: 100%;
-  min-height: 32px;
-  padding: 0 var(--space-4) 0 2.25rem;
-  border: 1px solid var(--color-text-subtle);
-  border-radius: var(--radius-md);
-  background: var(--color-surface-2);
-  color: var(--color-text);
-  font-size: var(--font-size-sm);
-  outline: none;
-}
-
-.searchIcon {
-  position: absolute;
-  top: 50%;
-  left: var(--space-3);
-  color: var(--color-text-subtle);
-  transform: translateY(-50%);
-  pointer-events: none;
-}
-
-.globalSearch input::placeholder {
-  color: var(--color-text-muted);
-}
-
-.globalSearch input:focus-visible,
 .secondaryLink:focus-visible,
 .secondaryAction:focus-visible,
 .primaryAction:focus-visible,
+.addActivityButton:focus-visible,
 .shareLink:focus-visible,
 .sidebarAction:focus-visible,
-.utilityButton:focus-visible,
+.pinControl button:focus-visible,
 .calendarControls button:focus-visible,
 .calendarDay:focus-visible,
 .railNav button:focus-visible,
@@ -148,44 +113,7 @@
   outline-offset: var(--focus-ring-offset);
 }
 
-.syncBadge {
-  min-height: 32px;
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: 0 var(--space-3);
-  border: 1px solid color-mix(in srgb, var(--color-success) 20%, var(--color-success-bg));
-  border-radius: var(--radius-pill);
-  background: var(--color-success-bg);
-  color: var(--color-success-fg);
-  font-size: var(--font-size-xs);
-  font-weight: 800;
-  white-space: nowrap;
-}
-
-.searchResult {
-  color: var(--color-text-muted);
-  font-size: var(--font-size-xs);
-  font-weight: 700;
-  white-space: nowrap;
-}
-
-.topUtilityActions {
-  gap: var(--space-2);
-  min-width: 0;
-}
-
-.topAvatarStack {
-  display: inline-flex;
-  align-items: center;
-  flex-direction: row-reverse;
-  padding-left: var(--space-2);
-}
-
-.profileAvatar,
-.collaboratorAvatar,
-.topAvatar,
-.avatarOverflow {
+.collaboratorAvatar {
   display: inline-grid;
   place-items: center;
   border-radius: var(--radius-pill);
@@ -195,48 +123,29 @@
   font-weight: 800;
 }
 
-.profileAvatar {
-  width: 32px;
-  height: 32px;
-  border: 1px solid var(--color-surface-border);
-}
-
-.topAvatar,
-.avatarOverflow {
-  width: 28px;
-  height: 28px;
-  border: 2px solid var(--color-surface);
-  margin-left: -8px;
-}
-
-.avatarOverflow {
-  background: var(--color-surface-2);
-  color: var(--color-text-muted);
-}
-
-.utilityButton {
-  width: 32px;
-  height: 32px;
-  display: inline-grid;
-  place-items: center;
-  padding: 0;
-  border: 1px solid var(--color-surface-border);
-  border-radius: var(--radius-md);
-  background: var(--color-surface);
-  color: var(--color-text-muted);
-}
-
-.utilityButton:hover {
-  border-color: var(--color-primary);
-  color: var(--color-primary-text);
-}
-
 .workspaceShell {
+  --sidebar-rail-width: 64px;
+  --sidebar-expanded-width: 244px;
+  position: relative;
   flex: 1 1 auto;
   height: 100%;
   min-height: 0;
   display: grid;
-  grid-template-columns: 280px minmax(380px, 1fr) minmax(400px, 40vw);
+  grid-template-columns: minmax(360px, 450px) minmax(420px, 1fr);
+  padding-left: var(--sidebar-rail-width);
+  overflow: hidden;
+  transition: padding-left var(--transition-slow);
+}
+
+.workspaceShellPinned {
+  padding-left: var(--sidebar-expanded-width);
+}
+
+.planningColumn {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
 }
 
@@ -246,15 +155,40 @@
 }
 
 .dayPanel {
-  width: 280px;
+  position: absolute;
+  inset: 0 auto 0 0;
+  z-index: 50;
+  width: var(--sidebar-rail-width);
   height: 100%;
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
-  padding: var(--space-4);
+  gap: var(--space-2);
+  padding: var(--space-3) 0;
   overflow: hidden;
   border-right: 1px solid var(--color-surface-border);
   background: var(--color-shell);
+  box-shadow: none;
+  transition:
+    width var(--transition-slow),
+    box-shadow var(--transition-slow);
+}
+
+.dayPanel:hover,
+.dayPanel:focus-within,
+.dayPanelPinned {
+  width: var(--sidebar-expanded-width);
+  box-shadow: var(--shadow-lg);
+}
+
+.sidebarCalendarReveal {
+  display: none;
+  padding: 0 var(--space-2) var(--space-1);
+}
+
+.dayPanel:hover .sidebarCalendarReveal,
+.dayPanel:focus-within .sidebarCalendarReveal,
+.dayPanelPinned .sidebarCalendarReveal {
+  display: block;
 }
 
 .tripIdentity {
@@ -329,6 +263,34 @@
 .railNav {
   display: grid;
   gap: var(--space-1);
+  width: 100%;
+}
+
+.pinControl {
+  width: 100%;
+}
+
+.pinControl button {
+  min-height: 40px;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: var(--font-size-xs);
+  font-weight: 800;
+  overflow: hidden;
+}
+
+.pinControl button:hover,
+.pinControl button[aria-pressed='true'] {
+  background: var(--color-surface-2);
+  color: var(--color-primary-text);
 }
 
 .railDivider {
@@ -338,19 +300,20 @@
 }
 
 .railNav button {
-  min-height: 34px;
+  min-height: 44px;
   display: flex;
   align-items: center;
-  gap: var(--space-3);
-  padding: 0 var(--space-3);
+  gap: 0;
+  padding: 0;
   border: 0;
-  border-radius: var(--radius-md);
+  border-radius: 0;
   background: transparent;
   color: var(--color-text-muted);
   font: inherit;
   font-size: var(--font-size-xs);
   font-weight: 700;
   text-align: left;
+  overflow: hidden;
 }
 
 .railNav button:hover {
@@ -363,10 +326,33 @@
   color: var(--color-primary-text);
 }
 
+.railIcon {
+  width: 64px;
+  flex: 0 0 64px;
+  display: inline-grid;
+  place-items: center;
+  color: inherit;
+}
+
+.railLabel {
+  min-width: 0;
+  opacity: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: opacity var(--transition-slow);
+}
+
+.dayPanel:hover .railLabel,
+.dayPanel:focus-within .railLabel,
+.dayPanelPinned .railLabel {
+  opacity: 1;
+}
+
 .calendarCard {
   display: grid;
   gap: var(--space-2);
-  padding: var(--space-3);
+  padding: var(--space-2);
   border: 1px solid var(--color-surface-border);
   border-radius: var(--radius-md);
   background: var(--color-surface);
@@ -387,7 +373,7 @@
 .calendarHeader h2 {
   margin: 0;
   color: var(--color-text);
-  font-size: var(--font-size-base);
+  font-size: var(--font-size-sm);
   font-weight: 800;
   line-height: 1.25;
 }
@@ -602,15 +588,6 @@
   font-size: var(--font-size-sm);
 }
 
-.noteSection {
-  display: grid;
-  gap: var(--space-3);
-  padding: var(--space-4);
-  border: 1px solid var(--color-surface-border);
-  border-radius: var(--radius-lg);
-  background: var(--color-shell);
-}
-
 .sectionHeader,
 .composerIntro,
 .timelineHeader {
@@ -638,13 +615,26 @@
 
 .railFooter {
   display: grid;
-  gap: var(--space-2);
+  gap: var(--space-1);
   padding-top: var(--space-3);
   border-top: 1px solid var(--color-surface-border);
 }
 
 .railFooter > * {
   width: 100%;
+}
+
+.railFooter .secondaryLink,
+.railFooter .shareLink,
+.railFooter .sidebarAction {
+  min-height: 44px;
+  justify-content: flex-start;
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
 }
 
 .railSpacer {
@@ -656,7 +646,8 @@
 .secondaryLink,
 .secondaryAction,
 .shareLink,
-.sidebarAction {
+.sidebarAction,
+.addActivityButton {
   min-height: 36px;
   display: inline-flex;
   align-items: center;
@@ -675,6 +666,7 @@
 }
 
 .primaryAction,
+.addActivityButton,
 .secondaryLink,
 .secondaryAction,
 .shareLink,
@@ -682,8 +674,8 @@
 .calendarControls button,
 .calendarDay,
 .mapStyleSelect select,
+.pinControl button,
 .railNav button,
-.utilityButton,
 .timelineActivityButton {
   cursor: pointer;
 }
@@ -694,9 +686,22 @@
   color: var(--color-primary-fg);
 }
 
-.primaryAction:hover {
+.primaryAction:hover,
+.addActivityButton:hover {
   background: var(--color-primary-hover);
   border-color: var(--color-primary-hover);
+}
+
+.addActivityButton {
+  width: 40px;
+  height: 40px;
+  min-height: 40px;
+  padding: 0;
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-pill);
+  background: var(--color-primary);
+  color: var(--color-primary-fg);
+  box-shadow: var(--shadow-sm);
 }
 
 .secondaryLink,
@@ -727,27 +732,28 @@
 }
 
 .timelinePanel {
+  flex: 1 1 auto;
   min-height: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
   border-right: 1px solid var(--color-surface-border);
-  background: var(--color-bg);
+  background: #f7f9fb;
 }
 
 .timelineHeader {
   flex: 0 0 auto;
   min-height: 76px;
   align-items: center;
-  padding: var(--space-4) var(--space-5);
+  padding: var(--space-3) var(--space-5);
   border-bottom: 1px solid var(--color-surface-border);
-  background: var(--color-surface);
+  background: #f9f9ff;
 }
 
 .panelTitle {
   margin: var(--space-1) 0 0;
   color: var(--color-text);
-  font-size: var(--font-size-lg);
+  font-size: 20px;
   font-weight: 800;
   line-height: 1.25;
 }
@@ -784,14 +790,14 @@
   min-height: 0;
   display: grid;
   align-content: start;
-  gap: var(--space-4);
+  gap: var(--space-3);
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
   scrollbar-color: color-mix(in srgb, var(--color-surface-border) 66%, var(--color-surface)) transparent;
   scrollbar-gutter: stable;
   scrollbar-width: thin;
-  padding: var(--space-5);
+  padding: var(--space-4);
 }
 
 .timelineScroll::-webkit-scrollbar {
@@ -813,11 +819,11 @@
 
 .composer {
   display: grid;
-  gap: var(--space-4);
+  gap: var(--space-3);
   padding: var(--space-4);
   border: 1px solid var(--color-surface-border);
   border-radius: var(--radius-lg);
-  background: var(--color-shell);
+  background: var(--color-surface);
   box-shadow: var(--shadow-sm);
 }
 
@@ -1017,7 +1023,7 @@
   left: var(--space-4);
   z-index: 7;
   display: grid;
-  gap: var(--space-3);
+  gap: var(--space-2);
   justify-items: start;
   pointer-events: none;
 }
@@ -1037,7 +1043,47 @@
 }
 
 .mapSearchOverlay {
-  width: min(100%, 34rem);
+  width: min(100%, 35rem);
+}
+
+.placeDetailCard {
+  width: min(100%, 24rem);
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid rgba(194, 198, 214, 0.72);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: var(--shadow-md);
+}
+
+.placeDetailKicker {
+  margin: 0;
+  color: var(--color-primary-text);
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.placeDetailCard h3 {
+  margin: 0;
+  color: var(--color-text);
+  font-size: var(--font-size-sm);
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.placeDetailCard p:not(.placeDetailKicker) {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  line-height: 1.35;
+}
+
+.placeDetailActions {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
 }
 
 .mapStyleSelect {
@@ -1299,28 +1345,24 @@
   .workspaceShell {
     height: 100%;
     min-height: 0;
-    grid-template-columns: 280px minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr);
     grid-template-rows: minmax(0, 1fr) minmax(0, 40%);
     overflow: hidden;
   }
 
-  .dayPanel {
+  .planningColumn {
     grid-column: 1;
     grid-row: 1;
     min-height: 0;
-    overflow: hidden;
+    border-right: 0;
   }
 
   .timelinePanel {
-    grid-column: 2;
-    grid-row: 1;
-    min-height: 0;
     border-right: 0;
-    border-left: 1px solid var(--color-surface-border);
   }
 
   .mapPanel {
-    grid-column: 1 / -1;
+    grid-column: 1;
     grid-row: 2;
     min-height: 0;
     border-top: 1px solid var(--color-surface-border);
@@ -1339,48 +1381,32 @@
     justify-content: space-between;
   }
 
-  .topNavActions,
-  .globalSearch {
-    width: 100%;
-    min-width: 0;
-  }
-
-  .topUtilityActions {
-    margin-left: auto;
-  }
-
-  .syncBadge {
-    flex: 1 1 auto;
-    justify-content: center;
-  }
-
   .workspaceShell {
+    --sidebar-rail-width: 56px;
+    --sidebar-expanded-width: min(244px, calc(100vw - 16px));
     height: 100%;
     min-height: 0;
     grid-template-columns: 1fr;
-    grid-template-rows: minmax(180px, 30%) minmax(0, 1fr) minmax(180px, 30%);
+    grid-template-rows: minmax(0, 1fr) minmax(180px, 32%);
     overflow: hidden;
   }
 
-  .dayPanel {
-    width: 100%;
-    grid-column: 1;
-    grid-row: 1;
-    height: auto;
-    min-height: 0;
-    overflow: hidden;
+  .railIcon {
+    width: var(--sidebar-rail-width);
+    flex-basis: var(--sidebar-rail-width);
   }
 
   .mapPanel {
     grid-column: 1;
-    grid-row: 3;
+    grid-row: 2;
     min-height: 0;
     border-top: 1px solid var(--color-surface-border);
     border-left: 0;
   }
 
-  .timelinePanel {
-    grid-row: 2;
+  .planningColumn {
+    grid-column: 1;
+    grid-row: 1;
     min-height: 0;
     border-left: 0;
   }
@@ -1407,11 +1433,6 @@
 }
 
 @media (max-width: 520px) {
-  .topNavActions {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
   .mapStyleSelect select {
     min-height: 44px;
   }
@@ -1456,7 +1477,6 @@
 }
 
 @media (pointer: coarse) {
-  .globalSearch input,
   .mapStyleSelect select {
     min-height: 44px;
   }
@@ -1468,13 +1488,15 @@
     padding: 0 var(--space-4);
   }
 
-  .dayPanel,
   .timelineScroll {
     padding: var(--space-3);
   }
 
+  .dayPanel {
+    padding: var(--space-2) 0;
+  }
+
   .calendarCard,
-  .noteSection,
   .composer {
     padding: var(--space-3);
   }

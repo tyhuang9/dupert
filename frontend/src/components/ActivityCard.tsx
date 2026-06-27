@@ -38,13 +38,30 @@ interface ActivityCardProps {
   onToggleExpand: (activity: Activity) => void
 }
 
-function getTimeDisplay(activity: Activity): { dateTime?: string; label: string } {
-  if (activity.startTime && activity.endTime) {
-    return { label: `${activity.startTime}-${activity.endTime}` }
+function formatClockTime(value: string): string {
+  const [hourPart, minutePart = '00'] = value.split(':')
+  const hour = Number(hourPart)
+  const minute = Number(minutePart)
+  if (!Number.isInteger(hour) || !Number.isInteger(minute)) {
+    return value
   }
-  if (activity.startTime) return { dateTime: activity.startTime, label: activity.startTime }
-  if (activity.endTime) return { label: `Ends ${activity.endTime}` }
-  return { label: 'Any time' }
+  const period = hour >= 12 ? 'PM' : 'AM'
+  const hour12 = hour % 12 || 12
+  return `${hour12}:${String(minute).padStart(2, '0')} ${period}`
+}
+
+function getTimeDisplay(activity: Activity): { dateTime?: string; label: string } | null {
+  if (activity.startTime && activity.endTime) {
+    return {
+      dateTime: activity.startTime,
+      label: `${formatClockTime(activity.startTime)}-${formatClockTime(activity.endTime)}`,
+    }
+  }
+  if (activity.startTime) {
+    return { dateTime: activity.startTime, label: formatClockTime(activity.startTime) }
+  }
+  if (activity.endTime) return { label: `Ends ${formatClockTime(activity.endTime)}` }
+  return null
 }
 
 function getCategoryLabel(category: Activity['category']): string {
@@ -123,7 +140,6 @@ export function ActivityCard({
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const timeDisplay = getTimeDisplay(activity)
   const categoryLabel = getCategoryLabel(activity.category)
-  const locationLabel = activity.placeName || activity.address
   const canDrag = !readOnly && !busy && !expanded
   const cardClassName = [
     styles.card,
@@ -195,38 +211,25 @@ export function ActivityCard({
           <div className={styles.content}>
             <div className={styles.summaryHeader}>
               <h3 className={styles.title}>{activity.title}</h3>
-              {timeDisplay.dateTime ? (
+              {timeDisplay?.dateTime ? (
                 <time className={styles.time} dateTime={timeDisplay.dateTime}>
                   {timeDisplay.label}
                 </time>
-              ) : (
+              ) : timeDisplay ? (
                 <span className={styles.time}>{timeDisplay.label}</span>
-              )}
+              ) : null}
             </div>
 
-            <div className={styles.metadata}>
-              {locationLabel && (
-                <p className={styles.metadataLine}>
-                  <MapPin size={13} aria-hidden="true" />
-                  {locationLabel}
-                </p>
-              )}
-              {activity.placeName && activity.address && activity.placeName !== activity.address && (
-                <p className={styles.addressLine}>{activity.address}</p>
-              )}
-            </div>
           </div>
-
         </div>
       )}
 
       {expanded && !readOnly && (
         <div className={styles.editorPanel}>
           <ActivityForm
-            key={`activity-edit-${activity.id}-${activity.version}-${activity.updatedAt}`}
+            key={`activity-edit-${activity.id}`}
             initialValues={editInitialValues(activity)}
             onSubmit={(payload) => onSubmitEdit(activity, payload)}
-            onCancel={() => onToggleExpand(activity)}
             onDelete={handleDelete}
             onRequestMapLocation={
               onRequestMapLocation
@@ -234,8 +237,8 @@ export function ActivityCard({
                 : undefined
             }
             submitting={busy}
+            autosave
             variant="compact"
-            submitLabel="Save Changes"
             deleteLabel="Delete"
           />
         </div>

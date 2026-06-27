@@ -1,4 +1,4 @@
-import { useId, useState, type FormEvent } from 'react'
+import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from 'react'
 import {
   BedDouble,
   ChevronDown,
@@ -36,6 +36,7 @@ interface ActivityFormProps {
   onSubmit: (payload: CreateActivityRequest) => Promise<void> | void
   onCancel?: () => void
   onDelete?: () => void
+  autosave?: boolean
   submitting: boolean
   deleteLabel?: string
   onRequestMapLocation?: (payload: CreateActivityRequest) => void
@@ -66,6 +67,7 @@ function ActivityCategoryIcon({ category }: { category: ActivityCategory }) {
 }
 
 export function ActivityForm({
+  autosave = false,
   initialValues,
   onSubmit,
   onCancel,
@@ -109,29 +111,60 @@ export function ActivityForm({
     setNotesOpen(false)
   }
 
-  const buildPayload = (): CreateActivityRequest => ({
-    category,
-    title: title.trim(),
-    notes: emptyToNull(notes),
-    startTime: emptyToNull(startTime),
-    endTime: emptyToNull(endTime),
-    mapboxId,
-    placeName: emptyToNull(placeName),
-    address: emptyToNull(address),
-    lat,
-    lng,
-  })
+  const currentPayload = useMemo(
+    (): CreateActivityRequest => ({
+      category,
+      title: title.trim(),
+      notes: emptyToNull(notes),
+      startTime: emptyToNull(startTime),
+      endTime: emptyToNull(endTime),
+      mapboxId,
+      placeName: emptyToNull(placeName),
+      address: emptyToNull(address),
+      lat,
+      lng,
+    }),
+    [address, category, endTime, lat, lng, mapboxId, notes, placeName, startTime, title],
+  )
+  const currentPayloadSignature = useMemo(
+    () => JSON.stringify(currentPayload),
+    [currentPayload],
+  )
+  const lastAutosavedSignatureRef = useRef<string | null>(null)
+
+  useEffect(() => {
+    if (!autosave) return undefined
+    if (lastAutosavedSignatureRef.current === null) {
+      lastAutosavedSignatureRef.current = currentPayloadSignature
+      return undefined
+    }
+    if (
+      submitting ||
+      !currentPayload.title.trim() ||
+      currentPayloadSignature === lastAutosavedSignatureRef.current
+    ) {
+      return undefined
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      void Promise.resolve(onSubmit(currentPayload))
+        .then(() => {
+          lastAutosavedSignatureRef.current = currentPayloadSignature
+        })
+        .catch(() => undefined)
+    }, 700)
+
+    return () => window.clearTimeout(timeoutId)
+  }, [autosave, currentPayload, currentPayloadSignature, onSubmit, submitting])
 
   const locationPrimary = placeName.trim() || address.trim() || 'Location not set'
-  const locationSecondary =
-    placeName.trim() && address.trim() && placeName.trim() !== address.trim()
-      ? address.trim()
-      : null
+  const hasLocation = Boolean(placeName.trim() || address.trim())
+  const locationDisplay = hasLocation ? locationPrimary : 'No location selected'
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
 
-    const payload = buildPayload()
+    const payload = currentPayload
 
     void Promise.resolve(onSubmit(payload)).then(() => {
       if (!initialValues) {
@@ -141,7 +174,7 @@ export function ActivityForm({
   }
 
   const actions = (
-    <div className={styles.actions}>
+    <div className={`${styles.actions} ${autosave ? styles.autosaveActions : ''}`}>
       {onDelete && (
         <button
           type="button"
@@ -153,73 +186,77 @@ export function ActivityForm({
           {deleteLabel}
         </button>
       )}
-      {onCancel && (
+      {!autosave && onCancel && (
         <button type="button" className={styles.cancelButton} onClick={onCancel}>
           Cancel
         </button>
       )}
-      <button type="submit" className={styles.submitButton} disabled={submitting}>
-        {submitting ? 'Saving…' : submitLabel}
-      </button>
+      {!autosave && (
+        <button type="submit" className={styles.submitButton} disabled={submitting}>
+          {submitting ? 'Saving…' : submitLabel}
+        </button>
+      )}
     </div>
   )
 
   if (variant === 'compact') {
     return (
       <form className={`${styles.form} ${styles.compactForm}`} onSubmit={handleSubmit}>
-        <div className={styles.compactTopGrid}>
-          <div className={styles.categoryPicker}>
-            <button
-              type="button"
-              className={styles.compactIcon}
-              data-category={category}
-              aria-label={`Category: ${categoryLabels[category]}`}
-              aria-controls={categoryMenuId}
-              aria-expanded={categoryMenuOpen}
-              onClick={() => setCategoryMenuOpen((current) => !current)}
-            >
-              <ActivityCategoryIcon category={category} />
-              <ChevronDown size={12} aria-hidden="true" />
-            </button>
-            {categoryMenuOpen && (
-              <div id={categoryMenuId} className={styles.categoryMenu} role="menu">
-                {categories.map((value) => (
-                  <button
-                    key={value}
-                    type="button"
-                    className={styles.categoryMenuItem}
-                    data-selected={category === value ? 'true' : undefined}
-                    role="menuitemradio"
-                    aria-checked={category === value}
-                    onClick={() => {
-                      setCategory(value)
-                      setCategoryMenuOpen(false)
-                    }}
-                  >
-                    <span className={styles.categoryMenuIcon} data-category={value}>
-                      <ActivityCategoryIcon category={value} />
-                    </span>
-                    {categoryLabels[value]}
-                  </button>
-                ))}
-              </div>
-            )}
+        <div className={styles.compactStack}>
+          <div className={styles.compactTitleRow}>
+            <div className={styles.categoryPicker}>
+              <button
+                type="button"
+                className={styles.compactIcon}
+                data-category={category}
+                aria-label={`Category: ${categoryLabels[category]}`}
+                aria-controls={categoryMenuId}
+                aria-expanded={categoryMenuOpen}
+                onClick={() => setCategoryMenuOpen((current) => !current)}
+              >
+                <ActivityCategoryIcon category={category} />
+                <ChevronDown size={12} aria-hidden="true" />
+              </button>
+              {categoryMenuOpen && (
+                <div id={categoryMenuId} className={styles.categoryMenu} role="menu">
+                  {categories.map((value) => (
+                    <button
+                      key={value}
+                      type="button"
+                      className={styles.categoryMenuItem}
+                      data-selected={category === value ? 'true' : undefined}
+                      role="menuitemradio"
+                      aria-checked={category === value}
+                      onClick={() => {
+                        setCategory(value)
+                        setCategoryMenuOpen(false)
+                      }}
+                    >
+                      <span className={styles.categoryMenuIcon} data-category={value}>
+                        <ActivityCategoryIcon category={value} />
+                      </span>
+                      {categoryLabels[value]}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <label className={styles.label} htmlFor={titleId}>
+              <span className="sr-only">Activity name</span>
+              <input
+                id={titleId}
+                className={`${styles.input} ${styles.compactInput}`}
+                value={title}
+                onChange={(event) => setTitle(event.target.value)}
+                placeholder="Name"
+                required
+              />
+            </label>
           </div>
 
-          <label className={styles.label} htmlFor={titleId}>
-            Activity name
-            <input
-              id={titleId}
-              className={`${styles.input} ${styles.compactInput}`}
-              value={title}
-              onChange={(event) => setTitle(event.target.value)}
-              placeholder="Add a title"
-              required
-            />
-          </label>
-
           <label className={styles.label} htmlFor={timeId}>
-            Time
+            <span className="sr-only">Time</span>
             <span className={styles.timeControl}>
               <input
                 id={timeId}
@@ -233,22 +270,18 @@ export function ActivityForm({
         </div>
 
         <section className={styles.locationEditor} aria-label="Location">
-          <MapPin className={styles.locationIcon} size={24} aria-hidden="true" />
           <div className={styles.locationText}>
-            <p className={styles.locationPrimary}>{locationPrimary}</p>
-            {locationSecondary ? (
-              <p className={styles.locationSecondary}>{locationSecondary}</p>
-            ) : null}
+            <p className={styles.locationPrimary}>{locationDisplay}</p>
           </div>
           <div className={styles.locationAction}>
             {onRequestMapLocation && (
               <button
                 type="button"
                 className={styles.locationMapButton}
-                onClick={() => onRequestMapLocation(buildPayload())}
+                onClick={() => onRequestMapLocation(currentPayload)}
                 disabled={submitting}
               >
-                CHANGE ON MAP
+                {hasLocation ? 'Change on Map' : 'Add on Map'}
               </button>
             )}
           </div>

@@ -1,6 +1,6 @@
 .list {
   display: grid;
-  gap: var(--space-3);
+  gap: 7px;
   padding: 0;
   margin: 0;
   list-style: none;
@@ -10,8 +10,8 @@
   position: relative;
   min-width: 0;
   display: grid;
-  grid-template-columns: 28px minmax(0, 1fr);
-  gap: var(--space-3);
+  grid-template-columns: 14px minmax(0, 1fr);
+  gap: var(--space-2);
   align-items: start;
   will-change: transform;
 }
@@ -19,11 +19,11 @@
 .sortableItem::before {
   content: '';
   position: absolute;
-  top: 34px;
-  bottom: -14px;
-  left: 13px;
-  width: 2px;
-  background: var(--color-surface-border);
+  top: 18px;
+  bottom: -9px;
+  left: 6px;
+  width: 1px;
+  background: #d4d9e6;
 }
 
 .lastItem::before {
@@ -34,13 +34,13 @@
   z-index: 1;
   display: inline-grid;
   place-items: center;
-  width: 28px;
-  height: 28px;
-  border: 1px solid #bfdbfe;
+  width: 14px;
+  height: 14px;
+  border: 3px solid #dbeafe;
   border-radius: var(--radius-pill);
-  background: var(--color-primary-soft);
-  color: var(--color-primary-active);
-  font-size: var(--font-size-xs);
+  background: var(--color-primary);
+  color: transparent;
+  font-size: 0;
   font-weight: 800;
   font-variant-numeric: tabular-nums;
 }
@@ -120,17 +120,16 @@
 
 @media (max-width: 520px) {
   .sortableItem {
-    grid-template-columns: 24px minmax(0, 1fr);
+    grid-template-columns: 14px minmax(0, 1fr);
     gap: var(--space-2);
   }
 
   .timelineMarker {
-    width: 24px;
-    height: 24px;
+    width: 14px;
+    height: 14px;
   }
 
   .sortableItem::before {
-    left: 11px;
+    left: 6px;
   }
-
 }

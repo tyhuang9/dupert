@@ -28,11 +28,13 @@ import {
   ChevronRight,
   Coffee,
   Landmark,
+  ListTodo,
   MapPin,
+  Pin,
+  PinOff,
   Plane,
   Plus,
   Route as TimelineIcon,
-  Search,
   Share2,
   Settings,
   Utensils,
@@ -43,19 +45,16 @@ import { useTrip, useUpdateTrip } from '../hooks/useTrips'
 import {
   useActivities,
   useCreateActivity,
-  useDayNote,
   useDeleteActivity,
   useMoveActivity,
   useReorderActivities,
   useUpdateActivity,
-  useUpdateDayNote,
 } from '../hooks/useActivities'
 import { useTripStream } from '../hooks/useTripStream'
 import { usePageTitle } from '../utils/usePageTitle'
 import styles from './TripWorkspacePage.module.css'
 import { ActivityForm } from '../components/ActivityForm'
 import { ActivityList } from '../components/ActivityList'
-import { DayNoteEditor } from '../components/DayNoteEditor'
 import { PlaceSearch } from '../components/PlaceSearch'
 import { TripMap, type MapStyleId, type MapViewportContext } from '../components/TripMap'
 import type { Activity, CreateActivityRequest } from '../types/activity'
@@ -129,7 +128,7 @@ interface CalendarCell {
   inTripRange: boolean
 }
 
-type WorkspaceMode = 'days' | 'timeline'
+type WorkspaceMode = 'days' | 'timeline' | 'calendar'
 
 interface MapLocationTarget {
   activityId: number
@@ -191,13 +190,13 @@ function formatClockTime(value: string): string {
   return `${hour12}:${String(minute).padStart(2, '0')} ${period}`
 }
 
-function formatActivityTime(activity: Activity): string {
+function formatActivityTime(activity: Activity): string | null {
   if (activity.startTime && activity.endTime) {
     return `${formatClockTime(activity.startTime)}-${formatClockTime(activity.endTime)}`
   }
   if (activity.startTime) return formatClockTime(activity.startTime)
   if (activity.endTime) return `Ends ${formatClockTime(activity.endTime)}`
-  return 'Any time'
+  return null
 }
 
 function timelineActivitySummary(activity: Activity): string {
@@ -265,6 +264,7 @@ function SortableTimelineActivity({
     transition,
   }
   const canDrag = !readOnly && !busy
+  const timeLabel = formatActivityTime(activity)
 
   return (
     <li
@@ -307,9 +307,11 @@ function SortableTimelineActivity({
               {timelineActivitySummary(activity)}
             </small>
           </span>
-          <span className={styles.timelineActivityTime}>
-            {formatActivityTime(activity)}
-          </span>
+          {timeLabel && (
+            <span className={styles.timelineActivityTime}>
+              {timeLabel}
+            </span>
+          )}
         </button>
       </article>
     </li>
@@ -761,13 +763,14 @@ export function TripWorkspacePage() {
   const [isTripSettingsOpen, setIsTripSettingsOpen] = useState(false)
   const [isDraggingActivity, setIsDraggingActivity] = useState(false)
   const [workspaceMode, setWorkspaceMode] = useState<WorkspaceMode>('days')
-  const [activitySearch, setActivitySearch] = useState('')
+  const [sidebarPinned, setSidebarPinned] = useState(false)
   const [mapStyle, setMapStyle] = useState<MapStyleId>('roadmap')
   const [mapViewportContext, setMapViewportContext] = useState<MapViewportContext | null>(null)
   const [mapLocationTarget, setMapLocationTarget] = useState<MapLocationTarget | null>(null)
   const [mapSearchValue, setMapSearchValue] = useState('')
   const [mapSearchFocusKey, setMapSearchFocusKey] = useState(0)
   const [mapSearchPreview, setMapSearchPreview] = useState<PlaceSelection | null>(null)
+  const [pendingMapPlace, setPendingMapPlace] = useState<PlaceSelection | null>(null)
   const [activeActivityId, setActiveActivityId] = useState<number | null>(null)
   const [calendarMonth, setCalendarMonth] = useState(() =>
     getMonthKey(day ?? new Date().toISOString().slice(0, 10)),
@@ -777,16 +780,14 @@ export function TripWorkspacePage() {
   const selectedDay = tripQuery.data
     ? day && dayInRange(day, tripQuery.data.startDate, tripQuery.data.endDate)
       ? day
-      : tripQuery.data.startDate
+    : tripQuery.data.startDate
     : day
-  const dayNoteQuery = useDayNote(publicId, selectedDay)
   const createActivityMutation = useCreateActivity()
   const updateActivityMutation = useUpdateActivity()
   const updateTripMutation = useUpdateTrip()
   const deleteActivityMutation = useDeleteActivity()
   const reorderActivitiesMutation = useReorderActivities()
   const moveActivityMutation = useMoveActivity()
-  const updateDayNoteMutation = useUpdateDayNote()
   useTripStream(publicId, { bufferActivityEvents: isDraggingActivity })
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -875,19 +876,6 @@ export function TripWorkspacePage() {
     },
     [fullTimelineActivities, tripDays],
   )
-  const normalizedActivitySearch = activitySearch.trim().toLowerCase()
-  const matchingActivityCount = normalizedActivitySearch
-    ? allActivities.filter((activity) =>
-        [
-          activity.title,
-          activity.notes,
-          activity.placeName,
-          activity.address,
-          activity.category,
-        ].some((value) => value?.toLowerCase().includes(normalizedActivitySearch)),
-      ).length
-    : null
-
   const isActivityMutationPending =
     createActivityMutation.isPending ||
     updateActivityMutation.isPending ||
@@ -901,8 +889,7 @@ export function TripWorkspacePage() {
     updateTripMutation.error ||
     deleteActivityMutation.error ||
     reorderActivitiesMutation.error ||
-    moveActivityMutation.error ||
-    updateDayNoteMutation.error
+    moveActivityMutation.error
 
   const activeEditingActivity =
     dayActivities.find((activity) => activity.id === expandedActivityId) ?? null
@@ -916,7 +903,8 @@ export function TripWorkspacePage() {
         : undefined,
     [mapCenterLat, mapCenterLng],
   )
-  const mapPreviewPlace = mapSearchPreview ?? placeDraft
+  const mapPreviewPlace = pendingMapPlace ?? mapSearchPreview ?? placeDraft
+  const mapDetailPlace = pendingMapPlace ?? placeDraft ?? mapSearchPreview
 
   const handleSelectDay = (nextDay: string) => {
     if (
@@ -929,6 +917,7 @@ export function TripWorkspacePage() {
       setPlaceDraft(null)
       setMapLocationTarget(null)
       setMapSearchPreview(null)
+      setPendingMapPlace(null)
       setActiveActivityId(null)
       setCalendarMonth(getMonthKey(nextDay))
       navigate(`/trips/${encodeURIComponent(publicId)}/d/${encodeURIComponent(nextDay)}`)
@@ -940,6 +929,7 @@ export function TripWorkspacePage() {
     setExpandedActivityId(null)
     setMapLocationTarget(null)
     setMapSearchPreview(null)
+    setPendingMapPlace(null)
     setPlaceDraft({})
     const reducedMotion =
       typeof window.matchMedia === 'function' &&
@@ -970,6 +960,7 @@ export function TripWorkspacePage() {
     setActiveActivityId(activity.id)
     setPlaceDraft(null)
     setMapSearchPreview(null)
+    setPendingMapPlace(null)
     if (mapLocationTarget?.activityId === activity.id && expandedActivityId === activity.id) {
       setMapLocationTarget(null)
     }
@@ -986,12 +977,13 @@ export function TripWorkspacePage() {
     setPlaceDraft(null)
     setMapLocationTarget(null)
     setMapSearchPreview(null)
+    setPendingMapPlace(null)
     setActiveActivityId(created.id)
   }
 
   const handleUpdateActivity = async (activity: Activity, payload: CreateActivityRequest) => {
     if (!publicId) return
-    await updateActivityMutation.mutateAsync({
+    const updated = await updateActivityMutation.mutateAsync({
       publicId,
       activityId: activity.id,
       body: payload,
@@ -999,8 +991,9 @@ export function TripWorkspacePage() {
     if (mapLocationTarget?.activityId === activity.id) {
       setMapLocationTarget(null)
       setMapSearchPreview(null)
+      setPendingMapPlace(null)
     }
-    setExpandedActivityId(null)
+    setActiveActivityId(updated.id)
   }
 
   const handleRequestActivityLocationOnMap = (
@@ -1013,6 +1006,7 @@ export function TripWorkspacePage() {
     setActiveActivityId(activity.id)
     setPlaceDraft(null)
     setMapSearchPreview(null)
+    setPendingMapPlace(null)
     setMapLocationTarget({
       activityId: activity.id,
       activityTitle: payload.title || activity.title,
@@ -1032,13 +1026,76 @@ export function TripWorkspacePage() {
     })
   }
 
+  const handleRequestNewActivityLocationOnMap = (payload: CreateActivityRequest) => {
+    const query =
+      payload.address?.trim() ||
+      payload.placeName?.trim() ||
+      payload.title?.trim() ||
+      tripQuery.data?.destination ||
+      ''
+    setWorkspaceMode('days')
+    setExpandedActivityId(null)
+    setMapLocationTarget(null)
+    setMapSearchPreview(null)
+    setPendingMapPlace(null)
+    setPlaceDraft(payload)
+    setMapSearchValue(query)
+    setMapSearchFocusKey((current) => current + 1)
+
+    const reducedMotion =
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    window.requestAnimationFrame(() => {
+      document.getElementById('map-search-panel')?.scrollIntoView({
+        block: 'nearest',
+        behavior: reducedMotion ? 'auto' : 'smooth',
+      })
+    })
+  }
+
   const handleMapPlaceSelect = async (place: PlaceSelection) => {
     if (!mapLocationTarget) {
       setWorkspaceMode('days')
       setExpandedActivityId(null)
-      setPlaceDraft(place)
+      setPlaceDraft((current) => ({
+        ...current,
+        ...place,
+        category: current?.category ?? place.category,
+        title: current?.title?.trim()
+          ? current.title
+          : place.title ?? place.placeName ?? current?.title,
+        notes: current?.notes ?? place.notes,
+        startTime: current?.startTime ?? place.startTime,
+        endTime: current?.endTime ?? place.endTime,
+      }))
       setMapSearchPreview(null)
+      setPendingMapPlace(place)
       setActiveActivityId(null)
+      return
+    }
+
+    setMapSearchPreview(null)
+    setPendingMapPlace(place)
+  }
+
+  const scrollActivityComposerIntoView = () => {
+    const reducedMotion =
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    window.requestAnimationFrame(() => {
+      document.getElementById('activity-composer')?.scrollIntoView({
+        block: 'nearest',
+        behavior: reducedMotion ? 'auto' : 'smooth',
+      })
+    })
+  }
+
+  const handleConfirmMapUpdate = async () => {
+    if (!pendingMapPlace) return
+    if (!mapLocationTarget) {
+      setWorkspaceMode('days')
+      setPlaceDraft(pendingMapPlace)
+      scrollActivityComposerIntoView()
       return
     }
 
@@ -1048,12 +1105,20 @@ export function TripWorkspacePage() {
     const updated = await updateActivityMutation.mutateAsync({
       publicId,
       activityId: activity.id,
-      body: activityUpdateWithPlace(activity, mapLocationTarget.payload, place),
+      body: activityUpdateWithPlace(activity, mapLocationTarget.payload, pendingMapPlace),
     })
     setExpandedActivityId(updated.id)
     setActiveActivityId(updated.id)
     setMapLocationTarget(null)
     setMapSearchPreview(null)
+    setPendingMapPlace(null)
+  }
+
+  const clearMapSelection = () => {
+    setPlaceDraft(null)
+    setMapSearchPreview(null)
+    setPendingMapPlace(null)
+    setMapLocationTarget(null)
   }
 
   const handleActiveActivityChange = (activityId: number | null) => {
@@ -1069,17 +1134,9 @@ export function TripWorkspacePage() {
     if (mapLocationTarget?.activityId === activityId) {
       setMapLocationTarget(null)
       setMapSearchPreview(null)
+      setPendingMapPlace(null)
     }
     void deleteActivityMutation.mutateAsync({ publicId, activityId })
-  }
-
-  const handleSaveDayNote = async (note: string) => {
-    if (!publicId || !selectedDay) return
-    await updateDayNoteMutation.mutateAsync({
-      publicId,
-      dayDate: selectedDay,
-      body: { note },
-    })
   }
 
   const handleDragEnd = (event: DragEndEvent) => {
@@ -1112,6 +1169,7 @@ export function TripWorkspacePage() {
       setPlaceDraft(null)
       setMapLocationTarget(null)
       setMapSearchPreview(null)
+      setPendingMapPlace(null)
     }
     void moveActivityMutation.mutateAsync({
       activityId: operation.activity.id,
@@ -1143,6 +1201,7 @@ export function TripWorkspacePage() {
     setPlaceDraft(null)
     setMapLocationTarget(null)
     setMapSearchPreview(null)
+    setPendingMapPlace(null)
     setCalendarMonth(getMonthKey(nextDay))
     if (nextDay !== selectedDay) {
       navigate(`/trips/${encodeURIComponent(publicId)}/d/${encodeURIComponent(nextDay)}`, {
@@ -1196,33 +1255,6 @@ export function TripWorkspacePage() {
         </section>
       ) : tripQuery.data ? (
         <>
-          <header className={styles.topNav}>
-            <div className={styles.brandCluster}>
-              <Link to="/trips" className={styles.brandMark}>
-                <span className={styles.brandIcon} aria-hidden="true">
-                  <Plane size={15} />
-                </span>
-                <span>TripPlanner</span>
-              </Link>
-            </div>
-            <div className={styles.topNavActions}>
-              <label className={styles.globalSearch}>
-                <span className="sr-only">Search activities</span>
-                <Search className={styles.searchIcon} size={16} aria-hidden="true" />
-                <input
-                  value={activitySearch}
-                  onChange={(event) => setActivitySearch(event.target.value)}
-                  placeholder="Search activities..."
-                />
-              </label>
-              {matchingActivityCount !== null && (
-                <span className={styles.searchResult} aria-live="polite">
-                  {pluralize(matchingActivityCount, 'match', 'matches')}
-                </span>
-              )}
-            </div>
-          </header>
-
           <DndContext
             sensors={sensors}
             collisionDetection={pointerFirstCollisionDetection}
@@ -1230,21 +1262,42 @@ export function TripWorkspacePage() {
             onDragEnd={handleWorkspaceDragEnd}
             onDragStart={handleWorkspaceDragStart}
           >
-            <section className={styles.workspaceShell}>
-              <aside className={`${styles.panel} ${styles.dayPanel}`} aria-label="Trip workspace navigation">
+            <section
+              className={[
+                styles.workspaceShell,
+                sidebarPinned ? styles.workspaceShellPinned : '',
+              ].filter(Boolean).join(' ')}
+            >
+              <aside
+                className={[
+                  styles.panel,
+                  styles.dayPanel,
+                  sidebarPinned ? styles.dayPanelPinned : '',
+                ].filter(Boolean).join(' ')}
+                aria-label="Trip workspace navigation"
+              >
                 <h1 id="trip-workspace-title" className="sr-only">{tripQuery.data.name}</h1>
 
-                <CompactMonthCalendar
-                  activities={allActivities}
-                  disabled={!canEditTrip || isActivityMutationPending}
-                  dragging={isDraggingActivity}
-                  endDate={tripQuery.data.endDate}
-                  monthKey={displayedCalendarMonth}
-                  onMonthChange={setCalendarMonth}
-                  onSelectDay={handleSelectDay}
-                  selectedDay={selectedDay ?? tripQuery.data.startDate}
-                  startDate={tripQuery.data.startDate}
-                />
+                <div className={styles.pinControl}>
+                  <button
+                    type="button"
+                    aria-pressed={sidebarPinned}
+                    aria-label={sidebarPinned ? 'Unpin sidebar' : 'Pin sidebar'}
+                    title={sidebarPinned ? 'Unpin sidebar' : 'Pin sidebar'}
+                    onClick={() => setSidebarPinned((current) => !current)}
+                  >
+                    <span className={styles.railIcon}>
+                      {sidebarPinned ? (
+                        <PinOff size={17} aria-hidden="true" />
+                      ) : (
+                        <Pin size={17} aria-hidden="true" />
+                      )}
+                    </span>
+                    <span className={styles.railLabel}>
+                      {sidebarPinned ? 'Unpin Sidebar' : 'Pin Sidebar'}
+                    </span>
+                  </button>
+                </div>
 
                 <nav className={styles.railNav} aria-label="Workspace sections">
                   <button
@@ -1252,8 +1305,10 @@ export function TripWorkspacePage() {
                     aria-pressed={workspaceMode === 'days'}
                     onClick={() => setWorkspaceMode('days')}
                   >
-                    <CalendarDays size={17} aria-hidden="true" />
-                    Days
+                    <span className={styles.railIcon}>
+                      <ListTodo size={19} aria-hidden="true" />
+                    </span>
+                    <span className={styles.railLabel}>Days</span>
                   </button>
                   <button
                     type="button"
@@ -1262,12 +1317,47 @@ export function TripWorkspacePage() {
                       setWorkspaceMode('timeline')
                       setExpandedActivityId(null)
                       setPlaceDraft(null)
+                      setMapSearchPreview(null)
+                      setPendingMapPlace(null)
                     }}
                   >
-                    <TimelineIcon size={17} aria-hidden="true" />
-                    Timeline
+                    <span className={styles.railIcon}>
+                      <TimelineIcon size={19} aria-hidden="true" />
+                    </span>
+                    <span className={styles.railLabel}>Timeline</span>
+                  </button>
+                  <button
+                    type="button"
+                    aria-pressed={workspaceMode === 'calendar'}
+                    onClick={() => {
+                      setWorkspaceMode('calendar')
+                      setSidebarPinned(true)
+                      setExpandedActivityId(null)
+                      setPlaceDraft(null)
+                      setMapSearchPreview(null)
+                      setPendingMapPlace(null)
+                    }}
+                  >
+                    <span className={styles.railIcon}>
+                      <CalendarDays size={19} aria-hidden="true" />
+                    </span>
+                    <span className={styles.railLabel}>Calendar</span>
                   </button>
                 </nav>
+
+                <div className={styles.sidebarCalendarReveal}>
+                  <CompactMonthCalendar
+                    activities={allActivities}
+                    disabled={!canEditTrip || isActivityMutationPending}
+                    dragging={isDraggingActivity}
+                    endDate={tripQuery.data.endDate}
+                    monthKey={displayedCalendarMonth}
+                    onMonthChange={setCalendarMonth}
+                    onSelectDay={handleSelectDay}
+                    selectedDay={selectedDay ?? tripQuery.data.startDate}
+                    startDate={tripQuery.data.startDate}
+                  />
+                </div>
 
                 <div className={styles.railSpacer} />
                 <div className={styles.railFooter}>
@@ -1278,23 +1368,47 @@ export function TripWorkspacePage() {
                         className={styles.sidebarAction}
                         onClick={() => setIsTripSettingsOpen(true)}
                       >
-                        <Settings size={15} aria-hidden="true" />
-                        Trip Settings
+                        <span className={styles.railIcon}>
+                          <Settings size={18} aria-hidden="true" />
+                        </span>
+                        <span className={styles.railLabel}>Settings</span>
                       </button>
                       <Link
                         to={`/trips/${tripQuery.data.publicId}/members`}
                         className={styles.shareLink}
                       >
-                        <Share2 size={15} aria-hidden="true" />
-                        Share
+                        <span className={styles.railIcon}>
+                          <Share2 size={18} aria-hidden="true" />
+                        </span>
+                        <span className={styles.railLabel}>Share Trip</span>
                       </Link>
                     </>
                   )}
                   <Link to="/trips" className={styles.secondaryLink}>
-                    Back to trips
+                    <span className={styles.railIcon}>
+                      <ChevronLeft size={18} aria-hidden="true" />
+                    </span>
+                    <span className={styles.railLabel}>Back to Trips</span>
                   </Link>
                 </div>
               </aside>
+
+              <div className={styles.planningColumn}>
+                <header className={styles.topNav}>
+                  <div className={styles.brandCluster}>
+                    <Link to="/trips" className={styles.brandMark}>
+                      <span className={styles.brandIcon} aria-hidden="true">
+                        <Plane size={15} />
+                      </span>
+                      <span>TripPlanner</span>
+                    </Link>
+                    <nav className={styles.topNavLinks} aria-label="Primary">
+                      <Link to="/trips" aria-current="page">
+                        {tripQuery.data.name}
+                      </Link>
+                    </nav>
+                  </div>
+                </header>
 
               <section className={`${styles.panel} ${styles.timelinePanel}`} aria-labelledby="timeline-panel-title">
                 <div className={styles.timelineHeader}>
@@ -1323,14 +1437,14 @@ export function TripWorkspacePage() {
                         </span>
                       ))}
                     </div>
-                    {canEditTrip && workspaceMode === 'days' && (
+                    {canEditTrip && workspaceMode !== 'timeline' && (
                       <button
                         type="button"
-                        className={styles.primaryAction}
+                        className={styles.addActivityButton}
                         onClick={openActivityComposer}
+                        aria-label="Add Activity"
                       >
                         <Plus size={16} aria-hidden="true" />
-                        Add Activity
                       </button>
                     )}
                   </div>
@@ -1349,7 +1463,7 @@ export function TripWorkspacePage() {
                         {parseApiError(mutationError).topMessage}
                       </p>
                     )}
-                    {workspaceMode === 'days' ? (
+                    {workspaceMode !== 'timeline' ? (
                       <>
                         <div className={styles.sectionHeader}>
                           <h3 className={styles.sectionTitle}>Day schedule</h3>
@@ -1378,35 +1492,13 @@ export function TripWorkspacePage() {
                               key={createFormKey}
                               initialValues={placeDraft ?? undefined}
                               onSubmit={handleCreateActivity}
-                              onCancel={() => setPlaceDraft(null)}
+                              onCancel={clearMapSelection}
+                              onRequestMapLocation={handleRequestNewActivityLocationOnMap}
                               submitting={createActivityMutation.isPending}
-                              submitLabel="Save activity"
+                              submitLabel="Create Activity"
                             />
                           </div>
                         )}
-                        <div id="day-notes" className={styles.noteSection}>
-                          <div className={styles.sectionHeader}>
-                            <h3 className={styles.sectionTitle}>Day notes</h3>
-                            <span>{formatReadableDate(selectedDay)}</span>
-                          </div>
-                          {dayNoteQuery.isLoading ? (
-                            <p className={styles.panelBody}>Loading note...</p>
-                          ) : dayNoteQuery.isError ? (
-                            <p className={styles.panelBody} role="alert">
-                              {parseApiError(dayNoteQuery.error).topMessage}
-                            </p>
-                          ) : selectedDay ? (
-                            <DayNoteEditor
-                              key={`${selectedDay}:${dayNoteQuery.data?.note ?? ''}`}
-                              dayDate={selectedDay}
-                              note={dayNoteQuery.data}
-                              loading={dayNoteQuery.isLoading}
-                              readOnly={!canEditTrip}
-                              saving={updateDayNoteMutation.isPending}
-                              onSave={handleSaveDayNote}
-                            />
-                          ) : null}
-                        </div>
                       </>
                     ) : (
                       <div className={styles.fullTimeline} aria-label="Trip days timeline">
@@ -1430,6 +1522,7 @@ export function TripWorkspacePage() {
                   </div>
                 )}
               </section>
+              </div>
 
               <aside
                 className={`${styles.panel} ${styles.mapPanel}`}
@@ -1452,6 +1545,42 @@ export function TripWorkspacePage() {
                         onSearchValueChange={setMapSearchValue}
                       />
                     </div>
+                  )}
+                  {canEditTrip && mapDetailPlace && (
+                    <section className={styles.placeDetailCard} aria-label="Selected map place">
+                      <p className={styles.placeDetailKicker}>
+                        {mapLocationTarget ? 'Place update' : 'Place selected'}
+                      </p>
+                      <h3>{mapDetailPlace.placeName || mapDetailPlace.title || 'Selected place'}</h3>
+                      {mapDetailPlace.address && <p>{mapDetailPlace.address}</p>}
+                      <div className={styles.placeDetailActions}>
+                        {mapLocationTarget && pendingMapPlace ? (
+                          <button
+                            type="button"
+                            className={styles.primaryAction}
+                            onClick={() => void handleConfirmMapUpdate()}
+                            disabled={updateActivityMutation.isPending}
+                          >
+                            Confirm Update
+                          </button>
+                        ) : placeDraft ? (
+                          <button
+                            type="button"
+                            className={styles.primaryAction}
+                            onClick={() => void handleConfirmMapUpdate()}
+                          >
+                            Add to Trip
+                          </button>
+                        ) : null}
+                        <button
+                          type="button"
+                          className={styles.secondaryAction}
+                          onClick={clearMapSelection}
+                        >
+                          Clear
+                        </button>
+                      </div>
+                    </section>
                   )}
                   <h2 id="map-panel-title" className="sr-only">Map</h2>
                 </div>

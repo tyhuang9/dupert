@@ -6,7 +6,7 @@ import type { PropsWithChildren } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { apiClient } from '../api/client'
-import type { Activity, DayNote } from '../types/activity'
+import type { Activity } from '../types/activity'
 import type { Trip } from '../types/trip'
 import { TripWorkspacePage } from './TripWorkspacePage'
 
@@ -172,15 +172,6 @@ const SAMPLE_ACTIVITY: Activity = {
   version: 0,
 }
 
-const SAMPLE_NOTE: DayNote = {
-  tripId: 42,
-  dayDate: '2026-05-01',
-  note: 'Check reservation email',
-  updatedByUserDisplayName: 'Alice',
-  updatedAt: '2026-05-22T16:00:00Z',
-  version: 0,
-}
-
 function Providers({ children }: PropsWithChildren) {
   return (
     <QueryClientProvider client={queryClient}>
@@ -191,12 +182,10 @@ function Providers({ children }: PropsWithChildren) {
 
 function mockWorkspace(
   activities: Activity[] = [],
-  note: DayNote = SAMPLE_NOTE,
   trip: Trip = SAMPLE_TRIP,
 ) {
   apiMock.onGet('/trips/abc234def567').reply(200, trip)
   apiMock.onGet('/trips/abc234def567/activities').reply(200, activities)
-  apiMock.onGet(new RegExp('/trips/abc234def567/notes/.*')).reply(200, note)
 }
 
 function renderWorkspace(path: string) {
@@ -240,26 +229,31 @@ describe('<TripWorkspacePage>', () => {
     expect(await screen.findByRole('heading', { level: 1, name: /tokyo 2026/i })).toBeInTheDocument()
     expect(screen.getByRole('heading', { level: 2, name: /friday, may 1/i })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /tripplanner/i })).toHaveAttribute('href', '/trips')
-    expect(screen.queryByRole('link', { name: /^trips$/i })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /trip settings/i })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /share/i })).toHaveAttribute('href', '/trips/abc234def567/members')
+    expect(screen.getByRole('link', { name: /^tokyo 2026$/i })).toHaveAttribute('aria-current', 'page')
+    expect(screen.getByRole('button', { name: /^pin sidebar$/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^settings$/i })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /share trip/i })).toHaveAttribute('href', '/trips/abc234def567/members')
     expect(screen.getByText(/Tokyo, Japan/)).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: /may 2026/i })).toBeInTheDocument()
     expect(screen.getByTitle('2026-05-01 (0 activities)')).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByRole('button', { name: /^days$/i })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByRole('button', { name: /^timeline$/i })).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getByRole('button', { name: /^calendar$/i })).toHaveAttribute('aria-pressed', 'false')
+    await userEvent.click(screen.getByRole('button', { name: /^calendar$/i }))
+    expect(screen.getByRole('button', { name: /^calendar$/i })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: /^unpin sidebar$/i })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.queryByRole('link', { name: /^notes$/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /^map$/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: /search results/i })).not.toBeInTheDocument()
     expect(screen.queryByText(/ready to add/i)).not.toBeInTheDocument()
     expect(await screen.findByText(/no activities planned for this day/i)).toBeInTheDocument()
     expect(screen.queryByLabelText(/^title$/i)).not.toBeInTheDocument()
-    expect(screen.getByLabelText(/day note/i)).toHaveValue('Check reservation email')
+    expect(screen.queryByLabelText(/day note/i)).not.toBeInTheDocument()
     expect(screen.queryByLabelText(/selected day summary/i)).not.toBeInTheDocument()
   })
 
   it('shows deep-linked day when /d/:day is present', async () => {
-    mockWorkspace([], { ...SAMPLE_NOTE, dayDate: '2026-05-03', note: '' })
+    mockWorkspace()
 
     renderWorkspace('/trips/abc234def567/d/2026-05-03')
 
@@ -279,22 +273,16 @@ describe('<TripWorkspacePage>', () => {
     }
     apiMock.onGet('/trips/abc234def567').reply(200, SAMPLE_TRIP)
     apiMock.onGet('/trips/abc234def567/activities').reply(200, [SAMPLE_ACTIVITY, dayTwoActivity])
-    apiMock.onGet('/trips/abc234def567/notes/2026-05-01').reply(200, SAMPLE_NOTE)
-    apiMock.onGet('/trips/abc234def567/notes/2026-05-02').reply(200, {
-      ...SAMPLE_NOTE,
-      dayDate: '2026-05-02',
-      note: 'Day two note',
-    })
 
     renderWorkspace('/trips/abc234def567/d/2026-05-01')
 
-    expect(await screen.findByDisplayValue('Check reservation email')).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: /friday, may 1/i })).toBeInTheDocument()
     await userEvent.click(screen.getByTitle('2026-05-02 (1 activities)'))
 
     expect(await screen.findByTitle('2026-05-02 (1 activities)')).toHaveAttribute('aria-pressed', 'true')
     expect(within(screen.getByTitle('2026-05-02 (1 activities)')).getByLabelText('1 activities')).toBeInTheDocument()
-    expect(await screen.findByDisplayValue('Day two note')).toBeInTheDocument()
     expect(screen.getAllByText('Tokyo Tower').length).toBeGreaterThan(0)
+    expect(screen.queryByLabelText(/day note/i)).not.toBeInTheDocument()
     expect(screen.queryByLabelText(/selected day summary/i)).not.toBeInTheDocument()
 
     const selectedMapActivities = within(screen.getByTestId('selected-map-activities'))
@@ -420,20 +408,20 @@ describe('<TripWorkspacePage>', () => {
   })
 
   it('keeps viewer workspaces read-only while preserving itinerary and map context', async () => {
-    mockWorkspace([SAMPLE_ACTIVITY], SAMPLE_NOTE, { ...SAMPLE_TRIP, role: 'VIEWER' })
+    mockWorkspace([SAMPLE_ACTIVITY], { ...SAMPLE_TRIP, role: 'VIEWER' })
 
     renderWorkspace('/trips/abc234def567')
 
     expect(await screen.findByRole('heading', { level: 1, name: /tokyo 2026/i })).toBeInTheDocument()
     expect(screen.getAllByText('Tsukiji sushi').length).toBeGreaterThan(0)
     expect(screen.getByTestId('trip-map')).toBeInTheDocument()
-    expect(await screen.findByLabelText(/day note/i)).toBeDisabled()
+    expect(screen.queryByLabelText(/day note/i)).not.toBeInTheDocument()
 
     expect(screen.queryByRole('button', { name: /mock place search/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /save note/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /add activity/i })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /trip settings/i })).not.toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: /share/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^settings$/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /share trip/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /edit: tsukiji sushi/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /delete: tsukiji sushi/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /move tsukiji sushi up/i })).not.toBeInTheDocument()
@@ -469,7 +457,7 @@ describe('<TripWorkspacePage>', () => {
     await userEvent.click(await screen.findByRole('button', { name: /category: other/i }))
     await userEvent.click(screen.getByRole('menuitemradio', { name: /meal/i }))
     await userEvent.type(await screen.findByLabelText(/activity name/i), 'Tsukiji sushi')
-    await userEvent.click(screen.getByRole('button', { name: /^save activity$/i }))
+    await userEvent.click(screen.getByRole('button', { name: /^create activity$/i }))
 
     expect(await screen.findAllByText('Tsukiji sushi')).not.toHaveLength(0)
     expect(apiMock.history.post[0].url).toBe('/trips/abc234def567/activities?dayDate=2026-05-01')
@@ -505,7 +493,8 @@ describe('<TripWorkspacePage>', () => {
     expect(screen.queryByText(/ready to add/i)).not.toBeInTheDocument()
     expect(screen.getByLabelText(/activity name/i)).toHaveValue('Tokyo Tower')
     expect(screen.getByTestId('preview-map-place')).toHaveTextContent('Tokyo Tower')
-    await userEvent.click(screen.getByRole('button', { name: /^save activity$/i }))
+    expect(screen.getByRole('button', { name: /add to trip/i })).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: /^create activity$/i }))
 
     await waitFor(() => {
       expect(JSON.parse(apiMock.history.post[0].data as string)).toMatchObject({
@@ -532,9 +521,17 @@ describe('<TripWorkspacePage>', () => {
       lng: 139.7707,
     }
     mockWorkspace([placedActivity])
-    apiMock.onPatch('/trips/abc234def567/activities/10').reply(200, {
-      ...placedActivity,
-      title: 'Updated sushi',
+    apiMock.onPatch('/trips/abc234def567/activities/10').reply((config) => {
+      const payload = JSON.parse(config.data as string)
+      return [
+        200,
+        {
+          ...placedActivity,
+          ...payload,
+          updatedAt: '2026-05-22T17:00:00Z',
+          version: 1,
+        },
+      ]
     })
 
     renderWorkspace('/trips/abc234def567')
@@ -546,17 +543,24 @@ describe('<TripWorkspacePage>', () => {
     await userEvent.clear(titleInput)
     await userEvent.type(titleInput, 'Updated sushi')
     expect(screen.getByText('Tsukiji Outer Market')).toBeInTheDocument()
-    expect(screen.getByText('Tsukiji, Chuo City, Tokyo')).toBeInTheDocument()
+    expect(screen.queryByText('Tsukiji, Chuo City, Tokyo')).not.toBeInTheDocument()
     expect(screen.queryByLabelText(/place name/i)).not.toBeInTheDocument()
     expect(screen.queryByLabelText(/^address$/i)).not.toBeInTheDocument()
     const notesInput = screen.getByLabelText(/^notes$/i)
     await userEvent.clear(notesInput)
     await userEvent.type(notesInput, 'Updated notes')
-    await userEvent.click(screen.getByRole('button', { name: /save changes/i }))
+    expect(screen.queryByRole('button', { name: /save changes/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^cancel$/i })).not.toBeInTheDocument()
 
-    expect(await screen.findAllByText('Updated sushi')).not.toHaveLength(0)
-    expect(apiMock.history.patch[0].url).toBe('/trips/abc234def567/activities/10')
-    expect(JSON.parse(apiMock.history.patch[0].data as string)).toMatchObject({
+    await waitFor(() => {
+      expect(apiMock.history.patch.some((request) => {
+        const payload = JSON.parse(request.data as string)
+        return payload.title === 'Updated sushi' && payload.notes === 'Updated notes'
+      })).toBe(true)
+    }, { timeout: 2500 })
+    const lastPatch = apiMock.history.patch[apiMock.history.patch.length - 1]
+    expect(lastPatch.url).toBe('/trips/abc234def567/activities/10')
+    expect(JSON.parse(lastPatch.data as string)).toMatchObject({
       title: 'Updated sushi',
       notes: 'Updated notes',
       mapboxId: 'google.tsukiji',
@@ -622,6 +626,10 @@ describe('<TripWorkspacePage>', () => {
 
     await userEvent.click(screen.getByRole('button', { name: /mock place search/i }))
 
+    expect(screen.getByTestId('preview-map-place')).toHaveTextContent('Tokyo Tower')
+    expect(screen.getByRole('button', { name: /confirm update/i })).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: /confirm update/i }))
+
     await waitFor(() => {
       expect(apiMock.history.patch[0].url).toBe('/trips/abc234def567/activities/10')
     })
@@ -637,25 +645,6 @@ describe('<TripWorkspacePage>', () => {
       lng: 139.7454,
     })
     expect(screen.getByTestId('preview-map-place')).toHaveTextContent('none')
-  })
-
-  it('saves the selected day note', async () => {
-    mockWorkspace()
-    apiMock.onPut('/trips/abc234def567/notes/2026-05-01').reply(200, {
-      ...SAMPLE_NOTE,
-      note: 'Updated note',
-    })
-
-    renderWorkspace('/trips/abc234def567')
-
-    const noteInput = await screen.findByLabelText(/day note/i)
-    await userEvent.clear(noteInput)
-    await userEvent.type(noteInput, 'Updated note')
-    await userEvent.click(screen.getByRole('button', { name: /save note/i }))
-
-    await waitFor(() => {
-      expect(apiMock.history.put[0].url).toBe('/trips/abc234def567/notes/2026-05-01')
-    })
   })
 
   it('uses the compact editor without old move controls', async () => {
@@ -678,10 +667,10 @@ describe('<TripWorkspacePage>', () => {
 
     expect(screen.getByLabelText(/activity name/i)).toHaveValue('Dinner')
     expect(screen.getByLabelText(/^time$/i)).toHaveAttribute('type', 'time')
-    expect(screen.getByText('Location not set')).toBeInTheDocument()
+    expect(screen.getByText('No location selected')).toBeInTheDocument()
     expect(screen.queryByLabelText(/place name/i)).not.toBeInTheDocument()
     expect(screen.queryByLabelText(/^address$/i)).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /change on map/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /add on map/i })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /move dinner up/i })).not.toBeInTheDocument()
     expect(screen.queryByLabelText(/^day$/i)).not.toBeInTheDocument()
   })
@@ -709,11 +698,7 @@ describe('<TripWorkspacePage>', () => {
       dayDate: '2026-05-05',
       title: 'Last day breakfast',
     }
-    mockWorkspace([dayFiveActivity], {
-      ...SAMPLE_NOTE,
-      dayDate: '2026-05-05',
-      note: 'Last day note',
-    })
+    mockWorkspace([dayFiveActivity])
     apiMock.onPatch('/trips/abc234def567').reply(200, {
       ...SAMPLE_TRIP,
       name: 'Tokyo and Kyoto',
@@ -725,7 +710,7 @@ describe('<TripWorkspacePage>', () => {
 
     renderWorkspace('/trips/abc234def567/d/2026-05-05')
 
-    await userEvent.click(await screen.findByRole('button', { name: /trip settings/i }))
+    await userEvent.click(await screen.findByRole('button', { name: /^settings$/i }))
     expect(screen.getByRole('dialog', { name: /trip settings/i })).toBeInTheDocument()
 
     const nameInput = screen.getByLabelText(/trip name/i)

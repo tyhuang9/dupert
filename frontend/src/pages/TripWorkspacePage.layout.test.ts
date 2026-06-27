@@ -15,6 +15,25 @@ function cssBlocks(css: string, selector: string) {
 }
 
 describe('TripWorkspacePage layout scroll contract', () => {
+  it('keeps the sidebar as a 64px rail that expands as an overlay', () => {
+    const workspaceBlock = cssBlocks(workspaceCss, '.workspaceShell')[0] ?? ''
+    const pinnedWorkspaceBlock = cssBlocks(workspaceCss, '.workspaceShellPinned')[0] ?? ''
+    const dayPanelBlock = cssBlocks(workspaceCss, '.dayPanel')[0] ?? ''
+    const railIconBlock = cssBlocks(workspaceCss, '.railIcon')[0] ?? ''
+
+    expect(workspaceBlock).toMatch(/--sidebar-rail-width:\s*64px/)
+    expect(workspaceBlock).toMatch(/--sidebar-expanded-width:\s*244px/)
+    expect(workspaceBlock).toMatch(/padding-left:\s*var\(--sidebar-rail-width\)/)
+    expect(workspaceBlock).not.toMatch(/grid-template-columns:\s*64px/)
+    expect(dayPanelBlock).toMatch(/position:\s*absolute/)
+    expect(dayPanelBlock).toMatch(/z-index:\s*50/)
+    expect(dayPanelBlock).toMatch(/width:\s*var\(--sidebar-rail-width\)/)
+    expect(pinnedWorkspaceBlock).toMatch(/padding-left:\s*var\(--sidebar-expanded-width\)/)
+    expect(workspaceCss).toMatch(/\.dayPanel:hover,\s*\.dayPanel:focus-within,\s*\.dayPanelPinned\s*\{[^}]*width:\s*var\(--sidebar-expanded-width\)/s)
+    expect(railIconBlock).toMatch(/width:\s*64px/)
+    expect(railIconBlock).toMatch(/flex:\s*0 0 64px/)
+  })
+
   it('clips the workspace shell and leaves vertical scrolling to the activity area', () => {
     expect(workspaceCss).not.toMatch(/overflow:\s*visible/)
     expect(workspaceCss).not.toMatch(/calc\(100vh/)
