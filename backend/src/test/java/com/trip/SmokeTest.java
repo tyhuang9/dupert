@@ -112,7 +112,11 @@ class SmokeTest {
             .andExpect(header().string("Content-Security-Policy",
                 containsString("default-src 'self'")))
             .andExpect(header().string("Content-Security-Policy",
-                containsString("api.mapbox.com")))
+                containsString("maps.googleapis.com")))
+            .andExpect(header().string("Content-Security-Policy",
+                containsString("maps.gstatic.com")))
+            .andExpect(header().string("Content-Security-Policy",
+                not(containsString("mapbox.com"))))
             .andExpect(header().string("Content-Security-Policy",
                 containsString("frame-ancestors 'none'")));
     }

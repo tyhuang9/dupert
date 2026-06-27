@@ -13,9 +13,9 @@ Multiple viewers see each other's edits live (under a second) without manual ref
 
 **Backend** — Java 21, Spring Boot 3.5, Gradle, Spring Security, Spring Data JPA, Flyway, JJWT, Bucket4j, PostgreSQL (hosted on [Neon](https://neon.tech)).
 
-**Frontend** — Vite, React 19, TypeScript, React Router, TanStack Query, Zustand, Axios, `@microsoft/fetch-event-source` (SSE), `mapbox-gl` + `react-map-gl`, `@mapbox/search-js-react`, `@dnd-kit`, `date-fns`. Plain CSS Modules.
+**Frontend** — Vite, React 19, TypeScript, React Router, TanStack Query, Zustand, Axios, `@microsoft/fetch-event-source` (SSE), `@vis.gl/react-google-maps`, `@dnd-kit`, `date-fns`. Plain CSS Modules.
 
-**External services** — [Mapbox](https://www.mapbox.com/) (tiles, place search, directions); [Neon](https://neon.tech) (managed Postgres).
+**External services** — [Google Maps Platform](https://developers.google.com/maps) (map rendering, place autocomplete, geocoding, routes); [Neon](https://neon.tech) (managed Postgres).
 
 **Realtime** — Server-Sent Events (`/api/trips/{id}/stream`); events carry pointers, not payloads, so subscribers always refetch through the authenticated API.
 
@@ -24,7 +24,7 @@ Multiple viewers see each other's edits live (under a second) without manual ref
 - **JDK 21** (Temurin recommended). Verify: `java -version` reports `21`.
 - **Node 20+** and **npm**.
 - A **Neon** project (free tier is fine). Grab the dev-branch connection string from the Neon dashboard.
-- A **Mapbox** account with a public token (`pk.…`). URL-restrict it in the Mapbox dashboard to `http://localhost:3000/*` for local development (and your production origin later).
+- A **Google Maps Platform** browser API key. Enable billing plus the Maps JavaScript API, Places API, Geocoding API, and Routes API. Restrict the key by HTTP referrer to `http://localhost:3000/*` for local development and to your production origins later.
 
 No Docker, no local Postgres install, no global Gradle.
 
@@ -39,7 +39,8 @@ cp .env.example .env
 #                          contains '&', e.g. '...?sslmode=require&channel_binding=require')
 #   JWT_SECRET            (generate: openssl rand -hex 32)
 #   LOG_EMAIL_PEPPER      (generate: openssl rand -hex 16)
-#   VITE_MAPBOX_TOKEN     (Mapbox public token)
+#   VITE_GOOGLE_MAPS_API_KEY  (Google Maps browser API key)
+#   VITE_GOOGLE_MAPS_MAP_ID   (optional Google Maps vector map id)
 #   NVD_API_KEY           (optional, strongly recommended before Dependency-Check)
 ```
 
@@ -129,7 +130,7 @@ On pushes to `main`, pull requests, and manual dispatches CI runs:
 - backend OWASP Dependency-Check against the cached vulnerability database, with HTML/JSON reports uploaded as artifacts
 - frontend `npm ci`, lint, tests, production build, and production dependency audit
 
-The CI workflow does not require app runtime secrets. Backend tests use the test profile and do not require a Neon URL, Mapbox token, or local `.env`. Dependency-Check scans do not call NVD during push or pull request CI; they restore `~/.gradle/dependency-check-data` from the latest successful data refresh. If that cache is missing, CI fails with a message to run the Dependency-Check Data workflow.
+The CI workflow does not require app runtime secrets. Backend tests use the test profile and do not require a Neon URL, Google Maps key, or local `.env`. Dependency-Check scans do not call NVD during push or pull request CI; they restore `~/.gradle/dependency-check-data` from the latest successful data refresh. If that cache is missing, CI fails with a message to run the Dependency-Check Data workflow.
 
 The Dependency-Check Data workflow runs daily and can be dispatched manually. It requires the repository secret `NVD_API_KEY`, runs `./gradlew dependencyCheckUpdate`, and saves the refreshed vulnerability database cache only after a successful update.
 
@@ -145,7 +146,7 @@ trip-planner/
 │       └── web/     Controllers + access guard
 ├── frontend/        Vite + React + TypeScript SPA
 │   └── src/
-│       ├── api/     HTTP + Mapbox clients
+│       ├── api/     HTTP + Google Maps adapters
 │       ├── auth/    Auth context + login/register
 │       ├── pages/   Top-level routes
 │       ├── components/  UI building blocks
@@ -163,7 +164,8 @@ trip-planner/
 | `LOG_EMAIL_PEPPER` | backend | 16 random bytes (hex) for hashing emails in logs |
 | `APP_FRONTEND_ORIGIN` | backend | Exact origin allowed by CORS (e.g. `http://localhost:3000`) |
 | `APP_DEV_PASSWORD_RESET_SECRET` | backend | Local-only secret required by `/api/auth/dev/reset-password`; leave unset outside dev |
-| `VITE_MAPBOX_TOKEN` | frontend | Public Mapbox token; URL-restricted in the Mapbox dashboard |
+| `VITE_GOOGLE_MAPS_API_KEY` | frontend | Public Google Maps browser key; restrict by HTTP referrer to localhost and production origins |
+| `VITE_GOOGLE_MAPS_MAP_ID` | frontend | Optional Google Maps vector map id for cloud styling |
 | `VITE_DEV_PASSWORD_RESET_SECRET` | frontend | Dev-only value sent by the login-page reset helper; match `APP_DEV_PASSWORD_RESET_SECRET` locally |
 | `NVD_API_KEY` | backend/CI | Optional but strongly recommended key for reliable OWASP Dependency-Check NVD updates |
 
@@ -177,5 +179,5 @@ Values containing shell metacharacters (`&`, `;`, `$`, spaces) **must** be wrapp
 - Share links store only a SHA-256 hash of the raw token and can be revoked by the trip owner.
 - Anonymous guest writes require the guest cookie plus the `X-TripPlanner-Guest-Write: 1` header, and guest/share endpoints are rate limited.
 - SSE events on `/api/trips/{publicId}/stream` contain only pointers such as event type, trip id, activity id, or day date; clients refetch the real data through authenticated API calls.
-- Mapbox is called directly from the browser with a public token. Restrict the token to localhost and production origins in the Mapbox dashboard.
+- Google Maps Platform is called directly from the browser with a public browser key. Restrict the key to localhost and production origins with HTTP referrer restrictions, and enable only the APIs the frontend uses.
 - Keep `.env` local-only. Commit changes to `.env.example` when configuration requirements change.

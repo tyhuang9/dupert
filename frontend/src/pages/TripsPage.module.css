@@ -581,20 +581,6 @@
   min-width: 0;
 }
 
-.destinationSearchBox :global(mapbox-search-box) {
-  display: block;
-  width: 100%;
-  min-width: 0;
-}
-
-.destinationSearchBox :global(.Input),
-.destinationSearchBox :global(.InputWrapper),
-.destinationSearchBox :global(.SearchBox),
-.destinationSearchBox :global(.SearchBoxInput) {
-  width: 100%;
-  min-width: 0;
-}
-
 .destinationSearchBox input {
   width: 100%;
   min-height: 2.75rem;

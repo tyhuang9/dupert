@@ -1,39 +1,56 @@
 import { act, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { SearchBoxOptions, SearchBoxRetrieveResponse } from '@mapbox/search-js-core'
+import type { GooglePlaceSearchOptions, GooglePlaceSelection } from './googlePlaces'
 import { PlaceSearch } from './PlaceSearch'
 
-const searchBoxState = vi.hoisted(() => ({
+const autocompleteState = vi.hoisted(() => ({
   props: null as null | {
-    onRetrieve?: (res: SearchBoxRetrieveResponse) => void
-    onSuggest?: () => void
-    onSuggestError?: (error: Error) => void
+    inputLabel?: string
+    onPlaceSelect?: (place: GooglePlaceSelection) => void
+    onSearchError?: (message: string | null) => void
+    onValueChange?: (value: string) => void
+    options?: GooglePlaceSearchOptions
+    searchFailedMessage?: string
+    selectOnFocus?: boolean
     value?: string
-    options?: Partial<SearchBoxOptions>
   },
-  focus: vi.fn(),
-  search: vi.fn(),
 }))
 
-vi.mock('@mapbox/search-js-react', async () => {
-  const React = await import('react')
+vi.mock('./GooglePlaceAutocomplete', () => ({
+  GooglePlaceAutocomplete: (props: typeof autocompleteState.props) => {
+    autocompleteState.props = props
+    return (
+      <input
+        aria-label={props?.inputLabel}
+        value={props?.value ?? ''}
+        onChange={(event) => props?.onValueChange?.(event.target.value)}
+        onFocus={(event) => {
+          if (props?.selectOnFocus) event.currentTarget.select()
+        }}
+      />
+    )
+  },
+}))
+
+function googlePlace(overrides: Partial<GooglePlaceSelection> = {}): GooglePlaceSelection {
   return {
-    SearchBox: React.forwardRef((props: typeof searchBoxState.props, ref) => {
-      searchBoxState.props = props
-      React.useImperativeHandle(ref, () => ({
-        focus: searchBoxState.focus,
-        search: searchBoxState.search,
-      }))
-      return <input aria-label="Mock Mapbox search" value={props?.value ?? ''} readOnly />
-    }),
+    displayName: 'Tokyo Tower',
+    formattedAddress: '4 Chome-2-8 Shibakoen, Minato City, Tokyo',
+    id: 'google.tokyo-tower',
+    lat: 35.6586,
+    lng: 139.7454,
+    photoUrl: null,
+    primaryType: 'tourist_attraction',
+    primaryTypeDisplayName: 'Tourist attraction',
+    text: 'Tokyo Tower, 4 Chome-2-8 Shibakoen, Minato City, Tokyo',
+    types: ['tourist_attraction'],
+    ...overrides,
   }
-})
+}
 
 beforeEach(() => {
-  vi.stubEnv('VITE_MAPBOX_TOKEN', 'pk.test')
-  searchBoxState.props = null
-  searchBoxState.focus.mockClear()
-  searchBoxState.search.mockClear()
+  vi.stubEnv('VITE_GOOGLE_MAPS_API_KEY', 'gmaps.test')
+  autocompleteState.props = null
 })
 
 afterEach(() => {
@@ -42,27 +59,31 @@ afterEach(() => {
 })
 
 describe('<PlaceSearch>', () => {
-  it('shows a useful Mapbox diagnostic when suggestions fail', () => {
+  it('shows a useful Google Places diagnostic when suggestions fail', () => {
     render(<PlaceSearch onPlaceSelect={vi.fn()} />)
 
     act(() => {
-      searchBoxState.props?.onSuggestError?.(new Error('Forbidden'))
+      autocompleteState.props?.onSearchError?.(
+        autocompleteState.props.searchFailedMessage ?? 'Google Places search failed.',
+      )
     })
 
-    expect(screen.getByRole('alert')).toHaveTextContent(/mapbox search failed/i)
-    expect(screen.getByRole('alert')).toHaveTextContent(/allowed URLs/i)
+    expect(screen.getByRole('alert')).toHaveTextContent(/google places search failed/i)
+    expect(screen.getByRole('alert')).toHaveTextContent(/http referrer/i)
   })
 
   it('clears the diagnostic when suggestions recover', () => {
     render(<PlaceSearch onPlaceSelect={vi.fn()} />)
 
     act(() => {
-      searchBoxState.props?.onSuggestError?.(new Error('Forbidden'))
+      autocompleteState.props?.onSearchError?.(
+        autocompleteState.props.searchFailedMessage ?? 'Google Places search failed.',
+      )
     })
     expect(screen.getByRole('alert')).toBeInTheDocument()
 
     act(() => {
-      searchBoxState.props?.onSuggest?.()
+      autocompleteState.props?.onSearchError?.(null)
     })
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
@@ -70,39 +91,29 @@ describe('<PlaceSearch>', () => {
   it('selects a place without rendering a map-side ready panel', () => {
     const onPlaceSelect = vi.fn()
     render(<PlaceSearch onPlaceSelect={onPlaceSelect} />)
-    const input = screen.getByLabelText(/mock mapbox search/i)
+    const input = screen.getByLabelText(/search places/i)
 
     input.focus()
     expect(input).toHaveFocus()
 
     act(() => {
-      searchBoxState.props?.onRetrieve?.({
-        features: [
-          {
-            geometry: { coordinates: [139.7454, 35.6586] },
-            properties: {
-              mapbox_id: 'mapbox.tokyo-tower',
-              name: 'Tokyo Tower',
-              full_address: '4 Chome-2-8 Shibakoen, Minato City, Tokyo',
-              poi_category: ['landmark'],
-            },
-          },
-        ],
-      } as SearchBoxRetrieveResponse)
+      autocompleteState.props?.onPlaceSelect?.(googlePlace())
     })
 
     expect(onPlaceSelect).toHaveBeenCalledWith(
       expect.objectContaining({
-        title: 'Tokyo Tower',
-        placeName: 'Tokyo Tower',
         address: '4 Chome-2-8 Shibakoen, Minato City, Tokyo',
+        category: 'ACTIVITY',
         coordinatesLabel: '35.65860, 139.74540',
-        placeCategory: 'landmark',
+        featureType: 'tourist_attraction',
         lat: 35.6586,
         lng: 139.7454,
+        mapboxId: 'google.tokyo-tower',
+        placeCategory: 'Tourist attraction',
+        placeName: 'Tokyo Tower',
+        title: 'Tokyo Tower',
       }),
     )
-    expect(input).not.toHaveFocus()
     expect(screen.queryByText(/ready to add/i)).not.toBeInTheDocument()
   })
 
@@ -117,19 +128,7 @@ describe('<PlaceSearch>', () => {
     )
 
     act(() => {
-      searchBoxState.props?.onRetrieve?.({
-        features: [
-          {
-            geometry: { coordinates: [139.7454, 35.6586] },
-            properties: {
-              mapbox_id: 'mapbox.tokyo-tower',
-              name: 'Tokyo Tower',
-              full_address: '4 Chome-2-8 Shibakoen, Minato City, Tokyo',
-              poi_category: ['landmark'],
-            },
-          },
-        ],
-      } as SearchBoxRetrieveResponse)
+      autocompleteState.props?.onPlaceSelect?.(googlePlace())
     })
 
     expect(onPlaceSelect).toHaveBeenCalledWith(
@@ -143,17 +142,17 @@ describe('<PlaceSearch>', () => {
     expect(screen.queryByRole('button', { name: /update location/i })).not.toBeInTheDocument()
   })
 
-  it('passes a prefilled search value to Mapbox search', () => {
+  it('passes a prefilled search value to Google Places autocomplete', () => {
     render(<PlaceSearch onPlaceSelect={vi.fn()} searchValue="160 Piccadilly" />)
 
-    expect(searchBoxState.props?.value).toBe('160 Piccadilly')
-    expect(screen.getByLabelText(/mock mapbox search/i)).toHaveValue('160 Piccadilly')
+    expect(autocompleteState.props?.value).toBe('160 Piccadilly')
+    expect(screen.getByLabelText(/search places/i)).toHaveValue('160 Piccadilly')
   })
 
   it('selects the full search value when the input receives focus', async () => {
     render(<PlaceSearch onPlaceSelect={vi.fn()} searchValue="160 Piccadilly" />)
 
-    const input = screen.getByLabelText(/mock mapbox search/i) as HTMLInputElement
+    const input = screen.getByLabelText(/search places/i) as HTMLInputElement
     input.focus()
 
     await waitFor(() => {
@@ -162,7 +161,7 @@ describe('<PlaceSearch>', () => {
     })
   })
 
-  it('forwards proximity options to Mapbox search', () => {
+  it('forwards proximity options to Google Places autocomplete', () => {
     render(
       <PlaceSearch
         onPlaceSelect={vi.fn()}
@@ -170,18 +169,27 @@ describe('<PlaceSearch>', () => {
       />,
     )
 
-    expect(searchBoxState.props?.options).toMatchObject({
+    expect(autocompleteState.props?.options).toMatchObject({
       language: 'en',
       proximity: { lng: 139.7454, lat: 35.6586 },
     })
   })
 
-  it('does not render category shortcut buttons around the Mapbox search', () => {
+  it('does not render category shortcut buttons around the Google search', () => {
     render(<PlaceSearch onPlaceSelect={vi.fn()} />)
 
     expect(screen.queryByRole('button', { name: /coffee/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /restaurants/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /gas/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /shopping/i })).not.toBeInTheDocument()
+  })
+
+  it('falls back to a plain diagnostic when the Google Maps key is absent', () => {
+    vi.stubEnv('VITE_GOOGLE_MAPS_API_KEY', '')
+
+    render(<PlaceSearch onPlaceSelect={vi.fn()} />)
+
+    expect(screen.getByText(/google maps api key is not configured/i)).toBeInTheDocument()
+    expect(autocompleteState.props).toBeNull()
   })
 })

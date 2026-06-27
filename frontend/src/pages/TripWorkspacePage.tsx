@@ -762,7 +762,7 @@ export function TripWorkspacePage() {
   const [isDraggingActivity, setIsDraggingActivity] = useState(false)
   const [workspaceMode, setWorkspaceMode] = useState<WorkspaceMode>('days')
   const [activitySearch, setActivitySearch] = useState('')
-  const [mapStyle, setMapStyle] = useState<MapStyleId>('light')
+  const [mapStyle, setMapStyle] = useState<MapStyleId>('roadmap')
   const [mapViewportContext, setMapViewportContext] = useState<MapViewportContext | null>(null)
   const [mapLocationTarget, setMapLocationTarget] = useState<MapLocationTarget | null>(null)
   const [mapSearchValue, setMapSearchValue] = useState('')

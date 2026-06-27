@@ -1,9 +1,9 @@
-import { useEffect, useRef, useState, type FocusEvent } from 'react'
-import { SearchBox } from '@mapbox/search-js-react'
-import type { SearchBoxOptions, SearchBoxRetrieveResponse } from '@mapbox/search-js-core'
+import { useState } from 'react'
+import { GooglePlaceAutocomplete } from './GooglePlaceAutocomplete'
+import type { GooglePlaceSearchOptions, GooglePlaceSelection } from './googlePlaces'
 import type { ActivityCategory } from '../types/activity'
 import type { PlaceSelection } from '../types/place'
-import { mapboxAccessTroubleshooting } from '../utils/mapboxAccess'
+import { googleMapsAccessTroubleshooting, googleMapsApiKey } from '../utils/googleMapsAccess'
 import styles from './PlaceSearch.module.css'
 
 interface PlaceSearchProps {
@@ -12,19 +12,17 @@ interface PlaceSearchProps {
   onSearchValueChange?: (value: string) => void
   contextLabel?: string
   focusKey?: number
-  searchOptions?: Partial<SearchBoxOptions>
+  searchOptions?: GooglePlaceSearchOptions
   searchValue?: string
 }
 
-type RetrievedFeature = SearchBoxRetrieveResponse['features'][number]
-
-function categoryForPlace(properties: RetrievedFeature['properties']): ActivityCategory {
+function categoryForPlace(place: GooglePlaceSelection): ActivityCategory {
   const categories = [
-    ...(properties.poi_category ?? []),
-    properties.maki,
-    properties.feature_type,
+    place.primaryType,
+    place.primaryTypeDisplayName,
+    ...place.types,
   ]
-    .filter(Boolean)
+    .filter((value): value is string => Boolean(value))
     .map((value) => value.toLowerCase())
 
   if (categories.some((value) => /restaurant|food|cafe|bar|bakery|meal/.test(value))) {
@@ -39,34 +37,27 @@ function categoryForPlace(properties: RetrievedFeature['properties']): ActivityC
   return 'ACTIVITY'
 }
 
-function normalizePlaceCategory(properties: RetrievedFeature['properties']): string | null {
-  return properties.poi_category?.[0] || properties.maki || properties.feature_type || null
+function normalizePlaceCategory(place: GooglePlaceSelection): string | null {
+  return place.primaryTypeDisplayName || place.primaryType || place.types[0] || null
 }
 
-function placePayload(res: SearchBoxRetrieveResponse): PlaceSelection | null {
-  const feature = res.features[0]
-  if (!feature) return null
-  const [lng, lat] = feature.geometry.coordinates
-  const properties = feature.properties
-  const preferredName = properties.name_preferred || properties.name || null
-  const address =
-    properties.full_address ||
-    properties.address ||
-    properties.place_formatted ||
-    null
-  const title = preferredName || address || 'Selected place'
+function placePayload(place: GooglePlaceSelection): PlaceSelection {
+  const title = place.displayName || place.formattedAddress || 'Selected place'
 
   return {
-    category: categoryForPlace(properties),
+    category: categoryForPlace(place),
     title,
-    mapboxId: properties.mapbox_id,
-    placeName: preferredName,
-    address,
-    coordinatesLabel: `${lat.toFixed(5)}, ${lng.toFixed(5)}`,
-    featureType: properties.feature_type ?? null,
-    lat,
-    lng,
-    placeCategory: normalizePlaceCategory(properties),
+    mapboxId: place.id,
+    placeName: place.displayName,
+    address: place.formattedAddress,
+    coordinatesLabel:
+      place.lat !== null && place.lng !== null
+        ? `${place.lat.toFixed(5)}, ${place.lng.toFixed(5)}`
+        : null,
+    featureType: place.primaryType,
+    lat: place.lat,
+    lng: place.lng,
+    placeCategory: normalizePlaceCategory(place),
   }
 }
 
@@ -79,48 +70,15 @@ export function PlaceSearch({
   searchOptions,
   searchValue,
 }: PlaceSearchProps) {
-  const accessToken = import.meta.env.VITE_MAPBOX_TOKEN as string | undefined
-  const shellRef = useRef<HTMLDivElement>(null)
+  const apiKey = googleMapsApiKey()
   const [value, setValue] = useState(searchValue ?? '')
   const [searchError, setSearchError] = useState<string | null>(null)
-  const [searchBoxVersion, setSearchBoxVersion] = useState(0)
   const displayedValue = searchValue ?? value
 
-  const scheduleSelectAll = (input: HTMLInputElement) => {
-    const select = () => input.select()
-    if (window.requestAnimationFrame) {
-      window.requestAnimationFrame(select)
-    } else {
-      window.setTimeout(select, 0)
-    }
-  }
-
-  useEffect(() => {
-    if (focusKey === undefined) return undefined
-    const scheduleFrame = window.requestAnimationFrame
-      ? (callback: FrameRequestCallback) => window.requestAnimationFrame(callback)
-      : (callback: FrameRequestCallback) => window.setTimeout(() => callback(Date.now()), 0)
-    const cancelFrame = window.cancelAnimationFrame
-      ? (handle: number) => window.cancelAnimationFrame(handle)
-      : (handle: number) => window.clearTimeout(handle)
-    const frame = scheduleFrame(() => {
-      const input = shellRef.current?.querySelector('input')
-      input?.focus()
-      input?.select()
-    })
-    return () => cancelFrame(frame)
-  }, [focusKey])
-
-  const handleFocusCapture = (event: FocusEvent<HTMLDivElement>) => {
-    if (event.target instanceof HTMLInputElement) {
-      scheduleSelectAll(event.target)
-    }
-  }
-
-  if (!accessToken) {
+  if (!apiKey) {
     return (
       <div className={styles.fallback}>
-        Mapbox token is not configured for place search.
+        Google Maps API key is not configured for place search.
       </div>
     )
   }
@@ -128,49 +86,35 @@ export function PlaceSearch({
   const updateValue = (nextValue: string) => {
     setValue(nextValue)
     onSearchValueChange?.(nextValue)
-  }
-
-  const closeSuggestions = () => {
-    shellRef.current?.querySelector('input')?.blur()
-    setSearchBoxVersion((current) => current + 1)
+    if (!nextValue) {
+      setSearchError(null)
+      onPlacePreview?.(null)
+    }
   }
 
   return (
-    <div ref={shellRef} className={styles.searchShell} onFocusCapture={handleFocusCapture}>
+    <div className={styles.searchShell}>
       {contextLabel && <p className={styles.context}>{contextLabel}</p>}
       <label className={styles.label}>
         <span className="sr-only">Search places</span>
-        <span className={styles.searchBox}>
-          <SearchBox
-            key={searchBoxVersion}
-            accessToken={accessToken}
-            value={displayedValue}
-            onChange={(nextValue) => {
-              updateValue(nextValue)
-              if (!nextValue) setSearchError(null)
-              onPlacePreview?.(null)
-            }}
-            onSuggest={() => setSearchError(null)}
-            onSuggestError={() => {
-              setSearchError(`Mapbox search failed. ${mapboxAccessTroubleshooting()}`)
-            }}
-            onRetrieve={(res) => {
-              const payload = placePayload(res)
-              if (!payload) return
-              setSearchError(null)
-              updateValue(payload.address ?? payload.placeName ?? payload.title ?? '')
-              closeSuggestions()
-              onPlaceSelect(payload)
-            }}
-            onClear={() => {
-              setSearchError(null)
-              updateValue('')
-              onPlacePreview?.(null)
-            }}
-            placeholder="Search restaurants, sights, hotels..."
-            options={{ language: 'en', ...searchOptions }}
-          />
-        </span>
+        <GooglePlaceAutocomplete
+          className={styles.searchBox}
+          inputClassName={styles.searchInput}
+          value={displayedValue}
+          onValueChange={updateValue}
+          onSearchError={setSearchError}
+          onPlaceSelect={(place) => {
+            const payload = placePayload(place)
+            setSearchError(null)
+            onPlaceSelect(payload)
+          }}
+          focusKey={focusKey}
+          inputLabel="Search places"
+          placeholder="Search restaurants, sights, hotels..."
+          searchFailedMessage={`Google Places search failed. ${googleMapsAccessTroubleshooting()}`}
+          selectOnFocus
+          options={{ language: 'en', ...searchOptions }}
+        />
       </label>
       {searchError && (
         <p className={styles.searchError} role="alert">

@@ -13,8 +13,8 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 /**
- * Mapbox-aware Content-Security-Policy. The policy is narrow — no {@code 'unsafe-eval'},
- * no wildcard {@code script-src}, explicit allowlist for Mapbox hosts.
+ * Google Maps-aware Content-Security-Policy. The policy is narrow — no {@code 'unsafe-eval'},
+ * no wildcard {@code script-src}, explicit allowlist for Google Maps hosts.
  *
  * <p>Mirrors §5 of the plan. Kept as a separate filter from {@link SecurityHeadersFilter}
  * so the CSP can be tuned without touching the general hardening headers.
@@ -25,12 +25,13 @@ public class ContentSecurityPolicyFilter extends OncePerRequestFilter {
 
     static final String CSP_VALUE = String.join("; ",
         "default-src 'self'",
-        "script-src 'self'",
-        // Mapbox GL inlines a small amount of CSS at runtime, so we can't go strict here.
-        "style-src 'self' 'unsafe-inline'",
-        "img-src 'self' data: https:",
-        "connect-src 'self' https://api.mapbox.com https://events.mapbox.com",
-        // mapbox-gl uses a worker created from a blob URL.
+        "script-src 'self' https://maps.googleapis.com https://maps.gstatic.com",
+        // Google Maps injects runtime style tags for map controls and overlays.
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+        "img-src 'self' data: https: https://maps.googleapis.com https://maps.gstatic.com",
+        "font-src 'self' https://fonts.gstatic.com",
+        "connect-src 'self' https://maps.googleapis.com https://places.googleapis.com https://routes.googleapis.com https://maps.gstatic.com",
+        // Google Maps may use blob-backed workers depending on browser/runtime path.
         "worker-src 'self' blob:",
         "frame-ancestors 'none'",
         "base-uri 'self'",

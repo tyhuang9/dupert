@@ -5,9 +5,9 @@ import MockAdapter from 'axios-mock-adapter'
 import type { PropsWithChildren } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
-import type { SearchBoxOptions } from '@mapbox/search-js-core'
 import { apiClient } from '../api/client'
 import { AuthContext, type AuthContextValue } from '../auth/authContextValue'
+import type { GooglePlaceSearchOptions, GooglePlaceSelection } from '../components/googlePlaces'
 import type { Trip } from '../types/trip'
 import { selectTripVisualKey } from '../utils/tripVisuals'
 import { NewTripPage } from './NewTripPage'
@@ -15,21 +15,21 @@ import { TripsPage } from './TripsPage'
 
 const searchBoxState = vi.hoisted(() => ({
   props: null as null | {
-    onChange?: (value: string) => void
-    onRetrieve?: (res: unknown) => void
-    options?: Partial<SearchBoxOptions>
+    onPlaceSelect?: (place: GooglePlaceSelection) => void
+    onValueChange?: (value: string) => void
+    options?: GooglePlaceSearchOptions
     value?: string
   },
 }))
 
-vi.mock('@mapbox/search-js-react', () => ({
-  SearchBox: (props: typeof searchBoxState.props) => {
+vi.mock('../components/GooglePlaceAutocomplete', () => ({
+  GooglePlaceAutocomplete: (props: typeof searchBoxState.props & { inputLabel?: string }) => {
     searchBoxState.props = props
     return (
       <input
-        aria-label="Destination"
+        aria-label={props?.inputLabel ?? 'Destination'}
         value={props?.value ?? ''}
-        onChange={(event) => props?.onChange?.(event.target.value)}
+        onChange={(event) => props?.onValueChange?.(event.target.value)}
       />
     )
   },
@@ -142,7 +142,7 @@ function renderNewTrip() {
 }
 
 beforeEach(() => {
-  vi.stubEnv('VITE_MAPBOX_TOKEN', 'pk.test')
+  vi.stubEnv('VITE_GOOGLE_MAPS_API_KEY', 'gmaps.test')
   searchBoxState.props = null
   apiMock = new MockAdapter(apiClient)
   queryClient = new QueryClient({
@@ -395,22 +395,23 @@ describe('<NewTripPage>', () => {
     })
   })
 
-  it('fills the destination from a selected Mapbox suggestion', async () => {
+  it('fills the destination from a selected Google suggestion', async () => {
     renderNewTrip()
 
     await userEvent.type(screen.getByLabelText(/trip name/i), 'Madison weekend')
     await userEvent.type(screen.getByLabelText(/destination/i), 'Madison')
     act(() => {
-      searchBoxState.props?.onRetrieve?.({
-        features: [
-          {
-            properties: {
-              name: 'Madison',
-              place_formatted: 'Wisconsin, United States',
-              image_url: 'https://example.com/madison.webp',
-            },
-          },
-        ],
+      searchBoxState.props?.onPlaceSelect?.({
+        displayName: 'Madison',
+        formattedAddress: 'Wisconsin, United States',
+        id: 'google.madison',
+        lat: 43.0731,
+        lng: -89.4012,
+        photoUrl: 'https://example.com/madison.webp',
+        primaryType: 'locality',
+        primaryTypeDisplayName: 'Locality',
+        text: 'Madison, Wisconsin, United States',
+        types: ['locality'],
       })
     })
 
@@ -424,6 +425,33 @@ describe('<NewTripPage>', () => {
       language: 'en',
     })
     expect(searchBoxState.props?.options).not.toHaveProperty('proximity')
+  })
+
+  it('does not overwrite the cover image from an unusable Google photo URL', async () => {
+    renderNewTrip()
+
+    await userEvent.type(screen.getByLabelText(/cover image url/i), 'https://example.com/original.webp')
+    act(() => {
+      searchBoxState.props?.onPlaceSelect?.({
+        displayName: 'Madison',
+        formattedAddress: 'Wisconsin, United States',
+        id: 'google.madison',
+        lat: 43.0731,
+        lng: -89.4012,
+        photoUrl: 'http://example.com/insecure.webp',
+        primaryType: 'locality',
+        primaryTypeDisplayName: 'Locality',
+        text: 'Madison, Wisconsin, United States',
+        types: ['locality'],
+      })
+    })
+
+    expect(screen.getByLabelText(/destination/i)).toHaveValue(
+      'Madison, Wisconsin, United States',
+    )
+    expect(screen.getByLabelText(/cover image url/i)).toHaveValue(
+      'https://example.com/original.webp',
+    )
   })
 
   it('surfaces server validation errors', async () => {

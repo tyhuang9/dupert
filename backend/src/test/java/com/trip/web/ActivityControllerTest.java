@@ -230,7 +230,7 @@ class ActivityControllerTest {
         activity.setNotes("Counter seat");
         activity.setStartTime(LocalTime.of(9, 0));
         activity.setEndTime(LocalTime.of(10, 0));
-        activity.setMapboxId("mapbox.tsukiji");
+        activity.setMapboxId("google.tsukiji");
         activity.setPlaceName("Tsukiji Outer Market");
         activity.setAddress("Tsukiji, Chuo City, Tokyo");
         activity.setLat(35.6654);

@@ -108,7 +108,7 @@ vi.mock('../components/PlaceSearch', () => ({
     const place = {
       category: 'ACTIVITY',
       title: 'Tokyo Tower',
-      mapboxId: 'mapbox.tokyo-tower',
+      mapboxId: 'google.tokyo-tower',
       placeName: 'Tokyo Tower',
       address: '4 Chome-2-8 Shibakoen, Minato City, Tokyo',
       lat: 35.6586,
@@ -484,14 +484,14 @@ describe('<TripWorkspacePage>', () => {
     })
   })
 
-  it('creates an activity from a selected Mapbox place', async () => {
+  it('creates an activity from a selected Google place', async () => {
     mockWorkspace()
     apiMock.onPost('/trips/abc234def567/activities?dayDate=2026-05-01').reply(201, {
       ...SAMPLE_ACTIVITY,
       id: 20,
       category: 'ACTIVITY',
       title: 'Tokyo Tower',
-      mapboxId: 'mapbox.tokyo-tower',
+      mapboxId: 'google.tokyo-tower',
       placeName: 'Tokyo Tower',
       address: '4 Chome-2-8 Shibakoen, Minato City, Tokyo',
       lat: 35.6586,
@@ -511,7 +511,7 @@ describe('<TripWorkspacePage>', () => {
       expect(JSON.parse(apiMock.history.post[0].data as string)).toMatchObject({
         category: 'ACTIVITY',
         title: 'Tokyo Tower',
-        mapboxId: 'mapbox.tokyo-tower',
+        mapboxId: 'google.tokyo-tower',
         placeName: 'Tokyo Tower',
         address: '4 Chome-2-8 Shibakoen, Minato City, Tokyo',
         lat: 35.6586,
@@ -525,7 +525,7 @@ describe('<TripWorkspacePage>', () => {
   it('edits an existing activity', async () => {
     const placedActivity = {
       ...SAMPLE_ACTIVITY,
-      mapboxId: 'mapbox.tsukiji',
+      mapboxId: 'google.tsukiji',
       placeName: 'Tsukiji Outer Market',
       address: 'Tsukiji, Chuo City, Tokyo',
       lat: 35.6654,
@@ -559,7 +559,7 @@ describe('<TripWorkspacePage>', () => {
     expect(JSON.parse(apiMock.history.patch[0].data as string)).toMatchObject({
       title: 'Updated sushi',
       notes: 'Updated notes',
-      mapboxId: 'mapbox.tsukiji',
+      mapboxId: 'google.tsukiji',
       placeName: 'Tsukiji Outer Market',
       address: 'Tsukiji, Chuo City, Tokyo',
       lat: 35.6654,
@@ -590,7 +590,7 @@ describe('<TripWorkspacePage>', () => {
   it('links activity location editing to the map pane and updates after selecting a place', async () => {
     const placedActivity = {
       ...SAMPLE_ACTIVITY,
-      mapboxId: 'mapbox.tsukiji',
+      mapboxId: 'google.tsukiji',
       placeName: 'Tsukiji Outer Market',
       address: 'Tsukiji, Chuo City, Tokyo',
       lat: 35.6654,
@@ -630,7 +630,7 @@ describe('<TripWorkspacePage>', () => {
       title: 'Tsukiji sushi',
       notes: 'Counter seat',
       startTime: '09:00',
-      mapboxId: 'mapbox.tokyo-tower',
+      mapboxId: 'google.tokyo-tower',
       placeName: 'Tokyo Tower',
       address: '4 Chome-2-8 Shibakoen, Minato City, Tokyo',
       lat: 35.6586,

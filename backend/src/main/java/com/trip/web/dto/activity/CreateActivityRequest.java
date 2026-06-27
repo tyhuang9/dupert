@@ -25,7 +25,7 @@ import jakarta.validation.constraints.Size;
  *
  * <p>{@code orderIndex} is omitted here; the service computes it as max + 1 for the day.
  * {@code mapboxId}, {@code placeName}, {@code address}, {@code lat}, {@code lng} are typically
- * populated by the frontend from a Mapbox search result, but the service allows null.
+ * populated by the frontend from an external place search result, but the service allows null.
  */
 public record CreateActivityRequest(
     @NotNull(message = "category is required")

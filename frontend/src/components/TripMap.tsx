@@ -1,20 +1,24 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import Map, {
-  Layer,
-  Marker,
-  NavigationControl,
-  Source,
-  type LayerProps,
-  type MapRef,
-  type ViewState,
-} from 'react-map-gl/mapbox'
-import 'mapbox-gl/dist/mapbox-gl.css'
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
+import {
+  APILoadingStatus,
+  Map,
+  Polyline,
+  useApiLoadingStatus,
+  useMap,
+  useMapsLibrary,
+  type MapCameraChangedEvent,
+} from '@vis.gl/react-google-maps'
 import { AlertCircle, Layers, LoaderCircle, MapPinned, Route } from 'lucide-react'
-import { getDrivingDirections, type DirectionsRoute } from '../api/mapboxDirections'
-import { geocodeDestination, type DestinationCoordinate } from '../api/mapboxGeocode'
+import { getDrivingDirections, type AppRoute } from '../api/googleMapsRoute'
+import { geocodeDestination, type DestinationCoordinate } from '../api/googleMapsGeocode'
 import type { Activity } from '../types/activity'
 import type { PlaceSelection } from '../types/place'
-import { mapboxAccessTroubleshooting } from '../utils/mapboxAccess'
+import {
+  googleMapsAccessTroubleshooting,
+  googleMapsApiKey,
+  googleMapsMapId,
+} from '../utils/googleMapsAccess'
 import styles from './TripMap.module.css'
 
 interface TripMapProps {
@@ -31,7 +35,7 @@ interface TripMapProps {
   onViewportContextChange?: (context: MapViewportContext) => void
 }
 
-export type MapStyleId = 'streets' | 'outdoors' | 'light' | 'dark' | 'satellite'
+export type MapStyleId = 'roadmap' | 'terrain' | 'satellite' | 'hybrid'
 
 export interface MapViewportContext {
   center: {
@@ -69,43 +73,27 @@ interface DisplayStop {
   activityId?: number
 }
 
-const DEFAULT_VIEW_STATE: ViewState = {
-  longitude: -98.5795,
-  latitude: 39.8283,
+interface MapCamera {
+  center: {
+    lat: number
+    lng: number
+  }
+  zoom: number
+}
+
+const DEFAULT_CAMERA: MapCamera = {
+  center: {
+    lat: 39.8283,
+    lng: -98.5795,
+  },
   zoom: 2.7,
-  bearing: 0,
-  pitch: 0,
-  padding: { top: 0, bottom: 0, left: 0, right: 0 },
-}
-
-const ROUTE_LINE_LAYER: LayerProps = {
-  id: 'selected-day-route',
-  type: 'line',
-  layout: {
-    'line-cap': 'round',
-    'line-join': 'round',
-  },
-  paint: {
-    'line-color': '#2563eb',
-    'line-width': 4,
-    'line-opacity': 0.82,
-  },
-}
-
-const MAPBOX_STYLE_URLS: Record<MapStyleId, string> = {
-  streets: 'mapbox://styles/mapbox/streets-v12',
-  outdoors: 'mapbox://styles/mapbox/outdoors-v12',
-  light: 'mapbox://styles/mapbox/light-v11',
-  dark: 'mapbox://styles/mapbox/dark-v11',
-  satellite: 'mapbox://styles/mapbox/satellite-streets-v12',
 }
 
 const MAP_STYLE_OPTIONS: Array<{ id: MapStyleId; label: string }> = [
-  { id: 'streets', label: 'Streets' },
-  { id: 'outdoors', label: 'Outdoors' },
-  { id: 'light', label: 'Light' },
-  { id: 'dark', label: 'Dark' },
-  { id: 'satellite', label: 'Satellite streets' },
+  { id: 'roadmap', label: 'Roadmap' },
+  { id: 'terrain', label: 'Terrain' },
+  { id: 'satellite', label: 'Satellite' },
+  { id: 'hybrid', label: 'Hybrid' },
 ]
 
 function isFiniteCoordinate(value: unknown): value is number {
@@ -178,16 +166,14 @@ function previewPlaceToDisplayStop(previewPlace: MapPreviewPlace | null | undefi
   }
 }
 
-function initialViewState(stops: DisplayStop[]): ViewState {
+function initialCamera(stops: DisplayStop[]): MapCamera {
   if (stops.length === 0) {
-    return DEFAULT_VIEW_STATE
+    return DEFAULT_CAMERA
   }
   const lat = stops.reduce((sum, stop) => sum + stop.lat, 0) / stops.length
   const lng = stops.reduce((sum, stop) => sum + stop.lng, 0) / stops.length
   return {
-    ...DEFAULT_VIEW_STATE,
-    latitude: lat,
-    longitude: lng,
+    center: { lat, lng },
     zoom: stops.length === 1 ? (stops[0].source === 'destination' ? 9 : 12) : 10,
   }
 }
@@ -200,31 +186,104 @@ function formatTravelTime(seconds: number): string {
   return remainder > 0 ? `${hours} hr ${remainder} min` : `${hours} hr`
 }
 
-export function TripMap({
+function GoogleOverlayMarker({
+  children,
+  position,
+  zIndex,
+}: {
+  children: ReactNode
+  position: { lat: number; lng: number }
+  zIndex?: number
+}) {
+  const map = useMap('trip-map')
+  const container = useMemo(() => {
+    const element = document.createElement('div')
+    element.style.position = 'absolute'
+    element.style.transform = 'translate(-50%, -50%)'
+    element.style.zIndex = String(zIndex ?? 1)
+    return element
+  }, [zIndex])
+
+  useEffect(() => {
+    if (!map) return undefined
+
+    const overlay = new google.maps.OverlayView()
+    overlay.onAdd = () => {
+      overlay.getPanes()?.overlayMouseTarget.appendChild(container)
+    }
+    overlay.draw = () => {
+      const projection = overlay.getProjection()
+      if (!projection) return
+      const point = projection.fromLatLngToDivPixel(position)
+      if (!point) return
+      container.style.left = `${point.x}px`
+      container.style.top = `${point.y}px`
+    }
+    overlay.onRemove = () => {
+      container.remove()
+    }
+    overlay.setMap(map)
+
+    return () => {
+      overlay.setMap(null)
+    }
+  }, [container, map, position])
+
+  return createPortal(children, container)
+}
+
+function TripMapFallback() {
+  return (
+    <div className={styles.fallback} role="status">
+      <span className={styles.fallbackIcon} aria-hidden="true">
+        <MapPinned size={24} />
+      </span>
+      <div>
+        <h3>Map unavailable</h3>
+        <p>Google Maps API key is not configured for this environment.</p>
+        <p className={styles.fallbackHint}>
+          Add mapped places now; they will render here when the key is available.
+        </p>
+      </div>
+    </div>
+  )
+}
+
+export function TripMap(props: TripMapProps) {
+  if (!googleMapsApiKey()) {
+    return <TripMapFallback />
+  }
+
+  return <TripMapContent {...props} />
+}
+
+function TripMapContent({
   activities,
   fallbackActivities = [],
   routeActivities = activities,
   activeActivityId = null,
   destination,
-  mapStyle = 'streets',
+  mapStyle = 'roadmap',
   onMapStyleChange,
   previewPlace = null,
   onActivityActivate,
   onActiveActivityChange,
   onViewportContextChange,
 }: TripMapProps) {
-  const token = import.meta.env.VITE_MAPBOX_TOKEN as string | undefined
-  const mapRef = useRef<MapRef | null>(null)
+  const mapId = googleMapsMapId()
+  const map = useMap('trip-map')
+  const apiLoadingStatus = useApiLoadingStatus()
+  const routesLibrary = useMapsLibrary('routes')
+  const geocodingLibrary = useMapsLibrary('geocoding')
   const [directionsState, setDirectionsState] = useState<{
     error: boolean
     key: string
-    route: DirectionsRoute | null
+    route: AppRoute | null
   }>({
     error: false,
     key: '',
     route: null,
   })
-  const [mapLoadFailed, setMapLoadFailed] = useState(false)
   const [destinationState, setDestinationState] = useState<{
     coordinate: DestinationCoordinate | null
     error: 'not-found' | 'request-failed' | null
@@ -260,7 +319,7 @@ export function TripMap({
   const destinationError =
     destinationState.key === destinationKey ? destinationState.error : null
   const destinationLoading =
-    Boolean(token && destinationKey) && destinationState.key !== destinationKey
+    Boolean(geocodingLibrary && destinationKey) && destinationState.key !== destinationKey
   const displayStops = useMemo(() => {
     let stops: DisplayStop[]
     if (selectedMappedActivities.length > 0) {
@@ -289,8 +348,8 @@ export function TripMap({
     previewDisplayStop,
     selectedMappedActivities,
   ])
-  const viewState = useMemo(
-    () => initialViewState(displayStops),
+  const camera = useMemo(
+    () => initialCamera(displayStops),
     [displayStops],
   )
   const routeKey = useMemo(
@@ -301,12 +360,15 @@ export function TripMap({
   const currentRoute = directionsState.key === routeKey ? directionsState.route : null
   const routeError = directionsState.key === routeKey && directionsState.error
   const routeLoading =
-    Boolean(token) &&
+    Boolean(routesLibrary) &&
     routeMappedActivities.length >= 2 &&
     directionsState.key !== routeKey
+  const mapLoadFailed =
+    apiLoadingStatus === APILoadingStatus.FAILED ||
+    apiLoadingStatus === APILoadingStatus.AUTH_FAILURE
   const mapNotice = useMemo(() => {
     if (mapLoadFailed) {
-      return `Mapbox map tiles could not load. ${mapboxAccessTroubleshooting()}`
+      return `Google Maps could not load. ${googleMapsAccessTroubleshooting()}`
     }
     if (selectedMappedActivities.length === 0 && destinationLoading) {
       return 'Finding trip destination...'
@@ -316,7 +378,7 @@ export function TripMap({
       destinationKey &&
       destinationError === 'request-failed'
     ) {
-      return `Mapbox could not load trip location. ${mapboxAccessTroubleshooting()}`
+      return `Google Maps could not load trip location. ${googleMapsAccessTroubleshooting()}`
     }
     if (
       selectedMappedActivities.length === 0 &&
@@ -337,17 +399,6 @@ export function TripMap({
     routeLoading,
     selectedMappedActivities.length,
   ])
-  const routeSourceData = useMemo(
-    () =>
-      currentRoute
-        ? {
-            type: 'Feature' as const,
-            properties: {},
-            geometry: currentRoute.geometry,
-          }
-        : null,
-    [currentRoute],
-  )
   const routeLegMarkers = useMemo(
     () =>
       currentRoute?.legs.flatMap((leg, index) => {
@@ -369,25 +420,22 @@ export function TripMap({
   )
   const reportViewportContext = useCallback(() => {
     if (!onViewportContextChange) return
-    const map = mapRef.current as (MapRef & {
-      getCenter?: () => { lng: number; lat: number }
-      getZoom?: () => number
-    }) | null
-    if (!map || typeof map.getCenter !== 'function') return
+    if (!map) return
     const center = map.getCenter()
+    if (!center) return
     onViewportContextChange({
-      center: { lng: center.lng, lat: center.lat },
-      zoom: typeof map.getZoom === 'function' ? map.getZoom() : undefined,
+      center: { lng: center.lng(), lat: center.lat() },
+      zoom: map.getZoom(),
     })
-  }, [onViewportContextChange])
+  }, [map, onViewportContextChange])
 
   useEffect(() => {
     const controller = new AbortController()
-    if (!token || routeMappedActivities.length < 2) {
+    if (!routesLibrary || routeMappedActivities.length < 2) {
       return () => controller.abort()
     }
 
-    void getDrivingDirections(routeMappedActivities, token, controller.signal)
+    void getDrivingDirections(routeMappedActivities, routesLibrary, controller.signal)
       .then((nextRoute) => {
         if (controller.signal.aborted) return
         setDirectionsState({ error: false, key: routeKey, route: nextRoute })
@@ -399,15 +447,15 @@ export function TripMap({
       })
 
     return () => controller.abort()
-  }, [routeKey, routeMappedActivities, token])
+  }, [routeKey, routeMappedActivities, routesLibrary])
 
   useEffect(() => {
     const controller = new AbortController()
-    if (!token || !destinationKey || destinationState.key === destinationKey) {
+    if (!geocodingLibrary || !destinationKey || destinationState.key === destinationKey) {
       return () => controller.abort()
     }
 
-    void geocodeDestination(destinationKey, token, controller.signal)
+    void geocodeDestination(destinationKey, geocodingLibrary, controller.signal)
       .then((coordinate) => {
         if (controller.signal.aborted) return
         setDestinationState({
@@ -423,17 +471,15 @@ export function TripMap({
       })
 
     return () => controller.abort()
-  }, [destinationKey, destinationState.key, token])
+  }, [destinationKey, destinationState.key, geocodingLibrary])
 
   useEffect(() => {
-    const map = mapRef.current
     if (!map || displayStops.length === 0 || !displayKey) return
 
     if (displayStops.length === 1) {
       const [stop] = displayStops
-      map.flyTo({
-        center: [stop.lng, stop.lat],
-        duration: 0,
+      map.moveCamera({
+        center: { lat: stop.lat, lng: stop.lng },
         zoom: stop.source === 'destination' ? 9 : 12,
       })
       window.requestAnimationFrame(reportViewportContext)
@@ -448,9 +494,8 @@ export function TripMap({
     const maxLat = Math.max(...lats)
 
     if (minLng === maxLng && minLat === maxLat) {
-      map.flyTo({
-        center: [minLng, minLat],
-        duration: 0,
+      map.moveCamera({
+        center: { lat: minLat, lng: minLng },
         zoom: 12,
       })
       window.requestAnimationFrame(reportViewportContext)
@@ -458,107 +503,110 @@ export function TripMap({
     }
 
     map.fitBounds(
-      [
-        [minLng, minLat],
-        [maxLng, maxLat],
-      ],
-      { duration: 0, maxZoom: 12, padding: 64 },
+      {
+        east: maxLng,
+        north: maxLat,
+        south: minLat,
+        west: minLng,
+      },
+      64,
     )
     window.requestAnimationFrame(reportViewportContext)
-  }, [displayKey, displayStops, reportViewportContext])
-
-  if (!token) {
-    return (
-      <div className={styles.fallback} role="status">
-        <span className={styles.fallbackIcon} aria-hidden="true">
-          <MapPinned size={24} />
-        </span>
-        <div>
-          <h3>Map unavailable</h3>
-          <p>Mapbox token is not configured for this environment.</p>
-          <p className={styles.fallbackHint}>
-            Add mapped places now; they will render here when the token is available.
-          </p>
-        </div>
-      </div>
-    )
-  }
+  }, [displayKey, displayStops, map, reportViewportContext])
 
   return (
     <div className={styles.mapShell}>
-      <Map
-        ref={mapRef}
-        mapboxAccessToken={token}
-        initialViewState={viewState}
-        mapStyle={MAPBOX_STYLE_URLS[mapStyle]}
-        attributionControl
-        onError={() => setMapLoadFailed(true)}
-        onLoad={reportViewportContext}
-        onMoveEnd={reportViewportContext}
-        reuseMaps
-        style={{ width: '100%', height: '100%', minHeight: '24rem' }}
+      <div
+        className={styles.mapCanvas}
+        role="region"
         aria-label={destination ? `Map for ${destination}` : 'Trip map'}
       >
-        <NavigationControl position="top-right" showCompass={false} />
-        {routeSourceData && (
-          <Source id="selected-day-route-source" type="geojson" data={routeSourceData}>
-            <Layer {...ROUTE_LINE_LAYER} />
-          </Source>
-        )}
-        {displayStops.map((stop) => (
-          <Marker
-            key={stop.id}
-            latitude={stop.lat}
-            longitude={stop.lng}
-            anchor="center"
-          >
-            {stop.source === 'destination' || stop.source === 'preview' ? (
-              <span
-                className={[
-                  styles.marker,
-                  stop.source === 'destination' ? styles.destinationMarker : styles.previewMarker,
-                ].join(' ')}
-                role="img"
-                aria-label={stop.title}
-                title={stop.title}
-              >
-                {stop.markerLabel}
-              </span>
-            ) : (
-              <button
-                type="button"
-                className={[
-                  styles.marker,
-                  activeActivityId === stop.activityId ? styles.markerActive : '',
-                ].filter(Boolean).join(' ')}
-                aria-label={`Show timeline item for stop ${stop.markerLabel}: ${stop.title}`}
-                title={stop.title}
-                onMouseEnter={() => onActiveActivityChange?.(stop.activityId ?? null)}
-                onMouseLeave={() => onActiveActivityChange?.(null)}
-                onFocus={() => onActiveActivityChange?.(stop.activityId ?? null)}
-                onBlur={() => onActiveActivityChange?.(null)}
-                onClick={() => {
-                  if (stop.activityId !== undefined) {
-                    onActivityActivate?.(stop.activityId)
-                  }
-                }}
-              >
-                {stop.markerLabel}
-              </button>
-            )}
-          </Marker>
-        ))}
-        {routeLegMarkers.map((leg) => (
-          <Marker
-            key={leg.id}
-            latitude={leg.lat}
-            longitude={leg.lng}
-            anchor="center"
-          >
-            <span className={styles.durationMarker}>{leg.label}</span>
-          </Marker>
-        ))}
-      </Map>
+        <Map
+          id="trip-map"
+          defaultCenter={camera.center}
+          defaultZoom={camera.zoom}
+          mapId={mapId}
+          mapTypeId={mapStyle}
+          clickableIcons={false}
+          disableDefaultUI={false}
+          fullscreenControl={false}
+          mapTypeControl={false}
+          streetViewControl={false}
+          zoomControl
+          gestureHandling="greedy"
+          onTilesLoaded={reportViewportContext}
+          onCameraChanged={(event: MapCameraChangedEvent) => {
+            onViewportContextChange?.({
+              center: {
+                lat: event.detail.center.lat,
+                lng: event.detail.center.lng,
+              },
+              zoom: event.detail.zoom,
+            })
+          }}
+          reuseMaps
+          style={{ width: '100%', height: '100%' }}
+        >
+          {currentRoute && currentRoute.path.length > 0 && (
+            <Polyline
+              path={currentRoute.path}
+              strokeColor="#2563eb"
+              strokeOpacity={0.82}
+              strokeWeight={4}
+            />
+          )}
+          {displayStops.map((stop) => (
+            <GoogleOverlayMarker
+              key={stop.id}
+              position={{ lat: stop.lat, lng: stop.lng }}
+              zIndex={stop.source === 'preview' ? 3 : 2}
+            >
+              {stop.source === 'destination' || stop.source === 'preview' ? (
+                <span
+                  className={[
+                    styles.marker,
+                    stop.source === 'destination' ? styles.destinationMarker : styles.previewMarker,
+                  ].join(' ')}
+                  role="img"
+                  aria-label={stop.title}
+                  title={stop.title}
+                >
+                  {stop.markerLabel}
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  className={[
+                    styles.marker,
+                    activeActivityId === stop.activityId ? styles.markerActive : '',
+                  ].filter(Boolean).join(' ')}
+                  aria-label={`Show timeline item for stop ${stop.markerLabel}: ${stop.title}`}
+                  title={stop.title}
+                  onMouseEnter={() => onActiveActivityChange?.(stop.activityId ?? null)}
+                  onMouseLeave={() => onActiveActivityChange?.(null)}
+                  onFocus={() => onActiveActivityChange?.(stop.activityId ?? null)}
+                  onBlur={() => onActiveActivityChange?.(null)}
+                  onClick={() => {
+                    if (stop.activityId !== undefined) {
+                      onActivityActivate?.(stop.activityId)
+                    }
+                  }}
+                >
+                  {stop.markerLabel}
+                </button>
+              )}
+            </GoogleOverlayMarker>
+          ))}
+          {routeLegMarkers.map((leg) => (
+            <GoogleOverlayMarker
+              key={leg.id}
+              position={{ lat: leg.lat, lng: leg.lng }}
+            >
+              <span className={styles.durationMarker}>{leg.label}</span>
+            </GoogleOverlayMarker>
+          ))}
+        </Map>
+      </div>
       {onMapStyleChange && (
         <div className={styles.mapStyleControl}>
           <button

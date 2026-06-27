@@ -1,10 +1,10 @@
 import { useId, useMemo, useState, type FormEvent } from 'react'
-import { SearchBox } from '@mapbox/search-js-react'
-import type { SearchBoxOptions, SearchBoxRetrieveResponse } from '@mapbox/search-js-core'
 import { Link, useNavigate } from 'react-router-dom'
 import { parseApiError, type ParsedApiError } from '../api/errors'
+import { GooglePlaceAutocomplete } from '../components/GooglePlaceAutocomplete'
+import type { GooglePlaceSelection } from '../components/googlePlaces'
 import { useCreateTrip } from '../hooks/useTrips'
-import { mapboxAccessTroubleshooting } from '../utils/mapboxAccess'
+import { googleMapsAccessTroubleshooting, googleMapsApiKey } from '../utils/googleMapsAccess'
 import { usePageTitle } from '../utils/usePageTitle'
 import styles from './TripsPage.module.css'
 
@@ -24,7 +24,7 @@ const EMPTY_FORM: FormState = {
   endDate: '',
 }
 
-const DESTINATION_SEARCH_OPTIONS: Partial<SearchBoxOptions> = {
+const DESTINATION_SEARCH_OPTIONS = {
   language: 'en',
 }
 
@@ -56,55 +56,8 @@ function isHttpsUrl(value: string): boolean {
   }
 }
 
-function destinationFromRetrieve(res: SearchBoxRetrieveResponse): string {
-  const feature = res.features[0]
-  if (!feature) return ''
-  const properties = feature.properties
-  const name = properties.name_preferred || properties.name || ''
-  const formatted =
-    properties.full_address ||
-    properties.place_formatted ||
-    properties.address ||
-    ''
-
-  if (name && formatted && !formatted.toLowerCase().includes(name.toLowerCase())) {
-    return `${name}, ${formatted}`
-  }
-  return formatted || name
-}
-
-function looksLikeImageUrl(value: string, keyHint = ''): boolean {
-  if (!isHttpsUrl(value)) return false
-  return (
-    /image|img|photo|picture|thumbnail|cover/i.test(keyHint) ||
-    /\.(?:avif|gif|jpe?g|png|webp)(?:[?#].*)?$/i.test(value)
-  )
-}
-
-function findFirstImageUrl(value: unknown, keyHint = ''): string | null {
-  if (typeof value === 'string') {
-    return looksLikeImageUrl(value, keyHint) ? value.trim() : null
-  }
-  if (Array.isArray(value)) {
-    for (const item of value) {
-      const found = findFirstImageUrl(item, keyHint)
-      if (found) return found
-    }
-    return null
-  }
-  if (value && typeof value === 'object') {
-    for (const [key, nestedValue] of Object.entries(value)) {
-      const found = findFirstImageUrl(nestedValue, key)
-      if (found) return found
-    }
-  }
-  return null
-}
-
-function imageUrlFromRetrieve(res: SearchBoxRetrieveResponse): string | null {
-  const feature = res.features[0]
-  if (!feature) return null
-  return findFirstImageUrl(feature.properties)
+function imageUrlFromPlace(place: GooglePlaceSelection): string | null {
+  return place.photoUrl && isHttpsUrl(place.photoUrl) ? place.photoUrl : null
 }
 
 export function NewTripPage() {
@@ -112,7 +65,7 @@ export function NewTripPage() {
 
   const navigate = useNavigate()
   const createTrip = useCreateTrip()
-  const mapboxToken = import.meta.env.VITE_MAPBOX_TOKEN as string | undefined
+  const googleMapsKey = googleMapsApiKey()
   const [form, setForm] = useState<FormState>(EMPTY_FORM)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [apiError, setApiError] = useState<ParsedApiError | null>(null)
@@ -228,39 +181,34 @@ export function NewTripPage() {
           <label className={styles.label} htmlFor={destinationId}>
             Destination
           </label>
-          {mapboxToken ? (
-            <span className={styles.destinationSearchBox}>
-              <SearchBox
-                accessToken={mapboxToken}
-                value={form.destination}
-                onChange={(nextValue) => {
-                  setField('destination', nextValue)
-                  if (!nextValue) setDestinationSearchError(null)
-                }}
-                onRetrieve={(res) => {
-                  const destination = destinationFromRetrieve(res)
-                  if (!destination) return
-                  const imageUrl = imageUrlFromRetrieve(res)
-                  setDestinationSearchError(null)
-                  setFields({
-                    destination,
-                    ...(imageUrl ? { imageUrl } : {}),
-                  })
-                }}
-                onSuggest={() => setDestinationSearchError(null)}
-                onSuggestError={() => {
-                  setDestinationSearchError(
-                    `Mapbox search failed. ${mapboxAccessTroubleshooting()}`,
-                  )
-                }}
-                onClear={() => {
-                  setDestinationSearchError(null)
-                  setField('destination', '')
-                }}
-                placeholder="Search a city, address, or region"
-                options={DESTINATION_SEARCH_OPTIONS}
-              />
-            </span>
+          {googleMapsKey ? (
+            <GooglePlaceAutocomplete
+              id={destinationId}
+              className={styles.destinationSearchBox}
+              inputClassName={styles.input}
+              inputLabel="Destination"
+              value={form.destination}
+              onValueChange={(nextValue) => {
+                setField('destination', nextValue)
+                if (!nextValue) setDestinationSearchError(null)
+              }}
+              onPlaceSelect={(place) => {
+                const destination = place.text
+                if (!destination) return
+                const imageUrl = imageUrlFromPlace(place)
+                setDestinationSearchError(null)
+                setFields({
+                  destination,
+                  ...(imageUrl ? { imageUrl } : {}),
+                })
+              }}
+              onSearchError={setDestinationSearchError}
+              placeholder="Search a city, address, or region"
+              maxLength={200}
+              disabled={isSubmitting}
+              searchFailedMessage={`Google Places search failed. ${googleMapsAccessTroubleshooting()}`}
+              options={DESTINATION_SEARCH_OPTIONS}
+            />
           ) : (
             <input
               id={destinationId}

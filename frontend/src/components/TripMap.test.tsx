@@ -2,7 +2,7 @@ import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { PropsWithChildren, ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { getDrivingDirections } from '../api/mapboxDirections'
+import { getDrivingDirections } from '../api/googleMapsRoute'
 import type { Activity } from '../types/activity'
 import { TripMap } from './TripMap'
 
@@ -10,71 +10,80 @@ const geocodeMock = vi.hoisted(() => ({
   geocodeDestination: vi.fn(),
 }))
 
+const routesLibraryMock = vi.hoisted(() => ({
+  PolylineQuality: { HIGH_QUALITY: 'HIGH_QUALITY' },
+  Route: { computeRoutes: vi.fn() },
+  TravelMode: { DRIVING: 'DRIVING' },
+}))
+
+const geocodingLibraryMock = vi.hoisted(() => ({
+  Geocoder: vi.fn(),
+  GeocoderStatus: { OK: 'OK' },
+}))
+
 const mapControlMock = vi.hoisted(() => ({
   fitBounds: vi.fn(),
-  flyTo: vi.fn(),
+  moveCamera: vi.fn(),
 }))
 
 const mapMockState = vi.hoisted(() => ({
-  onError: null as null | (() => void),
-  onLoad: null as null | (() => void),
-  onMoveEnd: null as null | (() => void),
-  mapStyle: null as null | string,
-  navigationPosition: null as null | string,
+  apiStatus: 'LOADED',
+  mapTypeId: null as null | string,
+  onCameraChanged: null as null | ((event: {
+    detail: { center: { lat: number; lng: number }; zoom: number }
+  }) => void),
+  onTilesLoaded: null as null | (() => void),
 }))
 
-vi.mock('../api/mapboxDirections', () => ({
+vi.mock('../api/googleMapsRoute', () => ({
   getDrivingDirections: vi.fn(),
 }))
 
-vi.mock('../api/mapboxGeocode', () => ({
+vi.mock('../api/googleMapsGeocode', () => ({
   geocodeDestination: geocodeMock.geocodeDestination,
 }))
 
-vi.mock('react-map-gl/mapbox', async () => {
-  const React = await import('react')
-  const MapMock = React.forwardRef<
-    unknown,
-    {
-      children?: ReactNode
-      mapStyle?: string
-      onError?: () => void
-      onLoad?: () => void
-      onMoveEnd?: () => void
-      'aria-label'?: string
-    }
-  >((props, ref) => {
-    React.useImperativeHandle(ref, () => ({
-      fitBounds: mapControlMock.fitBounds,
-      flyTo: mapControlMock.flyTo,
-      getCenter: () => ({ lng: 139.7454, lat: 35.6586 }),
-      getZoom: () => 11,
-    }))
-    mapMockState.onError = props.onError ?? null
-    mapMockState.onLoad = props.onLoad ?? null
-    mapMockState.onMoveEnd = props.onMoveEnd ?? null
-    mapMockState.mapStyle = props.mapStyle ?? null
-    return (
-      <div data-testid="map" aria-label={props['aria-label']}>
-        {props.children}
-      </div>
-    )
-  })
-  MapMock.displayName = 'MapMock'
+vi.mock('@vis.gl/react-google-maps', () => {
+  const googleMap = {
+    fitBounds: mapControlMock.fitBounds,
+    getCenter: () => ({ lat: () => 35.6586, lng: () => 139.7454 }),
+    getZoom: () => 11,
+    moveCamera: mapControlMock.moveCamera,
+  }
 
   return {
-    default: MapMock,
-    Layer: () => <div data-testid="route-layer" />,
-    Marker: ({ children }: PropsWithChildren) => (
-      <div data-testid="marker">{children}</div>
-    ),
-    NavigationControl: ({ position }: { position?: string }) => {
-      mapMockState.navigationPosition = position ?? null
-      return <div data-testid="navigation-control" />
+    APILoadingStatus: {
+      AUTH_FAILURE: 'AUTH_FAILURE',
+      FAILED: 'FAILED',
+      LOADED: 'LOADED',
+      LOADING: 'LOADING',
+      NOT_LOADED: 'NOT_LOADED',
     },
-    Source: ({ children }: PropsWithChildren) => (
-      <div data-testid="route-source">{children}</div>
+    Map: ({
+      children,
+      mapTypeId,
+      onCameraChanged,
+      onTilesLoaded,
+    }: PropsWithChildren<{
+      mapTypeId?: string
+      onCameraChanged?: typeof mapMockState.onCameraChanged
+      onTilesLoaded?: () => void
+    }>) => {
+      mapMockState.mapTypeId = mapTypeId ?? null
+      mapMockState.onCameraChanged = onCameraChanged ?? null
+      mapMockState.onTilesLoaded = onTilesLoaded ?? null
+      return <div data-testid="map">{children}</div>
+    },
+    Polyline: ({ children }: { children?: ReactNode }) => (
+      <div data-testid="route-layer">{children}</div>
     ),
+    useApiLoadingStatus: () => mapMockState.apiStatus,
+    useMap: () => googleMap,
+    useMapsLibrary: (library: string) => {
+      if (library === 'routes') return routesLibraryMock
+      if (library === 'geocoding') return geocodingLibraryMock
+      return null
+    },
   }
 })
 
@@ -87,7 +96,7 @@ const ACTIVITIES: Activity[] = [
     endTime: null,
     title: 'Tokyo Tower',
     notes: null,
-    mapboxId: 'mapbox.tokyo-tower',
+    mapboxId: 'google.tokyo-tower',
     placeName: 'Tokyo Tower',
     address: null,
     lat: 35.6586,
@@ -107,7 +116,7 @@ const ACTIVITIES: Activity[] = [
     endTime: null,
     title: 'Tsukiji Market',
     notes: null,
-    mapboxId: 'mapbox.tsukiji',
+    mapboxId: 'google.tsukiji',
     placeName: 'Tsukiji Market',
     address: null,
     lat: 35.6654,
@@ -136,29 +145,74 @@ function activityWithoutCoordinateKeys(): Activity {
   return activity as unknown as Activity
 }
 
+function installGoogleOverlayMock() {
+  class OverlayViewMock {
+    onAdd: () => void = () => {}
+    draw: () => void = () => {}
+    onRemove: () => void = () => {}
+
+    getPanes() {
+      return { overlayMouseTarget: document.body }
+    }
+
+    getProjection() {
+      return {
+        fromLatLngToDivPixel: () => ({ x: 0, y: 0 }),
+      }
+    }
+
+    setMap(map: unknown) {
+      if (map) {
+        this.onAdd()
+        this.draw()
+      } else {
+        this.onRemove()
+      }
+    }
+  }
+
+  const googleMock = { maps: { OverlayView: OverlayViewMock } }
+  Object.defineProperty(globalThis, 'google', {
+    configurable: true,
+    value: googleMock,
+  })
+  Object.defineProperty(window, 'google', {
+    configurable: true,
+    value: googleMock,
+  })
+}
+
 const directionsMock = vi.mocked(getDrivingDirections)
 
 beforeEach(() => {
-  vi.stubEnv('VITE_MAPBOX_TOKEN', 'pk.test')
+  vi.stubEnv('VITE_GOOGLE_MAPS_API_KEY', 'gmaps.test')
+  Object.defineProperty(window, 'requestAnimationFrame', {
+    configurable: true,
+    value: (callback: FrameRequestCallback) => {
+      callback(0)
+      return 1
+    },
+  })
+  Object.defineProperty(window, 'cancelAnimationFrame', {
+    configurable: true,
+    value: vi.fn(),
+  })
+  installGoogleOverlayMock()
   geocodeMock.geocodeDestination.mockResolvedValue(null)
   mapControlMock.fitBounds.mockClear()
-  mapControlMock.flyTo.mockClear()
-  mapMockState.onError = null
-  mapMockState.onLoad = null
-  mapMockState.onMoveEnd = null
-  mapMockState.mapStyle = null
-  mapMockState.navigationPosition = null
+  mapControlMock.moveCamera.mockClear()
+  mapMockState.apiStatus = 'LOADED'
+  mapMockState.mapTypeId = null
+  mapMockState.onCameraChanged = null
+  mapMockState.onTilesLoaded = null
   directionsMock.mockResolvedValue({
     distance: 2400,
     duration: 720,
-    geometry: {
-      type: 'LineString',
-      coordinates: [
-        [139.7454, 35.6586],
-        [139.7707, 35.6654],
-      ],
-    },
     legs: [{ distance: 2400, duration: 720 }],
+    path: [
+      { lat: 35.6586, lng: 139.7454 },
+      { lat: 35.6654, lng: 139.7707 },
+    ],
   })
 })
 
@@ -171,22 +225,20 @@ describe('<TripMap>', () => {
   it('renders markers, route line, and leg duration labels', async () => {
     render(<TripMap activities={ACTIVITIES} fallbackActivities={[]} destination="Tokyo" />)
 
-    expect(screen.getByTestId('map')).toHaveAttribute('aria-label', 'Map for Tokyo')
+    expect(screen.getByRole('region', { name: 'Map for Tokyo' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /stop 1: tokyo tower/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /stop 2: tsukiji market/i })).toBeInTheDocument()
 
     await waitFor(() => {
       expect(directionsMock).toHaveBeenCalledWith(
         ACTIVITIES,
-        'pk.test',
+        routesLibraryMock,
         expect.any(AbortSignal),
       )
     })
     expect(await screen.findByText('12 min')).toBeInTheDocument()
     expect(screen.getByText('12 min total · 2.4 km')).toBeInTheDocument()
     expect(screen.getByTestId('route-layer')).toBeInTheDocument()
-    expect(screen.getByTestId('navigation-control')).toBeInTheDocument()
-    expect(mapMockState.navigationPosition).toBe('top-right')
     expect(geocodeMock.geocodeDestination).not.toHaveBeenCalled()
   })
 
@@ -205,14 +257,11 @@ describe('<TripMap>', () => {
     resolveRoute({
       distance: 2400,
       duration: 720,
-      geometry: {
-        type: 'LineString',
-        coordinates: [
-          [139.7454, 35.6586],
-          [139.7707, 35.6654],
-        ],
-      },
       legs: [{ distance: 2400, duration: 720 }],
+      path: [
+        { lat: 35.6586, lng: 139.7454 },
+        { lat: 35.6654, lng: 139.7707 },
+      ],
     })
     expect(await screen.findByText('12 min total · 2.4 km')).toBeInTheDocument()
   })
@@ -245,12 +294,11 @@ describe('<TripMap>', () => {
       />,
     )
 
-    expect(screen.queryByTestId('marker')).not.toBeInTheDocument()
-    expect(screen.queryByText('No mapped stops yet. Add a place to start the map.')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /stop/i })).not.toBeInTheDocument()
     expect(screen.getByText('Map is ready')).toBeInTheDocument()
     expect(directionsMock).not.toHaveBeenCalled()
     expect(mapControlMock.fitBounds).not.toHaveBeenCalled()
-    expect(mapControlMock.flyTo).not.toHaveBeenCalled()
+    expect(mapControlMock.moveCamera).not.toHaveBeenCalled()
   })
 
   it('uses only finite activity coordinates for markers, routes, and bounds', async () => {
@@ -279,16 +327,18 @@ describe('<TripMap>', () => {
     await waitFor(() => {
       expect(directionsMock).toHaveBeenCalledWith(
         [ACTIVITIES[0], validStopAfterMalformed],
-        'pk.test',
+        routesLibraryMock,
         expect.any(AbortSignal),
       )
     })
     expect(mapControlMock.fitBounds).toHaveBeenCalledWith(
-      [
-        [139.7454, 35.6586],
-        [139.7707, 35.6654],
-      ],
-      expect.objectContaining({ maxZoom: 12, padding: 64 }),
+      {
+        east: 139.7707,
+        north: 35.6654,
+        south: 35.6586,
+        west: 139.7454,
+      },
+      64,
     )
   })
 
@@ -307,20 +357,19 @@ describe('<TripMap>', () => {
     expect(directionsMock).not.toHaveBeenCalled()
     expect(screen.queryByTestId('route-layer')).not.toBeInTheDocument()
     expect(screen.queryByText(/selected-day route/i)).not.toBeInTheDocument()
-    expect(screen.queryByText('Route needs at least two mapped stops.')).not.toBeInTheDocument()
   })
 
-  it('maps style options to Mapbox style URLs', () => {
+  it('maps style options to Google map types', () => {
     render(
       <TripMap
         activities={[]}
         fallbackActivities={[]}
         destination={null}
-        mapStyle="dark"
+        mapStyle="terrain"
       />,
     )
 
-    expect(mapMockState.mapStyle).toBe('mapbox://styles/mapbox/dark-v11')
+    expect(mapMockState.mapTypeId).toBe('terrain')
   })
 
   it('opens compact map style menu and reports selected style', async () => {
@@ -331,7 +380,7 @@ describe('<TripMap>', () => {
         activities={[]}
         fallbackActivities={[]}
         destination={null}
-        mapStyle="light"
+        mapStyle="roadmap"
         onMapStyleChange={onMapStyleChange}
       />,
     )
@@ -339,18 +388,18 @@ describe('<TripMap>', () => {
     await userEvent.click(screen.getByRole('button', { name: /map style/i }))
 
     const menu = screen.getByRole('menu', { name: /map styles/i })
-    expect(within(menu).getByRole('menuitemradio', { name: /light/i })).toHaveAttribute(
+    expect(within(menu).getByRole('menuitemradio', { name: /roadmap/i })).toHaveAttribute(
       'aria-checked',
       'true',
     )
 
-    await userEvent.click(within(menu).getByRole('menuitemradio', { name: /satellite streets/i }))
+    await userEvent.click(within(menu).getByRole('menuitemradio', { name: /hybrid/i }))
 
-    expect(onMapStyleChange).toHaveBeenCalledWith('satellite')
+    expect(onMapStyleChange).toHaveBeenCalledWith('hybrid')
     expect(screen.queryByRole('menu', { name: /map styles/i })).not.toBeInTheDocument()
   })
 
-  it('reports viewport context on load and move end', () => {
+  it('reports viewport context on tiles and camera changes', () => {
     const onViewportContextChange = vi.fn()
     render(
       <TripMap
@@ -362,7 +411,7 @@ describe('<TripMap>', () => {
     )
 
     act(() => {
-      mapMockState.onLoad?.()
+      mapMockState.onTilesLoaded?.()
     })
     expect(onViewportContextChange).toHaveBeenCalledWith({
       center: { lng: 139.7454, lat: 35.6586 },
@@ -370,9 +419,14 @@ describe('<TripMap>', () => {
     })
 
     act(() => {
-      mapMockState.onMoveEnd?.()
+      mapMockState.onCameraChanged?.({
+        detail: { center: { lat: 35.7, lng: 139.8 }, zoom: 12 },
+      })
     })
-    expect(onViewportContextChange).toHaveBeenCalledTimes(2)
+    expect(onViewportContextChange).toHaveBeenLastCalledWith({
+      center: { lat: 35.7, lng: 139.8 },
+      zoom: 12,
+    })
   })
 
   it('shows full-trip fallback markers when the selected day has no mapped stops', async () => {
@@ -382,7 +436,6 @@ describe('<TripMap>', () => {
     expect(geocodeMock.geocodeDestination).not.toHaveBeenCalled()
     expect(screen.getByRole('button', { name: /stop 1: tokyo tower/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /stop 2: tsukiji market/i })).toBeInTheDocument()
-    expect(screen.queryByText(/showing mapped stops from the full trip/i)).not.toBeInTheDocument()
 
     await waitFor(() => {
       expect(mapControlMock.fitBounds).toHaveBeenCalled()
@@ -400,16 +453,13 @@ describe('<TripMap>', () => {
 
     expect(screen.getByText('Finding trip destination...')).toBeInTheDocument()
     expect(await screen.findByRole('img', { name: /destination: tokyo, japan/i })).toBeInTheDocument()
-    expect(screen.queryByText('No mapped stops yet. Showing Tokyo, Japan.')).not.toBeInTheDocument()
     expect(directionsMock).not.toHaveBeenCalled()
 
     await waitFor(() => {
-      expect(mapControlMock.flyTo).toHaveBeenCalledWith(
-        expect.objectContaining({
-          center: [139.6503, 35.6762],
-          zoom: 9,
-        }),
-      )
+      expect(mapControlMock.moveCamera).toHaveBeenCalledWith({
+        center: { lat: 35.6762, lng: 139.6503 },
+        zoom: 9,
+      })
     })
   })
 
@@ -432,16 +482,17 @@ describe('<TripMap>', () => {
     )
 
     expect(screen.getByRole('img', { name: /search preview: tsukiji market/i })).toBeInTheDocument()
-    expect(screen.queryByRole('complementary', { name: /selected place details/i })).not.toBeInTheDocument()
     expect(screen.queryByText(/previewing selected place/i)).not.toBeInTheDocument()
 
     await waitFor(() => {
       expect(mapControlMock.fitBounds).toHaveBeenCalledWith(
-        [
-          [139.7454, 35.6586],
-          [139.7707, 35.6654],
-        ],
-        expect.objectContaining({ maxZoom: 12, padding: 64 }),
+        {
+          east: 139.7707,
+          north: 35.6654,
+          south: 35.6586,
+          west: 139.7454,
+        },
+        64,
       )
     })
     expect(directionsMock).not.toHaveBeenCalled()
@@ -475,19 +526,19 @@ describe('<TripMap>', () => {
       )
       expect(screen.queryByRole('img', { name: new RegExp(previewPlace.title, 'i') })).not.toBeInTheDocument()
     }
-    expect(screen.queryByText('No mapped stops yet. Add a place to start the map.')).not.toBeInTheDocument()
+    expect(screen.getByText('Map is ready')).toBeInTheDocument()
     expect(directionsMock).not.toHaveBeenCalled()
     expect(mapControlMock.fitBounds).not.toHaveBeenCalled()
-    expect(mapControlMock.flyTo).not.toHaveBeenCalled()
+    expect(mapControlMock.moveCamera).not.toHaveBeenCalled()
   })
 
   it('shows a clear empty map message when destination geocoding fails', async () => {
-    geocodeMock.geocodeDestination.mockRejectedValueOnce(new Error('Mapbox unavailable'))
+    geocodeMock.geocodeDestination.mockRejectedValueOnce(new Error('Google unavailable'))
 
     render(<TripMap activities={[]} fallbackActivities={[]} destination="Tokyo" />)
 
-    expect(await screen.findByText(/mapbox could not load trip location/i)).toBeInTheDocument()
-    expect(screen.getByText(/allowed URLs/i)).toBeInTheDocument()
+    expect(await screen.findByText(/google maps could not load trip location/i)).toBeInTheDocument()
+    expect(screen.getByText(/http referrer/i)).toBeInTheDocument()
     expect(directionsMock).not.toHaveBeenCalled()
   })
 
@@ -503,7 +554,6 @@ describe('<TripMap>', () => {
   it('shows a clear empty map message when there is no destination', () => {
     render(<TripMap activities={[]} fallbackActivities={[]} destination={null} />)
 
-    expect(screen.queryByText('No mapped stops yet. Add a place to start the map.')).not.toBeInTheDocument()
     expect(screen.getByText('Map is ready')).toBeInTheDocument()
     expect(geocodeMock.geocodeDestination).not.toHaveBeenCalled()
     expect(directionsMock).not.toHaveBeenCalled()
@@ -526,9 +576,9 @@ describe('<TripMap>', () => {
     const marker = screen.getByRole('button', { name: /stop 1: tokyo tower/i })
     await userEvent.hover(marker)
     expect(onActiveActivityChange).toHaveBeenCalledWith(10)
-    expect(mapControlMock.flyTo).not.toHaveBeenCalledWith(
+    expect(mapControlMock.moveCamera).not.toHaveBeenCalledWith(
       expect.objectContaining({
-        center: [139.7454, 35.6586],
+        center: { lat: 35.6586, lng: 139.7454 },
         zoom: 13,
       }),
     )
@@ -538,24 +588,22 @@ describe('<TripMap>', () => {
     expect(onActivityActivate).toHaveBeenCalledWith(10)
   })
 
-  it('shows a useful missing-token fallback', () => {
-    vi.stubEnv('VITE_MAPBOX_TOKEN', '')
+  it('shows a useful missing-key fallback', () => {
+    vi.stubEnv('VITE_GOOGLE_MAPS_API_KEY', '')
 
     render(<TripMap activities={ACTIVITIES} fallbackActivities={[]} destination="Tokyo" />)
 
-    expect(screen.getByRole('status')).toHaveTextContent(/mapbox token is not configured/i)
-    expect(screen.getByText(/they will render here when the token is available/i)).toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent(/google maps api key is not configured/i)
+    expect(screen.getByText(/they will render here when the key is available/i)).toBeInTheDocument()
     expect(directionsMock).not.toHaveBeenCalled()
   })
 
-  it('shows a Mapbox access diagnostic when map tiles fail to load', async () => {
+  it('shows a Google access diagnostic when the Maps API fails to load', async () => {
+    mapMockState.apiStatus = 'AUTH_FAILURE'
+
     render(<TripMap activities={ACTIVITIES} fallbackActivities={[]} destination="Tokyo" />)
 
-    act(() => {
-      mapMockState.onError?.()
-    })
-
-    expect(await screen.findByText(/mapbox map tiles could not load/i)).toBeInTheDocument()
-    expect(screen.getByText(/allowed URLs/i)).toBeInTheDocument()
+    expect(await screen.findByText(/google maps could not load/i)).toBeInTheDocument()
+    expect(screen.getByText(/http referrer/i)).toBeInTheDocument()
   })
 })
