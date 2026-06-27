@@ -907,9 +907,15 @@ export function TripWorkspacePage() {
   const activeEditingActivity =
     dayActivities.find((activity) => activity.id === expandedActivityId) ?? null
   const canEditTrip = tripQuery.data?.role !== 'VIEWER'
-  const placeSearchOptions = mapViewportContext?.center
-    ? { proximity: mapViewportContext.center }
-    : undefined
+  const mapCenterLat = mapViewportContext?.center?.lat
+  const mapCenterLng = mapViewportContext?.center?.lng
+  const placeSearchOptions = useMemo(
+    () =>
+      mapCenterLat !== undefined && mapCenterLng !== undefined
+        ? { proximity: { lat: mapCenterLat, lng: mapCenterLng } }
+        : undefined,
+    [mapCenterLat, mapCenterLng],
+  )
   const mapPreviewPlace = mapSearchPreview ?? placeDraft
 
   const handleSelectDay = (nextDay: string) => {

@@ -1,10 +1,74 @@
+export const GOOGLE_PLACES_AUTOCOMPLETE_URL =
+  'https://places.googleapis.com/v1/places:autocomplete'
+export const GOOGLE_PLACES_BASE_URL = 'https://places.googleapis.com/v1'
+
+export const GOOGLE_PLACES_AUTOCOMPLETE_FIELD_MASK = [
+  'suggestions.placePrediction.place',
+  'suggestions.placePrediction.placeId',
+  'suggestions.placePrediction.text.text',
+  'suggestions.placePrediction.structuredFormat.mainText.text',
+  'suggestions.placePrediction.structuredFormat.secondaryText.text',
+  'suggestions.placePrediction.types',
+].join(',')
+
+export const GOOGLE_PLACE_DETAILS_FIELD_MASK = [
+  'id',
+  'displayName',
+  'formattedAddress',
+  'location',
+  'photos',
+  'primaryType',
+  'primaryTypeDisplayName',
+  'types',
+].join(',')
+
+export const GOOGLE_PLACE_DETAILS_WITHOUT_PHOTOS_FIELD_MASK = [
+  'id',
+  'displayName',
+  'formattedAddress',
+  'location',
+  'primaryType',
+  'primaryTypeDisplayName',
+  'types',
+].join(',')
+
+type FetchImplementation = typeof fetch
+
+type AppLatLng = { lat: number; lng: number }
+type GoogleRestLatLng = { latitude: number; longitude: number }
+type FlexibleLatLng = AppLatLng | GoogleRestLatLng
+
+type FlexibleCircle =
+  | { center: FlexibleLatLng; radius: number }
+  | { circle: { center: FlexibleLatLng; radius: number } }
+
+type FlexibleRectangle =
+  | { low: FlexibleLatLng; high: FlexibleLatLng }
+  | { rectangle: { low: FlexibleLatLng; high: FlexibleLatLng } }
+
+export type GooglePlaceLocationBias = FlexibleCircle | FlexibleRectangle
+export type GooglePlaceLocationRestriction = FlexibleCircle | FlexibleRectangle
+
 export interface GooglePlaceSearchOptions {
   language?: string
   region?: string
   types?: string[]
-  proximity?: { lng: number; lat: number }
-  locationBias?: google.maps.places.LocationBias | null
-  locationRestriction?: google.maps.places.LocationRestriction | null
+  proximity?: AppLatLng
+  locationBias?: GooglePlaceLocationBias | null
+  locationRestriction?: GooglePlaceLocationRestriction | null
+}
+
+export interface GooglePlacePrediction {
+  placeId: string
+  text: string
+  mainText: string
+  secondaryText: string
+  types: string[]
+  placeResourceName: string | null
+}
+
+export interface GooglePlaceSuggestion {
+  placePrediction: GooglePlacePrediction | null
 }
 
 export interface GooglePlaceSelection {
@@ -20,20 +84,51 @@ export interface GooglePlaceSelection {
   types: string[]
 }
 
+interface GoogleText {
+  text?: string | null
+}
+
+interface GoogleAutocompletePredictionResponse {
+  place?: string | null
+  placeId?: string | null
+  text?: GoogleText | null
+  structuredFormat?: {
+    mainText?: GoogleText | null
+    secondaryText?: GoogleText | null
+  } | null
+  types?: string[] | null
+}
+
+interface GoogleAutocompleteSuggestionResponse {
+  placePrediction?: GoogleAutocompletePredictionResponse | null
+}
+
+interface GoogleAutocompleteResponse {
+  suggestions?: GoogleAutocompleteSuggestionResponse[] | null
+}
+
+interface GooglePlaceDetailsResponse {
+  id?: string | null
+  displayName?: GoogleText | null
+  formattedAddress?: string | null
+  location?: GoogleRestLatLng | null
+  photos?: Array<{ name?: string | null }> | null
+  primaryType?: string | null
+  primaryTypeDisplayName?: GoogleText | null
+  types?: string[] | null
+}
+
+interface GooglePhotoMediaResponse {
+  photoUri?: string | null
+}
+
 function isFiniteCoordinate(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value)
 }
 
-function textValue(value: google.maps.places.FormattableText | null | undefined): string {
-  return value?.toString().trim() ?? ''
-}
-
-function predictionPrimaryText(prediction: google.maps.places.PlacePrediction): string {
-  return textValue(prediction.mainText) || textValue(prediction.text) || 'Untitled place'
-}
-
-function predictionSecondaryText(prediction: google.maps.places.PlacePrediction): string {
-  return textValue(prediction.secondaryText)
+function textValue(value: string | GoogleText | null | undefined): string {
+  if (typeof value === 'string') return value.trim()
+  return value?.text?.trim() ?? ''
 }
 
 function isHttpsUrl(value: string): boolean {
@@ -44,62 +139,270 @@ function isHttpsUrl(value: string): boolean {
   }
 }
 
-export function imageUrlFromGooglePlace(place: Pick<google.maps.places.Place, 'photos'>): string | null {
-  const photos = place.photos ?? []
-  for (const photo of photos) {
-    const url = photo.getURI({ maxWidth: 1600, maxHeight: 1000 })
-    if (isHttpsUrl(url)) return url
-  }
-  return null
+function normalizeHttpsUrl(value: string | null | undefined): string | null {
+  const trimmed = value?.trim()
+  if (!trimmed) return null
+
+  const normalized = trimmed.startsWith('//') ? `https:${trimmed}` : trimmed
+  return isHttpsUrl(normalized) ? normalized : null
 }
 
-function locationFromPlace(place: Pick<google.maps.places.Place, 'location'>): { lat: number | null; lng: number | null } {
-  const location = place.location
-  if (!location) return { lat: null, lng: null }
+function restLatLng(value: FlexibleLatLng): GoogleRestLatLng | null {
+  const lat = 'latitude' in value ? value.latitude : value.lat
+  const lng = 'longitude' in value ? value.longitude : value.lng
+  if (!isFiniteCoordinate(lat) || !isFiniteCoordinate(lng)) return null
+  return { latitude: lat, longitude: lng }
+}
 
-  const lat = location.lat()
-  const lng = location.lng()
+function normalizeLocationConstraint(
+  value: GooglePlaceLocationBias | GooglePlaceLocationRestriction | null | undefined,
+):
+  | { circle: { center: GoogleRestLatLng; radius: number } }
+  | { rectangle: { low: GoogleRestLatLng; high: GoogleRestLatLng } }
+  | undefined {
+  if (!value) return undefined
+
+  const circle = 'circle' in value ? value.circle : 'center' in value ? value : null
+  if (circle) {
+    const center = restLatLng(circle.center)
+    if (!center || !isFiniteCoordinate(circle.radius)) return undefined
+    return { circle: { center, radius: circle.radius } }
+  }
+
+  const rectangle = 'rectangle' in value ? value.rectangle : 'low' in value ? value : null
+  if (!rectangle) return undefined
+
+  const low = restLatLng(rectangle.low)
+  const high = restLatLng(rectangle.high)
+  if (!low || !high) return undefined
+  return { rectangle: { low, high } }
+}
+
+function placeIdFromPrediction(prediction: GoogleAutocompletePredictionResponse): string {
+  const placeId = prediction.placeId?.trim()
+  if (placeId) return placeId
+
+  const placeResourceName = prediction.place?.trim()
+  if (!placeResourceName) return ''
+  return placeResourceName.startsWith('places/')
+    ? placeResourceName.slice('places/'.length)
+    : placeResourceName
+}
+
+function normalizePrediction(
+  prediction: GoogleAutocompletePredictionResponse | null | undefined,
+): GooglePlacePrediction | null {
+  if (!prediction) return null
+
+  const placeId = placeIdFromPrediction(prediction)
+  if (!placeId) return null
+
+  const mainText = textValue(prediction.structuredFormat?.mainText)
+  const secondaryText = textValue(prediction.structuredFormat?.secondaryText)
+  const fullText = textValue(prediction.text)
+  const fallbackText =
+    mainText && secondaryText ? `${mainText}, ${secondaryText}` : mainText || secondaryText
+
   return {
-    lat: isFiniteCoordinate(lat) ? lat : null,
-    lng: isFiniteCoordinate(lng) ? lng : null,
+    placeId,
+    text: fullText || fallbackText || 'Untitled place',
+    mainText: mainText || fullText || 'Untitled place',
+    secondaryText,
+    types: prediction.types?.filter(Boolean) ?? [],
+    placeResourceName: prediction.place?.trim() || null,
   }
 }
 
-export function googlePredictionPrimaryText(
-  prediction: google.maps.places.PlacePrediction,
-): string {
-  return predictionPrimaryText(prediction)
+function googlePlacesHeaders(apiKey: string, fieldMask: string): HeadersInit {
+  return {
+    'Content-Type': 'application/json',
+    'X-Goog-Api-Key': apiKey,
+    'X-Goog-FieldMask': fieldMask,
+  }
 }
 
-export function googlePredictionSecondaryText(
-  prediction: google.maps.places.PlacePrediction,
-): string {
-  return predictionSecondaryText(prediction)
+function assertOk(response: Response, context: string): void {
+  if (!response.ok) {
+    throw new Error(`${context} failed with ${response.status}`)
+  }
+}
+
+export function googlePredictionPrimaryText(prediction: GooglePlacePrediction): string {
+  return prediction.mainText || prediction.text || 'Untitled place'
+}
+
+export function googlePredictionSecondaryText(prediction: GooglePlacePrediction): string {
+  return prediction.secondaryText
+}
+
+export function buildGooglePlacesAutocompleteRequest(
+  query: string,
+  options: GooglePlaceSearchOptions | undefined,
+  sessionToken: string,
+) {
+  const origin = options?.proximity ? restLatLng(options.proximity) : null
+  const locationRestriction = normalizeLocationConstraint(options?.locationRestriction)
+  const locationBias =
+    locationRestriction
+      ? undefined
+      : normalizeLocationConstraint(options?.locationBias) ??
+        (origin ? { circle: { center: origin, radius: 50000 } } : undefined)
+
+  return {
+    input: query,
+    languageCode: options?.language,
+    regionCode: options?.region,
+    includedPrimaryTypes: options?.types,
+    locationBias,
+    locationRestriction,
+    origin: origin ?? undefined,
+    sessionToken,
+  }
+}
+
+export async function fetchGooglePlaceSuggestions({
+  apiKey,
+  fetchImpl = fetch,
+  options,
+  query,
+  sessionToken,
+}: {
+  apiKey: string
+  fetchImpl?: FetchImplementation
+  options?: GooglePlaceSearchOptions
+  query: string
+  sessionToken: string
+}): Promise<GooglePlaceSuggestion[]> {
+  const response = await fetchImpl(GOOGLE_PLACES_AUTOCOMPLETE_URL, {
+    method: 'POST',
+    headers: googlePlacesHeaders(apiKey, GOOGLE_PLACES_AUTOCOMPLETE_FIELD_MASK),
+    body: JSON.stringify(buildGooglePlacesAutocompleteRequest(query, options, sessionToken)),
+  })
+  assertOk(response, 'Google Places autocomplete')
+
+  const body = (await response.json()) as GoogleAutocompleteResponse
+  return (body.suggestions ?? [])
+    .map((suggestion) => ({
+      placePrediction: normalizePrediction(suggestion.placePrediction),
+    }))
+    .filter((suggestion) => suggestion.placePrediction)
+}
+
+export async function fetchGooglePlaceDetails({
+  apiKey,
+  fetchImpl = fetch,
+  includePhoto = true,
+  placeId,
+  sessionToken,
+}: {
+  apiKey: string
+  fetchImpl?: FetchImplementation
+  includePhoto?: boolean
+  placeId: string
+  sessionToken?: string | null
+}): Promise<GooglePlaceDetailsResponse> {
+  const url = new URL(`${GOOGLE_PLACES_BASE_URL}/places/${encodeURIComponent(placeId)}`)
+  if (sessionToken) {
+    url.searchParams.set('sessionToken', sessionToken)
+  }
+  const fieldMask = includePhoto
+    ? GOOGLE_PLACE_DETAILS_FIELD_MASK
+    : GOOGLE_PLACE_DETAILS_WITHOUT_PHOTOS_FIELD_MASK
+
+  const response = await fetchImpl(url.toString(), {
+    headers: googlePlacesHeaders(apiKey, fieldMask),
+  })
+  assertOk(response, 'Google Place Details')
+
+  return (await response.json()) as GooglePlaceDetailsResponse
+}
+
+export async function imageUrlFromGooglePhotoName({
+  apiKey,
+  fetchImpl = fetch,
+  photoName,
+}: {
+  apiKey: string
+  fetchImpl?: FetchImplementation
+  photoName: string | null | undefined
+}): Promise<string | null> {
+  if (!photoName) return null
+
+  const normalizedPhotoName = photoName.replace(/^\/+/, '')
+  const url = new URL(`${GOOGLE_PLACES_BASE_URL}/${normalizedPhotoName}/media`)
+  url.searchParams.set('maxWidthPx', '1600')
+  url.searchParams.set('maxHeightPx', '1000')
+  url.searchParams.set('skipHttpRedirect', 'true')
+  url.searchParams.set('key', apiKey)
+
+  try {
+    const response = await fetchImpl(url.toString())
+    if (!response.ok) return null
+
+    const body = (await response.json()) as GooglePhotoMediaResponse
+    return normalizeHttpsUrl(body.photoUri)
+  } catch {
+    return null
+  }
 }
 
 export function normalizeGooglePlace(
-  place: google.maps.places.Place,
-  prediction: google.maps.places.PlacePrediction,
+  place: GooglePlaceDetailsResponse,
+  prediction: GooglePlacePrediction,
+  photoUrl: string | null,
 ): GooglePlaceSelection {
-  const displayName = place.displayName?.trim() || predictionPrimaryText(prediction)
-  const formattedAddress = place.formattedAddress?.trim() || predictionSecondaryText(prediction) || null
-  const { lat, lng } = locationFromPlace(place)
-  const types = place.types && place.types.length > 0 ? place.types : prediction.types ?? []
+  const displayName = textValue(place.displayName) || googlePredictionPrimaryText(prediction)
+  const formattedAddress =
+    place.formattedAddress?.trim() || googlePredictionSecondaryText(prediction) || null
+  const lat = place.location?.latitude
+  const lng = place.location?.longitude
+  const types = place.types && place.types.length > 0 ? place.types : prediction.types
   const text =
     displayName && formattedAddress && !formattedAddress.toLowerCase().includes(displayName.toLowerCase())
       ? `${displayName}, ${formattedAddress}`
-      : formattedAddress || displayName || textValue(prediction.text) || 'Selected place'
+      : formattedAddress || displayName || prediction.text || 'Selected place'
 
   return {
-    id: place.id || prediction.placeId,
+    id: place.id?.trim() || prediction.placeId,
     displayName: displayName || null,
     formattedAddress,
-    lat,
-    lng,
-    photoUrl: imageUrlFromGooglePlace(place),
+    lat: isFiniteCoordinate(lat) ? lat : null,
+    lng: isFiniteCoordinate(lng) ? lng : null,
+    photoUrl,
     primaryType: place.primaryType ?? null,
-    primaryTypeDisplayName: place.primaryTypeDisplayName ?? null,
+    primaryTypeDisplayName: textValue(place.primaryTypeDisplayName) || null,
     text,
     types,
   }
+}
+
+export async function fetchGooglePlaceSelection({
+  apiKey,
+  fetchImpl = fetch,
+  includePhoto = true,
+  prediction,
+  sessionToken,
+}: {
+  apiKey: string
+  fetchImpl?: FetchImplementation
+  includePhoto?: boolean
+  prediction: GooglePlacePrediction
+  sessionToken?: string | null
+}): Promise<GooglePlaceSelection> {
+  const place = await fetchGooglePlaceDetails({
+    apiKey,
+    fetchImpl,
+    includePhoto,
+    placeId: prediction.placeId,
+    sessionToken,
+  })
+  const photoUrl = includePhoto
+    ? await imageUrlFromGooglePhotoName({
+        apiKey,
+        fetchImpl,
+        photoName: place.photos?.[0]?.name,
+      })
+    : null
+
+  return normalizeGooglePlace(place, prediction, photoUrl)
 }

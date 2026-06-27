@@ -24,7 +24,7 @@ Multiple viewers see each other's edits live (under a second) without manual ref
 - **JDK 21** (Temurin recommended). Verify: `java -version` reports `21`.
 - **Node 20+** and **npm**.
 - A **Neon** project (free tier is fine). Grab the dev-branch connection string from the Neon dashboard.
-- A **Google Maps Platform** browser API key. Enable billing plus the Maps JavaScript API, Places API, Geocoding API, and Routes API. Restrict the key by HTTP referrer to `http://localhost:3000/*` for local development and to your production origins later.
+- A **Google Maps Platform** browser API key. Enable billing plus the Maps JavaScript API and Places API (New) for map rendering and place search. The destination fallback and selected-day route line additionally use the Geocoding API and Routes API. Restrict the key by HTTP referrer to `http://localhost:3000/*` for local development and to your production origins later.
 
 No Docker, no local Postgres install, no global Gradle.
 
@@ -164,7 +164,7 @@ trip-planner/
 | `LOG_EMAIL_PEPPER` | backend | 16 random bytes (hex) for hashing emails in logs |
 | `APP_FRONTEND_ORIGIN` | backend | Exact origin allowed by CORS (e.g. `http://localhost:3000`) |
 | `APP_DEV_PASSWORD_RESET_SECRET` | backend | Local-only secret required by `/api/auth/dev/reset-password`; leave unset outside dev |
-| `VITE_GOOGLE_MAPS_API_KEY` | frontend | Public Google Maps browser key; restrict by HTTP referrer to localhost and production origins |
+| `VITE_GOOGLE_MAPS_API_KEY` | frontend | Public Google Maps browser key for Maps JavaScript and Places API (New); Geocoding/Routes are used only by optional map fallback/route features; restrict by HTTP referrer to localhost and production origins |
 | `VITE_GOOGLE_MAPS_MAP_ID` | frontend | Optional Google Maps vector map id for cloud styling |
 | `VITE_DEV_PASSWORD_RESET_SECRET` | frontend | Dev-only value sent by the login-page reset helper; match `APP_DEV_PASSWORD_RESET_SECRET` locally |
 | `NVD_API_KEY` | backend/CI | Optional but strongly recommended key for reliable OWASP Dependency-Check NVD updates |

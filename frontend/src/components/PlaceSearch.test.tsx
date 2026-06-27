@@ -9,6 +9,7 @@ const autocompleteState = vi.hoisted(() => ({
     onPlaceSelect?: (place: GooglePlaceSelection) => void
     onSearchError?: (message: string | null) => void
     onValueChange?: (value: string) => void
+    includePhoto?: boolean
     options?: GooglePlaceSearchOptions
     searchFailedMessage?: string
     selectOnFocus?: boolean
@@ -173,6 +174,12 @@ describe('<PlaceSearch>', () => {
       language: 'en',
       proximity: { lng: 139.7454, lat: 35.6586 },
     })
+  })
+
+  it('disables photo lookups for map-side search', () => {
+    render(<PlaceSearch onPlaceSelect={vi.fn()} />)
+
+    expect(autocompleteState.props?.includePhoto).toBe(false)
   })
 
   it('does not render category shortcut buttons around the Google search', () => {

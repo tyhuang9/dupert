@@ -1,9 +1,9 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { GooglePlaceAutocomplete } from './GooglePlaceAutocomplete'
 import type { GooglePlaceSearchOptions, GooglePlaceSelection } from './googlePlaces'
 import type { ActivityCategory } from '../types/activity'
 import type { PlaceSelection } from '../types/place'
-import { googleMapsAccessTroubleshooting, googleMapsApiKey } from '../utils/googleMapsAccess'
+import { googleMapsApiKey, googlePlacesAccessTroubleshooting } from '../utils/googleMapsAccess'
 import styles from './PlaceSearch.module.css'
 
 interface PlaceSearchProps {
@@ -74,6 +74,10 @@ export function PlaceSearch({
   const [value, setValue] = useState(searchValue ?? '')
   const [searchError, setSearchError] = useState<string | null>(null)
   const displayedValue = searchValue ?? value
+  const autocompleteOptions = useMemo(
+    () => ({ language: 'en', ...searchOptions }),
+    [searchOptions],
+  )
 
   if (!apiKey) {
     return (
@@ -110,10 +114,11 @@ export function PlaceSearch({
           }}
           focusKey={focusKey}
           inputLabel="Search places"
+          includePhoto={false}
           placeholder="Search restaurants, sights, hotels..."
-          searchFailedMessage={`Google Places search failed. ${googleMapsAccessTroubleshooting()}`}
+          searchFailedMessage={`Google Places search failed. ${googlePlacesAccessTroubleshooting()}`}
           selectOnFocus
-          options={{ language: 'en', ...searchOptions }}
+          options={autocompleteOptions}
         />
       </label>
       {searchError && (

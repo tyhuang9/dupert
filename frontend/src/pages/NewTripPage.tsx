@@ -4,7 +4,7 @@ import { parseApiError, type ParsedApiError } from '../api/errors'
 import { GooglePlaceAutocomplete } from '../components/GooglePlaceAutocomplete'
 import type { GooglePlaceSelection } from '../components/googlePlaces'
 import { useCreateTrip } from '../hooks/useTrips'
-import { googleMapsAccessTroubleshooting, googleMapsApiKey } from '../utils/googleMapsAccess'
+import { googleMapsApiKey, googlePlacesAccessTroubleshooting } from '../utils/googleMapsAccess'
 import { usePageTitle } from '../utils/usePageTitle'
 import styles from './TripsPage.module.css'
 
@@ -206,7 +206,7 @@ export function NewTripPage() {
               placeholder="Search a city, address, or region"
               maxLength={200}
               disabled={isSubmitting}
-              searchFailedMessage={`Google Places search failed. ${googleMapsAccessTroubleshooting()}`}
+              searchFailedMessage={`Google Places search failed. ${googlePlacesAccessTroubleshooting()}`}
               options={DESTINATION_SEARCH_OPTIONS}
             />
           ) : (

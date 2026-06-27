@@ -1,4 +1,3 @@
-import { useMapsLibrary } from '@vis.gl/react-google-maps'
 import {
   useEffect,
   useId,
@@ -9,13 +8,16 @@ import {
   type FocusEvent,
 } from 'react'
 import {
+  fetchGooglePlaceSelection,
+  fetchGooglePlaceSuggestions,
   googlePredictionPrimaryText,
   googlePredictionSecondaryText,
-  normalizeGooglePlace,
   type GooglePlaceSearchOptions,
   type GooglePlaceSelection,
+  type GooglePlaceSuggestion,
 } from './googlePlaces'
 import styles from './GooglePlaceAutocomplete.module.css'
+import { googleMapsApiKey } from '../utils/googleMapsAccess'
 
 interface GooglePlaceAutocompleteProps {
   ariaDescribedBy?: string
@@ -24,6 +26,7 @@ interface GooglePlaceAutocompleteProps {
   disabled?: boolean
   focusKey?: number
   id?: string
+  includePhoto?: boolean
   inputClassName?: string
   inputLabel?: string
   maxLength?: number
@@ -37,34 +40,12 @@ interface GooglePlaceAutocompleteProps {
   value: string
 }
 
-type PlaceSuggestion = google.maps.places.AutocompleteSuggestion
+type PlaceSuggestion = GooglePlaceSuggestion
+const AUTOCOMPLETE_DEBOUNCE_MS = 250
+const MIN_AUTOCOMPLETE_QUERY_LENGTH = 2
 
-function requestForQuery(
-  query: string,
-  options: GooglePlaceSearchOptions | undefined,
-  sessionToken: google.maps.places.AutocompleteSessionToken,
-): google.maps.places.AutocompleteRequest {
-  const request: google.maps.places.AutocompleteRequest = {
-    input: query,
-    language: options?.language,
-    locationBias: options?.locationBias ?? undefined,
-    locationRestriction: options?.locationRestriction ?? undefined,
-    origin: options?.proximity
-      ? { lat: options.proximity.lat, lng: options.proximity.lng }
-      : undefined,
-    region: options?.region,
-    sessionToken,
-    includedPrimaryTypes: options?.types,
-  }
-
-  if (!request.locationBias && options?.proximity) {
-    request.locationBias = {
-      center: { lat: options.proximity.lat, lng: options.proximity.lng },
-      radius: 50000,
-    }
-  }
-
-  return request
+function newSessionToken(): string {
+  return globalThis.crypto?.randomUUID?.() ?? `session-${Date.now()}-${Math.random().toString(36).slice(2)}`
 }
 
 export function GooglePlaceAutocomplete({
@@ -74,6 +55,7 @@ export function GooglePlaceAutocomplete({
   disabled,
   focusKey,
   id,
+  includePhoto = true,
   inputClassName,
   inputLabel = 'Search places',
   maxLength,
@@ -89,16 +71,20 @@ export function GooglePlaceAutocomplete({
   const generatedInputId = useId()
   const listboxId = useId()
   const inputId = id ?? generatedInputId
-  const placesLibrary = useMapsLibrary('places')
+  const apiKey = googleMapsApiKey()
   const inputRef = useRef<HTMLInputElement>(null)
-  const sessionTokenRef = useRef<google.maps.places.AutocompleteSessionToken | null>(null)
+  const sessionTokenRef = useRef<string | null>(null)
   const requestVersionRef = useRef(0)
+  const selectedValueRef = useRef<string | null>(null)
   const [open, setOpen] = useState(false)
   const [suggestions, setSuggestions] = useState<PlaceSuggestion[]>([])
   const query = value.trim()
 
   const visibleSuggestions = useMemo(
-    () => (query ? suggestions.filter((suggestion) => suggestion.placePrediction) : []),
+    () =>
+      query.length >= MIN_AUTOCOMPLETE_QUERY_LENGTH
+        ? suggestions.filter((suggestion) => suggestion.placePrediction)
+        : [],
     [query, suggestions],
   )
 
@@ -127,48 +113,62 @@ export function GooglePlaceAutocomplete({
   }, [focusKey])
 
   useEffect(() => {
-    if (!query) {
+    if (!query || query.length < MIN_AUTOCOMPLETE_QUERY_LENGTH) {
       requestVersionRef.current += 1
       sessionTokenRef.current = null
       onSearchError?.(null)
       return undefined
     }
 
-    if (!placesLibrary) return undefined
+    if (selectedValueRef.current === query) {
+      requestVersionRef.current += 1
+      onSearchError?.(null)
+      return undefined
+    }
+
+    if (!apiKey) return undefined
 
     const requestVersion = requestVersionRef.current + 1
     requestVersionRef.current = requestVersion
-    const sessionToken =
-      sessionTokenRef.current ?? new placesLibrary.AutocompleteSessionToken()
-    sessionTokenRef.current = sessionToken
     let cancelled = false
 
-    void placesLibrary.AutocompleteSuggestion.fetchAutocompleteSuggestions(
-      requestForQuery(query, options, sessionToken),
-    )
-      .then(({ suggestions: nextSuggestions }) => {
-        if (cancelled || requestVersionRef.current !== requestVersion) return
-        setSuggestions(nextSuggestions)
-        setOpen(true)
-        onSearchError?.(null)
+    const timeout = window.setTimeout(() => {
+      const sessionToken = sessionTokenRef.current ?? newSessionToken()
+      sessionTokenRef.current = sessionToken
+
+      void fetchGooglePlaceSuggestions({
+        apiKey,
+        options,
+        query,
+        sessionToken,
       })
-      .catch(() => {
-        if (cancelled || requestVersionRef.current !== requestVersion) return
-        setSuggestions([])
-        setOpen(false)
-        onSearchError?.(searchFailedMessage)
-      })
+        .then((nextSuggestions) => {
+          if (cancelled || requestVersionRef.current !== requestVersion) return
+          setSuggestions(nextSuggestions)
+          setOpen(true)
+          onSearchError?.(null)
+        })
+        .catch(() => {
+          if (cancelled || requestVersionRef.current !== requestVersion) return
+          setSuggestions([])
+          setOpen(false)
+          onSearchError?.(searchFailedMessage)
+        })
+    }, AUTOCOMPLETE_DEBOUNCE_MS)
 
     return () => {
       cancelled = true
+      window.clearTimeout(timeout)
     }
-  }, [onSearchError, options, placesLibrary, query, searchFailedMessage])
+  }, [apiKey, onSearchError, options, query, searchFailedMessage])
 
   const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
+    selectedValueRef.current = null
     onValueChange(event.target.value)
     setOpen(true)
-    if (!event.target.value) {
+    if (event.target.value.trim().length < MIN_AUTOCOMPLETE_QUERY_LENGTH) {
       setSuggestions([])
+      setOpen(false)
       onSearchError?.(null)
     }
   }
@@ -186,30 +186,25 @@ export function GooglePlaceAutocomplete({
     const prediction = suggestion.placePrediction
     if (!prediction) return
 
+    const sessionToken = sessionTokenRef.current
     try {
-      const place = prediction.toPlace()
-      await place.fetchFields({
-        fields: [
-          'id',
-          'displayName',
-          'formattedAddress',
-          'location',
-          'photos',
-          'primaryType',
-          'primaryTypeDisplayName',
-          'types',
-        ],
+      const selection = await fetchGooglePlaceSelection({
+        apiKey,
+        includePhoto,
+        prediction,
+        sessionToken,
       })
-      const selection = normalizeGooglePlace(place, prediction)
       onSearchError?.(null)
+      selectedValueRef.current = selection.text
       onValueChange(selection.text)
       setSuggestions([])
       setOpen(false)
-      sessionTokenRef.current = null
       inputRef.current?.blur()
       onPlaceSelect(selection)
     } catch {
       onSearchError?.(searchFailedMessage)
+    } finally {
+      sessionTokenRef.current = null
     }
   }
 

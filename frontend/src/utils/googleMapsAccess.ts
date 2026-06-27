@@ -27,5 +27,16 @@ export function googleMapsAccessTroubleshooting(): string {
     return `Open http://localhost:3000 or add ${origin} to the key's HTTP referrer restrictions.`
   }
 
-  return `Add ${origin} to the key's HTTP referrer restrictions, and confirm Maps JavaScript, Places, Geocoding, and Routes APIs are enabled.`
+  return `Add ${origin} to the key's HTTP referrer restrictions, and confirm Maps JavaScript, Places API (New), Geocoding, and Routes APIs are enabled.`
+}
+
+export function googlePlacesAccessTroubleshooting(): string {
+  const origin = currentOrigin()
+  if (!origin) return 'Check the Google Maps API key, Places API (New), and HTTP referrer restrictions.'
+
+  if (isMismatchedLocalDevOrigin()) {
+    return `Open http://localhost:3000 or add ${origin} to the key's HTTP referrer restrictions.`
+  }
+
+  return `Add ${origin} to the key's HTTP referrer restrictions, and confirm Places API (New) is enabled.`
 }
