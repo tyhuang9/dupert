@@ -764,6 +764,7 @@ export function TripWorkspacePage() {
   const [isDraggingActivity, setIsDraggingActivity] = useState(false)
   const [workspaceMode, setWorkspaceMode] = useState<WorkspaceMode>('days')
   const [sidebarPinned, setSidebarPinned] = useState(false)
+  const [sidebarCollapsedAfterTabClick, setSidebarCollapsedAfterTabClick] = useState(false)
   const [mapStyle, setMapStyle] = useState<MapStyleId>('roadmap')
   const [mapViewportContext, setMapViewportContext] = useState<MapViewportContext | null>(null)
   const [mapLocationTarget, setMapLocationTarget] = useState<MapLocationTarget | null>(null)
@@ -922,6 +923,34 @@ export function TripWorkspacePage() {
       setCalendarMonth(getMonthKey(nextDay))
       navigate(`/trips/${encodeURIComponent(publicId)}/d/${encodeURIComponent(nextDay)}`)
     }
+  }
+
+  const collapseSidebarAfterTabClick = () => {
+    setSidebarPinned(false)
+    setSidebarCollapsedAfterTabClick(true)
+  }
+
+  const openDaysMode = () => {
+    setWorkspaceMode('days')
+    collapseSidebarAfterTabClick()
+  }
+
+  const openTimelineMode = () => {
+    setWorkspaceMode('timeline')
+    collapseSidebarAfterTabClick()
+    setExpandedActivityId(null)
+    setPlaceDraft(null)
+    setMapSearchPreview(null)
+    setPendingMapPlace(null)
+  }
+
+  const openCalendarMode = () => {
+    setWorkspaceMode('calendar')
+    collapseSidebarAfterTabClick()
+    setExpandedActivityId(null)
+    setPlaceDraft(null)
+    setMapSearchPreview(null)
+    setPendingMapPlace(null)
   }
 
   const openActivityComposer = () => {
@@ -1273,7 +1302,9 @@ export function TripWorkspacePage() {
                   styles.panel,
                   styles.dayPanel,
                   sidebarPinned ? styles.dayPanelPinned : '',
+                  sidebarCollapsedAfterTabClick ? styles.dayPanelCollapsedAfterTabClick : '',
                 ].filter(Boolean).join(' ')}
+                onMouseLeave={() => setSidebarCollapsedAfterTabClick(false)}
                 aria-label="Trip workspace navigation"
               >
                 <h1 id="trip-workspace-title" className="sr-only">{tripQuery.data.name}</h1>
@@ -1284,7 +1315,10 @@ export function TripWorkspacePage() {
                     aria-pressed={sidebarPinned}
                     aria-label={sidebarPinned ? 'Unpin sidebar' : 'Pin sidebar'}
                     title={sidebarPinned ? 'Unpin sidebar' : 'Pin sidebar'}
-                    onClick={() => setSidebarPinned((current) => !current)}
+                    onClick={() => {
+                      setSidebarCollapsedAfterTabClick(false)
+                      setSidebarPinned((current) => !current)
+                    }}
                   >
                     <span className={styles.railIcon}>
                       {sidebarPinned ? (
@@ -1303,7 +1337,7 @@ export function TripWorkspacePage() {
                   <button
                     type="button"
                     aria-pressed={workspaceMode === 'days'}
-                    onClick={() => setWorkspaceMode('days')}
+                    onClick={openDaysMode}
                   >
                     <span className={styles.railIcon}>
                       <ListTodo size={19} aria-hidden="true" />
@@ -1313,13 +1347,7 @@ export function TripWorkspacePage() {
                   <button
                     type="button"
                     aria-pressed={workspaceMode === 'timeline'}
-                    onClick={() => {
-                      setWorkspaceMode('timeline')
-                      setExpandedActivityId(null)
-                      setPlaceDraft(null)
-                      setMapSearchPreview(null)
-                      setPendingMapPlace(null)
-                    }}
+                    onClick={openTimelineMode}
                   >
                     <span className={styles.railIcon}>
                       <TimelineIcon size={19} aria-hidden="true" />
@@ -1329,14 +1357,7 @@ export function TripWorkspacePage() {
                   <button
                     type="button"
                     aria-pressed={workspaceMode === 'calendar'}
-                    onClick={() => {
-                      setWorkspaceMode('calendar')
-                      setSidebarPinned(true)
-                      setExpandedActivityId(null)
-                      setPlaceDraft(null)
-                      setMapSearchPreview(null)
-                      setPendingMapPlace(null)
-                    }}
+                    onClick={openCalendarMode}
                   >
                     <span className={styles.railIcon}>
                       <CalendarDays size={19} aria-hidden="true" />
@@ -1345,19 +1366,21 @@ export function TripWorkspacePage() {
                   </button>
                 </nav>
 
-                <div className={styles.sidebarCalendarReveal}>
-                  <CompactMonthCalendar
-                    activities={allActivities}
-                    disabled={!canEditTrip || isActivityMutationPending}
-                    dragging={isDraggingActivity}
-                    endDate={tripQuery.data.endDate}
-                    monthKey={displayedCalendarMonth}
-                    onMonthChange={setCalendarMonth}
-                    onSelectDay={handleSelectDay}
-                    selectedDay={selectedDay ?? tripQuery.data.startDate}
-                    startDate={tripQuery.data.startDate}
-                  />
-                </div>
+                {workspaceMode !== 'calendar' && (
+                  <div className={styles.sidebarCalendarReveal}>
+                    <CompactMonthCalendar
+                      activities={allActivities}
+                      disabled={!canEditTrip || isActivityMutationPending}
+                      dragging={isDraggingActivity}
+                      endDate={tripQuery.data.endDate}
+                      monthKey={displayedCalendarMonth}
+                      onMonthChange={setCalendarMonth}
+                      onSelectDay={handleSelectDay}
+                      selectedDay={selectedDay ?? tripQuery.data.startDate}
+                      startDate={tripQuery.data.startDate}
+                    />
+                  </div>
+                )}
 
                 <div className={styles.railSpacer} />
                 <div className={styles.railFooter}>
@@ -1414,19 +1437,23 @@ export function TripWorkspacePage() {
                 <div className={styles.timelineHeader}>
                   <div>
                     <p className={styles.panelKicker}>
-                      {workspaceMode === 'timeline'
-                        ? tripQuery.data.name
-                        : selectedDayIndex > 0
+                      {workspaceMode === 'days' && selectedDayIndex > 0
                           ? `Day ${selectedDayIndex} of ${tripDays.length}`
                           : tripQuery.data.name}
                     </p>
                     <h2 id="timeline-panel-title" className={styles.panelTitle}>
-                      {workspaceMode === 'timeline' ? 'Full Trip Timeline' : formatReadableDate(selectedDay)}
+                      {workspaceMode === 'timeline'
+                        ? 'Full Trip Timeline'
+                        : workspaceMode === 'calendar'
+                          ? 'Trip Calendar'
+                          : formatReadableDate(selectedDay)}
                     </h2>
                     <p className={styles.panelDescription}>
                       {workspaceMode === 'timeline'
                         ? `${pluralize(totalActivities, 'activity', 'activities')} across ${pluralize(timelineGroups.length, 'day')}`
-                        : `${tripQuery.data.destination || 'Destination TBD'} · ${pluralize(dayActivities.length, 'activity', 'activities')} scheduled today · ${selectedDayMappedCount} mapped`}
+                        : workspaceMode === 'calendar'
+                          ? `${tripQuery.data.destination || 'Destination TBD'} · ${pluralize(totalActivities, 'activity', 'activities')} across ${pluralize(tripDays.length, 'day')}`
+                          : `${tripQuery.data.destination || 'Destination TBD'} · ${pluralize(dayActivities.length, 'activity', 'activities')} scheduled today · ${selectedDayMappedCount} mapped`}
                     </p>
                   </div>
                   <div className={styles.timelineHeaderActions}>
@@ -1437,7 +1464,7 @@ export function TripWorkspacePage() {
                         </span>
                       ))}
                     </div>
-                    {canEditTrip && workspaceMode !== 'timeline' && (
+                    {canEditTrip && workspaceMode === 'days' && (
                       <button
                         type="button"
                         className={styles.addActivityButton}
@@ -1463,7 +1490,7 @@ export function TripWorkspacePage() {
                         {parseApiError(mutationError).topMessage}
                       </p>
                     )}
-                    {workspaceMode !== 'timeline' ? (
+                    {workspaceMode === 'days' ? (
                       <>
                         <div className={styles.sectionHeader}>
                           <h3 className={styles.sectionTitle}>Day schedule</h3>
@@ -1500,6 +1527,24 @@ export function TripWorkspacePage() {
                           </div>
                         )}
                       </>
+                    ) : workspaceMode === 'calendar' && tripQuery.data ? (
+                      <div className={styles.calendarMode}>
+                        <CompactMonthCalendar
+                          activities={allActivities}
+                          disabled={!canEditTrip || isActivityMutationPending}
+                          dragging={isDraggingActivity}
+                          endDate={tripQuery.data.endDate}
+                          monthKey={displayedCalendarMonth}
+                          onMonthChange={setCalendarMonth}
+                          onSelectDay={handleSelectDay}
+                          selectedDay={selectedDay ?? tripQuery.data.startDate}
+                          startDate={tripQuery.data.startDate}
+                        />
+                        <p className={styles.calendarSelectionMeta}>
+                          {formatReadableDate(selectedDay)} ·{' '}
+                          {pluralize(dayActivities.length, 'activity', 'activities')} scheduled
+                        </p>
+                      </div>
                     ) : (
                       <div className={styles.fullTimeline} aria-label="Trip days timeline">
                         {timelineGroups.length > 0 ? (

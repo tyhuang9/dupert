@@ -180,6 +180,13 @@
   box-shadow: var(--shadow-lg);
 }
 
+.dayPanelCollapsedAfterTabClick,
+.dayPanelCollapsedAfterTabClick:hover,
+.dayPanelCollapsedAfterTabClick:focus-within {
+  width: var(--sidebar-rail-width);
+  box-shadow: none;
+}
+
 .sidebarCalendarReveal {
   display: none;
   padding: 0 var(--space-2) var(--space-1);
@@ -189,6 +196,10 @@
 .dayPanel:focus-within .sidebarCalendarReveal,
 .dayPanelPinned .sidebarCalendarReveal {
   display: block;
+}
+
+.dayPanelCollapsedAfterTabClick .sidebarCalendarReveal {
+  display: none;
 }
 
 .tripIdentity {
@@ -347,6 +358,10 @@
 .dayPanel:focus-within .railLabel,
 .dayPanelPinned .railLabel {
   opacity: 1;
+}
+
+.dayPanelCollapsedAfterTabClick .railLabel {
+  opacity: 0;
 }
 
 .calendarCard {
@@ -840,13 +855,13 @@
 
 .fullTimeline {
   display: grid;
-  gap: var(--space-8);
+  gap: var(--space-4);
 }
 
 .timelineDayGroup {
   display: grid;
-  gap: var(--space-2);
-  padding: var(--space-1) var(--space-1) var(--space-2);
+  gap: var(--space-1);
+  padding: 0 var(--space-1) var(--space-1);
   border-radius: var(--radius-md);
   transition:
     background-color var(--transition-base),
@@ -867,8 +882,8 @@
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  gap: var(--space-3);
-  padding: 0 var(--space-1) var(--space-2);
+  gap: var(--space-2);
+  padding: 0 var(--space-1) var(--space-1);
 }
 
 .timelineDayHeader h3 {
@@ -894,7 +909,7 @@
 
 .timelineDayActivities {
   display: grid;
-  gap: 2px;
+  gap: 0;
   padding: 0;
   margin: 0;
   list-style: none;
@@ -923,12 +938,12 @@
 
 .timelineActivityButton {
   width: 100%;
-  min-height: 64px;
+  min-height: 56px;
   display: grid;
   grid-template-columns: 44px minmax(0, 1fr) auto;
   align-items: center;
-  gap: var(--space-3);
-  padding: var(--space-2);
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2);
   border: 0;
   border-radius: var(--radius-md);
   background: transparent;
@@ -961,8 +976,8 @@
 }
 
 .timelineActivityIcon {
-  width: 40px;
-  height: 40px;
+  width: 36px;
+  height: 36px;
   display: inline-grid;
   place-items: center;
   border-radius: var(--radius-md);
@@ -1007,6 +1022,32 @@
 .emptyTimelineDay {
   margin: 0;
   padding: var(--space-2) var(--space-1);
+}
+
+.calendarMode {
+  display: grid;
+  gap: var(--space-3);
+  max-width: 34rem;
+}
+
+.calendarMode .calendarCard {
+  gap: var(--space-3);
+  padding: var(--space-3);
+}
+
+.calendarMode .calendarGrid {
+  gap: var(--space-2);
+}
+
+.calendarMode .calendarDay {
+  min-height: 44px;
+}
+
+.calendarSelectionMeta {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-weight: 700;
 }
 
 .mapPanel {

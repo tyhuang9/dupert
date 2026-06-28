@@ -11,6 +11,7 @@ const autocompleteState = vi.hoisted(() => ({
     onValueChange?: (value: string) => void
     includePhoto?: boolean
     options?: GooglePlaceSearchOptions
+    placeholder?: string
     searchFailedMessage?: string
     selectOnFocus?: boolean
     value?: string
@@ -23,6 +24,7 @@ vi.mock('./GooglePlaceAutocomplete', () => ({
     return (
       <input
         aria-label={props?.inputLabel}
+        placeholder={props?.placeholder}
         value={props?.value ?? ''}
         onChange={(event) => props?.onValueChange?.(event.target.value)}
         onFocus={(event) => {
@@ -148,6 +150,13 @@ describe('<PlaceSearch>', () => {
 
     expect(autocompleteState.props?.value).toBe('160 Piccadilly')
     expect(screen.getByLabelText(/search places/i)).toHaveValue('160 Piccadilly')
+  })
+
+  it('uses a short search placeholder', () => {
+    render(<PlaceSearch onPlaceSelect={vi.fn()} />)
+
+    expect(autocompleteState.props?.placeholder).toBe('Search')
+    expect(screen.getByPlaceholderText('Search')).toBeInTheDocument()
   })
 
   it('selects the full search value when the input receives focus', async () => {

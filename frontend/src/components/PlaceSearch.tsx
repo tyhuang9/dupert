@@ -115,7 +115,7 @@ export function PlaceSearch({
           focusKey={focusKey}
           inputLabel="Search places"
           includePhoto={false}
-          placeholder="Search restaurants, sights, hotels..."
+          placeholder="Search"
           searchFailedMessage={`Google Places search failed. ${googlePlacesAccessTroubleshooting()}`}
           selectOnFocus
           options={autocompleteOptions}

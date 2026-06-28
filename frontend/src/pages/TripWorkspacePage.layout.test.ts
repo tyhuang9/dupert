@@ -85,16 +85,19 @@ describe('TripWorkspacePage layout scroll contract', () => {
   })
 
   it('keeps full-trip timeline groups and entries visually seamless', () => {
+    const fullTimelineBlock = cssBlocks(workspaceCss, '.fullTimeline')[0] ?? ''
     const dayGroupBlock = cssBlocks(workspaceCss, '.timelineDayGroup')[0] ?? ''
     const activityButtonBlock =
       cssBlocks(workspaceCss, '.timelineActivityButton').find((block) =>
         /grid-template-columns/.test(block),
       ) ?? ''
 
+    expect(fullTimelineBlock).toMatch(/gap:\s*var\(--space-4\)/)
     expect(dayGroupBlock).not.toMatch(/border:/)
     expect(dayGroupBlock).not.toMatch(/box-shadow:/)
     expect(dayGroupBlock).not.toMatch(/background:/)
     expect(activityButtonBlock).toMatch(/grid-template-columns:\s*44px minmax\(0,\s*1fr\) auto/)
+    expect(activityButtonBlock).toMatch(/min-height:\s*56px/)
     expect(activityButtonBlock).toMatch(/border:\s*0/)
     expect(activityButtonBlock).toMatch(/background:\s*transparent/)
     expect(activityButtonBlock).not.toMatch(/box-shadow:/)

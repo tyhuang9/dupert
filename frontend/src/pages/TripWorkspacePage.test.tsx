@@ -239,17 +239,50 @@ describe('<TripWorkspacePage>', () => {
     expect(screen.getByRole('button', { name: /^days$/i })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByRole('button', { name: /^timeline$/i })).toHaveAttribute('aria-pressed', 'false')
     expect(screen.getByRole('button', { name: /^calendar$/i })).toHaveAttribute('aria-pressed', 'false')
+    expect(await screen.findByText(/no activities planned for this day/i)).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: /^calendar$/i }))
     expect(screen.getByRole('button', { name: /^calendar$/i })).toHaveAttribute('aria-pressed', 'true')
-    expect(screen.getByRole('button', { name: /^unpin sidebar$/i })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: /^pin sidebar$/i })).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getByRole('heading', { name: /trip calendar/i })).toBeInTheDocument()
+    expect(screen.getByText(/0 activities across 5 days/i)).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: /day schedule/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /^notes$/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /^map$/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: /search results/i })).not.toBeInTheDocument()
     expect(screen.queryByText(/ready to add/i)).not.toBeInTheDocument()
-    expect(await screen.findByText(/no activities planned for this day/i)).toBeInTheDocument()
     expect(screen.queryByLabelText(/^title$/i)).not.toBeInTheDocument()
     expect(screen.queryByLabelText(/day note/i)).not.toBeInTheDocument()
     expect(screen.queryByLabelText(/selected day summary/i)).not.toBeInTheDocument()
+  })
+
+  it('collapses the pinned sidebar when a workspace tab is selected', async () => {
+    mockWorkspace()
+
+    renderWorkspace('/trips/abc234def567')
+
+    await screen.findByRole('heading', { level: 1, name: /tokyo 2026/i })
+    await userEvent.click(screen.getByRole('button', { name: /^pin sidebar$/i }))
+    expect(screen.getByRole('button', { name: /^unpin sidebar$/i })).toHaveAttribute('aria-pressed', 'true')
+
+    await userEvent.click(screen.getByRole('button', { name: /^timeline$/i }))
+
+    expect(screen.getByRole('button', { name: /^pin sidebar$/i })).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getByRole('button', { name: /^timeline$/i })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('heading', { name: /full trip timeline/i })).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: /^pin sidebar$/i }))
+    await userEvent.click(screen.getByRole('button', { name: /^calendar$/i }))
+
+    expect(screen.getByRole('button', { name: /^pin sidebar$/i })).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getByRole('button', { name: /^calendar$/i })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('heading', { name: /trip calendar/i })).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: /^pin sidebar$/i }))
+    await userEvent.click(screen.getByRole('button', { name: /^days$/i }))
+
+    expect(screen.getByRole('button', { name: /^pin sidebar$/i })).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getByRole('button', { name: /^days$/i })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('heading', { name: /friday, may 1/i })).toBeInTheDocument()
   })
 
   it('shows deep-linked day when /d/:day is present', async () => {
