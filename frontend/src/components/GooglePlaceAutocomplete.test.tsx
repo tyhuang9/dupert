@@ -9,7 +9,10 @@ import {
   GOOGLE_PLACES_AUTOCOMPLETE_FIELD_MASK,
   GOOGLE_PLACES_AUTOCOMPLETE_URL,
   GOOGLE_PLACES_BASE_URL,
+  GOOGLE_PLACES_TEXT_SEARCH_FIELD_MASK,
+  GOOGLE_PLACES_TEXT_SEARCH_URL,
   fetchGooglePlaceSelection,
+  fetchGooglePlaceTextSearch,
   imageUrlFromGooglePhotoName,
   normalizeGooglePlace,
   type GooglePlacePrediction,
@@ -103,11 +106,13 @@ function Harness({
   initialValue = '',
   onPlaceSelect = vi.fn(),
   onSearchError = vi.fn(),
+  onSearchSubmit,
   selectOnFocus = false,
 }: {
   initialValue?: string
   onPlaceSelect?: (place: GooglePlaceSelection) => void
   onSearchError?: (message: string | null) => void
+  onSearchSubmit?: (query: string) => Promise<void> | void
   selectOnFocus?: boolean
 }) {
   const [value, setValue] = useState(initialValue)
@@ -118,6 +123,7 @@ function Harness({
       onValueChange={setValue}
       onPlaceSelect={onPlaceSelect}
       onSearchError={onSearchError}
+      onSearchSubmit={onSearchSubmit}
       options={{ language: 'en', proximity: { lat: 35.6586, lng: 139.7454 } }}
       placeholder="Search"
       searchFailedMessage="Google Places failed."
@@ -164,16 +170,24 @@ describe('<GooglePlaceAutocomplete>', () => {
 
     await waitFor(() => {
       expect(onPlaceSelect).toHaveBeenCalledWith({
+        businessStatus: null,
+        currentOpeningHours: null,
         displayName: 'Tokyo Tower',
         formattedAddress: '4 Chome-2-8 Shibakoen, Minato City, Tokyo',
+        googleMapsUri: null,
         id: 'google.tokyo-tower',
         lat: 35.6586,
         lng: 139.7454,
         photoUrl: 'https://example.com/tokyo-tower.webp',
         primaryType: 'tourist_attraction',
         primaryTypeDisplayName: 'Tourist attraction',
+        rating: null,
+        regularOpeningHours: null,
+        reviews: [],
         text: 'Tokyo Tower, 4 Chome-2-8 Shibakoen, Minato City, Tokyo',
         types: ['tourist_attraction'],
+        userRatingCount: null,
+        websiteUri: null,
       })
     })
     expect(screen.getByLabelText(/destination/i)).toHaveValue(
@@ -277,6 +291,49 @@ describe('<GooglePlaceAutocomplete>', () => {
     expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
   })
 
+  it('shows at most four suggestions', async () => {
+    fetchMock.mockImplementation(async (input) => {
+      if (input.toString() === GOOGLE_PLACES_AUTOCOMPLETE_URL) {
+        return jsonResponse({
+          suggestions: Array.from({ length: 5 }, (_, index) => ({
+            placePrediction: {
+              place: `places/google.place-${index + 1}`,
+              placeId: `google.place-${index + 1}`,
+              text: { text: `Place ${index + 1}, Tokyo` },
+              structuredFormat: {
+                mainText: { text: `Place ${index + 1}` },
+                secondaryText: { text: 'Tokyo' },
+              },
+              types: ['tourist_attraction'],
+            },
+          })),
+        })
+      }
+      return responseFor(input)
+    })
+
+    render(<Harness />)
+
+    await userEvent.type(screen.getByLabelText(/destination/i), 'Tokyo')
+
+    await waitFor(() => {
+      expect(screen.getAllByRole('option')).toHaveLength(4)
+    })
+    expect(screen.getByRole('button', { name: /place 4/i })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /place 5/i })).not.toBeInTheDocument()
+  })
+
+  it('submits the typed query on Enter', async () => {
+    const onSearchSubmit = vi.fn()
+    render(<Harness onSearchSubmit={onSearchSubmit} />)
+
+    const input = screen.getByLabelText(/destination/i)
+    await userEvent.type(input, 'Ramen')
+    await userEvent.keyboard('{Enter}')
+
+    expect(onSearchSubmit).toHaveBeenCalledWith('Ramen')
+  })
+
   it('selects all text on focus when configured', async () => {
     render(<Harness initialValue="160 Piccadilly" selectOnFocus />)
 
@@ -369,14 +426,95 @@ describe('Google place normalization', () => {
     }
 
     expect(normalizeGooglePlace({}, prediction, null)).toMatchObject({
+      businessStatus: null,
+      currentOpeningHours: null,
       displayName: 'Tokyo Tower',
       formattedAddress: 'Minato City, Tokyo',
+      googleMapsUri: null,
       id: 'google.tokyo-tower',
       lat: null,
       lng: null,
       photoUrl: null,
+      rating: null,
+      regularOpeningHours: null,
+      reviews: [],
       text: 'Tokyo Tower, Minato City, Tokyo',
       types: ['tourist_attraction'],
+      userRatingCount: null,
+      websiteUri: null,
+    })
+  })
+
+  it('fetches text search results for map search details', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({
+      places: [{
+        businessStatus: 'OPERATIONAL',
+        currentOpeningHours: { openNow: true },
+        displayName: { text: 'Ramen Street' },
+        formattedAddress: 'Tokyo Station, Tokyo',
+        googleMapsUri: 'https://maps.google.com/?cid=ramen',
+        id: 'google.ramen-street',
+        location: { latitude: 35.6812, longitude: 139.7671 },
+        name: 'places/google.ramen-street',
+        primaryType: 'restaurant',
+        primaryTypeDisplayName: { text: 'Restaurant' },
+        rating: 4.4,
+        regularOpeningHours: {
+          weekdayDescriptions: ['Friday: 10:00 AM – 10:00 PM'],
+        },
+        reviews: [{
+          authorAttribution: { displayName: 'Aya' },
+          rating: 5,
+          relativePublishTimeDescription: '2 weeks ago',
+          text: { text: 'Excellent ramen.' },
+        }],
+        types: ['restaurant'],
+        userRatingCount: 1200,
+      }],
+    }))
+
+    await expect(
+      fetchGooglePlaceTextSearch({
+        apiKey: 'gmaps.test',
+        options: { proximity: { lat: 35.6586, lng: 139.7454 } },
+        query: 'ramen near tokyo station',
+      }),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        businessStatus: 'OPERATIONAL',
+        currentOpeningHours: { openNow: true, weekdayDescriptions: [] },
+        displayName: 'Ramen Street',
+        formattedAddress: 'Tokyo Station, Tokyo',
+        googleMapsUri: 'https://maps.google.com/?cid=ramen',
+        lat: 35.6812,
+        lng: 139.7671,
+        rating: 4.4,
+        regularOpeningHours: {
+          openNow: null,
+          weekdayDescriptions: ['Friday: 10:00 AM – 10:00 PM'],
+        },
+        reviews: [{
+          authorName: 'Aya',
+          rating: 5,
+          relativePublishTimeDescription: '2 weeks ago',
+          text: 'Excellent ramen.',
+        }],
+        userRatingCount: 1200,
+      }),
+    ])
+
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(url).toBe(GOOGLE_PLACES_TEXT_SEARCH_URL)
+    expect(init).toMatchObject({
+      method: 'POST',
+      headers: {
+        'X-Goog-Api-Key': 'gmaps.test',
+        'X-Goog-FieldMask': GOOGLE_PLACES_TEXT_SEARCH_FIELD_MASK,
+      },
+    })
+    expect(JSON.parse(String((init as RequestInit).body))).toMatchObject({
+      pageSize: 4,
+      textQuery: 'ramen near tokyo station',
     })
   })
 })

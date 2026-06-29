@@ -498,6 +498,53 @@ describe('<TripMap>', () => {
     expect(directionsMock).not.toHaveBeenCalled()
   })
 
+  it('renders clickable search result markers with a selected state', async () => {
+    const onSearchResultSelect = vi.fn()
+
+    render(
+      <TripMap
+        activities={[ACTIVITIES[0]]}
+        fallbackActivities={[]}
+        destination="Tokyo"
+        searchResults={[{
+          address: '1 Chome Marunouchi, Tokyo',
+          coordinatesLabel: '35.68120, 139.76710',
+          featureType: 'restaurant',
+          lat: 35.6812,
+          lng: 139.7671,
+          mapboxId: 'google.ramen-street',
+          placeCategory: 'Restaurant',
+          placeName: 'Ramen Street',
+          title: 'Ramen Street',
+        }]}
+        selectedSearchResultId="google.ramen-street"
+        onSearchResultSelect={onSearchResultSelect}
+      />,
+    )
+
+    const marker = screen.getByRole('button', {
+      name: /show place details for search result 1: ramen street/i,
+    })
+    expect(marker).toBeInTheDocument()
+    await userEvent.click(marker)
+
+    expect(onSearchResultSelect).toHaveBeenCalledWith(expect.objectContaining({
+      mapboxId: 'google.ramen-street',
+      placeName: 'Ramen Street',
+    }))
+    await waitFor(() => {
+      expect(mapControlMock.fitBounds).toHaveBeenCalledWith(
+        {
+          east: 139.7671,
+          north: 35.6812,
+          south: 35.6586,
+          west: 139.7454,
+        },
+        64,
+      )
+    })
+  })
+
   it('ignores preview places without finite coordinates', () => {
     const invalidPreviewPlaces = [
       { title: 'Null Preview', lat: null, lng: 139.7707 },

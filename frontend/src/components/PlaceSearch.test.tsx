@@ -8,6 +8,7 @@ const autocompleteState = vi.hoisted(() => ({
     inputLabel?: string
     onPlaceSelect?: (place: GooglePlaceSelection) => void
     onSearchError?: (message: string | null) => void
+    onSearchSubmit?: (query: string) => Promise<void> | void
     onValueChange?: (value: string) => void
     includePhoto?: boolean
     options?: GooglePlaceSearchOptions
@@ -27,6 +28,11 @@ vi.mock('./GooglePlaceAutocomplete', () => ({
         placeholder={props?.placeholder}
         value={props?.value ?? ''}
         onChange={(event) => props?.onValueChange?.(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter') {
+            void props?.onSearchSubmit?.(event.currentTarget.value)
+          }
+        }}
         onFocus={(event) => {
           if (props?.selectOnFocus) event.currentTarget.select()
         }}
@@ -37,16 +43,24 @@ vi.mock('./GooglePlaceAutocomplete', () => ({
 
 function googlePlace(overrides: Partial<GooglePlaceSelection> = {}): GooglePlaceSelection {
   return {
+    businessStatus: null,
+    currentOpeningHours: null,
     displayName: 'Tokyo Tower',
     formattedAddress: '4 Chome-2-8 Shibakoen, Minato City, Tokyo',
+    googleMapsUri: null,
     id: 'google.tokyo-tower',
     lat: 35.6586,
     lng: 139.7454,
     photoUrl: null,
     primaryType: 'tourist_attraction',
     primaryTypeDisplayName: 'Tourist attraction',
+    rating: null,
+    regularOpeningHours: null,
+    reviews: [],
     text: 'Tokyo Tower, 4 Chome-2-8 Shibakoen, Minato City, Tokyo',
     types: ['tourist_attraction'],
+    userRatingCount: null,
+    websiteUri: null,
     ...overrides,
   }
 }
@@ -183,6 +197,17 @@ describe('<PlaceSearch>', () => {
       language: 'en',
       proximity: { lng: 139.7454, lat: 35.6586 },
     })
+  })
+
+  it('forwards Enter search submission to the parent', async () => {
+    const onSearchSubmit = vi.fn()
+    render(<PlaceSearch onPlaceSelect={vi.fn()} onSearchSubmit={onSearchSubmit} />)
+
+    await act(async () => {
+      await autocompleteState.props?.onSearchSubmit?.('Ramen')
+    })
+
+    expect(onSearchSubmit).toHaveBeenCalledWith('Ramen')
   })
 
   it('disables photo lookups for map-side search', () => {

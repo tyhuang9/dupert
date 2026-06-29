@@ -14,6 +14,10 @@ const placeSearchMockState = vi.hoisted(() => ({
   searchOptions: null as null | { proximity?: { lng: number; lat: number } },
 }))
 
+const googlePlacesMockState = vi.hoisted(() => ({
+  fetchGooglePlaceTextSearch: vi.fn(),
+}))
+
 vi.mock('../components/TripMap', () => ({
   TripMap: ({
     activeActivityId,
@@ -23,9 +27,12 @@ vi.mock('../components/TripMap', () => ({
     onActivityActivate,
     onActiveActivityChange,
     onMapStyleChange,
+    onSearchResultSelect,
     onViewportContextChange,
     previewPlace,
     routeActivities = activities,
+    searchResults = [],
+    selectedSearchResultId,
   }: {
     activeActivityId?: number | null
     activities: Array<{ id: number; title: string }>
@@ -34,9 +41,12 @@ vi.mock('../components/TripMap', () => ({
     onActivityActivate?: (activityId: number) => void
     onActiveActivityChange?: (activityId: number | null) => void
     onMapStyleChange?: (mapStyle: string) => void
+    onSearchResultSelect?: (place: Record<string, unknown>) => void
     onViewportContextChange?: (context: { center: { lng: number; lat: number }; zoom?: number }) => void
     previewPlace?: { placeName?: string | null; title?: string | null } | null
     routeActivities?: Array<{ id: number; title: string }>
+    searchResults?: Array<Record<string, unknown>>
+    selectedSearchResultId?: string | null
   }) => (
     <div data-testid="trip-map">
       <div data-testid="active-map-activity">{activeActivityId ?? 'none'}</div>
@@ -71,6 +81,16 @@ vi.mock('../components/TripMap', () => ({
       <button type="button" onClick={() => onMapStyleChange?.('satellite')}>
         Mock satellite map style
       </button>
+      <button
+        type="button"
+        onClick={() => {
+          const place = searchResults[0]
+          if (place) onSearchResultSelect?.(place)
+        }}
+      >
+        Mock select search result
+      </button>
+      <div data-testid="selected-search-result">{selectedSearchResultId ?? 'none'}</div>
       <div data-testid="selected-map-activities">
         {activities.map((activity) => (
           <span key={activity.id}>{activity.title}</span>
@@ -86,21 +106,51 @@ vi.mock('../components/TripMap', () => ({
           <span key={activity.id}>{activity.title}</span>
         ))}
       </div>
+      <div data-testid="search-map-results">
+        {searchResults.map((place) => (
+          <span key={String(place.mapboxId)}>{String(place.placeName ?? place.title)}</span>
+        ))}
+      </div>
     </div>
   ),
 }))
 
 vi.mock('../components/PlaceSearch', () => ({
+  googlePlaceToPlaceSelection: (place: Record<string, unknown>) => ({
+    businessStatus: place.businessStatus,
+    category: 'ACTIVITY',
+    currentOpeningHours: place.currentOpeningHours,
+    title: place.displayName ?? place.formattedAddress ?? 'Selected place',
+    mapboxId: place.id,
+    placeName: place.displayName,
+    address: place.formattedAddress,
+    coordinatesLabel:
+      typeof place.lat === 'number' && typeof place.lng === 'number'
+        ? `${place.lat.toFixed(5)}, ${place.lng.toFixed(5)}`
+        : null,
+    featureType: place.primaryType,
+    lat: place.lat,
+    lng: place.lng,
+    googleMapsUri: place.googleMapsUri,
+    placeCategory: place.primaryTypeDisplayName ?? place.primaryType,
+    rating: place.rating,
+    regularOpeningHours: place.regularOpeningHours,
+    reviews: place.reviews,
+    userRatingCount: place.userRatingCount,
+    websiteUri: place.websiteUri,
+  }),
   PlaceSearch: ({
     contextLabel,
     onPlaceSelect,
     onPlacePreview,
+    onSearchSubmit,
     searchValue,
     searchOptions,
   }: {
     contextLabel?: string
     onPlaceSelect: (place: Record<string, unknown>) => void
     onPlacePreview?: (place: Record<string, unknown> | null) => void
+    onSearchSubmit?: (query: string) => Promise<void> | void
     searchValue?: string
     searchOptions?: { proximity?: { lng: number; lat: number } }
   }) => {
@@ -132,9 +182,21 @@ vi.mock('../components/PlaceSearch', () => ({
         >
           Mock place search
         </button>
+        <button
+          type="button"
+          onClick={() => {
+            void onSearchSubmit?.(searchValue || 'ramen')
+          }}
+        >
+          Mock submit place search
+        </button>
       </div>
     )
   },
+}))
+
+vi.mock('../components/googlePlaces', () => ({
+  fetchGooglePlaceTextSearch: googlePlacesMockState.fetchGooglePlaceTextSearch,
 }))
 
 let apiMock: MockAdapter
@@ -202,6 +264,7 @@ function renderWorkspace(path: string) {
 }
 
 beforeEach(() => {
+  vi.stubEnv('VITE_GOOGLE_MAPS_API_KEY', 'gmaps.test')
   apiMock = new MockAdapter(apiClient)
   queryClient = new QueryClient({
     defaultOptions: {
@@ -213,11 +276,14 @@ beforeEach(() => {
     value: vi.fn(),
   })
   placeSearchMockState.searchOptions = null
+  googlePlacesMockState.fetchGooglePlaceTextSearch.mockReset()
+  googlePlacesMockState.fetchGooglePlaceTextSearch.mockResolvedValue([])
 })
 
 afterEach(() => {
   apiMock.restore()
   queryClient.clear()
+  vi.unstubAllEnvs()
 })
 
 describe('<TripWorkspacePage>', () => {
@@ -236,16 +302,11 @@ describe('<TripWorkspacePage>', () => {
     expect(screen.getByText(/Tokyo, Japan/)).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: /may 2026/i })).toBeInTheDocument()
     expect(screen.getByTitle('2026-05-01 (0 activities)')).toHaveAttribute('aria-pressed', 'true')
-    expect(screen.getByRole('button', { name: /^days$/i })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByRole('button', { name: /^timeline$/i })).toHaveAttribute('aria-pressed', 'false')
-    expect(screen.getByRole('button', { name: /^calendar$/i })).toHaveAttribute('aria-pressed', 'false')
     expect(await screen.findByText(/no activities planned for this day/i)).toBeInTheDocument()
-    await userEvent.click(screen.getByRole('button', { name: /^calendar$/i }))
-    expect(screen.getByRole('button', { name: /^calendar$/i })).toHaveAttribute('aria-pressed', 'true')
-    expect(screen.getByRole('button', { name: /^pin sidebar$/i })).toHaveAttribute('aria-pressed', 'false')
-    expect(screen.getByRole('heading', { name: /trip calendar/i })).toBeInTheDocument()
-    expect(screen.getByText(/0 activities across 5 days/i)).toBeInTheDocument()
-    expect(screen.queryByRole('heading', { name: /day schedule/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^days$/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^calendar$/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /day schedule/i })).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /^notes$/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /^map$/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: /search results/i })).not.toBeInTheDocument()
@@ -255,7 +316,7 @@ describe('<TripWorkspacePage>', () => {
     expect(screen.queryByLabelText(/selected day summary/i)).not.toBeInTheDocument()
   })
 
-  it('collapses the pinned sidebar when a workspace tab is selected', async () => {
+  it('collapses the pinned sidebar when the timeline tab is selected', async () => {
     mockWorkspace()
 
     renderWorkspace('/trips/abc234def567')
@@ -270,19 +331,8 @@ describe('<TripWorkspacePage>', () => {
     expect(screen.getByRole('button', { name: /^timeline$/i })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByRole('heading', { name: /full trip timeline/i })).toBeInTheDocument()
 
-    await userEvent.click(screen.getByRole('button', { name: /^pin sidebar$/i }))
-    await userEvent.click(screen.getByRole('button', { name: /^calendar$/i }))
-
-    expect(screen.getByRole('button', { name: /^pin sidebar$/i })).toHaveAttribute('aria-pressed', 'false')
-    expect(screen.getByRole('button', { name: /^calendar$/i })).toHaveAttribute('aria-pressed', 'true')
-    expect(screen.getByRole('heading', { name: /trip calendar/i })).toBeInTheDocument()
-
-    await userEvent.click(screen.getByRole('button', { name: /^pin sidebar$/i }))
-    await userEvent.click(screen.getByRole('button', { name: /^days$/i }))
-
-    expect(screen.getByRole('button', { name: /^pin sidebar$/i })).toHaveAttribute('aria-pressed', 'false')
-    expect(screen.getByRole('button', { name: /^days$/i })).toHaveAttribute('aria-pressed', 'true')
-    expect(screen.getByRole('heading', { name: /friday, may 1/i })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^calendar$/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^days$/i })).not.toBeInTheDocument()
   })
 
   it('shows deep-linked day when /d/:day is present', async () => {
@@ -722,6 +772,71 @@ describe('<TripWorkspacePage>', () => {
       lng: 139.7454,
       lat: 35.6586,
     })
+  })
+
+  it('submits map search, maps returned places, and shows selected place details', async () => {
+    mockWorkspace()
+    googlePlacesMockState.fetchGooglePlaceTextSearch.mockResolvedValueOnce([{
+      businessStatus: 'OPERATIONAL',
+      currentOpeningHours: {
+        openNow: true,
+        weekdayDescriptions: [],
+      },
+      displayName: 'Ramen Street',
+      formattedAddress: '1 Chome Marunouchi, Tokyo',
+      googleMapsUri: 'https://maps.google.com/?cid=ramen',
+      id: 'google.ramen-street',
+      lat: 35.6812,
+      lng: 139.7671,
+      photoUrl: null,
+      primaryType: 'restaurant',
+      primaryTypeDisplayName: 'Restaurant',
+      rating: 4.4,
+      regularOpeningHours: {
+        openNow: null,
+        weekdayDescriptions: ['Friday: 10:00 AM – 10:00 PM'],
+      },
+      reviews: [{
+        authorName: 'Aya',
+        rating: 5,
+        relativePublishTimeDescription: '2 weeks ago',
+        text: 'Excellent ramen.',
+      }],
+      text: 'Ramen Street, 1 Chome Marunouchi, Tokyo',
+      types: ['restaurant'],
+      userRatingCount: 1200,
+      websiteUri: null,
+    }])
+
+    renderWorkspace('/trips/abc234def567/d/2026-05-01')
+
+    await screen.findByTestId('trip-map')
+    await userEvent.click(screen.getByRole('button', { name: /mock submit place search/i }))
+
+    await waitFor(() => {
+      expect(googlePlacesMockState.fetchGooglePlaceTextSearch).toHaveBeenCalledWith({
+        apiKey: 'gmaps.test',
+        options: undefined,
+        query: 'ramen',
+      })
+    })
+    expect(within(screen.getByTestId('search-map-results')).getByText('Ramen Street')).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: /mock select search result/i }))
+
+    expect(screen.getByTestId('selected-search-result')).toHaveTextContent('google.ramen-street')
+    expect(screen.getByText('Search result')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /ramen street/i })).toBeInTheDocument()
+    expect(screen.getByText('Rating 4.4 (1200 reviews)')).toBeInTheDocument()
+    expect(screen.getByText('Operational')).toBeInTheDocument()
+    expect(screen.getByText('Open now')).toBeInTheDocument()
+    expect(screen.getByText('Selected day: Friday: 10:00 AM – 10:00 PM')).toBeInTheDocument()
+    expect(screen.getByText('Excellent ramen.')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /open in google maps/i })).toHaveAttribute(
+      'href',
+      'https://maps.google.com/?cid=ramen',
+    )
+    expect(screen.getByRole('button', { name: /add to trip/i })).toBeInTheDocument()
   })
 
   it('updates trip settings, warns about hidden activities, and navigates to a valid day', async () => {

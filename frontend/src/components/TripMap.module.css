@@ -55,6 +55,19 @@
   cursor: default;
 }
 
+.searchMarker {
+  border-color: #0f766e;
+  background: #0f766e;
+  color: #ffffff;
+}
+
+.searchMarker:hover,
+.searchMarkerActive {
+  border-color: var(--color-surface);
+  box-shadow: 0 0 0 6px rgba(15, 118, 110, 0.18), var(--shadow-md);
+  transform: translateY(-1px);
+}
+
 .marker:focus-visible {
   outline: var(--focus-ring-width) solid var(--focus-ring-color);
   outline-offset: var(--focus-ring-offset);
@@ -113,11 +126,11 @@
 
 .mapStyleControl {
   position: absolute;
-  top: 86px;
-  right: 10px;
+  left: var(--space-3);
+  bottom: var(--space-3);
   z-index: 4;
   display: grid;
-  justify-items: end;
+  justify-items: start;
   gap: var(--space-2);
 }
 

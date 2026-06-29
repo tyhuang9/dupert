@@ -402,16 +402,24 @@ describe('<NewTripPage>', () => {
     await userEvent.type(screen.getByLabelText(/destination/i), 'Madison')
     act(() => {
       searchBoxState.props?.onPlaceSelect?.({
+        businessStatus: null,
+        currentOpeningHours: null,
         displayName: 'Madison',
         formattedAddress: 'Wisconsin, United States',
+        googleMapsUri: null,
         id: 'google.madison',
         lat: 43.0731,
         lng: -89.4012,
         photoUrl: 'https://example.com/madison.webp',
         primaryType: 'locality',
         primaryTypeDisplayName: 'Locality',
+        rating: null,
+        regularOpeningHours: null,
+        reviews: [],
         text: 'Madison, Wisconsin, United States',
         types: ['locality'],
+        userRatingCount: null,
+        websiteUri: null,
       })
     })
 
@@ -433,16 +441,24 @@ describe('<NewTripPage>', () => {
     await userEvent.type(screen.getByLabelText(/cover image url/i), 'https://example.com/original.webp')
     act(() => {
       searchBoxState.props?.onPlaceSelect?.({
+        businessStatus: null,
+        currentOpeningHours: null,
         displayName: 'Madison',
         formattedAddress: 'Wisconsin, United States',
+        googleMapsUri: null,
         id: 'google.madison',
         lat: 43.0731,
         lng: -89.4012,
         photoUrl: 'http://example.com/insecure.webp',
         primaryType: 'locality',
         primaryTypeDisplayName: 'Locality',
+        rating: null,
+        regularOpeningHours: null,
+        reviews: [],
         text: 'Madison, Wisconsin, United States',
         types: ['locality'],
+        userRatingCount: null,
+        websiteUri: null,
       })
     })
 

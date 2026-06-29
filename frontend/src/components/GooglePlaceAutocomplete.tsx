@@ -6,6 +6,7 @@ import {
   useState,
   type ChangeEvent,
   type FocusEvent,
+  type KeyboardEvent,
 } from 'react'
 import {
   fetchGooglePlaceSelection,
@@ -30,8 +31,10 @@ interface GooglePlaceAutocompleteProps {
   inputClassName?: string
   inputLabel?: string
   maxLength?: number
+  maxSuggestions?: number
   onPlaceSelect: (place: GooglePlaceSelection) => void
   onSearchError?: (message: string | null) => void
+  onSearchSubmit?: (query: string) => Promise<void> | void
   onValueChange: (value: string) => void
   options?: GooglePlaceSearchOptions
   placeholder?: string
@@ -59,8 +62,10 @@ export function GooglePlaceAutocomplete({
   inputClassName,
   inputLabel = 'Search places',
   maxLength,
+  maxSuggestions = 4,
   onPlaceSelect,
   onSearchError,
+  onSearchSubmit,
   onValueChange,
   options,
   placeholder,
@@ -84,8 +89,9 @@ export function GooglePlaceAutocomplete({
     () =>
       query.length >= MIN_AUTOCOMPLETE_QUERY_LENGTH
         ? suggestions.filter((suggestion) => suggestion.placePrediction)
+          .slice(0, maxSuggestions)
         : [],
-    [query, suggestions],
+    [maxSuggestions, query, suggestions],
   )
 
   const scheduleSelectAll = (input: HTMLInputElement) => {
@@ -182,6 +188,20 @@ export function GooglePlaceAutocomplete({
     }
   }
 
+  const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key !== 'Enter' || event.defaultPrevented || !onSearchSubmit) return
+    if (event.nativeEvent.isComposing) return
+    const submittedQuery = query
+    if (!submittedQuery) return
+
+    event.preventDefault()
+    setOpen(false)
+    sessionTokenRef.current = null
+    void Promise.resolve(onSearchSubmit(submittedQuery)).catch(() => {
+      onSearchError?.(searchFailedMessage)
+    })
+  }
+
   const selectSuggestion = async (suggestion: PlaceSuggestion) => {
     const prediction = suggestion.placePrediction
     if (!prediction) return
@@ -217,6 +237,7 @@ export function GooglePlaceAutocomplete({
         value={value}
         onChange={handleChange}
         onFocus={handleFocus}
+        onKeyDown={handleKeyDown}
         onBlur={() => window.setTimeout(() => setOpen(false), 120)}
         maxLength={maxLength}
         disabled={disabled}

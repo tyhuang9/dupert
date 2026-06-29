@@ -11,6 +11,8 @@ import type {
 } from '@dnd-kit/core'
 import {
   BedDouble,
+  ChevronDown,
+  ChevronUp,
   Coffee,
   Landmark,
   MapPin,
@@ -146,6 +148,7 @@ export function ActivityCard({
     canDrag ? styles.cardDraggable : '',
     active ? styles.cardActive : '',
     expanded ? styles.cardExpanded : '',
+    !expanded ? styles.cardCollapsed : '',
   ].filter(Boolean).join(' ')
   const handleDelete = () => {
     setDeleteDialogOpen(true)
@@ -219,13 +222,35 @@ export function ActivityCard({
                 <span className={styles.time}>{timeDisplay.label}</span>
               ) : null}
             </div>
-
           </div>
+
+          <button
+            type="button"
+            className={styles.toggleButton}
+            onClick={toggleCard}
+            aria-label={`${expanded ? 'Collapse' : 'Expand'} ${activity.title}`}
+            title={expanded ? 'Collapse activity' : 'Expand activity'}
+          >
+            {expanded ? (
+              <ChevronUp size={16} aria-hidden="true" />
+            ) : (
+              <ChevronDown size={16} aria-hidden="true" />
+            )}
+          </button>
         </div>
       )}
 
       {expanded && !readOnly && (
         <div className={styles.editorPanel}>
+          <button
+            type="button"
+            className={styles.editorToggle}
+            onClick={toggleCard}
+            aria-label={`Collapse ${activity.title}`}
+            title="Collapse activity"
+          >
+            <ChevronUp size={16} aria-hidden="true" />
+          </button>
           <ActivityForm
             key={`activity-edit-${activity.id}`}
             initialValues={editInitialValues(activity)}

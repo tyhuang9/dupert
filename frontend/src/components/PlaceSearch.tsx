@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { GooglePlaceAutocomplete } from './GooglePlaceAutocomplete'
-import type { GooglePlaceSearchOptions, GooglePlaceSelection } from './googlePlaces'
-import type { ActivityCategory } from '../types/activity'
+import type { GooglePlaceSearchOptions } from './googlePlaces'
+import { googlePlaceToPlaceSelection } from './placeSelection'
 import type { PlaceSelection } from '../types/place'
 import { googleMapsApiKey, googlePlacesAccessTroubleshooting } from '../utils/googleMapsAccess'
 import styles from './PlaceSearch.module.css'
@@ -9,6 +9,7 @@ import styles from './PlaceSearch.module.css'
 interface PlaceSearchProps {
   onPlaceSelect: (place: PlaceSelection) => void
   onPlacePreview?: (place: PlaceSelection | null) => void
+  onSearchSubmit?: (query: string) => Promise<void> | void
   onSearchValueChange?: (value: string) => void
   contextLabel?: string
   focusKey?: number
@@ -16,54 +17,10 @@ interface PlaceSearchProps {
   searchValue?: string
 }
 
-function categoryForPlace(place: GooglePlaceSelection): ActivityCategory {
-  const categories = [
-    place.primaryType,
-    place.primaryTypeDisplayName,
-    ...place.types,
-  ]
-    .filter((value): value is string => Boolean(value))
-    .map((value) => value.toLowerCase())
-
-  if (categories.some((value) => /restaurant|food|cafe|bar|bakery|meal/.test(value))) {
-    return 'MEAL'
-  }
-  if (categories.some((value) => /hotel|lodging|motel|hostel/.test(value))) {
-    return 'LODGING'
-  }
-  if (categories.some((value) => /airport|station|transit|parking|car|rail/.test(value))) {
-    return 'TRANSPORT'
-  }
-  return 'ACTIVITY'
-}
-
-function normalizePlaceCategory(place: GooglePlaceSelection): string | null {
-  return place.primaryTypeDisplayName || place.primaryType || place.types[0] || null
-}
-
-function placePayload(place: GooglePlaceSelection): PlaceSelection {
-  const title = place.displayName || place.formattedAddress || 'Selected place'
-
-  return {
-    category: categoryForPlace(place),
-    title,
-    mapboxId: place.id,
-    placeName: place.displayName,
-    address: place.formattedAddress,
-    coordinatesLabel:
-      place.lat !== null && place.lng !== null
-        ? `${place.lat.toFixed(5)}, ${place.lng.toFixed(5)}`
-        : null,
-    featureType: place.primaryType,
-    lat: place.lat,
-    lng: place.lng,
-    placeCategory: normalizePlaceCategory(place),
-  }
-}
-
 export function PlaceSearch({
   onPlaceSelect,
   onPlacePreview,
+  onSearchSubmit,
   onSearchValueChange,
   contextLabel,
   focusKey,
@@ -96,6 +53,16 @@ export function PlaceSearch({
     }
   }
 
+  const submitSearch = async (query: string) => {
+    if (!onSearchSubmit) return
+    setSearchError(null)
+    try {
+      await onSearchSubmit(query)
+    } catch {
+      setSearchError(`Google Places search failed. ${googlePlacesAccessTroubleshooting()}`)
+    }
+  }
+
   return (
     <div className={styles.searchShell}>
       {contextLabel && <p className={styles.context}>{contextLabel}</p>}
@@ -107,8 +74,9 @@ export function PlaceSearch({
           value={displayedValue}
           onValueChange={updateValue}
           onSearchError={setSearchError}
+          onSearchSubmit={onSearchSubmit ? submitSearch : undefined}
           onPlaceSelect={(place) => {
-            const payload = placePayload(place)
+            const payload = googlePlaceToPlaceSelection(place)
             setSearchError(null)
             onPlaceSelect(payload)
           }}

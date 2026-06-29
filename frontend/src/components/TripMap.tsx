@@ -29,9 +29,12 @@ interface TripMapProps {
   mapStyle?: MapStyleId
   onMapStyleChange?: (mapStyle: MapStyleId) => void
   previewPlace?: MapPreviewPlace | null
+  searchResults?: MapSearchPlace[]
+  selectedSearchResultId?: string | null
   activeActivityId?: number | null
   onActivityActivate?: (activityId: number) => void
   onActiveActivityChange?: (activityId: number | null) => void
+  onSearchResultSelect?: (place: MapSearchPlace) => void
   onViewportContextChange?: (context: MapViewportContext) => void
 }
 
@@ -57,6 +60,19 @@ export type MapPreviewPlace = Pick<
   | 'title'
 >
 
+export type MapSearchPlace = Pick<
+  PlaceSelection,
+  | 'address'
+  | 'coordinatesLabel'
+  | 'featureType'
+  | 'lat'
+  | 'lng'
+  | 'mapboxId'
+  | 'placeCategory'
+  | 'placeName'
+  | 'title'
+>
+
 interface CoordinateActivity extends Activity {
   lat: number
   lng: number
@@ -68,9 +84,10 @@ interface DisplayStop {
   lat: number
   lng: number
   markerLabel: string
-  source: 'selected' | 'trip' | 'destination' | 'preview'
+  source: 'selected' | 'trip' | 'destination' | 'preview' | 'search'
   title: string
   activityId?: number
+  place?: MapSearchPlace
 }
 
 interface MapCamera {
@@ -163,6 +180,24 @@ function previewPlaceToDisplayStop(previewPlace: MapPreviewPlace | null | undefi
     markerLabel: '+',
     source: 'preview',
     title: `Search preview: ${label}`,
+  }
+}
+
+function searchPlaceToDisplayStop(place: MapSearchPlace, index: number): DisplayStop | null {
+  if (!isFiniteCoordinate(place.lat) || !isFiniteCoordinate(place.lng)) {
+    return null
+  }
+
+  const label = place.placeName || place.title || place.address || 'Search result'
+  return {
+    id: `search-${place.mapboxId ?? index}-${place.lng},${place.lat}`,
+    label,
+    lat: place.lat,
+    lng: place.lng,
+    markerLabel: String(index + 1),
+    place,
+    source: 'search',
+    title: label,
   }
 }
 
@@ -266,8 +301,11 @@ function TripMapContent({
   mapStyle = 'roadmap',
   onMapStyleChange,
   previewPlace = null,
+  searchResults = [],
+  selectedSearchResultId = null,
   onActivityActivate,
   onActiveActivityChange,
+  onSearchResultSelect,
   onViewportContextChange,
 }: TripMapProps) {
   const mapId = googleMapsMapId()
@@ -316,6 +354,14 @@ function TripMapContent({
     () => previewPlaceToDisplayStop(previewPlace),
     [previewPlace],
   )
+  const searchDisplayStops = useMemo(
+    () =>
+      searchResults.flatMap((place, index) => {
+        const stop = searchPlaceToDisplayStop(place, index)
+        return stop ? [stop] : []
+      }),
+    [searchResults],
+  )
   const destinationError =
     destinationState.key === destinationKey ? destinationState.error : null
   const destinationLoading =
@@ -334,18 +380,22 @@ function TripMapContent({
       stops = destinationCoordinate ? [destinationToDisplayStop(destinationCoordinate)] : []
     }
 
-    if (!previewDisplayStop) return stops
-    const previewAlreadySaved = stops.some(
+    const mergedStops = searchDisplayStops.length > 0
+      ? [...stops, ...searchDisplayStops]
+      : stops
+    if (!previewDisplayStop) return mergedStops
+    const previewAlreadySaved = mergedStops.some(
       (stop) =>
         stop.source !== 'destination' &&
         Math.abs(stop.lat - previewDisplayStop.lat) < 0.000001 &&
         Math.abs(stop.lng - previewDisplayStop.lng) < 0.000001,
     )
-    return previewAlreadySaved ? stops : [...stops, previewDisplayStop]
+    return previewAlreadySaved ? mergedStops : [...mergedStops, previewDisplayStop]
   }, [
     destinationCoordinate,
     fallbackMappedActivities,
     previewDisplayStop,
+    searchDisplayStops,
     selectedMappedActivities,
   ])
   const camera = useMemo(
@@ -559,7 +609,14 @@ function TripMapContent({
             <GoogleOverlayMarker
               key={stop.id}
               position={{ lat: stop.lat, lng: stop.lng }}
-              zIndex={stop.source === 'preview' ? 3 : 2}
+              zIndex={
+                stop.source === 'preview' ||
+                (stop.source === 'search' && stop.place?.mapboxId === selectedSearchResultId)
+                  ? 4
+                  : stop.source === 'search'
+                    ? 3
+                    : 2
+              }
             >
               {stop.source === 'destination' || stop.source === 'preview' ? (
                 <span
@@ -573,6 +630,22 @@ function TripMapContent({
                 >
                   {stop.markerLabel}
                 </span>
+              ) : stop.source === 'search' && stop.place ? (
+                <button
+                  type="button"
+                  className={[
+                    styles.marker,
+                    styles.searchMarker,
+                    stop.place.mapboxId === selectedSearchResultId
+                      ? styles.searchMarkerActive
+                      : '',
+                  ].filter(Boolean).join(' ')}
+                  aria-label={`Show place details for search result ${stop.markerLabel}: ${stop.title}`}
+                  title={stop.title}
+                  onClick={() => onSearchResultSelect?.(stop.place as MapSearchPlace)}
+                >
+                  {stop.markerLabel}
+                </button>
               ) : (
                 <button
                   type="button"
