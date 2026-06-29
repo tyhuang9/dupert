@@ -62,6 +62,7 @@ export const GOOGLE_PLACES_TEXT_SEARCH_FIELD_MASK = [
   'places.googleMapsUri',
   'places.location',
   'places.name',
+  'places.photos',
   'places.primaryType',
   'places.primaryTypeDisplayName',
   'places.rating',
@@ -408,12 +409,14 @@ export async function fetchGooglePlaceSuggestions({
 export async function fetchGooglePlaceTextSearch({
   apiKey,
   fetchImpl = fetch,
+  includePhoto = true,
   options,
   pageSize = GOOGLE_PLACES_SEARCH_RESULT_LIMIT,
   query,
 }: {
   apiKey: string
   fetchImpl?: FetchImplementation
+  includePhoto?: boolean
   options?: GooglePlaceSearchOptions
   pageSize?: number
   query: string
@@ -426,10 +429,20 @@ export async function fetchGooglePlaceTextSearch({
   assertOk(response, 'Google Places text search')
 
   const body = (await response.json()) as GooglePlacesTextSearchResponse
-  return (body.places ?? [])
-    .map((place) => normalizeGoogleTextSearchPlace(place))
-    .filter((place): place is GooglePlaceSelection => place !== null)
-    .slice(0, pageSize)
+  const places = (body.places ?? []).slice(0, pageSize)
+  const normalizedPlaces = await Promise.all(
+    places.map(async (place) => {
+      const photoUrl = includePhoto
+        ? await imageUrlFromGooglePhotoName({
+            apiKey,
+            fetchImpl,
+            photoName: place.photos?.[0]?.name,
+          })
+        : null
+      return normalizeGoogleTextSearchPlace(place, photoUrl)
+    }),
+  )
+  return normalizedPlaces.filter((place): place is GooglePlaceSelection => place !== null)
 }
 
 export async function fetchGooglePlaceDetails({
@@ -573,6 +586,7 @@ function normalizeGooglePlaceResponse(
 
 export function normalizeGoogleTextSearchPlace(
   place: GooglePlaceDetailsResponse,
+  photoUrl: string | null = null,
 ): GooglePlaceSelection | null {
   const placeId = place.id?.trim() || placeIdFromResourceName(place.name)
   const displayName = textValue(place.displayName)
@@ -591,7 +605,7 @@ export function normalizeGoogleTextSearchPlace(
       text: fallbackText,
       types: place.types?.filter(Boolean) ?? [],
     },
-    null,
+    photoUrl,
   )
 }
 

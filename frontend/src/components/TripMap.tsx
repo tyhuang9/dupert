@@ -31,6 +31,7 @@ interface TripMapProps {
   previewPlace?: MapPreviewPlace | null
   searchResults?: MapSearchPlace[]
   selectedSearchResultId?: string | null
+  highlightedSearchResultId?: string | null
   activeActivityId?: number | null
   onActivityActivate?: (activityId: number) => void
   onActiveActivityChange?: (activityId: number | null) => void
@@ -70,6 +71,7 @@ export type MapSearchPlace = Pick<
   | 'mapboxId'
   | 'placeCategory'
   | 'placeName'
+  | 'photoUrl'
   | 'title'
 >
 
@@ -303,6 +305,7 @@ function TripMapContent({
   previewPlace = null,
   searchResults = [],
   selectedSearchResultId = null,
+  highlightedSearchResultId = selectedSearchResultId,
   onActivityActivate,
   onActiveActivityChange,
   onSearchResultSelect,
@@ -361,6 +364,13 @@ function TripMapContent({
         return stop ? [stop] : []
       }),
     [searchResults],
+  )
+  const selectedSearchDisplayStop = useMemo(
+    () =>
+      selectedSearchResultId
+        ? searchDisplayStops.find((stop) => stop.place?.mapboxId === selectedSearchResultId) ?? null
+        : null,
+    [searchDisplayStops, selectedSearchResultId],
   )
   const destinationError =
     destinationState.key === destinationKey ? destinationState.error : null
@@ -564,6 +574,19 @@ function TripMapContent({
     window.requestAnimationFrame(reportViewportContext)
   }, [displayKey, displayStops, map, reportViewportContext])
 
+  useEffect(() => {
+    if (!map || !selectedSearchDisplayStop) return
+
+    map.moveCamera({
+      center: {
+        lat: selectedSearchDisplayStop.lat,
+        lng: selectedSearchDisplayStop.lng,
+      },
+      zoom: Math.max(map.getZoom() ?? 0, 14),
+    })
+    window.requestAnimationFrame(reportViewportContext)
+  }, [map, reportViewportContext, selectedSearchDisplayStop])
+
   return (
     <div className={styles.mapShell}>
       <div
@@ -611,7 +634,7 @@ function TripMapContent({
               position={{ lat: stop.lat, lng: stop.lng }}
               zIndex={
                 stop.source === 'preview' ||
-                (stop.source === 'search' && stop.place?.mapboxId === selectedSearchResultId)
+                (stop.source === 'search' && stop.place?.mapboxId === highlightedSearchResultId)
                   ? 4
                   : stop.source === 'search'
                     ? 3
@@ -636,7 +659,7 @@ function TripMapContent({
                   className={[
                     styles.marker,
                     styles.searchMarker,
-                    stop.place.mapboxId === selectedSearchResultId
+                    stop.place.mapboxId === highlightedSearchResultId
                       ? styles.searchMarkerActive
                       : '',
                   ].filter(Boolean).join(' ')}

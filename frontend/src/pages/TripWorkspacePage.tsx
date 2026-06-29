@@ -27,8 +27,11 @@ import {
   ChevronLeft,
   ChevronRight,
   Coffee,
+  ExternalLink,
+  Globe,
   Landmark,
   MapPin,
+  Navigation,
   Pin,
   PinOff,
   Plane,
@@ -36,6 +39,7 @@ import {
   Route as TimelineIcon,
   Share2,
   Settings,
+  Star,
   Utensils,
   X,
 } from 'lucide-react'
@@ -457,6 +461,39 @@ function reviewMeta(review: NonNullable<PlaceSelection['reviews']>[number]): str
   return parts.length > 0 ? parts.join(' · ') : null
 }
 
+function placeDisplayName(place: PlaceSelection): string {
+  return place.placeName || place.title || place.address || 'Selected place'
+}
+
+function placeCategoryLabel(place: PlaceSelection): string {
+  return place.placeCategory || place.featureType || place.category || 'Place'
+}
+
+function placeMetadata(place: PlaceSelection): string {
+  return [placeCategoryLabel(place), place.address].filter(Boolean).join(' · ')
+}
+
+function directionsUrlForPlace(place: PlaceSelection): string | null {
+  if (Number.isFinite(place.lat) && Number.isFinite(place.lng)) {
+    return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${place.lat},${place.lng}`)}`
+  }
+  return place.googleMapsUri ?? null
+}
+
+function PlaceThumbnail({ place }: { place: PlaceSelection }) {
+  const title = placeDisplayName(place)
+
+  return (
+    <span className={styles.placeThumbnail}>
+      {place.photoUrl ? (
+        <img src={place.photoUrl} alt={title} />
+      ) : (
+        <MapPin size={20} aria-hidden="true" />
+      )}
+    </span>
+  )
+}
+
 const pointerFirstCollisionDetection: CollisionDetection = (args) => {
   const pointerCollisions = pointerWithin(args)
   return pointerCollisions.length > 0 ? pointerCollisions : closestCenter(args)
@@ -821,6 +858,7 @@ export function TripWorkspacePage() {
   const [mapSearchResults, setMapSearchResults] = useState<PlaceSelection[]>([])
   const [selectedMapSearchResult, setSelectedMapSearchResult] =
     useState<PlaceSelection | null>(null)
+  const [hoveredMapSearchResultId, setHoveredMapSearchResultId] = useState<string | null>(null)
   const [isMapSearchSubmitting, setIsMapSearchSubmitting] = useState(false)
   const [pendingMapPlace, setPendingMapPlace] = useState<PlaceSelection | null>(null)
   const [activeActivityId, setActiveActivityId] = useState<number | null>(null)
@@ -966,10 +1004,26 @@ export function TripWorkspacePage() {
     : null
   const mapDetailRating = mapDetailPlace ? formatRating(mapDetailPlace) : null
   const mapDetailReviews = mapDetailPlace?.reviews?.slice(0, 2) ?? []
+  const mapDetailDirectionsUrl = mapDetailPlace ? directionsUrlForPlace(mapDetailPlace) : null
+  const highlightedMapSearchResultId =
+    hoveredMapSearchResultId ?? selectedMapSearchResult?.mapboxId ?? null
 
   const clearMapSearchState = () => {
     setMapSearchResults([])
     setSelectedMapSearchResult(null)
+    setHoveredMapSearchResultId(null)
+  }
+
+  const focusItineraryPanel = () => {
+    window.requestAnimationFrame(() => {
+      document.getElementById('timeline-panel')?.focus({ preventScroll: true })
+    })
+  }
+
+  const collapseSidebarAndFocusItinerary = () => {
+    setSidebarPinned(false)
+    setSidebarCollapsedAfterTabClick(true)
+    focusItineraryPanel()
   }
 
   const handleSelectDay = (nextDay: string) => {
@@ -978,6 +1032,7 @@ export function TripWorkspacePage() {
       tripQuery.data &&
       dayInRange(nextDay, tripQuery.data.startDate, tripQuery.data.endDate)
     ) {
+      collapseSidebarAndFocusItinerary()
       setWorkspaceMode('days')
       setExpandedActivityId(null)
       setPlaceDraft(null)
@@ -991,14 +1046,9 @@ export function TripWorkspacePage() {
     }
   }
 
-  const collapseSidebarAfterTabClick = () => {
-    setSidebarPinned(false)
-    setSidebarCollapsedAfterTabClick(true)
-  }
-
   const openTimelineMode = () => {
     setWorkspaceMode('timeline')
-    collapseSidebarAfterTabClick()
+    collapseSidebarAndFocusItinerary()
     setExpandedActivityId(null)
     setPlaceDraft(null)
     setMapSearchPreview(null)
@@ -1195,6 +1245,7 @@ export function TripWorkspacePage() {
       })
       setMapSearchResults(results.map(googlePlaceToPlaceSelection))
       setSelectedMapSearchResult(null)
+      setHoveredMapSearchResultId(null)
       setMapSearchPreview(null)
       setPendingMapPlace(null)
     } finally {
@@ -1204,6 +1255,7 @@ export function TripWorkspacePage() {
 
   const handleMapSearchResultSelect = (place: PlaceSelection) => {
     setSelectedMapSearchResult(place)
+    setHoveredMapSearchResultId(null)
     setMapSearchPreview(null)
     setActiveActivityId(null)
     if (mapLocationTarget) {
@@ -1462,6 +1514,13 @@ export function TripWorkspacePage() {
                   </button>
                 </nav>
 
+                <div className={styles.railStaticItem} aria-label="Calendar">
+                  <span className={styles.railIcon}>
+                    <CalendarDays size={18} aria-hidden="true" />
+                  </span>
+                  <span className={styles.railLabel}>Calendar</span>
+                </div>
+
                 <div className={styles.sidebarCalendarReveal}>
                   <CompactMonthCalendar
                     activities={allActivities}
@@ -1527,7 +1586,12 @@ export function TripWorkspacePage() {
                   </div>
                 </header>
 
-              <section className={`${styles.panel} ${styles.timelinePanel}`} aria-labelledby="timeline-panel-title">
+              <section
+                id="timeline-panel"
+                className={`${styles.panel} ${styles.timelinePanel}`}
+                aria-labelledby="timeline-panel-title"
+                tabIndex={-1}
+              >
                 <div className={styles.timelineHeader}>
                   <div>
                     <p className={styles.panelKicker}>
@@ -1668,8 +1732,23 @@ export function TripWorkspacePage() {
                       />
                     </div>
                   )}
-                  {canEditTrip && mapDetailPlace && (
-                    <section className={styles.placeDetailCard} aria-label="Selected map place">
+                  <h2 id="map-panel-title" className="sr-only">Map</h2>
+                </div>
+                {canEditTrip && mapDetailPlace && (
+                  <section
+                    className={[
+                      styles.placeDetailCard,
+                      mapSearchResults.length > 0 ? styles.placeDetailCardRaised : '',
+                    ].filter(Boolean).join(' ')}
+                    aria-label="Selected map place"
+                  >
+                    <div className={styles.placeHero}>
+                      <PlaceThumbnail place={mapDetailPlace} />
+                      <span className={styles.placeCategoryBadge}>
+                        {placeCategoryLabel(mapDetailPlace)}
+                      </span>
+                    </div>
+                    <div className={styles.placeDetailBody}>
                       <p className={styles.placeDetailKicker}>
                         {mapLocationTarget
                           ? 'Place update'
@@ -1677,11 +1756,23 @@ export function TripWorkspacePage() {
                             ? 'Search result'
                             : 'Place selected'}
                       </p>
-                      <h3>{mapDetailPlace.placeName || mapDetailPlace.title || 'Selected place'}</h3>
-                      {mapDetailPlace.address && <p>{mapDetailPlace.address}</p>}
-                      {(mapDetailRating || mapDetailBusinessStatus || mapDetailOpenLabel) && (
+                      <div className={styles.placeDetailHeader}>
+                        <h3>{placeDisplayName(mapDetailPlace)}</h3>
+                        {mapDetailRating && (
+                          <span className={styles.placeRating}>
+                            <Star size={13} aria-hidden="true" />
+                            {mapDetailRating}
+                          </span>
+                        )}
+                      </div>
+                      {mapDetailPlace.address && (
+                        <p className={styles.placeAddress}>
+                          <MapPin size={13} aria-hidden="true" />
+                          {mapDetailPlace.address}
+                        </p>
+                      )}
+                      {(mapDetailBusinessStatus || mapDetailOpenLabel) && (
                         <div className={styles.placeDetailMeta}>
-                          {mapDetailRating && <span>Rating {mapDetailRating}</span>}
                           {mapDetailBusinessStatus && <span>{mapDetailBusinessStatus}</span>}
                           {mapDetailOpenLabel && <span>{mapDetailOpenLabel}</span>}
                         </div>
@@ -1703,16 +1794,6 @@ export function TripWorkspacePage() {
                             )
                           })}
                         </div>
-                      )}
-                      {mapDetailPlace.googleMapsUri && (
-                        <a
-                          className={styles.placeDetailLink}
-                          href={mapDetailPlace.googleMapsUri}
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          Open in Google Maps
-                        </a>
                       )}
                       <div className={styles.placeDetailActions}>
                         {mapLocationTarget && pendingMapPlace ? (
@@ -1741,6 +1822,42 @@ export function TripWorkspacePage() {
                             Add to Trip
                           </button>
                         ) : null}
+                        {mapDetailDirectionsUrl && (
+                          <a
+                            className={styles.placeUtilityAction}
+                            href={mapDetailDirectionsUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            aria-label="Get directions"
+                            title="Directions"
+                          >
+                            <Navigation size={15} aria-hidden="true" />
+                          </a>
+                        )}
+                        {mapDetailPlace.websiteUri && (
+                          <a
+                            className={styles.placeUtilityAction}
+                            href={mapDetailPlace.websiteUri}
+                            target="_blank"
+                            rel="noreferrer"
+                            aria-label="Open website"
+                            title="Website"
+                          >
+                            <Globe size={15} aria-hidden="true" />
+                          </a>
+                        )}
+                        {mapDetailPlace.googleMapsUri && (
+                          <a
+                            className={styles.placeUtilityAction}
+                            href={mapDetailPlace.googleMapsUri}
+                            target="_blank"
+                            rel="noreferrer"
+                            aria-label="Open in Google Maps"
+                            title="Open in Google Maps"
+                          >
+                            <ExternalLink size={15} aria-hidden="true" />
+                          </a>
+                        )}
                         <button
                           type="button"
                           className={styles.secondaryAction}
@@ -1749,10 +1866,52 @@ export function TripWorkspacePage() {
                           Clear
                         </button>
                       </div>
-                    </section>
-                  )}
-                  <h2 id="map-panel-title" className="sr-only">Map</h2>
-                </div>
+                    </div>
+                  </section>
+                )}
+                {canEditTrip && mapSearchResults.length > 0 && (
+                  <section className={styles.discoveryShelf} aria-label="Map search results">
+                    <div className={styles.discoveryShelfHeader}>
+                      <span>Search Results</span>
+                      <strong>{pluralize(mapSearchResults.length, 'place')}</strong>
+                    </div>
+                    <div className={styles.discoveryList}>
+                      {mapSearchResults.map((place) => {
+                        const placeId = place.mapboxId ?? placeDisplayName(place)
+                        const selected = selectedMapSearchResult?.mapboxId === place.mapboxId
+                        const rating = formatRating(place)
+                        return (
+                          <button
+                            key={`${placeId}-${place.lat ?? 'lat'}-${place.lng ?? 'lng'}`}
+                            type="button"
+                            className={[
+                              styles.discoveryCard,
+                              selected ? styles.discoveryCardSelected : '',
+                            ].filter(Boolean).join(' ')}
+                            aria-pressed={selected}
+                            onClick={() => handleMapSearchResultSelect(place)}
+                            onMouseEnter={() => setHoveredMapSearchResultId(place.mapboxId ?? null)}
+                            onMouseLeave={() => setHoveredMapSearchResultId(null)}
+                            onFocus={() => setHoveredMapSearchResultId(place.mapboxId ?? null)}
+                            onBlur={() => setHoveredMapSearchResultId(null)}
+                          >
+                            <PlaceThumbnail place={place} />
+                            <span className={styles.discoveryCardBody}>
+                              <strong>{placeDisplayName(place)}</strong>
+                              {rating && (
+                                <span className={styles.discoveryRating}>
+                                  <Star size={12} aria-hidden="true" />
+                                  {rating}
+                                </span>
+                              )}
+                              <small>{placeMetadata(place)}</small>
+                            </span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </section>
+                )}
                 <TripMap
                   activities={mapActivities}
                   fallbackActivities={allActivities}
@@ -1764,6 +1923,7 @@ export function TripWorkspacePage() {
                   previewPlace={mapPreviewPlace}
                   searchResults={mapSearchResults}
                   selectedSearchResultId={selectedMapSearchResult?.mapboxId ?? null}
+                  highlightedSearchResultId={highlightedMapSearchResultId}
                   onActivityActivate={handleActivityActivate}
                   onActiveActivityChange={handleActiveActivityChange}
                   onSearchResultSelect={handleMapSearchResultSelect}

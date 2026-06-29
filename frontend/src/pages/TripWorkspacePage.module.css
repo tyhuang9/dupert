@@ -108,7 +108,9 @@
 .iconOnlyButton:focus-visible,
 .modalInput:focus-visible,
 .timelineActivityEntry:focus-visible,
-.timelineActivityButton:focus-visible {
+.timelineActivityButton:focus-visible,
+.placeUtilityAction:focus-visible,
+.discoveryCard:focus-visible {
   outline: var(--focus-ring-width) solid var(--focus-ring-color);
   outline-offset: var(--focus-ring-offset);
 }
@@ -335,6 +337,18 @@
 .railNav button[aria-pressed='true'] {
   background: var(--color-primary-soft);
   color: var(--color-primary-text);
+}
+
+.railStaticItem {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 0;
+  padding: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  overflow: hidden;
 }
 
 .railIcon {
@@ -1060,9 +1074,9 @@
 .mapOverlayStack {
   position: absolute;
   top: var(--space-4);
-  right: var(--space-4);
   left: var(--space-4);
-  z-index: 7;
+  z-index: 8;
+  width: min(35rem, calc(100% - var(--space-8)));
   display: grid;
   gap: var(--space-2);
   justify-items: start;
@@ -1084,18 +1098,85 @@
 }
 
 .mapSearchOverlay {
-  width: min(100%, 35rem);
+  width: 100%;
 }
 
 .placeDetailCard {
-  width: min(100%, 24rem);
+  position: absolute;
+  left: var(--space-4);
+  bottom: var(--space-4);
+  z-index: 7;
+  width: min(24rem, calc(100% - var(--space-8)));
+  max-height: calc(100% - 9rem);
   display: grid;
-  gap: var(--space-2);
-  padding: var(--space-3);
+  overflow: hidden;
   border: 1px solid rgba(194, 198, 214, 0.72);
   border-radius: var(--radius-md);
   background: rgba(255, 255, 255, 0.96);
   box-shadow: var(--shadow-md);
+}
+
+.placeDetailCardRaised {
+  bottom: calc(var(--space-4) + 8.75rem);
+}
+
+.placeHero {
+  position: relative;
+  height: 7.5rem;
+  overflow: hidden;
+  background: var(--color-surface-2);
+}
+
+.placeThumbnail {
+  display: inline-grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: var(--radius-sm);
+  background:
+    linear-gradient(135deg, rgba(37, 99, 235, 0.08), rgba(15, 118, 110, 0.1)),
+    var(--color-surface-2);
+  color: var(--color-primary-text);
+}
+
+.placeThumbnail img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+.placeHero .placeThumbnail {
+  width: 100%;
+  height: 100%;
+  border-radius: 0;
+}
+
+.placeCategoryBadge {
+  position: absolute;
+  left: var(--space-3);
+  bottom: var(--space-3);
+  max-width: calc(100% - var(--space-6));
+  min-height: 24px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-pill);
+  background: rgba(15, 23, 42, 0.82);
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 900;
+  line-height: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.placeDetailBody {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  overflow-y: auto;
 }
 
 .placeDetailKicker {
@@ -1106,16 +1187,38 @@
   text-transform: uppercase;
 }
 
+.placeDetailHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
 .placeDetailCard h3 {
   margin: 0;
+  min-width: 0;
   color: var(--color-text);
   font-size: var(--font-size-sm);
   font-weight: 800;
   line-height: 1.25;
 }
 
-.placeDetailCard p:not(.placeDetailKicker) {
+.placeRating,
+.discoveryRating {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: #92400e;
+  font-size: 11px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.placeAddress {
   margin: 0;
+  display: inline-flex;
+  align-items: flex-start;
+  gap: var(--space-1);
   color: var(--color-text-muted);
   font-size: var(--font-size-xs);
   line-height: 1.35;
@@ -1141,9 +1244,13 @@
 }
 
 .placeHours {
+  margin: 0;
   padding: var(--space-2);
   border-radius: var(--radius-sm);
   background: var(--color-surface-2);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  line-height: 1.35;
 }
 
 .placeReviews {
@@ -1192,8 +1299,125 @@
 
 .placeDetailActions {
   display: flex;
+  align-items: center;
   gap: var(--space-2);
   flex-wrap: wrap;
+}
+
+.placeUtilityAction {
+  width: 34px;
+  height: 34px;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid var(--color-surface-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  text-decoration: none;
+}
+
+.placeUtilityAction:hover {
+  background: var(--color-primary-softer);
+  color: var(--color-primary-text);
+}
+
+.discoveryShelf {
+  position: absolute;
+  right: calc(var(--space-4) + 3.5rem);
+  bottom: var(--space-4);
+  left: var(--space-4);
+  z-index: 6;
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid rgba(194, 198, 214, 0.72);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: var(--shadow-md);
+  backdrop-filter: blur(12px);
+}
+
+.discoveryShelfHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-weight: 800;
+}
+
+.discoveryShelfHeader span {
+  color: var(--color-text);
+  font-size: var(--font-size-sm);
+}
+
+.discoveryShelfHeader strong {
+  color: var(--color-primary-text);
+  font-size: var(--font-size-xs);
+}
+
+.discoveryList {
+  display: flex;
+  gap: var(--space-2);
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+}
+
+.discoveryCard {
+  flex: 0 0 min(18rem, 76vw);
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border: 1px solid var(--color-surface-border);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.94);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  box-shadow: var(--shadow-sm);
+  cursor: pointer;
+  scroll-snap-align: start;
+}
+
+.discoveryCard:hover,
+.discoveryCardSelected {
+  border-color: rgba(37, 99, 235, 0.45);
+  background: var(--color-primary-softer);
+}
+
+.discoveryCard .placeThumbnail {
+  width: 72px;
+  height: 72px;
+}
+
+.discoveryCardBody {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.discoveryCardBody strong {
+  color: var(--color-text);
+  font-size: var(--font-size-xs);
+  font-weight: 900;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.discoveryCardBody small {
+  color: var(--color-text-muted);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.25;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .mapStyleSelect {
@@ -1562,8 +1786,41 @@
 
   .mapOverlayStack {
     top: var(--space-3);
-    right: var(--space-3);
     left: var(--space-3);
+    width: min(30rem, calc(100% - var(--space-6)));
+  }
+
+  .placeDetailCard {
+    right: var(--space-3);
+    bottom: var(--space-3);
+    left: var(--space-3);
+    width: auto;
+    max-height: calc(100% - 6.5rem);
+  }
+
+  .placeDetailCardRaised {
+    bottom: calc(var(--space-3) + 8rem);
+  }
+
+  .placeHero {
+    height: 5.75rem;
+  }
+
+  .discoveryShelf {
+    right: var(--space-3);
+    bottom: var(--space-3);
+    left: var(--space-3);
+    padding: var(--space-2);
+  }
+
+  .discoveryCard {
+    flex-basis: min(16rem, 82vw);
+    grid-template-columns: 58px minmax(0, 1fr);
+  }
+
+  .discoveryCard .placeThumbnail {
+    width: 58px;
+    height: 58px;
   }
 
   .timelineActivityButton {

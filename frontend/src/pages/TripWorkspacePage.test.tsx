@@ -825,13 +825,25 @@ describe('<TripWorkspacePage>', () => {
     await userEvent.click(screen.getByRole('button', { name: /mock select search result/i }))
 
     expect(screen.getByTestId('selected-search-result')).toHaveTextContent('google.ramen-street')
+    expect(screen.getByLabelText(/map search results/i)).toBeInTheDocument()
+    expect(
+      within(screen.getByLabelText(/map search results/i)).getByRole('button', {
+        name: /ramen street/i,
+      }),
+    ).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByText('Search result')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: /ramen street/i })).toBeInTheDocument()
-    expect(screen.getByText('Rating 4.4 (1200 reviews)')).toBeInTheDocument()
+    expect(
+      within(screen.getByLabelText(/selected map place/i)).getByText('4.4 (1200 reviews)'),
+    ).toBeInTheDocument()
     expect(screen.getByText('Operational')).toBeInTheDocument()
     expect(screen.getByText('Open now')).toBeInTheDocument()
     expect(screen.getByText('Selected day: Friday: 10:00 AM – 10:00 PM')).toBeInTheDocument()
     expect(screen.getByText('Excellent ramen.')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /get directions/i })).toHaveAttribute(
+      'href',
+      'https://www.google.com/maps/dir/?api=1&destination=35.6812%2C139.7671',
+    )
     expect(screen.getByRole('link', { name: /open in google maps/i })).toHaveAttribute(
       'href',
       'https://maps.google.com/?cid=ramen',

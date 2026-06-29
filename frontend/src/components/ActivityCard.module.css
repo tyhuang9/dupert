@@ -60,7 +60,7 @@
 .summary {
   min-width: 0;
   display: grid;
-  grid-template-columns: 30px minmax(0, 1fr) 28px;
+  grid-template-columns: 30px minmax(0, 1fr);
   align-items: center;
   gap: var(--space-2);
 }
@@ -150,49 +150,15 @@
   overflow-wrap: anywhere;
 }
 
-.toggleButton,
-.editorToggle {
-  width: 28px;
-  height: 28px;
-  display: inline-grid;
-  place-items: center;
-  padding: 0;
-  border: 1px solid var(--color-surface-border);
-  border-radius: var(--radius-pill);
-  background: var(--color-surface);
-  color: var(--color-text-muted);
-  cursor: pointer;
-}
-
-.toggleButton:hover,
-.toggleButton:focus-visible,
-.editorToggle:hover,
-.editorToggle:focus-visible {
-  border-color: #bfdbfe;
-  background: var(--color-primary-softer);
-  color: var(--color-primary-text);
-}
-
-.toggleButton:focus-visible,
-.editorToggle:focus-visible {
-  outline: var(--focus-ring-width) solid var(--focus-ring-color);
-  outline-offset: var(--focus-ring-offset);
-}
-
 .editorPanel {
   min-width: 0;
   display: grid;
   gap: var(--space-1);
 }
 
-.editorToggle {
-  justify-self: end;
-  margin-bottom: calc(var(--space-1) * -1);
-}
-
 @media (max-width: 560px) {
   .summary {
-    grid-template-columns: 30px minmax(0, 1fr) 28px;
+    grid-template-columns: 30px minmax(0, 1fr);
   }
 
   .categoryBlock {
