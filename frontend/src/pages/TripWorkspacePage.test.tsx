@@ -1091,6 +1091,26 @@ describe('<TripWorkspacePage>', () => {
   })
 
   it('resolves coordinate-only map clicks into nearby place details', async () => {
+    googlePlacesMockState.fetchGooglePlaceById.mockResolvedValueOnce({
+      businessStatus: 'OPERATIONAL',
+      currentOpeningHours: { openNow: true, weekdayDescriptions: [] },
+      displayName: 'Nearby Cafe Details',
+      formattedAddress: 'Detailed nearby address',
+      googleMapsUri: 'https://maps.google.com/?cid=nearby',
+      id: 'google.nearby-cafe',
+      lat: 35.7002,
+      lng: 139.8002,
+      photoUrl: null,
+      primaryType: 'cafe',
+      primaryTypeDisplayName: 'Cafe',
+      rating: 4.7,
+      regularOpeningHours: null,
+      reviews: [],
+      text: 'Nearby Cafe Details, Detailed nearby address',
+      types: ['cafe'],
+      userRatingCount: 42,
+      websiteUri: 'https://nearby.example.com',
+    })
     mockWorkspace()
 
     renderWorkspace('/trips/abc234def567/d/2026-05-01')
@@ -1101,16 +1121,40 @@ describe('<TripWorkspacePage>', () => {
     await waitFor(() => {
       expect(googlePlacesMockState.fetchGooglePlaceNearLocation).toHaveBeenCalledWith({
         apiKey: 'gmaps.test',
+        maxResultCount: 10,
         options: {
           language: 'en',
           location: { lat: 35.7, lng: 139.8 },
-          radius: 100,
+          radius: 500,
           rankPreference: 'DISTANCE',
         },
       })
     })
 
-    expect(googlePlacesMockState.fetchGooglePlaceById).not.toHaveBeenCalled()
+    expect(googlePlacesMockState.fetchGooglePlaceById).toHaveBeenCalledWith({
+      placeId: 'google.nearby-cafe',
+    })
+    expect(screen.getByTestId('preview-map-place')).toHaveTextContent('Nearby Cafe Details')
+    expect(within(screen.getByLabelText(/selected map place/i)).getByRole('heading', {
+      name: /nearby cafe details/i,
+    })).toBeInTheDocument()
+  })
+
+  it('uses nearby search details when backend hydration fails for coordinate map clicks', async () => {
+    googlePlacesMockState.fetchGooglePlaceById.mockRejectedValueOnce(new Error('details failed'))
+    mockWorkspace()
+
+    renderWorkspace('/trips/abc234def567/d/2026-05-01')
+
+    await screen.findByTestId('trip-map')
+    await userEvent.click(screen.getByRole('button', { name: /mock map location click/i }))
+
+    await waitFor(() => {
+      expect(googlePlacesMockState.fetchGooglePlaceById).toHaveBeenCalledWith({
+        placeId: 'google.nearby-cafe',
+      })
+    })
+
     expect(screen.getByTestId('preview-map-place')).toHaveTextContent('Nearby Cafe')
     expect(within(screen.getByLabelText(/selected map place/i)).getByRole('heading', {
       name: /nearby cafe/i,
@@ -1130,6 +1174,7 @@ describe('<TripWorkspacePage>', () => {
       expect(googlePlacesMockState.fetchGooglePlaceNearLocation).toHaveBeenCalled()
     })
 
+    expect(googlePlacesMockState.fetchGooglePlaceById).not.toHaveBeenCalled()
     expect(screen.getByTestId('preview-map-place')).toHaveTextContent('Selected location')
     expect(within(screen.getByLabelText(/selected map place/i)).getByRole('heading', {
       name: /selected location/i,

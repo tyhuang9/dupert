@@ -624,6 +624,50 @@ describe('Google place normalization', () => {
     })
   })
 
+  it('uses the first valid nearby place when earlier results cannot be normalized', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({
+      places: [
+        {
+          id: 'google.empty-nearby-result',
+          name: 'places/google.empty-nearby-result',
+        },
+        {
+          businessStatus: 'OPERATIONAL',
+          displayName: { text: 'Valid Nearby Restaurant' },
+          formattedAddress: 'Valid nearby address',
+          googleMapsUri: 'https://maps.google.com/?cid=valid-nearby',
+          id: 'google.valid-nearby',
+          location: { latitude: 35.7003, longitude: 139.8003 },
+          name: 'places/google.valid-nearby',
+          primaryType: 'restaurant',
+          primaryTypeDisplayName: { text: 'Restaurant' },
+          rating: 4.5,
+          types: ['restaurant', 'food'],
+          userRatingCount: 18,
+        },
+      ],
+    }))
+
+    await expect(
+      fetchGooglePlaceNearLocation({
+        apiKey: 'gmaps.test',
+        maxResultCount: 10,
+        options: {
+          language: 'en',
+          location: { lat: 35.7, lng: 139.8 },
+          radius: 500,
+        },
+      }),
+    ).resolves.toEqual(expect.objectContaining({
+      displayName: 'Valid Nearby Restaurant',
+      formattedAddress: 'Valid nearby address',
+      id: 'google.valid-nearby',
+      lat: 35.7003,
+      lng: 139.8003,
+      primaryType: 'restaurant',
+    }))
+  })
+
   it('builds category text search requests with viewport restriction and type normalization', () => {
     expect(googlePlaceCategoryTypeForQuery('restaurants')).toBe('restaurant')
 

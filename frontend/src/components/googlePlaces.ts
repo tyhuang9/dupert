@@ -611,17 +611,18 @@ export async function fetchGooglePlaceNearLocation({
   assertOk(response, 'Google Places nearby search')
 
   const body = (await response.json()) as GooglePlacesTextSearchResponse
-  const place = body.places?.[0]
-  if (!place) return null
-
-  const photoUrl = includePhoto
-    ? await imageUrlFromGooglePhotoName({
-        apiKey,
-        fetchImpl,
-        photoName: place.photos?.[0]?.name,
-      })
-    : null
-  return normalizeGoogleTextSearchPlace(place, photoUrl)
+  for (const place of body.places ?? []) {
+    const photoUrl = includePhoto
+      ? await imageUrlFromGooglePhotoName({
+          apiKey,
+          fetchImpl,
+          photoName: place.photos?.[0]?.name,
+        })
+      : null
+    const normalizedPlace = normalizeGoogleTextSearchPlace(place, photoUrl)
+    if (normalizedPlace) return normalizedPlace
+  }
+  return null
 }
 
 export async function fetchGooglePlaceDetails({

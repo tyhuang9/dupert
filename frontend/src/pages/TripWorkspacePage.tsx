@@ -1607,7 +1607,7 @@ export function TripWorkspacePage() {
     ): GooglePlaceNearbySearchOptions => ({
       language: 'en',
       location,
-      radius: 100,
+      radius: 500,
       rankPreference: 'DISTANCE',
     }),
     [],
@@ -2048,14 +2048,25 @@ export function TripWorkspacePage() {
     setIsMapSearchSubmitting(true)
     try {
       const apiKey = googleMapsApiKey()
-      const googlePlace = normalizedPlaceId
+      let googlePlace = normalizedPlaceId
         ? await fetchGooglePlaceById({ placeId: normalizedPlaceId })
-        : apiKey && location
-          ? await fetchGooglePlaceNearLocation({
-              apiKey,
-              options: buildMapNearbySearchOptions(location),
-            })
-          : null
+        : null
+      if (!googlePlace && !normalizedPlaceId && apiKey && location) {
+        const nearbyPlace = await fetchGooglePlaceNearLocation({
+          apiKey,
+          maxResultCount: 10,
+          options: buildMapNearbySearchOptions(location),
+        })
+        if (nearbyPlace?.id) {
+          try {
+            googlePlace = await fetchGooglePlaceById({ placeId: nearbyPlace.id })
+          } catch {
+            googlePlace = nearbyPlace
+          }
+        } else {
+          googlePlace = nearbyPlace
+        }
+      }
       const place = googlePlace ? googlePlaceToPlaceSelection(googlePlace) : null
       if (mapSearchRequestIdRef.current !== requestId) return
       if (place) {
