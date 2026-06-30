@@ -145,7 +145,7 @@ function renderNewTrip() {
 }
 
 beforeEach(() => {
-  vi.stubEnv('VITE_GOOGLE_MAPS_API_KEY', 'gmaps.test')
+  vi.stubEnv('VITE_GOOGLE_MAPS_BROWSER_KEY', 'gmaps.test')
   searchBoxState.props = null
   apiMock = new MockAdapter(apiClient)
   queryClient = new QueryClient({

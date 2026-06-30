@@ -11,8 +11,8 @@ function isMismatchedLocalDevOrigin(): boolean {
   return hostname === '127.0.0.1' || hostname === '0.0.0.0' || port !== '3000'
 }
 
-export function googleMapsApiKey(): string {
-  return (import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string | undefined)?.trim() ?? ''
+export function googleMapsBrowserApiKey(): string {
+  return (import.meta.env.VITE_GOOGLE_MAPS_BROWSER_KEY as string | undefined)?.trim() ?? ''
 }
 
 export function googleMapsMapId(): string | undefined {
@@ -31,5 +31,5 @@ export function googleMapsAccessTroubleshooting(): string {
 }
 
 export function googlePlacesAccessTroubleshooting(): string {
-  return 'Confirm the backend GOOGLE_MAPS_API_KEY is configured, Places API (New) is enabled, and server key restrictions allow backend requests.'
+  return 'Confirm the backend GOOGLE_MAPS_SERVER_API_KEY is configured, Places API (New) is enabled, and server key restrictions allow backend requests.'
 }

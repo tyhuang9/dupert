@@ -41,7 +41,7 @@ public class HttpGooglePlaceDetailsClient implements GooglePlaceDetailsClient {
 
     @Override
     public JsonNode fetchDetails(String placeId, String fieldMask, String sessionToken) {
-        String apiKey = appProperties.getGoogleMapsApiKey().strip();
+        String apiKey = appProperties.getGoogleMapsServerApiKey().strip();
         if (apiKey.isEmpty()) {
             throw PlaceDetailsException.unavailable("Google Maps API key is not configured");
         }

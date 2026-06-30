@@ -27,8 +27,8 @@ public class AppProperties {
     /** Secret required by the local-only dev password reset helper. */
     private String devPasswordResetSecret = "";
 
-    /** Backend-only Google Maps API key for server-side Google Maps calls. */
-    private String googleMapsApiKey = "";
+    /** Backend-only Google Maps API key for server-side Google Maps web service calls. */
+    private String googleMapsServerApiKey = "";
 
     /** Server-side Places details cache configuration. */
     private PlaceDetails placeDetails = new PlaceDetails();
@@ -88,12 +88,12 @@ public class AppProperties {
         this.devPasswordResetSecret = devPasswordResetSecret == null ? "" : devPasswordResetSecret;
     }
 
-    public String getGoogleMapsApiKey() {
-        return googleMapsApiKey;
+    public String getGoogleMapsServerApiKey() {
+        return googleMapsServerApiKey;
     }
 
-    public void setGoogleMapsApiKey(String googleMapsApiKey) {
-        this.googleMapsApiKey = googleMapsApiKey == null ? "" : googleMapsApiKey;
+    public void setGoogleMapsServerApiKey(String googleMapsServerApiKey) {
+        this.googleMapsServerApiKey = googleMapsServerApiKey == null ? "" : googleMapsServerApiKey;
     }
 
     public PlaceDetails getPlaceDetails() {

@@ -1,9 +1,9 @@
 import { APIProvider } from '@vis.gl/react-google-maps'
 import type { PropsWithChildren } from 'react'
-import { googleMapsApiKey } from '../utils/googleMapsAccess'
+import { googleMapsBrowserApiKey } from '../utils/googleMapsAccess'
 
 export function GoogleMapsProvider({ children }: PropsWithChildren) {
-  const apiKey = googleMapsApiKey()
+  const apiKey = googleMapsBrowserApiKey()
 
   if (!apiKey) {
     return <>{children}</>

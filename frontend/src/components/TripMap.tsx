@@ -16,7 +16,7 @@ import type { Activity } from '../types/activity'
 import type { PlaceSelection } from '../types/place'
 import {
   googleMapsAccessTroubleshooting,
-  googleMapsApiKey,
+  googleMapsBrowserApiKey,
   googleMapsMapId,
 } from '../utils/googleMapsAccess'
 import styles from './TripMap.module.css'
@@ -333,7 +333,7 @@ function TripMapFallback() {
 }
 
 export function TripMap(props: TripMapProps) {
-  if (!googleMapsApiKey()) {
+  if (!googleMapsBrowserApiKey()) {
     return <TripMapFallback />
   }
 

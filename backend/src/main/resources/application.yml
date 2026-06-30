@@ -58,7 +58,7 @@ app:
   # Local-only helper for POST /api/auth/dev/reset-password. Empty disables the route.
   dev-password-reset-secret: ${APP_DEV_PASSWORD_RESET_SECRET:}
   # Backend-only Google Maps API key for server-side Places, Geocoding, and Routes requests.
-  google-maps-api-key: ${GOOGLE_MAPS_API_KEY:}
+  google-maps-server-api-key: ${GOOGLE_MAPS_SERVER_API_KEY:}
   place-details:
     basic-ttl: ${PLACE_DETAILS_BASIC_TTL:7d}
     expanded-ttl: ${PLACE_DETAILS_EXPANDED_TTL:1d}

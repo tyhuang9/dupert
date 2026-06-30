@@ -85,7 +85,7 @@ describe('<PlaceSearch>', () => {
     })
 
     expect(screen.getByRole('alert')).toHaveTextContent(/google places search failed/i)
-    expect(screen.getByRole('alert')).toHaveTextContent(/backend google_maps_api_key/i)
+    expect(screen.getByRole('alert')).toHaveTextContent(/backend google_maps_server_api_key/i)
   })
 
   it('clears the diagnostic when suggestions recover', () => {
@@ -225,7 +225,7 @@ describe('<PlaceSearch>', () => {
   })
 
   it('keeps autocomplete available without requiring the browser Maps key', () => {
-    vi.stubEnv('VITE_GOOGLE_MAPS_API_KEY', '')
+    vi.stubEnv('VITE_GOOGLE_MAPS_BROWSER_KEY', '')
 
     render(<PlaceSearch onPlaceSelect={vi.fn()} />)
 

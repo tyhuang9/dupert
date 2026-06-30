@@ -204,7 +204,7 @@ function installGoogleOverlayMock() {
 const directionsMock = vi.mocked(getDrivingDirections)
 
 beforeEach(() => {
-  vi.stubEnv('VITE_GOOGLE_MAPS_API_KEY', 'gmaps.test')
+  vi.stubEnv('VITE_GOOGLE_MAPS_BROWSER_KEY', 'gmaps.test')
   Object.defineProperty(window, 'requestAnimationFrame', {
     configurable: true,
     value: (callback: FrameRequestCallback) => {
@@ -742,7 +742,7 @@ describe('<TripMap>', () => {
   })
 
   it('shows a useful missing-key fallback', () => {
-    vi.stubEnv('VITE_GOOGLE_MAPS_API_KEY', '')
+    vi.stubEnv('VITE_GOOGLE_MAPS_BROWSER_KEY', '')
 
     render(<TripMap activities={ACTIVITIES} fallbackActivities={[]} destination="Tokyo" />)
 

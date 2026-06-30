@@ -126,7 +126,7 @@ public class HttpGoogleMapsClient implements GoogleMapsClient {
     }
 
     private String apiKey() {
-        String apiKey = appProperties.getGoogleMapsApiKey().strip();
+        String apiKey = appProperties.getGoogleMapsServerApiKey().strip();
         if (apiKey.isEmpty()) {
             throw GoogleMapsException.unavailable("Google Maps API key is not configured");
         }
