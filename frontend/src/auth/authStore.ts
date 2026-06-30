@@ -29,6 +29,7 @@ export interface AuthState {
     expiresInSeconds: number
     user: UserSummary
   }) => void
+  setUser: (user: UserSummary) => void
   clearSession: () => void
   /**
    * Returns the access token if it is still usable (i.e. not within the
@@ -48,6 +49,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       user,
       expiresAt: Date.now() + expiresInSeconds * 1000,
     })
+  },
+  setUser: (user) => {
+    set({ user })
   },
   clearSession: () => {
     set({ accessToken: null, user: null, expiresAt: null })

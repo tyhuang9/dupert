@@ -32,14 +32,18 @@ import {
   AlertTriangle,
   BedDouble,
   CalendarDays,
+  Check,
   ChevronLeft,
   ChevronRight,
   Coffee,
+  Copy,
   ExternalLink,
   Globe,
+  KeyRound,
   Landmark,
   MapPin,
   Navigation,
+  Pencil,
   Pin,
   PinOff,
   Plane,
@@ -48,9 +52,12 @@ import {
   Share2,
   Settings,
   Utensils,
+  UserRound,
   X,
 } from 'lucide-react'
 import { parseApiError } from '../api/errors'
+import { useUser } from '../auth/authStore'
+import { useAuth } from '../auth/useAuth'
 import { useTrip, useUpdateTrip } from '../hooks/useTrips'
 import {
   useActivities,
@@ -61,6 +68,13 @@ import {
   useUpdateActivity,
 } from '../hooks/useActivities'
 import { useTripStream } from '../hooks/useTripStream'
+import {
+  useCreateShareLink,
+  useRenameShareLink,
+  useRevokeShareLink,
+  useShareLinks,
+  useTripMembers,
+} from '../hooks/useShareLinks'
 import { usePageTitle } from '../utils/usePageTitle'
 import styles from './TripWorkspacePage.module.css'
 import { ActivityForm } from '../components/ActivityForm'
@@ -76,7 +90,9 @@ import {
 import { googlePlaceToPlaceSelection } from '../components/placeSelection'
 import { TripMap, type MapStyleId, type MapViewportContext } from '../components/TripMap'
 import type { Activity, CreateActivityRequest } from '../types/activity'
+import type { UserSummary } from '../types/auth'
 import type { PlaceSelection } from '../types/place'
+import type { CreateShareLinkRequest, ShareLink } from '../types/share'
 import type { Trip, UpdateTripRequest } from '../types/trip'
 import {
   activityDragId,
@@ -150,6 +166,7 @@ interface CalendarCell {
 }
 
 type WorkspaceMode = 'days' | 'timeline'
+type ShareRole = CreateShareLinkRequest['role']
 
 interface MapLocationTarget {
   activityId: number
@@ -167,6 +184,26 @@ function daysBetweenInclusive(startDate: string, endDate: string): number {
 function optionalText(value: string): string | null {
   const trimmed = value.trim()
   return trimmed === '' ? null : trimmed
+}
+
+async function copyTextToClipboard(value: string): Promise<void> {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(value)
+    return
+  }
+
+  const textarea = document.createElement('textarea')
+  textarea.value = value
+  textarea.setAttribute('readonly', 'true')
+  textarea.style.position = 'fixed'
+  textarea.style.top = '-9999px'
+  document.body.appendChild(textarea)
+  textarea.select()
+  const copied = document.execCommand('copy')
+  textarea.remove()
+  if (!copied) {
+    throw new Error('Clipboard copy failed.')
+  }
 }
 
 function isHttpsUrl(value: string): boolean {
@@ -462,6 +499,22 @@ function directionsUrlForPlace(place: PlaceSelection): string | null {
 
 function placeStableId(place: PlaceSelection): string {
   return place.mapboxId ?? `${placeDisplayName(place)}-${place.lat ?? 'lat'}-${place.lng ?? 'lng'}`
+}
+
+function activityToPlaceSelection(activity: Activity): PlaceSelection | null {
+  if (!hasFiniteCoordinates(activity)) return null
+  return {
+    category: activity.category,
+    title: activity.title,
+    notes: activity.notes,
+    startTime: activity.startTime,
+    endTime: activity.endTime,
+    mapboxId: activity.mapboxId,
+    placeName: activity.placeName || activity.title,
+    address: activity.address,
+    lat: activity.lat,
+    lng: activity.lng,
+  }
 }
 
 function appendUniquePlaces(
@@ -850,12 +903,465 @@ function TripSettingsModal({
   )
 }
 
+function defaultShareLinkName(link: Pick<ShareLink, 'role' | 'id' | 'name'>): string {
+  return link.name?.trim() || `${link.role.toLowerCase()} link ${link.id}`
+}
+
+function ShareTripModal({
+  onClose,
+  publicId,
+  tripName,
+}: {
+  onClose: () => void
+  publicId: string
+  tripName: string
+}) {
+  const membersQuery = useTripMembers(publicId)
+  const shareLinksQuery = useShareLinks(publicId)
+  const createMutation = useCreateShareLink()
+  const renameMutation = useRenameShareLink()
+  const revokeMutation = useRevokeShareLink()
+  const [role, setRole] = useState<ShareRole>('EDITOR')
+  const [name, setName] = useState('Trip invite')
+  const [allowAnonymous, setAllowAnonymous] = useState(false)
+  const [knownShareUrls, setKnownShareUrls] = useState<Record<number, string>>({})
+  const [editableNames, setEditableNames] = useState<Record<number, string>>({})
+  const [copiedLinkId, setCopiedLinkId] = useState<number | null>(null)
+  const [clipboardError, setClipboardError] = useState<string | null>(null)
+
+  const activeLinks = useMemo(
+    () => shareLinksQuery.data?.filter((link) => !link.revokedAt) ?? [],
+    [shareLinksQuery.data],
+  )
+
+  useEffect(() => {
+    setEditableNames((current) => {
+      const next = { ...current }
+      for (const link of activeLinks) {
+        if (next[link.id] === undefined) {
+          next[link.id] = defaultShareLinkName(link)
+        }
+      }
+      return next
+    })
+  }, [activeLinks])
+
+  const handleCreateShareLink = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    const created = await createMutation.mutateAsync({
+      publicId,
+      body: {
+        name: optionalText(name),
+        role,
+        allowAnonymous,
+        expiresAt: null,
+      },
+    })
+    setKnownShareUrls((current) => ({ ...current, [created.id]: created.shareUrl }))
+    setEditableNames((current) => ({ ...current, [created.id]: defaultShareLinkName(created) }))
+    setCopiedLinkId(null)
+  }
+
+  const handleRenameShareLink = (link: ShareLink) => {
+    const nextName = editableNames[link.id]?.trim()
+    if (!nextName || nextName === defaultShareLinkName(link)) return
+    void renameMutation.mutateAsync({
+      publicId,
+      linkId: link.id,
+      body: { name: nextName },
+    })
+  }
+
+  const handleCopyShareLink = async (link: ShareLink) => {
+    const shareUrl = link.shareUrl ?? knownShareUrls[link.id]
+    if (!shareUrl) return
+    try {
+      await copyTextToClipboard(shareUrl)
+      setClipboardError(null)
+      setCopiedLinkId(link.id)
+    } catch {
+      setCopiedLinkId(null)
+      setClipboardError('Clipboard access is unavailable in this browser context.')
+    }
+  }
+
+  const modalError =
+    createMutation.error || renameMutation.error || revokeMutation.error || null
+
+  return (
+    <div className={styles.modalBackdrop} role="presentation">
+      <section
+        className={[styles.tripSettingsModal, styles.shareTripModal].join(' ')}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="share-trip-title"
+      >
+        <header className={styles.modalHeader}>
+          <div>
+            <h2 id="share-trip-title">Share trip</h2>
+            <p>{tripName}</p>
+          </div>
+          <button type="button" className={styles.iconOnlyButton} onClick={onClose} aria-label="Close share trip">
+            <X size={18} aria-hidden="true" />
+          </button>
+        </header>
+        <div className={[styles.modalBody, styles.shareModalBody].join(' ')}>
+          {(modalError || clipboardError) && (
+            <p className={styles.modalError} role="alert">
+              {clipboardError ?? parseApiError(modalError).topMessage}
+            </p>
+          )}
+
+          <section className={styles.modalSection} aria-labelledby="share-members-title">
+            <h3 id="share-members-title">Members</h3>
+            {membersQuery.isLoading ? (
+              <p className={styles.modalState}>Loading members...</p>
+            ) : membersQuery.isError ? (
+              <p className={styles.modalError} role="alert">
+                {parseApiError(membersQuery.error).topMessage}
+              </p>
+            ) : (
+              <ul className={styles.modalList}>
+                {(membersQuery.data ?? []).map((member) => (
+                  <li key={member.userId} className={styles.modalListItem}>
+                    <div>
+                      <strong>{member.displayName}</strong>
+                      <span>{member.email}</span>
+                    </div>
+                    <small>{member.role.toLowerCase()}</small>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+
+          <section className={styles.modalSection} aria-labelledby="create-share-link-title">
+            <h3 id="create-share-link-title">Create link</h3>
+            <form className={styles.shareLinkForm} onSubmit={handleCreateShareLink}>
+              <label className={styles.modalLabel}>
+                Link name
+                <input
+                  className={styles.modalInput}
+                  value={name}
+                  onChange={(event) => setName(event.target.value)}
+                  placeholder="Trip invite"
+                />
+              </label>
+              <div className={styles.modalGrid}>
+                <label className={styles.modalLabel}>
+                  Role
+                  <select
+                    className={styles.modalInput}
+                    value={role}
+                    onChange={(event) => setRole(event.target.value as ShareRole)}
+                  >
+                    <option value="EDITOR">Editor</option>
+                    <option value="VIEWER">Viewer</option>
+                  </select>
+                </label>
+                <label className={styles.checkboxLine}>
+                  <input
+                    type="checkbox"
+                    checked={allowAnonymous}
+                    onChange={(event) => setAllowAnonymous(event.target.checked)}
+                  />
+                  Anonymous guests
+                </label>
+              </div>
+              <div className={styles.modalActions}>
+                <button
+                  type="submit"
+                  className={styles.primaryAction}
+                  disabled={createMutation.isPending}
+                >
+                  {createMutation.isPending ? 'Creating...' : 'Create link'}
+                </button>
+              </div>
+            </form>
+          </section>
+
+          <section className={styles.modalSection} aria-labelledby="active-share-links-title">
+            <h3 id="active-share-links-title">Active links</h3>
+            {shareLinksQuery.isLoading ? (
+              <p className={styles.modalState}>Loading links...</p>
+            ) : shareLinksQuery.isError ? (
+              <p className={styles.modalError} role="alert">
+                {parseApiError(shareLinksQuery.error).topMessage}
+              </p>
+            ) : activeLinks.length > 0 ? (
+              <ul className={styles.shareLinkList}>
+                {activeLinks.map((link) => {
+                  const shareUrl = link.shareUrl ?? knownShareUrls[link.id] ?? ''
+                  const savingName = renameMutation.isPending && renameMutation.variables?.linkId === link.id
+                  return (
+                    <li key={link.id} className={styles.shareLinkItem}>
+                      <label className={styles.modalLabel}>
+                        Name
+                        <input
+                          className={styles.modalInput}
+                          value={editableNames[link.id] ?? defaultShareLinkName(link)}
+                          onChange={(event) =>
+                            setEditableNames((current) => ({
+                              ...current,
+                              [link.id]: event.target.value,
+                            }))
+                          }
+                        />
+                      </label>
+                      <p className={styles.itemMeta}>
+                        {link.role.toLowerCase()} access ·{' '}
+                        {link.allowAnonymous ? 'Anonymous guests allowed' : 'Account required'}
+                        {link.expiresAt ? ` · Expires ${link.expiresAt}` : ''}
+                      </p>
+                      {shareUrl ? (
+                        <input
+                          className={styles.readOnlyUrl}
+                          value={shareUrl}
+                          readOnly
+                          onFocus={(event) => event.currentTarget.select()}
+                          aria-label={`${defaultShareLinkName(link)} URL`}
+                        />
+                      ) : (
+                        <p className={styles.itemMeta}>URL unavailable for this older link.</p>
+                      )}
+                      <div className={styles.inlineActions}>
+                        <button
+                          type="button"
+                          className={styles.secondaryAction}
+                          onClick={() => handleRenameShareLink(link)}
+                          disabled={savingName}
+                        >
+                          <Pencil size={14} aria-hidden="true" />
+                          {savingName ? 'Saving...' : 'Rename'}
+                        </button>
+                        <button
+                          type="button"
+                          className={styles.secondaryAction}
+                          onClick={() => void handleCopyShareLink(link)}
+                          disabled={!shareUrl}
+                        >
+                          {copiedLinkId === link.id ? (
+                            <Check size={14} aria-hidden="true" />
+                          ) : (
+                            <Copy size={14} aria-hidden="true" />
+                          )}
+                          {copiedLinkId === link.id ? 'Copied' : 'Copy URL'}
+                        </button>
+                        <button
+                          type="button"
+                          className={styles.secondaryAction}
+                          onClick={() => void revokeMutation.mutateAsync({ publicId, linkId: link.id })}
+                          disabled={revokeMutation.isPending}
+                        >
+                          Revoke
+                        </button>
+                      </div>
+                    </li>
+                  )
+                })}
+              </ul>
+            ) : (
+              <p className={styles.modalState}>No active links.</p>
+            )}
+          </section>
+        </div>
+      </section>
+    </div>
+  )
+}
+
+function UserSettingsModal({
+  onClose,
+  user,
+}: {
+  onClose: () => void
+  user: UserSummary
+}) {
+  const auth = useAuth()
+  const [displayName, setDisplayName] = useState(user.displayName)
+  const [currentPassword, setCurrentPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [resetEmail, setResetEmail] = useState(user.email)
+  const [savingProfile, setSavingProfile] = useState(false)
+  const [savingPassword, setSavingPassword] = useState(false)
+  const [sendingReset, setSendingReset] = useState(false)
+  const [statusMessage, setStatusMessage] = useState<string | null>(null)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+
+  const handleProfileSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    setSavingProfile(true)
+    setErrorMessage(null)
+    try {
+      await auth.updateProfile({ displayName })
+      setStatusMessage('Profile updated.')
+    } catch (error) {
+      setErrorMessage(parseApiError(error).topMessage)
+    } finally {
+      setSavingProfile(false)
+    }
+  }
+
+  const handlePasswordSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    setErrorMessage(null)
+    if (newPassword !== confirmPassword) {
+      setErrorMessage('New passwords do not match.')
+      return
+    }
+    setSavingPassword(true)
+    try {
+      await auth.changePassword({ currentPassword, newPassword })
+      setCurrentPassword('')
+      setNewPassword('')
+      setConfirmPassword('')
+      setStatusMessage('Password changed.')
+    } catch (error) {
+      setErrorMessage(parseApiError(error).topMessage)
+    } finally {
+      setSavingPassword(false)
+    }
+  }
+
+  const handleResetSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    setSendingReset(true)
+    setErrorMessage(null)
+    try {
+      await auth.requestPasswordReset({ email: resetEmail })
+      setStatusMessage('Password reset email sent if that account exists.')
+    } catch (error) {
+      setErrorMessage(parseApiError(error).topMessage)
+    } finally {
+      setSendingReset(false)
+    }
+  }
+
+  return (
+    <div className={styles.modalBackdrop} role="presentation">
+      <section
+        className={[styles.tripSettingsModal, styles.accountSettingsModal].join(' ')}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="account-settings-title"
+      >
+        <header className={styles.modalHeader}>
+          <div>
+            <h2 id="account-settings-title">Account settings</h2>
+            <p>{user.email}</p>
+          </div>
+          <button type="button" className={styles.iconOnlyButton} onClick={onClose} aria-label="Close account settings">
+            <X size={18} aria-hidden="true" />
+          </button>
+        </header>
+        <div className={styles.modalBody}>
+          {statusMessage && <p className={styles.modalSuccess} role="status">{statusMessage}</p>}
+          {errorMessage && <p className={styles.modalError} role="alert">{errorMessage}</p>}
+
+          <form className={styles.modalSection} onSubmit={handleProfileSubmit}>
+            <h3>
+              <UserRound size={16} aria-hidden="true" />
+              Profile
+            </h3>
+            <label className={styles.modalLabel}>
+              Display name
+              <input
+                className={styles.modalInput}
+                autoComplete="name"
+                value={displayName}
+                onChange={(event) => setDisplayName(event.target.value)}
+                required
+              />
+            </label>
+            <div className={styles.modalActions}>
+              <button type="submit" className={styles.primaryAction} disabled={savingProfile}>
+                {savingProfile ? 'Saving...' : 'Save name'}
+              </button>
+            </div>
+          </form>
+
+          <form className={styles.modalSection} onSubmit={handlePasswordSubmit}>
+            <h3>
+              <KeyRound size={16} aria-hidden="true" />
+              Password
+            </h3>
+            <label className={styles.modalLabel}>
+              Current password
+              <input
+                className={styles.modalInput}
+                type="password"
+                autoComplete="current-password"
+                value={currentPassword}
+                onChange={(event) => setCurrentPassword(event.target.value)}
+                required
+              />
+            </label>
+            <div className={styles.modalGrid}>
+              <label className={styles.modalLabel}>
+                New password
+                <input
+                  className={styles.modalInput}
+                  type="password"
+                  autoComplete="new-password"
+                  value={newPassword}
+                  onChange={(event) => setNewPassword(event.target.value)}
+                  required
+                />
+              </label>
+              <label className={styles.modalLabel}>
+                Confirm password
+                <input
+                  className={styles.modalInput}
+                  type="password"
+                  autoComplete="new-password"
+                  value={confirmPassword}
+                  onChange={(event) => setConfirmPassword(event.target.value)}
+                  required
+                />
+              </label>
+            </div>
+            <div className={styles.modalActions}>
+              <button type="submit" className={styles.primaryAction} disabled={savingPassword}>
+                {savingPassword ? 'Saving...' : 'Change password'}
+              </button>
+            </div>
+          </form>
+
+          <form className={styles.modalSection} onSubmit={handleResetSubmit}>
+            <h3>Password reset email</h3>
+            <label className={styles.modalLabel}>
+              Email
+              <input
+                className={styles.modalInput}
+                type="email"
+                autoComplete="email"
+                value={resetEmail}
+                onChange={(event) => setResetEmail(event.target.value)}
+                required
+              />
+            </label>
+            <div className={styles.modalActions}>
+              <button type="submit" className={styles.secondaryAction} disabled={sendingReset}>
+                {sendingReset ? 'Sending...' : 'Send reset email'}
+              </button>
+            </div>
+          </form>
+        </div>
+      </section>
+    </div>
+  )
+}
+
 export function TripWorkspacePage() {
   const { publicId, day } = useParams()
   const navigate = useNavigate()
+  const user = useUser()
   const [expandedActivityId, setExpandedActivityId] = useState<number | null>(null)
   const [placeDraft, setPlaceDraft] = useState<PlaceSelection | null>(null)
   const [isTripSettingsOpen, setIsTripSettingsOpen] = useState(false)
+  const [isShareTripOpen, setIsShareTripOpen] = useState(false)
+  const [isAccountSettingsOpen, setIsAccountSettingsOpen] = useState(false)
   const [isDraggingActivity, setIsDraggingActivity] = useState(false)
   const [workspaceMode, setWorkspaceMode] = useState<WorkspaceMode>('days')
   const [sidebarPinned, setSidebarPinned] = useState(false)
@@ -878,6 +1384,9 @@ export function TripWorkspacePage() {
   const mapSearchRequestIdRef = useRef(0)
   const [pendingMapPlace, setPendingMapPlace] = useState<PlaceSelection | null>(null)
   const [activeActivityId, setActiveActivityId] = useState<number | null>(null)
+  const [hoveredActivityId, setHoveredActivityId] = useState<number | null>(null)
+  const [focusedActivityId, setFocusedActivityId] = useState<number | null>(null)
+  const [activityFocusKey, setActivityFocusKey] = useState(0)
   const [calendarMonth, setCalendarMonth] = useState(() =>
     getMonthKey(day ?? new Date().toISOString().slice(0, 10)),
   )
@@ -949,11 +1458,17 @@ export function TripWorkspacePage() {
     [allActivities],
   )
   const mapActivities = workspaceMode === 'timeline' ? fullTimelineActivities : dayActivities
-  const visibleActiveActivityId = mapActivities.some(
+  const visibleSelectedActivityId = mapActivities.some(
     (activity) => activity.id === activeActivityId,
   )
     ? activeActivityId
     : null
+  const visibleHoveredActivityId = mapActivities.some(
+    (activity) => activity.id === hoveredActivityId,
+  )
+    ? hoveredActivityId
+    : null
+  const visibleActiveActivityId = visibleHoveredActivityId ?? visibleSelectedActivityId
   const selectedDayIndex = selectedDay ? tripDays.indexOf(selectedDay) + 1 : 0
   const selectedDayMappedCount = dayActivities.filter(
     hasFiniteCoordinates,
@@ -1089,6 +1604,22 @@ export function TripWorkspacePage() {
     })
   }
 
+  const focusMapPanel = () => {
+    window.requestAnimationFrame(() => {
+      const activeElement = document.activeElement
+      if (activeElement instanceof HTMLElement) {
+        activeElement.blur()
+      }
+      document.getElementById('trip-map-focus-target')?.focus({ preventScroll: true })
+    })
+  }
+
+  const focusActivityOnMap = (activityId: number) => {
+    setActiveActivityId(activityId)
+    setFocusedActivityId(activityId)
+    setActivityFocusKey((current) => current + 1)
+  }
+
   const collapseSidebarAndFocusItinerary = () => {
     setSidebarPinned(false)
     setSidebarCollapsedAfterTabClick(true)
@@ -1110,6 +1641,8 @@ export function TripWorkspacePage() {
       clearMapSearchState()
       setPendingMapPlace(null)
       setActiveActivityId(null)
+      setHoveredActivityId(null)
+      setFocusedActivityId(null)
       setCalendarMonth(getMonthKey(nextDay))
       navigate(`/trips/${encodeURIComponent(publicId)}/d/${encodeURIComponent(nextDay)}`)
     }
@@ -1123,6 +1656,7 @@ export function TripWorkspacePage() {
     setMapSearchPreview(null)
     clearMapSearchState()
     setPendingMapPlace(null)
+    setHoveredActivityId(null)
   }
 
   const openActivityComposer = () => {
@@ -1145,7 +1679,16 @@ export function TripWorkspacePage() {
   }
 
   const handleActivityActivate = (activityId: number) => {
-    setActiveActivityId(activityId)
+    focusActivityOnMap(activityId)
+    const activity = allActivities.find((item) => item.id === activityId)
+    const activityPlace = activity ? activityToPlaceSelection(activity) : null
+    if (activityPlace) {
+      setSelectedMapSearchResult(null)
+      setSelectedMapClickedPlace(activityPlace)
+      setHoveredMapSearchResultId(null)
+      setMapSearchPreview(null)
+      setPendingMapPlace(null)
+    }
     const target = document.getElementById(`activity-${activityId}`)
     if (!target) return
     const reducedMotion =
@@ -1159,7 +1702,7 @@ export function TripWorkspacePage() {
   }
 
   const handleToggleActivityExpand = (activity: Activity) => {
-    setActiveActivityId(activity.id)
+    focusActivityOnMap(activity.id)
     setPlaceDraft(null)
     setMapSearchPreview(null)
     clearMapSearchState()
@@ -1182,7 +1725,7 @@ export function TripWorkspacePage() {
     setMapSearchPreview(null)
     clearMapSearchState()
     setPendingMapPlace(null)
-    setActiveActivityId(created.id)
+    focusActivityOnMap(created.id)
   }
 
   const handleUpdateActivity = async (activity: Activity, payload: CreateActivityRequest) => {
@@ -1198,7 +1741,7 @@ export function TripWorkspacePage() {
       clearMapSearchState()
       setPendingMapPlace(null)
     }
-    setActiveActivityId(updated.id)
+    focusActivityOnMap(updated.id)
   }
 
   const handleRequestActivityLocationOnMap = (
@@ -1208,7 +1751,7 @@ export function TripWorkspacePage() {
     const query = locationSearchQuery(activity, payload)
     setWorkspaceMode('days')
     setExpandedActivityId(activity.id)
-    setActiveActivityId(activity.id)
+    focusActivityOnMap(activity.id)
     setPlaceDraft(null)
     setMapSearchPreview(null)
     clearMapSearchState()
@@ -1310,6 +1853,7 @@ export function TripWorkspacePage() {
     const requestId = mapSearchRequestIdRef.current + 1
     mapSearchRequestIdRef.current = requestId
     setIsMapSearchSubmitting(true)
+    focusMapPanel()
     try {
       const page = await fetchGooglePlaceTextSearch({
         apiKey,
@@ -1377,6 +1921,7 @@ export function TripWorkspacePage() {
       setHoveredMapSearchResultId(null)
       setMapSearchPreview(null)
       setActiveActivityId(null)
+      setHoveredActivityId(null)
       setPendingMapPlace(mapLocationTarget ? place : null)
     } finally {
       if (mapSearchRequestIdRef.current === requestId) {
@@ -1391,6 +1936,7 @@ export function TripWorkspacePage() {
     setHoveredMapSearchResultId(null)
     setMapSearchPreview(null)
     setActiveActivityId(null)
+    setHoveredActivityId(null)
     if (mapLocationTarget) {
       setPendingMapPlace(place)
     } else {
@@ -1452,7 +1998,11 @@ export function TripWorkspacePage() {
 
   const handleActiveActivityChange = (activityId: number | null) => {
     if (isDraggingActivity) return
-    setActiveActivityId(activityId)
+    setHoveredActivityId(activityId)
+  }
+
+  const handleTimelineActivitySelect = (activityId: number) => {
+    focusActivityOnMap(activityId)
   }
 
   const handleDeleteActivity = (activityId: number) => {
@@ -1686,15 +2236,16 @@ export function TripWorkspacePage() {
                         </span>
                         <span className={styles.railLabel}>Settings</span>
                       </button>
-                      <Link
-                        to={`/trips/${tripQuery.data.publicId}/members`}
+                      <button
+                        type="button"
                         className={styles.shareLink}
+                        onClick={() => setIsShareTripOpen(true)}
                       >
                         <span className={styles.railIcon}>
                           <Share2 size={18} aria-hidden="true" />
                         </span>
                         <span className={styles.railLabel}>Share Trip</span>
-                      </Link>
+                      </button>
                     </>
                   )}
                   <Link to="/trips" className={styles.secondaryLink}>
@@ -1721,6 +2272,18 @@ export function TripWorkspacePage() {
                       </Link>
                     </nav>
                   </div>
+                  {user && (
+                    <div className={styles.topNavActions}>
+                      <button
+                        type="button"
+                        className={styles.secondaryAction}
+                        onClick={() => setIsAccountSettingsOpen(true)}
+                      >
+                        <UserRound size={15} aria-hidden="true" />
+                        Account
+                      </button>
+                    </div>
+                  )}
                 </header>
 
               <section
@@ -1831,7 +2394,7 @@ export function TripWorkspacePage() {
                               dragging={isDraggingActivity}
                               group={group}
                               readOnly={!canEditTrip}
-                              onSelectActivity={setActiveActivityId}
+                              onSelectActivity={handleTimelineActivitySelect}
                             />
                           ))
                         ) : (
@@ -2005,6 +2568,8 @@ export function TripWorkspacePage() {
                   searchResults={mapSearchResults}
                   selectedSearchResultId={selectedMapSearchResult?.mapboxId ?? null}
                   highlightedSearchResultId={highlightedMapSearchResultId}
+                  focusedActivityId={focusedActivityId}
+                  focusedActivityKey={activityFocusKey}
                   onActivityActivate={handleActivityActivate}
                   onActiveActivityChange={handleActiveActivityChange}
                   onMapPlaceClick={handleMapPlaceClick}
@@ -2023,6 +2588,19 @@ export function TripWorkspacePage() {
               onSave={handleSaveTripSettings}
               saving={updateTripMutation.isPending}
               trip={tripQuery.data}
+            />
+          )}
+          {isShareTripOpen && publicId && (
+            <ShareTripModal
+              onClose={() => setIsShareTripOpen(false)}
+              publicId={publicId}
+              tripName={tripQuery.data.name}
+            />
+          )}
+          {isAccountSettingsOpen && user && (
+            <UserSettingsModal
+              onClose={() => setIsAccountSettingsOpen(false)}
+              user={user}
             />
           )}
         </>

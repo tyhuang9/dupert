@@ -22,6 +22,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import com.trip.repo.ActivityRepository;
 import com.trip.repo.DayNoteRepository;
 import com.trip.repo.GuestSessionRepository;
+import com.trip.repo.PasswordResetTokenRepository;
 import com.trip.repo.RefreshTokenRepository;
 import com.trip.repo.ShareLinkRepository;
 import com.trip.repo.TripMemberRepository;
@@ -75,6 +76,9 @@ class SmokeTest {
     GuestSessionRepository guestSessionRepository;
 
     @MockitoBean
+    PasswordResetTokenRepository passwordResetTokenRepository;
+
+    @MockitoBean
     ShareLinkRepository shareLinkRepository;
 
     @Test
@@ -124,11 +128,11 @@ class SmokeTest {
     @Test
     void corsPreflightFromAllowedOriginIsAccepted() throws Exception {
         mvc.perform(options("/api/anything")
-                .header("Origin", "http://localhost:3000")
+                .header("Origin", "http://localhost:3001")
                 .header("Access-Control-Request-Method", "GET"))
             .andExpect(status().isOk())
             .andExpect(header().string("Access-Control-Allow-Origin",
-                equalTo("http://localhost:3000")));
+                equalTo("http://localhost:3001")));
     }
 
     @Test

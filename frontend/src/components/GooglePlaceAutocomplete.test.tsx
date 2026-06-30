@@ -181,6 +181,7 @@ describe('<GooglePlaceAutocomplete>', () => {
         lat: 35.6586,
         lng: 139.7454,
         photoUrl: 'https://example.com/tokyo-tower.webp',
+        priceLevel: null,
         primaryType: 'tourist_attraction',
         primaryTypeDisplayName: 'Tourist attraction',
         rating: null,

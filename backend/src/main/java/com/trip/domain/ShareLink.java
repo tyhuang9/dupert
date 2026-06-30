@@ -16,6 +16,8 @@ import jakarta.persistence.Table;
 @Table(name = "share_links")
 public class ShareLink {
 
+    public static final String DEFAULT_NAME = "Shared link";
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -26,9 +28,15 @@ public class ShareLink {
     @Column(name = "token_hash", nullable = false, length = 64, updatable = false)
     private String tokenHash;
 
+    @Column(name = "token", length = 128, updatable = false)
+    private String token;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "role", nullable = false, length = 16)
     private TripRole role;
+
+    @Column(name = "name", nullable = false, length = 80)
+    private String name = DEFAULT_NAME;
 
     @Column(name = "allow_anonymous", nullable = false)
     private boolean allowAnonymous;
@@ -51,9 +59,21 @@ public class ShareLink {
 
     public ShareLink(Long tripId, String tokenHash, TripRole role, boolean allowAnonymous,
                      Long createdBy, OffsetDateTime expiresAt) {
+        this(tripId, tokenHash, null, role, DEFAULT_NAME, allowAnonymous, createdBy, expiresAt);
+    }
+
+    public ShareLink(Long tripId, String tokenHash, TripRole role, String name, boolean allowAnonymous,
+                     Long createdBy, OffsetDateTime expiresAt) {
+        this(tripId, tokenHash, null, role, name, allowAnonymous, createdBy, expiresAt);
+    }
+
+    public ShareLink(Long tripId, String tokenHash, String token, TripRole role, String name,
+                     boolean allowAnonymous, Long createdBy, OffsetDateTime expiresAt) {
         this.tripId = tripId;
         this.tokenHash = tokenHash;
+        this.token = token;
         this.role = role;
+        this.name = name == null || name.isBlank() ? DEFAULT_NAME : name;
         this.allowAnonymous = allowAnonymous;
         this.createdBy = createdBy;
         this.expiresAt = expiresAt;
@@ -71,8 +91,20 @@ public class ShareLink {
         return tokenHash;
     }
 
+    public String getToken() {
+        return token;
+    }
+
     public TripRole getRole() {
         return role;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
     }
 
     public boolean isAllowAnonymous() {
@@ -107,6 +139,9 @@ public class ShareLink {
     void onCreate() {
         if (createdAt == null) {
             createdAt = OffsetDateTime.now();
+        }
+        if (name == null || name.isBlank()) {
+            name = DEFAULT_NAME;
         }
     }
 }

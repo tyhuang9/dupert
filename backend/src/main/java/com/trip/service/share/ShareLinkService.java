@@ -78,7 +78,9 @@ public class ShareLinkService {
         ShareLink link = new ShareLink(
             resolved.trip().getId(),
             token.hash(),
+            token.raw(),
             request.role(),
+            normalizeLinkNameOrDefault(request.name()),
             request.allowAnonymous(),
             userId,
             request.expiresAt());
@@ -92,24 +94,31 @@ public class ShareLinkService {
     public List<ShareLinkResponse> list(String publicId, Long userId) {
         ResolvedTrip resolved = tripAccessGuard.resolveForUserAtLeast(publicId, userId, TripRole.EDITOR);
         return shareLinkRepository.findAllByTripIdOrderByCreatedAtDesc(resolved.trip().getId()).stream()
-            .map(ShareLinkResponse::of)
+            .map(link -> ShareLinkResponse.of(link, shareUrlForStoredToken(link)))
             .toList();
     }
 
     @Transactional
     public void revoke(String publicId, Long userId, Long linkId) {
         ResolvedTrip resolved = tripAccessGuard.resolveForUserAtLeast(publicId, userId, TripRole.EDITOR);
-        ShareLink link = shareLinkRepository.findById(linkId)
-            .orElseThrow(() -> new NotFoundException("share link not found: id=" + linkId));
-        if (!link.getTripId().equals(resolved.trip().getId())) {
-            throw new NotFoundException("share link trip mismatch: id=" + linkId);
-        }
+        ShareLink link = findLinkOnTrip(linkId, resolved.trip().getId());
         if (link.getRevokedAt() == null) {
             link.revoke(OffsetDateTime.now());
             shareLinkRepository.save(link);
             tripEventPublisher.publishAndDisconnectAfterCommit(
                 resolved.trip().getId(), TripEvent.shareLinksChanged(publicId));
         }
+    }
+
+    @Transactional
+    public ShareLinkResponse rename(String publicId, Long userId, Long linkId, String name) {
+        ResolvedTrip resolved = tripAccessGuard.resolveForUserAtLeast(publicId, userId, TripRole.EDITOR);
+        ShareLink link = findLinkOnTrip(linkId, resolved.trip().getId());
+        link.setName(normalizeRequiredLinkName(name));
+        ShareLink saved = shareLinkRepository.save(link);
+        tripEventPublisher.publishAfterCommit(
+            resolved.trip().getId(), TripEvent.shareLinksChanged(publicId));
+        return ShareLinkResponse.of(saved, shareUrlForStoredToken(saved));
     }
 
     @Transactional
@@ -168,6 +177,15 @@ public class ShareLinkService {
         return link;
     }
 
+    private ShareLink findLinkOnTrip(Long linkId, Long tripId) {
+        ShareLink link = shareLinkRepository.findById(linkId)
+            .orElseThrow(() -> new NotFoundException("share link not found: id=" + linkId));
+        if (!link.getTripId().equals(tripId)) {
+            throw new NotFoundException("share link trip mismatch: id=" + linkId);
+        }
+        return link;
+    }
+
     private void validateRequestedLink(CreateShareLinkRequest request) {
         if (request.role() == TripRole.OWNER) {
             throw new ValidationException("invalid_share_role", "share links cannot grant OWNER");
@@ -207,6 +225,22 @@ public class ShareLinkService {
         return sanitized;
     }
 
+    private static String normalizeLinkNameOrDefault(String name) {
+        String sanitized = DisplayNameSanitizer.sanitize(name);
+        if (sanitized == null || sanitized.isBlank()) {
+            return ShareLink.DEFAULT_NAME;
+        }
+        return sanitized;
+    }
+
+    private static String normalizeRequiredLinkName(String name) {
+        String sanitized = DisplayNameSanitizer.sanitize(name);
+        if (sanitized == null || sanitized.isBlank()) {
+            throw new ValidationException("invalid_share_link_name", "name cannot be blank");
+        }
+        return sanitized;
+    }
+
     private String shareUrl(String rawToken) {
         String trimmedOrigin = frontendOrigin == null ? "" : frontendOrigin.strip();
         if (trimmedOrigin.isEmpty()) {
@@ -216,6 +250,14 @@ public class ShareLinkService {
             trimmedOrigin = trimmedOrigin.substring(0, trimmedOrigin.length() - 1);
         }
         return trimmedOrigin + "/share/" + rawToken;
+    }
+
+    private String shareUrlForStoredToken(ShareLink link) {
+        String rawToken = link.getToken();
+        if (rawToken == null || rawToken.isBlank()) {
+            return null;
+        }
+        return shareUrl(rawToken);
     }
 
     private record GeneratedToken(String raw, String hash) {

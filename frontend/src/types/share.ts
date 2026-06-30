@@ -2,14 +2,17 @@ import type { TripRole } from './trip'
 
 export interface ShareLink {
   id: number
+  name?: string | null
   role: Exclude<TripRole, 'OWNER'>
   allowAnonymous: boolean
   createdAt: string
   expiresAt: string | null
   revokedAt: string | null
+  shareUrl?: string | null
 }
 
 export interface CreateShareLinkRequest {
+  name?: string | null
   role: Exclude<TripRole, 'OWNER'>
   allowAnonymous: boolean
   expiresAt?: string | null
@@ -18,6 +21,10 @@ export interface CreateShareLinkRequest {
 export interface CreatedShareLink extends ShareLink {
   token: string
   shareUrl: string
+}
+
+export interface RenameShareLinkRequest {
+  name: string
 }
 
 export interface AcceptShareLinkResponse {

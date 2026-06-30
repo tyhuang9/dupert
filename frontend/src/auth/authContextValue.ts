@@ -2,6 +2,7 @@ import { createContext } from 'react'
 import type {
   LoginRequest,
   RegisterRequest,
+  UpdateProfileRequest,
   UserSummary,
 } from '../types/auth'
 
@@ -27,6 +28,9 @@ export interface AuthContextValue {
   isInitializing: boolean
   login: (body: LoginRequest) => Promise<UserSummary>
   register: (body: RegisterRequest) => Promise<UserSummary>
+  updateProfile: (body: UpdateProfileRequest) => Promise<UserSummary>
+  changePassword: (body: { currentPassword: string; newPassword: string }) => Promise<void>
+  requestPasswordReset: (body: { email: string }) => Promise<void>
   logout: () => Promise<void>
   deleteAccount: () => Promise<void>
 }

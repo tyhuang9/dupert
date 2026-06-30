@@ -1,9 +1,13 @@
 import { apiClient } from './client'
 import type {
   AuthResponse,
+  ChangePasswordRequest,
   DevPasswordResetRequest,
   LoginRequest,
+  PasswordResetConfirmRequest,
+  PasswordResetRequest,
   RegisterRequest,
+  UpdateProfileRequest,
   UserSummary,
 } from '../types/auth'
 
@@ -46,6 +50,23 @@ export async function logout(): Promise<void> {
 export async function getMe(): Promise<UserSummary> {
   const { data } = await apiClient.get<UserSummary>('/auth/me')
   return data
+}
+
+export async function updateProfile(body: UpdateProfileRequest): Promise<UserSummary> {
+  const { data } = await apiClient.patch<UserSummary>('/auth/me/profile', body)
+  return data
+}
+
+export async function changePassword(body: ChangePasswordRequest): Promise<void> {
+  await apiClient.post('/auth/me/password', body)
+}
+
+export async function requestPasswordReset(body: PasswordResetRequest): Promise<void> {
+  await apiClient.post('/auth/password-reset/request', body)
+}
+
+export async function confirmPasswordReset(body: PasswordResetConfirmRequest): Promise<void> {
+  await apiClient.post('/auth/password-reset/confirm', body)
 }
 
 export async function deleteMe(): Promise<void> {

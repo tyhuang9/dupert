@@ -34,6 +34,8 @@ interface TripMapProps {
   selectedSearchResultId?: string | null
   highlightedSearchResultId?: string | null
   activeActivityId?: number | null
+  focusedActivityId?: number | null
+  focusedActivityKey?: number
   onActivityActivate?: (activityId: number) => void
   onActiveActivityChange?: (activityId: number | null) => void
   onMapPlaceClick?: (placeId: string) => void
@@ -325,6 +327,8 @@ function TripMapContent({
   fallbackActivities = [],
   routeActivities = activities,
   activeActivityId = null,
+  focusedActivityId = null,
+  focusedActivityKey = 0,
   destination,
   mapStyle = 'roadmap',
   onMapStyleChange,
@@ -416,6 +420,13 @@ function TripMapContent({
     }
     return destinationCoordinate ? [destinationToDisplayStop(destinationCoordinate)] : []
   }, [destinationCoordinate, fallbackMappedActivities, selectedMappedActivities])
+  const focusedActivityDisplayStop = useMemo(
+    () =>
+      focusedActivityId === null
+        ? null
+        : baseDisplayStops.find((stop) => stop.activityId === focusedActivityId) ?? null,
+    [baseDisplayStops, focusedActivityId],
+  )
   const displayStops = useMemo(() => {
     const mergedStops = searchDisplayStops.length > 0
       ? [...baseDisplayStops, ...searchDisplayStops]
@@ -499,9 +510,11 @@ function TripMapContent({
     () => baseDisplayStops.map((stop) => `${stop.source}:${stop.lng},${stop.lat}`).join(';'),
     [baseDisplayStops],
   )
-  const focusedDisplayStop = selectedSearchDisplayStop ?? previewDisplayStop
-  const focusedDisplayKey = focusedDisplayStop
-    ? `${focusedDisplayStop.source}:${focusedDisplayStop.lng},${focusedDisplayStop.lat}`
+  const previewDisplayKey = previewDisplayStop
+    ? `${previewDisplayStop.source}:${previewDisplayStop.lng},${previewDisplayStop.lat}`
+    : ''
+  const selectedSearchDisplayKey = selectedSearchDisplayStop
+    ? `${selectedSearchDisplayStop.source}:${selectedSearchDisplayStop.lng},${selectedSearchDisplayStop.lat}`
     : ''
   const reportViewportContext = useCallback(() => {
     if (!onViewportContextChange) return
@@ -617,25 +630,53 @@ function TripMapContent({
   }, [baseDisplayKey, baseDisplayStops, map, reportViewportContext])
 
   useEffect(() => {
-    if (!map || !focusedDisplayStop || !focusedDisplayKey) return
-
-    const bounds = typeof map.getBounds === 'function' ? map.getBounds()?.toJSON() : undefined
-    if (mapBoundsContainPoint(bounds, focusedDisplayStop)) return
+    if (!map || !selectedSearchDisplayStop || !selectedSearchDisplayKey) return
 
     map.moveCamera({
       center: {
-        lat: focusedDisplayStop.lat,
-        lng: focusedDisplayStop.lng,
+        lat: selectedSearchDisplayStop.lat,
+        lng: selectedSearchDisplayStop.lng,
+      },
+      zoom: Math.max(map.getZoom() ?? 0, 15),
+    })
+    window.requestAnimationFrame(reportViewportContext)
+  }, [map, reportViewportContext, selectedSearchDisplayKey, selectedSearchDisplayStop])
+
+  useEffect(() => {
+    if (!map || !previewDisplayStop || !previewDisplayKey) return
+
+    const bounds = typeof map.getBounds === 'function' ? map.getBounds()?.toJSON() : undefined
+    if (mapBoundsContainPoint(bounds, previewDisplayStop)) return
+
+    map.moveCamera({
+      center: {
+        lat: previewDisplayStop.lat,
+        lng: previewDisplayStop.lng,
       },
     })
     window.requestAnimationFrame(reportViewportContext)
-  }, [focusedDisplayKey, focusedDisplayStop, map, reportViewportContext])
+  }, [map, previewDisplayKey, previewDisplayStop, reportViewportContext])
+
+  useEffect(() => {
+    if (!map || !focusedActivityDisplayStop || focusedActivityKey === 0) return
+
+    map.moveCamera({
+      center: {
+        lat: focusedActivityDisplayStop.lat,
+        lng: focusedActivityDisplayStop.lng,
+      },
+      zoom: Math.max(map.getZoom() ?? 0, 14),
+    })
+    window.requestAnimationFrame(reportViewportContext)
+  }, [focusedActivityDisplayStop, focusedActivityKey, map, reportViewportContext])
 
   return (
     <div className={styles.mapShell}>
       <div
+        id="trip-map-focus-target"
         className={styles.mapCanvas}
         role="region"
+        tabIndex={-1}
         aria-label={destination ? `Map for ${destination}` : 'Trip map'}
       >
         <Map
@@ -682,8 +723,11 @@ function TripMapContent({
               key={stop.id}
               position={{ lat: stop.lat, lng: stop.lng }}
               zIndex={
-                stop.source === 'preview' ||
-                (stop.source === 'search' && stop.place?.mapboxId === highlightedSearchResultId)
+                activeActivityId === stop.activityId
+                  ? 5
+                  : stop.source === 'preview' ||
+                      (stop.source === 'search' &&
+                        stop.place?.mapboxId === highlightedSearchResultId)
                   ? 4
                   : stop.source === 'search'
                     ? 3

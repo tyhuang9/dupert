@@ -104,15 +104,14 @@ afterEach(() => {
 })
 
 describe('<MapSearchResultsShelf>', () => {
-  it('renders arrow controls and scrolls results horizontally without requiring a visible scrollbar', async () => {
+  it('renders directional arrow controls only when scrollable that way', async () => {
     renderShelf({ hasMore: true })
 
     const list = screen.getByLabelText(/search result places/i)
     setScrollableMetrics(list, { clientWidth: 300, scrollLeft: 0, scrollWidth: 900 })
-    const left = screen.getByRole('button', { name: /scroll search results left/i })
     const right = screen.getByRole('button', { name: /scroll search results right/i })
 
-    expect(left).toBeDisabled()
+    expect(screen.queryByRole('button', { name: /scroll search results left/i })).not.toBeInTheDocument()
     expect(right).toBeEnabled()
 
     await userEvent.click(right)
@@ -121,6 +120,19 @@ describe('<MapSearchResultsShelf>', () => {
       behavior: 'smooth',
       left: 246,
     })
+
+    expect(screen.getByRole('button', { name: /scroll search results left/i })).toBeEnabled()
+  })
+
+  it('maps vertical wheel movement to horizontal shelf scrolling', () => {
+    renderShelf({ hasMore: false })
+
+    const list = screen.getByLabelText(/search result places/i)
+    setScrollableMetrics(list, { clientWidth: 300, scrollLeft: 0, scrollWidth: 900 })
+
+    fireEvent.wheel(list, { deltaX: 0, deltaY: 120 })
+
+    expect(list.scrollLeft).toBe(120)
   })
 
   it('keeps native horizontal scrolling as the load-more trigger near the end', () => {

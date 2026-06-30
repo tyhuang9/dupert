@@ -4,6 +4,7 @@ import AcceptInvitePage from './pages/AcceptInvitePage'
 import GuestOnboardingPage from './pages/GuestOnboardingPage'
 import LoginPage from './pages/LoginPage'
 import MembersPage from './pages/MembersPage'
+import PasswordResetPage from './pages/PasswordResetPage'
 import RegisterPage from './pages/RegisterPage'
 import TripsPage from './pages/TripsPage'
 import NewTripPage from './pages/NewTripPage'
@@ -53,6 +54,7 @@ export default function App() {
         {/* Public routes — auth pages and share-accept landing flows */}
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
+        <Route path="/reset-password" element={<PasswordResetPage />} />
         <Route path="/share/:token" element={<AcceptInvitePage />} />
         <Route path="/share/:token/guest" element={<GuestOnboardingPage />} />
         <Route path="/404" element={<NotFoundPage />} />

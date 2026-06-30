@@ -35,6 +35,24 @@ export interface LoginRequest {
   password: string
 }
 
+export interface UpdateProfileRequest {
+  displayName: string
+}
+
+export interface ChangePasswordRequest {
+  currentPassword: string
+  newPassword: string
+}
+
+export interface PasswordResetRequest {
+  email: string
+}
+
+export interface PasswordResetConfirmRequest {
+  token: string
+  password: string
+}
+
 export interface DevPasswordResetRequest {
   email: string
   password: string

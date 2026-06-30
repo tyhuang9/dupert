@@ -34,7 +34,7 @@ spring:
       add-mappings: false
 
 server:
-  port: 8000
+  port: 8001
   error:
     include-message: never
     include-stacktrace: never

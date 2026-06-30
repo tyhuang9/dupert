@@ -8,6 +8,7 @@ import com.trip.domain.TripRole;
 public record CreateShareLinkResponse(
     long id,
     TripRole role,
+    String name,
     boolean allowAnonymous,
     OffsetDateTime createdAt,
     OffsetDateTime expiresAt,
@@ -20,6 +21,7 @@ public record CreateShareLinkResponse(
         return new CreateShareLinkResponse(
             link.getId(),
             link.getRole(),
+            link.getName(),
             link.isAllowAnonymous(),
             link.getCreatedAt(),
             link.getExpiresAt(),

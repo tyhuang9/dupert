@@ -41,6 +41,7 @@ import com.trip.domain.User;
 import com.trip.repo.ActivityRepository;
 import com.trip.repo.DayNoteRepository;
 import com.trip.repo.GuestSessionRepository;
+import com.trip.repo.PasswordResetTokenRepository;
 import com.trip.repo.ShareLinkRepository;
 import com.trip.repo.TripMemberRepository;
 import com.trip.repo.TripRepository;
@@ -126,6 +127,9 @@ class AuthControllerTest {
 
     @MockitoBean
     GuestSessionRepository guestSessionRepository;
+
+    @MockitoBean
+    PasswordResetTokenRepository passwordResetTokenRepository;
 
     @MockitoBean
     ShareLinkRepository shareLinkRepository;
@@ -409,6 +413,8 @@ class AuthControllerTest {
             refreshTokenService,
             refreshCookie,
             breachedPasswordChecker,
+            mock(com.trip.service.auth.AccountService.class),
+            mock(com.trip.service.auth.PasswordResetService.class),
             rateLimitRegistry,
             appProperties,
             environment

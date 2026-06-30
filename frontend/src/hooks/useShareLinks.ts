@@ -11,6 +11,7 @@ import {
   createShareLink,
   listTripMembers,
   listShareLinks,
+  renameShareLink,
   revokeShareLink,
 } from '../api/share'
 import type {
@@ -19,6 +20,7 @@ import type {
   AcceptShareLinkResponse,
   CreatedShareLink,
   CreateShareLinkRequest,
+  RenameShareLinkRequest,
   ShareLink,
   TripMember,
 } from '../types/share'
@@ -84,6 +86,27 @@ export function useRevokeShareLink(): UseMutationResult<
             link.id === linkId
               ? { ...link, revokedAt: new Date().toISOString() }
               : link,
+          ) ?? existing,
+      )
+    },
+  })
+}
+
+export function useRenameShareLink(): UseMutationResult<
+  ShareLink,
+  Error,
+  { publicId: string; linkId: number; body: RenameShareLinkRequest }
+> {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ publicId, linkId, body }) => renameShareLink(publicId, linkId, body),
+    onSuccess: (updatedLink, { publicId }) => {
+      queryClient.setQueryData<ShareLink[]>(
+        shareKeys.forTrip(publicId),
+        (existing) =>
+          existing?.map((link) =>
+            link.id === updatedLink.id ? { ...link, ...updatedLink } : link,
           ) ?? existing,
       )
     },

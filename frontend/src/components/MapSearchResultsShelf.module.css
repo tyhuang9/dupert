@@ -7,6 +7,7 @@
   display: grid;
   gap: var(--space-2);
   padding: var(--space-3);
+  overflow: hidden;
   border: 1px solid rgba(194, 198, 214, 0.72);
   border-radius: var(--radius-md);
   background: rgba(255, 255, 255, 0.92);
@@ -66,17 +67,20 @@
 .carousel {
   position: relative;
   min-width: 0;
+  overflow: hidden;
 }
 
 .list {
   display: flex;
-  gap: var(--space-2);
-  margin: 0 calc(var(--space-4) * -1);
-  padding: 0 var(--space-4);
+  gap: var(--space-4);
+  min-height: 104px;
+  padding: 0 var(--space-6);
   overflow-x: auto;
+  overflow-y: hidden;
   overscroll-behavior-x: contain;
-  scroll-padding-inline: var(--space-4);
+  scroll-padding-inline: var(--space-6);
   scroll-snap-type: x proximity;
+  scroll-behavior: smooth;
   scrollbar-width: none;
 }
 
@@ -84,12 +88,31 @@
   display: none;
 }
 
+.edgeFade {
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  bottom: 0;
+  width: 56px;
+  pointer-events: none;
+}
+
+.edgeFadeLeft {
+  left: 0;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.96), rgba(255, 255, 255, 0));
+}
+
+.edgeFadeRight {
+  right: 0;
+  background: linear-gradient(270deg, rgba(255, 255, 255, 0.96), rgba(255, 255, 255, 0));
+}
+
 .navButton {
   position: absolute;
-  z-index: 2;
+  z-index: 3;
   top: 50%;
-  width: 30px;
-  height: 30px;
+  width: 36px;
+  height: 36px;
   display: inline-grid;
   place-items: center;
   padding: 0;
@@ -112,29 +135,25 @@
   outline-offset: var(--focus-ring-offset);
 }
 
-.navButton:disabled {
-  cursor: default;
-  opacity: 0.42;
-}
-
 .navButtonLeft {
-  left: calc(var(--space-2) * -1);
+  left: var(--space-1);
 }
 
 .navButtonRight {
-  right: calc(var(--space-2) * -1);
+  right: var(--space-1);
 }
 
 .card {
-  flex: 0 0 min(12.75rem, 68vw);
+  flex: 0 0 18rem;
   min-width: 0;
   display: grid;
-  grid-template-columns: 64px minmax(0, 1fr);
+  grid-template-columns: 80px minmax(0, 1fr);
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--space-3);
+  min-height: 96px;
   padding: var(--space-2);
   border: 1px solid var(--color-surface-border);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   background: rgba(255, 255, 255, 0.94);
   color: inherit;
   font: inherit;
@@ -147,7 +166,11 @@
 .card:hover,
 .cardSelected {
   border-color: rgba(37, 99, 235, 0.45);
-  background: var(--color-primary-softer);
+  background: var(--color-surface-2);
+}
+
+.cardSelected {
+  border-color: var(--color-primary);
 }
 
 .card:focus-visible {
@@ -156,8 +179,8 @@
 }
 
 .thumbnail {
-  width: 64px;
-  height: 64px;
+  width: 80px;
+  height: 80px;
   display: inline-grid;
   place-items: center;
   overflow: hidden;
@@ -178,7 +201,7 @@
 .cardBody {
   min-width: 0;
   display: grid;
-  gap: 3px;
+  gap: 4px;
 }
 
 .cardBody strong {
@@ -190,7 +213,13 @@
   white-space: nowrap;
 }
 
-.cardBody small {
+.metadata {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.metadata small {
   color: var(--color-text-muted);
   font-size: 11px;
   font-weight: 700;
@@ -198,6 +227,19 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.metadata .open {
+  color: #15803d;
+}
+
+.metadata .closed {
+  color: #b91c1c;
+}
+
+.metadata .muted {
+  color: var(--color-text-muted);
+  text-transform: capitalize;
 }
 
 .rating {
@@ -212,7 +254,7 @@
 
 .loading {
   flex: 0 0 8rem;
-  min-height: 80px;
+  min-height: 96px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -233,6 +275,6 @@
   }
 
   .card {
-    flex-basis: min(14rem, 76vw);
+    flex-basis: min(18rem, 76vw);
   }
 }

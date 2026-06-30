@@ -26,6 +26,7 @@ export const GOOGLE_PLACE_DETAILS_FIELD_MASK = [
   'photos',
   'primaryType',
   'primaryTypeDisplayName',
+  'priceLevel',
   'rating',
   'regularOpeningHours',
   'types',
@@ -44,6 +45,7 @@ export const GOOGLE_PLACE_DETAILS_WITHOUT_PHOTOS_FIELD_MASK = [
   'name',
   'primaryType',
   'primaryTypeDisplayName',
+  'priceLevel',
   'rating',
   'regularOpeningHours',
   'types',
@@ -64,6 +66,7 @@ export const GOOGLE_PLACES_TEXT_SEARCH_FIELD_MASK = [
   'places.photos',
   'places.primaryType',
   'places.primaryTypeDisplayName',
+  'places.priceLevel',
   'places.rating',
   'places.regularOpeningHours',
   'places.types',
@@ -129,6 +132,7 @@ export interface GooglePlaceSelection {
   photoUrl: string | null
   primaryType: string | null
   primaryTypeDisplayName: string | null
+  priceLevel?: string | null
   rating: number | null
   regularOpeningHours: GooglePlaceOpeningHours | null
   reviews: GooglePlaceReview[]
@@ -190,6 +194,7 @@ interface GooglePlaceDetailsResponse {
   photos?: Array<{ name?: string | null }> | null
   primaryType?: string | null
   primaryTypeDisplayName?: GoogleText | null
+  priceLevel?: string | null
   rating?: number | null
   regularOpeningHours?: GoogleOpeningHoursResponse | null
   reviews?: GoogleReviewResponse[] | null
@@ -670,6 +675,7 @@ function normalizeGooglePlaceResponse(
     photoUrl,
     primaryType: place.primaryType ?? null,
     primaryTypeDisplayName: textValue(place.primaryTypeDisplayName) || null,
+    priceLevel: place.priceLevel?.trim() || null,
     rating: isFiniteCoordinate(place.rating) ? place.rating : null,
     regularOpeningHours: normalizeOpeningHours(place.regularOpeningHours),
     reviews: normalizeReviews(undefined),

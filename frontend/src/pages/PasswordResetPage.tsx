@@ -1,0 +1,115 @@
+import { useId, useState, type FormEvent } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
+import { confirmPasswordReset } from '../api/auth'
+import { parseApiError } from '../api/errors'
+import { usePageTitle } from '../utils/usePageTitle'
+import styles from './AuthForm.module.css'
+
+export default function PasswordResetPage() {
+  usePageTitle('Reset password - TripPlanner')
+
+  const [searchParams] = useSearchParams()
+  const initialToken = searchParams.get('token') ?? searchParams.get('code') ?? ''
+  const [token, setToken] = useState(initialToken)
+  const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const tokenId = useId()
+  const passwordId = useId()
+  const confirmPasswordId = useId()
+
+  async function onSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (isSubmitting) return
+    setErrorMessage(null)
+    setSuccessMessage(null)
+    if (password !== confirmPassword) {
+      setErrorMessage('New passwords do not match.')
+      return
+    }
+    setIsSubmitting(true)
+    try {
+      await confirmPasswordReset({ token, password })
+      setSuccessMessage('Password reset complete. You can sign in now.')
+      setPassword('')
+      setConfirmPassword('')
+    } catch (error) {
+      setErrorMessage(parseApiError(error).topMessage)
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  return (
+    <main id="main" className={styles.shell}>
+      <div className={styles.card}>
+        <h1 className={styles.title}>Reset password</h1>
+        <p className={styles.subtitle}>Enter the code from your email and choose a new password.</p>
+
+        {successMessage && (
+          <div className={styles.bannerSuccess} role="status">
+            {successMessage}
+          </div>
+        )}
+        {errorMessage && (
+          <div className={styles.banner} role="alert">
+            <span className={styles.bannerIcon} aria-hidden="true">
+              !
+            </span>
+            <span>{errorMessage}</span>
+          </div>
+        )}
+
+        <form className={styles.form} onSubmit={onSubmit} noValidate>
+          <label className={styles.field} htmlFor={tokenId}>
+            <span className={styles.label}>Reset code</span>
+            <input
+              id={tokenId}
+              className={styles.input}
+              autoComplete="one-time-code"
+              value={token}
+              onChange={(event) => setToken(event.target.value)}
+              required
+              disabled={isSubmitting}
+            />
+          </label>
+          <label className={styles.field} htmlFor={passwordId}>
+            <span className={styles.label}>New password</span>
+            <input
+              id={passwordId}
+              className={styles.input}
+              type="password"
+              autoComplete="new-password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              required
+              disabled={isSubmitting}
+            />
+          </label>
+          <label className={styles.field} htmlFor={confirmPasswordId}>
+            <span className={styles.label}>Confirm password</span>
+            <input
+              id={confirmPasswordId}
+              className={styles.input}
+              type="password"
+              autoComplete="new-password"
+              value={confirmPassword}
+              onChange={(event) => setConfirmPassword(event.target.value)}
+              required
+              disabled={isSubmitting}
+            />
+          </label>
+          <button className={styles.submit} type="submit" disabled={isSubmitting}>
+            {isSubmitting ? 'Resetting...' : 'Reset password'}
+          </button>
+        </form>
+
+        <p className={styles.altLink}>
+          <Link to="/login">Back to sign in</Link>
+        </p>
+      </div>
+    </main>
+  )
+}

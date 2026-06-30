@@ -8,6 +8,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.cookie;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -15,6 +16,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.time.OffsetDateTime;
+import java.util.Map;
 import java.util.Optional;
 
 import jakarta.servlet.http.Cookie;
@@ -36,6 +38,7 @@ import com.trip.domain.User;
 import com.trip.repo.ActivityRepository;
 import com.trip.repo.DayNoteRepository;
 import com.trip.repo.GuestSessionRepository;
+import com.trip.repo.PasswordResetTokenRepository;
 import com.trip.repo.ShareLinkRepository;
 import com.trip.repo.TripMemberRepository;
 import com.trip.repo.TripRepository;
@@ -43,6 +46,7 @@ import com.trip.repo.UserRepository;
 import com.trip.service.auth.JwtService;
 import com.trip.service.auth.RefreshTokenService;
 import com.trip.service.auth.RefreshTokenService.IssuedRefreshToken;
+import com.trip.service.auth.password.BreachedPasswordChecker;
 import com.trip.web.auth.RefreshCookie;
 
 /**
@@ -77,6 +81,9 @@ class AuthControllerMeTest {
     @MockitoBean
     PasswordEncoder passwordEncoder;
 
+    @MockitoBean
+    BreachedPasswordChecker breachedPasswordChecker;
+
     // TripAccessGuard (@Service) component-scans and pulls in the trip repos; the
     // test profile excludes JPA auto-config so we mock them like the auth repos above.
     @MockitoBean
@@ -95,11 +102,15 @@ class AuthControllerMeTest {
     GuestSessionRepository guestSessionRepository;
 
     @MockitoBean
+    PasswordResetTokenRepository passwordResetTokenRepository;
+
+    @MockitoBean
     ShareLinkRepository shareLinkRepository;
 
     @BeforeEach
     void wireDefaults() {
         when(passwordEncoder.encode(anyString())).thenReturn("hashed");
+        when(breachedPasswordChecker.isBreached(anyString())).thenReturn(false);
     }
 
     // ------------------------------------------------------------------
@@ -140,6 +151,112 @@ class AuthControllerMeTest {
         mvc.perform(get("/api/auth/me").header("Authorization", "Bearer " + token))
             .andExpect(status().isUnauthorized())
             .andExpect(jsonPath("$.error").value("unauthenticated"));
+    }
+
+    // ------------------------------------------------------------------
+    // PATCH /me/profile
+    // ------------------------------------------------------------------
+
+    @Test
+    void updateProfileSanitizesDisplayNameAndReturnsUserSummary() throws Exception {
+        User user = userWith(42L, "alice@example.com", "Old Name");
+        when(userRepository.findById(42L)).thenReturn(Optional.of(user));
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        String token = realJwtService.issueAccessToken(42L);
+
+        mvc.perform(patch("/api/auth/me/profile")
+                .header("Authorization", "Bearer " + token)
+                .contentType("application/json")
+                .content(objectMapper.writeValueAsString(Map.of("displayName", "  Alice\r\n"))))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.id").value(42))
+            .andExpect(jsonPath("$.email").value("alice@example.com"))
+            .andExpect(jsonPath("$.displayName").value("Alice"));
+
+        verify(userRepository).save(user);
+    }
+
+    @Test
+    void updateProfileRejectsNameThatSanitizesBlank() throws Exception {
+        String token = realJwtService.issueAccessToken(42L);
+
+        mvc.perform(patch("/api/auth/me/profile")
+                .header("Authorization", "Bearer " + token)
+                .contentType("application/json")
+                .content(objectMapper.writeValueAsString(Map.of("displayName", "\u202E\u2066"))))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.error").value("invalid_display_name"));
+
+        verify(userRepository, never()).save(any(User.class));
+    }
+
+    // ------------------------------------------------------------------
+    // POST /me/password
+    // ------------------------------------------------------------------
+
+    @Test
+    void changePasswordVerifiesCurrentPasswordUpdatesHashAndRevokesRefreshTokens() throws Exception {
+        User user = userWith(42L, "alice@example.com", "Alice");
+        user.setPasswordHash("old-hash");
+        when(userRepository.findById(42L)).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("old-password", "old-hash")).thenReturn(true);
+        when(passwordEncoder.encode("new-password-123")).thenReturn("new-hash");
+        String token = realJwtService.issueAccessToken(42L);
+
+        mvc.perform(post("/api/auth/me/password")
+                .header("Authorization", "Bearer " + token)
+                .contentType("application/json")
+                .content(objectMapper.writeValueAsString(Map.of(
+                    "currentPassword", "old-password",
+                    "newPassword", "new-password-123"))))
+            .andExpect(status().isNoContent());
+
+        org.assertj.core.api.Assertions.assertThat(user.getPasswordHash()).isEqualTo("new-hash");
+        verify(userRepository).save(user);
+        verify(refreshTokenService).revokeAllForUser(42L);
+    }
+
+    @Test
+    void changePasswordRejectsWrongCurrentPassword() throws Exception {
+        User user = userWith(42L, "alice@example.com", "Alice");
+        user.setPasswordHash("old-hash");
+        when(userRepository.findById(42L)).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("wrong-password", "old-hash")).thenReturn(false);
+        String token = realJwtService.issueAccessToken(42L);
+
+        mvc.perform(post("/api/auth/me/password")
+                .header("Authorization", "Bearer " + token)
+                .contentType("application/json")
+                .content(objectMapper.writeValueAsString(Map.of(
+                    "currentPassword", "wrong-password",
+                    "newPassword", "new-password-123"))))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.error").value("invalid_current_password"));
+
+        verify(userRepository, never()).save(any(User.class));
+        verify(refreshTokenService, never()).revokeAllForUser(any());
+    }
+
+    @Test
+    void changePasswordRejectsBreachedNewPassword() throws Exception {
+        User user = userWith(42L, "alice@example.com", "Alice");
+        user.setPasswordHash("old-hash");
+        when(userRepository.findById(42L)).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("old-password", "old-hash")).thenReturn(true);
+        when(breachedPasswordChecker.isBreached("new-password-123")).thenReturn(true);
+        String token = realJwtService.issueAccessToken(42L);
+
+        mvc.perform(post("/api/auth/me/password")
+                .header("Authorization", "Bearer " + token)
+                .contentType("application/json")
+                .content(objectMapper.writeValueAsString(Map.of(
+                    "currentPassword", "old-password",
+                    "newPassword", "new-password-123"))))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.error").value("password_breached"));
+
+        verify(userRepository, never()).save(any(User.class));
+        verify(refreshTokenService, never()).revokeAllForUser(any());
     }
 
     // ------------------------------------------------------------------

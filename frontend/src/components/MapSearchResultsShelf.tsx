@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type UIEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type UIEvent, type WheelEvent } from 'react'
 import { ChevronLeft, ChevronRight, LoaderCircle, MapPin, Star, X } from 'lucide-react'
 import type { PlaceSelection } from '../types/place'
 import styles from './MapSearchResultsShelf.module.css'
@@ -14,20 +14,12 @@ interface MapSearchResultsShelfProps {
   selectedPlaceId: string | null
 }
 
-function pluralize(count: number, singular: string, plural = `${singular}s`): string {
-  return `${count} ${count === 1 ? singular : plural}`
-}
-
 function placeDisplayName(place: PlaceSelection): string {
   return place.placeName || place.title || place.address || 'Selected place'
 }
 
 function placeCategoryLabel(place: PlaceSelection): string {
   return place.placeCategory || place.featureType || place.category || 'Place'
-}
-
-function placeMetadata(place: PlaceSelection): string {
-  return [placeCategoryLabel(place), place.address].filter(Boolean).join(' · ')
 }
 
 function placeStableId(place: PlaceSelection): string {
@@ -37,9 +29,33 @@ function placeStableId(place: PlaceSelection): string {
 function formatRating(place: PlaceSelection): string | null {
   if (typeof place.rating !== 'number') return null
   const reviewCount = typeof place.userRatingCount === 'number'
-    ? ` (${pluralize(place.userRatingCount, 'review')})`
+    ? ` (${place.userRatingCount.toLocaleString()})`
     : ''
   return `${place.rating.toFixed(1)}${reviewCount}`
+}
+
+function formatPriceLevel(priceLevel: string | null | undefined): string | null {
+  if (!priceLevel) return null
+  const normalized = priceLevel.toUpperCase()
+  if (normalized.includes('FREE')) return 'Free'
+  if (normalized.includes('INEXPENSIVE')) return '$'
+  if (normalized.includes('MODERATE')) return '$$'
+  if (normalized.includes('VERY_EXPENSIVE')) return '$$$$'
+  if (normalized.includes('EXPENSIVE')) return '$$$'
+  return null
+}
+
+function formatStatus(place: PlaceSelection): { label: string; tone: 'open' | 'closed' | 'muted' } | null {
+  if (place.currentOpeningHours?.openNow === true) {
+    return { label: 'Open now', tone: 'open' }
+  }
+  if (place.currentOpeningHours?.openNow === false) {
+    return { label: 'Closed', tone: 'closed' }
+  }
+  if (place.businessStatus && place.businessStatus !== 'OPERATIONAL') {
+    return { label: place.businessStatus.replaceAll('_', ' ').toLowerCase(), tone: 'muted' }
+  }
+  return null
 }
 
 function PlaceThumbnail({ place }: { place: PlaceSelection }) {
@@ -124,6 +140,24 @@ export function MapSearchResultsShelf({
     [requestLoadMore, updateScrollState],
   )
 
+  const handleWheel = useCallback(
+    (event: WheelEvent<HTMLDivElement>) => {
+      const list = event.currentTarget
+      if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return
+      if (list.scrollWidth <= list.clientWidth) return
+
+      event.preventDefault()
+      list.scrollLeft += event.deltaY
+      updateScrollState()
+
+      const remaining = list.scrollWidth - list.scrollLeft - list.clientWidth
+      if (remaining <= 180) {
+        requestLoadMore()
+      }
+    },
+    [requestLoadMore, updateScrollState],
+  )
+
   const scrollResults = useCallback(
     (direction: -1 | 1) => {
       const list = listRef.current
@@ -148,7 +182,6 @@ export function MapSearchResultsShelf({
       <div className={styles.header}>
         <span>Search results</span>
         <span className={styles.headerActions}>
-          <strong>{pluralize(places.length, 'place')}</strong>
           <button
             type="button"
             className={styles.closeButton}
@@ -160,25 +193,31 @@ export function MapSearchResultsShelf({
         </span>
       </div>
       <div className={styles.carousel}>
-        <button
-          type="button"
-          className={[styles.navButton, styles.navButtonLeft].join(' ')}
-          aria-label="Scroll search results left"
-          disabled={!canScrollLeft}
-          onClick={() => scrollResults(-1)}
-        >
-          <ChevronLeft size={16} aria-hidden="true" />
-        </button>
+        {canScrollLeft && <span className={[styles.edgeFade, styles.edgeFadeLeft].join(' ')} aria-hidden="true" />}
+        {canScrollRight && <span className={[styles.edgeFade, styles.edgeFadeRight].join(' ')} aria-hidden="true" />}
+        {canScrollLeft && (
+          <button
+            type="button"
+            className={[styles.navButton, styles.navButtonLeft].join(' ')}
+            aria-label="Scroll search results left"
+            onClick={() => scrollResults(-1)}
+          >
+            <ChevronLeft size={16} aria-hidden="true" />
+          </button>
+        )}
         <div
           ref={listRef}
           className={styles.list}
           aria-label="Search result places"
           onScroll={handleScroll}
+          onWheel={handleWheel}
         >
           {places.map((place) => {
             const placeId = placeStableId(place)
             const selected = selectedPlaceId === placeId || selectedPlaceId === place.mapboxId
             const rating = formatRating(place)
+            const price = formatPriceLevel(place.priceLevel)
+            const status = formatStatus(place)
             return (
               <button
                 key={placeId}
@@ -200,7 +239,14 @@ export function MapSearchResultsShelf({
                       {rating}
                     </span>
                   )}
-                  <small>{placeMetadata(place)}</small>
+                  <span className={styles.metadata}>
+                    <small>{[price, placeCategoryLabel(place)].filter(Boolean).join(' · ')}</small>
+                    {status && (
+                      <small className={styles[status.tone]}>
+                        {status.label}
+                      </small>
+                    )}
+                  </span>
                 </span>
               </button>
             )
@@ -212,15 +258,16 @@ export function MapSearchResultsShelf({
             </span>
           )}
         </div>
-        <button
-          type="button"
-          className={[styles.navButton, styles.navButtonRight].join(' ')}
-          aria-label="Scroll search results right"
-          disabled={!canScrollRight}
-          onClick={() => scrollResults(1)}
-        >
-          <ChevronRight size={16} aria-hidden="true" />
-        </button>
+        {canScrollRight && (
+          <button
+            type="button"
+            className={[styles.navButton, styles.navButtonRight].join(' ')}
+            aria-label="Scroll search results right"
+            onClick={() => scrollResults(1)}
+          >
+            <ChevronRight size={16} aria-hidden="true" />
+          </button>
+        )}
       </div>
     </section>
   )

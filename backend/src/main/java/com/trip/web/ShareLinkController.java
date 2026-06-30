@@ -8,6 +8,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -22,6 +23,7 @@ import com.trip.web.dto.share.AcceptGuestShareLinkResponse;
 import com.trip.web.dto.share.AcceptShareLinkResponse;
 import com.trip.web.dto.share.CreateShareLinkRequest;
 import com.trip.web.dto.share.CreateShareLinkResponse;
+import com.trip.web.dto.share.RenameShareLinkRequest;
 import com.trip.web.dto.share.ShareLinkResponse;
 
 import jakarta.validation.Valid;
@@ -70,6 +72,16 @@ public class ShareLinkController {
         Long userId = AuthenticationActors.requireUserId(authentication);
         shareLinkService.revoke(publicId, userId, linkId);
         return ResponseEntity.noContent().build();
+    }
+
+    @PatchMapping("/api/trips/{publicId}/share-links/{linkId}")
+    public ResponseEntity<ShareLinkResponse> rename(
+            @PathVariable @Pattern(regexp = PUBLIC_ID_PATTERN) String publicId,
+            @PathVariable Long linkId,
+            @Valid @RequestBody RenameShareLinkRequest body,
+            Authentication authentication) {
+        Long userId = AuthenticationActors.requireUserId(authentication);
+        return ResponseEntity.ok(shareLinkService.rename(publicId, userId, linkId, body.name()));
     }
 
     @PostMapping("/api/share/{token}/accept")

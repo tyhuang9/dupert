@@ -16,6 +16,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -27,17 +28,23 @@ import com.trip.config.RateLimitFilter;
 import com.trip.config.RateLimitRegistry;
 import com.trip.domain.User;
 import com.trip.repo.UserRepository;
+import com.trip.service.auth.AccountService;
 import com.trip.service.auth.EmailNormalizer;
 import com.trip.service.auth.JwtService;
+import com.trip.service.auth.PasswordResetService;
 import com.trip.service.auth.RefreshTokenService;
 import com.trip.service.auth.RefreshTokenService.IssuedRefreshToken;
 import com.trip.service.auth.password.BreachedPasswordChecker;
 import com.trip.web.auth.DisplayNameSanitizer;
 import com.trip.web.auth.RefreshCookie;
 import com.trip.web.dto.AuthResponse;
+import com.trip.web.dto.ChangePasswordRequest;
 import com.trip.web.dto.DevPasswordResetRequest;
 import com.trip.web.dto.LoginRequest;
+import com.trip.web.dto.PasswordResetConfirmRequest;
+import com.trip.web.dto.PasswordResetRequest;
 import com.trip.web.dto.RegisterRequest;
+import com.trip.web.dto.UpdateProfileRequest;
 import com.trip.web.dto.UserSummary;
 
 import io.github.bucket4j.Bucket;
@@ -87,6 +94,8 @@ public class AuthController {
     private final RefreshTokenService refreshTokenService;
     private final RefreshCookie refreshCookie;
     private final BreachedPasswordChecker breachedPasswordChecker;
+    private final AccountService accountService;
+    private final PasswordResetService passwordResetService;
     private final RateLimitRegistry rateLimitRegistry;
     private final boolean trustProxy;
     private final boolean devPasswordResetEnabled;
@@ -98,6 +107,8 @@ public class AuthController {
                           RefreshTokenService refreshTokenService,
                           RefreshCookie refreshCookie,
                           BreachedPasswordChecker breachedPasswordChecker,
+                          AccountService accountService,
+                          PasswordResetService passwordResetService,
                           RateLimitRegistry rateLimitRegistry,
                           AppProperties appProperties,
                           Environment environment) {
@@ -107,6 +118,8 @@ public class AuthController {
         this.refreshTokenService = refreshTokenService;
         this.refreshCookie = refreshCookie;
         this.breachedPasswordChecker = breachedPasswordChecker;
+        this.accountService = accountService;
+        this.passwordResetService = passwordResetService;
         this.rateLimitRegistry = rateLimitRegistry;
         this.trustProxy = appProperties.isTrustProxy();
         this.devPasswordResetSecret = appProperties.getDevPasswordResetSecret();
@@ -280,6 +293,19 @@ public class AuthController {
         return ResponseEntity.noContent().build();
     }
 
+    @PostMapping("/password-reset/request")
+    public ResponseEntity<Void> requestPasswordReset(@Valid @RequestBody PasswordResetRequest body) {
+        passwordResetService.requestReset(body.email());
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/password-reset/confirm")
+    public ResponseEntity<Void> confirmPasswordReset(
+            @Valid @RequestBody PasswordResetConfirmRequest body) {
+        passwordResetService.confirmReset(body.token(), body.password());
+        return ResponseEntity.noContent().build();
+    }
+
     @GetMapping("/me")
     public ResponseEntity<?> me(Authentication authentication) {
         Long userId = principalUserId(authentication);
@@ -296,6 +322,31 @@ public class AuthController {
         }
         User user = maybeUser.get();
         return ResponseEntity.ok(new UserSummary(user.getId(), user.getEmail(), user.getDisplayName()));
+    }
+
+    @PatchMapping("/me/profile")
+    public ResponseEntity<?> updateProfile(@Valid @RequestBody UpdateProfileRequest body,
+                                           Authentication authentication) {
+        Long userId = principalUserId(authentication);
+        if (userId == null) {
+            return unauthenticated();
+        }
+        return accountService.updateProfile(userId, body.displayName())
+            .<ResponseEntity<?>>map(ResponseEntity::ok)
+            .orElseGet(AuthController::unauthenticated);
+    }
+
+    @PostMapping("/me/password")
+    public ResponseEntity<?> changePassword(@Valid @RequestBody ChangePasswordRequest body,
+                                            Authentication authentication) {
+        Long userId = principalUserId(authentication);
+        if (userId == null) {
+            return unauthenticated();
+        }
+        if (!accountService.changePassword(userId, body.currentPassword(), body.newPassword())) {
+            return unauthenticated();
+        }
+        return ResponseEntity.noContent().build();
     }
 
     /**

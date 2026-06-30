@@ -5,6 +5,7 @@ import type {
   AcceptShareLinkResponse,
   CreatedShareLink,
   CreateShareLinkRequest,
+  RenameShareLinkRequest,
   ShareLink,
   TripMember,
 } from '../types/share'
@@ -41,6 +42,18 @@ export async function revokeShareLink(
   await apiClient.delete(
     `/trips/${encodeURIComponent(publicId)}/share-links/${linkId}`,
   )
+}
+
+export async function renameShareLink(
+  publicId: string,
+  linkId: number,
+  body: RenameShareLinkRequest,
+): Promise<ShareLink> {
+  const { data } = await apiClient.patch<ShareLink>(
+    `/trips/${encodeURIComponent(publicId)}/share-links/${linkId}`,
+    body,
+  )
+  return data
 }
 
 export async function acceptShareLink(

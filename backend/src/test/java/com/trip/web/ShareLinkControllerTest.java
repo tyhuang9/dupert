@@ -9,6 +9,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -40,6 +41,7 @@ import com.trip.domain.TripRole;
 import com.trip.repo.ActivityRepository;
 import com.trip.repo.DayNoteRepository;
 import com.trip.repo.GuestSessionRepository;
+import com.trip.repo.PasswordResetTokenRepository;
 import com.trip.repo.RefreshTokenRepository;
 import com.trip.repo.ShareLinkRepository;
 import com.trip.repo.TripMemberRepository;
@@ -98,6 +100,9 @@ class ShareLinkControllerTest {
     GuestSessionRepository guestSessionRepository;
 
     @MockitoBean
+    PasswordResetTokenRepository passwordResetTokenRepository;
+
+    @MockitoBean
     ShareLinkRepository shareLinkRepository;
 
     @MockitoBean
@@ -126,7 +131,7 @@ class ShareLinkControllerTest {
     }
 
     @Test
-    void createReturnsRawTokenAndShareUrlButPersistsOnlyHash() throws Exception {
+    void createReturnsRawTokenAndShareUrlAndPersistsCopyableToken() throws Exception {
         when(shareLinkRepository.save(any(ShareLink.class))).thenAnswer(invocation -> {
             ShareLink saved = invocation.getArgument(0);
             ReflectionIds.setId(saved, 501L);
@@ -138,22 +143,28 @@ class ShareLinkControllerTest {
                 .contentType("application/json")
                 .content(objectMapper.writeValueAsString(Map.of(
                     "role", "EDITOR",
+                    "name", "  Planning crew\n",
                     "allowAnonymous", false))))
             .andExpect(status().isCreated())
             .andExpect(jsonPath("$.id").value(501))
             .andExpect(jsonPath("$.role").value("EDITOR"))
+            .andExpect(jsonPath("$.name").value("Planning crew"))
             .andExpect(jsonPath("$.allowAnonymous").value(false))
             .andExpect(jsonPath("$.token").isString())
             .andExpect(jsonPath("$.shareUrl").value(org.hamcrest.Matchers.startsWith(
-                "http://localhost:3000/share/")));
+                "http://localhost:3001/share/")));
 
         ArgumentCaptor<ShareLink> saved = ArgumentCaptor.forClass(ShareLink.class);
         verify(shareLinkRepository).save(saved.capture());
         assertThat(saved.getValue().getTripId()).isEqualTo(TRIP_PK);
         assertThat(saved.getValue().getCreatedBy()).isEqualTo(ALICE_ID);
         assertThat(saved.getValue().getRole()).isEqualTo(TripRole.EDITOR);
+        assertThat(saved.getValue().getName()).isEqualTo("Planning crew");
         assertThat(saved.getValue().isAllowAnonymous()).isFalse();
         assertThat(saved.getValue().getTokenHash()).hasSize(64);
+        assertThat(saved.getValue().getToken()).isNotBlank();
+        assertThat(saved.getValue().getTokenHash())
+            .isEqualTo(shareTokenService.sha256Hex(saved.getValue().getToken()));
         assertThat(saved.getValue().getTokenHash()).doesNotContain("http", "share");
         verify(tripEventPublisher).publishAfterCommit(eq(TRIP_PK), argThat(event ->
             event.type().equals("share-links.changed")
@@ -193,9 +204,12 @@ class ShareLinkControllerTest {
     }
 
     @Test
-    void listReturnsShareLinksWithoutRawTokens() throws Exception {
-        ShareLink editorLink = link(501L, TRIP_PK, "hash-a", TripRole.EDITOR, false, ALICE_ID, null);
-        ShareLink guestLink = link(502L, TRIP_PK, "hash-b", TripRole.VIEWER, true, ALICE_ID, null);
+    void listReturnsShareUrlsWithoutRawTokens() throws Exception {
+        ShareLink editorLink = link(501L, TRIP_PK, shareTokenService.sha256Hex(RAW_TOKEN),
+            RAW_TOKEN, TripRole.EDITOR, false, ALICE_ID, null);
+        ShareLink guestLink = link(502L, TRIP_PK, shareTokenService.sha256Hex(RATE_LIMIT_TOKEN),
+            RATE_LIMIT_TOKEN, TripRole.VIEWER, true, ALICE_ID, null);
+        editorLink.setName("Editors");
         when(shareLinkRepository.findAllByTripIdOrderByCreatedAtDesc(TRIP_PK))
             .thenReturn(List.of(editorLink, guestLink));
 
@@ -204,11 +218,70 @@ class ShareLinkControllerTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$[0].id").value(501))
             .andExpect(jsonPath("$[0].role").value("EDITOR"))
+            .andExpect(jsonPath("$[0].name").value("Editors"))
             .andExpect(jsonPath("$[0].allowAnonymous").value(false))
             .andExpect(jsonPath("$[0].token").doesNotExist())
-            .andExpect(jsonPath("$[0].shareUrl").doesNotExist())
+            .andExpect(jsonPath("$[0].shareUrl").value("http://localhost:3001/share/" + RAW_TOKEN))
             .andExpect(jsonPath("$[1].id").value(502))
-            .andExpect(jsonPath("$[1].allowAnonymous").value(true));
+            .andExpect(jsonPath("$[1].name").value("Shared link"))
+            .andExpect(jsonPath("$[1].allowAnonymous").value(true))
+            .andExpect(jsonPath("$[1].token").doesNotExist())
+            .andExpect(jsonPath("$[1].shareUrl").value("http://localhost:3001/share/" + RATE_LIMIT_TOKEN));
+    }
+
+    @Test
+    void renameUpdatesNameAndPublishesShareLinksChanged() throws Exception {
+        ShareLink shareLink = link(501L, TRIP_PK, "hash", TripRole.EDITOR, false, ALICE_ID, null);
+        when(shareLinkRepository.findById(501L)).thenReturn(Optional.of(shareLink));
+        when(shareLinkRepository.save(any(ShareLink.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        mvc.perform(patch("/api/trips/" + TRIP_PUBLIC_ID + "/share-links/501")
+                .header("Authorization", bearerFor(ALICE_ID))
+                .contentType("application/json")
+                .content(objectMapper.writeValueAsString(Map.of(
+                    "name", "  Public planning\n"))))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.id").value(501))
+            .andExpect(jsonPath("$.name").value("Public planning"))
+            .andExpect(jsonPath("$.role").value("EDITOR"));
+
+        assertThat(shareLink.getName()).isEqualTo("Public planning");
+        verify(shareLinkRepository).save(shareLink);
+        verify(tripEventPublisher).publishAfterCommit(eq(TRIP_PK), argThat(event ->
+            event.type().equals("share-links.changed")
+                && event.activityId() == null
+                && event.dayDate() == null));
+    }
+
+    @Test
+    void renameAsViewerReturns404() throws Exception {
+        when(tripMemberRepository.findByIdTripIdAndIdUserId(TRIP_PK, ALICE_ID))
+            .thenReturn(Optional.of(new TripMember(TRIP_PK, ALICE_ID, TripRole.VIEWER)));
+
+        mvc.perform(patch("/api/trips/" + TRIP_PUBLIC_ID + "/share-links/501")
+                .header("Authorization", bearerFor(ALICE_ID))
+                .contentType("application/json")
+                .content(objectMapper.writeValueAsString(Map.of("name", "View only"))))
+            .andExpect(status().isNotFound())
+            .andExpect(jsonPath("$.error").value("not_found"));
+
+        verify(shareLinkRepository, never()).findById(501L);
+    }
+
+    @Test
+    void renameMismatchedTripReturns404() throws Exception {
+        ShareLink foreign = link(501L, 99L, "hash", TripRole.EDITOR, false, ALICE_ID, null);
+        when(shareLinkRepository.findById(501L)).thenReturn(Optional.of(foreign));
+
+        mvc.perform(patch("/api/trips/" + TRIP_PUBLIC_ID + "/share-links/501")
+                .header("Authorization", bearerFor(ALICE_ID))
+                .contentType("application/json")
+                .content(objectMapper.writeValueAsString(Map.of("name", "Foreign"))))
+            .andExpect(status().isNotFound())
+            .andExpect(jsonPath("$.error").value("not_found"));
+
+        assertThat(foreign.getName()).isEqualTo("Shared link");
+        verify(shareLinkRepository, never()).save(foreign);
     }
 
     @Test
@@ -424,7 +497,14 @@ class ShareLinkControllerTest {
     private static ShareLink link(long id, long tripId, String tokenHash, TripRole role,
                                   boolean allowAnonymous, long createdBy,
                                   OffsetDateTime expiresAt) {
-        ShareLink link = new ShareLink(tripId, tokenHash, role, allowAnonymous, createdBy, expiresAt);
+        return link(id, tripId, tokenHash, null, role, allowAnonymous, createdBy, expiresAt);
+    }
+
+    private static ShareLink link(long id, long tripId, String tokenHash, String token, TripRole role,
+                                  boolean allowAnonymous, long createdBy,
+                                  OffsetDateTime expiresAt) {
+        ShareLink link = new ShareLink(
+            tripId, tokenHash, token, role, ShareLink.DEFAULT_NAME, allowAnonymous, createdBy, expiresAt);
         ReflectionIds.setId(link, id);
         return link;
     }

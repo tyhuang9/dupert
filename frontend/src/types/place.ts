@@ -20,6 +20,7 @@ export interface PlaceSelection extends Partial<CreateActivityRequest> {
   currentOpeningHours?: PlaceOpeningHours | null
   photoUrl?: string | null
   placeCategory?: string | null
+  priceLevel?: string | null
   rating?: number | null
   regularOpeningHours?: PlaceOpeningHours | null
   reviews?: PlaceReview[]

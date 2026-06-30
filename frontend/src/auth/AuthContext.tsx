@@ -27,6 +27,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const user = useUser()
   const isAuthenticated = useIsAuthenticated()
   const setSession = useAuthStore((s) => s.setSession)
+  const setUser = useAuthStore((s) => s.setUser)
   const clearSession = useAuthStore((s) => s.clearSession)
 
   // Skip the probe (and the initializing-window) if a session was
@@ -128,6 +129,29 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   }, [clearSession])
 
+  const updateProfile = useCallback(
+    async (body: { displayName: string }) => {
+      const updatedUser = await authApi.updateProfile(body)
+      setUser(updatedUser)
+      return updatedUser
+    },
+    [setUser],
+  )
+
+  const changePassword = useCallback(
+    async (body: { currentPassword: string; newPassword: string }) => {
+      await authApi.changePassword(body)
+    },
+    [],
+  )
+
+  const requestPasswordReset = useCallback(
+    async (body: { email: string }) => {
+      await authApi.requestPasswordReset(body)
+    },
+    [],
+  )
+
   const deleteAccount = useCallback(async () => {
     await authApi.deleteMe()
     clearSession()
@@ -140,10 +164,24 @@ export function AuthProvider({ children }: AuthProviderProps) {
       isInitializing,
       login,
       register,
+      updateProfile,
+      changePassword,
+      requestPasswordReset,
       logout,
       deleteAccount,
     }),
-    [user, isAuthenticated, isInitializing, login, register, logout, deleteAccount],
+    [
+      user,
+      isAuthenticated,
+      isInitializing,
+      login,
+      register,
+      updateProfile,
+      changePassword,
+      requestPasswordReset,
+      logout,
+      deleteAccount,
+    ],
   )
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

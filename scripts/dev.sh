@@ -38,22 +38,22 @@ source "$ENV_FILE"
 set -u
 set +a
 
-echo "Starting backend on http://localhost:8000"
+echo "Starting backend on http://localhost:8001"
 (
   cd "$ROOT_DIR/backend"
   ./gradlew bootRun
 ) &
 backend_pid=$!
 
-echo "Starting frontend on http://localhost:3000"
+echo "Starting frontend on http://localhost:3001"
 (
   cd "$ROOT_DIR/frontend"
-  npm run dev -- --host localhost --port 3000
+  npm run dev -- --host localhost --port 3001
 ) &
 frontend_pid=$!
 
 echo "TripPlanner dev is starting."
-echo "Open http://localhost:3000"
+echo "Open http://localhost:3001"
 echo "Press Ctrl+C to stop both processes."
 
 set +e

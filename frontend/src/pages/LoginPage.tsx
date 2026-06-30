@@ -24,6 +24,11 @@ export function LoginPage() {
   const [errorInfo, setErrorInfo] = useState<ParsedApiError | null>(null)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [showResetForm, setShowResetForm] = useState(false)
+  const [resetEmail, setResetEmail] = useState('')
+  const [resetMessage, setResetMessage] = useState<string | null>(null)
+  const [resetError, setResetError] = useState<string | null>(null)
+  const [isResetSubmitting, setIsResetSubmitting] = useState(false)
 
   const emailRef = useRef<HTMLInputElement>(null)
   const passwordRef = useRef<HTMLInputElement>(null)
@@ -65,6 +70,22 @@ export function LoginPage() {
     }
   }
 
+  async function onResetSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (isResetSubmitting) return
+    setIsResetSubmitting(true)
+    setResetError(null)
+    setResetMessage(null)
+    try {
+      await auth.requestPasswordReset({ email: resetEmail || email })
+      setResetMessage('If that account exists, a reset email is on the way.')
+    } catch (err) {
+      setResetError(parseApiError(err).topMessage)
+    } finally {
+      setIsResetSubmitting(false)
+    }
+  }
+
   const topMessage = errorInfo?.topMessage ?? null
   const isWarning = errorInfo?.severity === 'warning'
   const bannerClass = isWarning ? styles.bannerWarning : styles.banner
@@ -82,6 +103,19 @@ export function LoginPage() {
               {bannerIcon}
             </span>
             <span>{topMessage}</span>
+          </div>
+        ) : null}
+        {resetMessage ? (
+          <div className={styles.bannerSuccess} role="status">
+            {resetMessage}
+          </div>
+        ) : null}
+        {resetError ? (
+          <div className={styles.banner} role="alert">
+            <span className={styles.bannerIcon} aria-hidden="true">
+              {bannerIcon}
+            </span>
+            <span>{resetError}</span>
           </div>
         ) : null}
 
@@ -146,16 +180,47 @@ export function LoginPage() {
             disabled={isSubmitting}
           >
             {isSubmitting && (
-              <>
-                <span className={styles.spinner} aria-hidden="true" />
-                <span className={styles.spinnerFallback} aria-hidden="true">
-                  Loading…
-                </span>
-              </>
+              <span className={styles.spinner} aria-hidden="true" />
             )}
             {isSubmitting ? 'Signing in…' : 'Sign in'}
           </button>
+          <button
+            type="button"
+            className={styles.textButton}
+            onClick={() => {
+              setShowResetForm((current) => !current)
+              setResetEmail(email)
+              setResetError(null)
+              setResetMessage(null)
+            }}
+          >
+            Forgot password?
+          </button>
         </form>
+
+        {showResetForm && (
+          <form className={styles.resetForm} onSubmit={onResetSubmit} noValidate>
+            <label className={styles.field}>
+              <span className={styles.label}>Password reset email</span>
+              <input
+                className={styles.input}
+                type="email"
+                autoComplete="email"
+                required
+                value={resetEmail}
+                onChange={(event) => setResetEmail(event.target.value)}
+                disabled={isResetSubmitting}
+              />
+            </label>
+            <button
+              className={styles.submit}
+              type="submit"
+              disabled={isResetSubmitting || !(resetEmail || email).trim()}
+            >
+              {isResetSubmitting ? 'Sending…' : 'Send reset email'}
+            </button>
+          </form>
+        )}
 
         <p className={styles.altLink}>
           Don&apos;t have an account? <Link to={registerHref}>Create account</Link>
