@@ -1,29 +1,29 @@
-import { describe, expect, it, vi } from 'vitest'
+import MockAdapter from 'axios-mock-adapter'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { apiClient } from './client'
 import { geocodeDestination, normalizeGeocodeResult } from './googleMapsGeocode'
 
-type GeocodeCallback = (
-  results: google.maps.GeocoderResult[] | null,
-  status: google.maps.GeocoderStatusString,
-) => void
+type RawGeocodeResult = Parameters<typeof normalizeGeocodeResult>[0]
 
-function googleLatLng(lat: number, lng: number): google.maps.LatLng {
-  return {
-    lat: () => lat,
-    lng: () => lng,
-  } as google.maps.LatLng
-}
+let apiMock: MockAdapter
 
-function geocodeResult(
-  overrides: Partial<google.maps.GeocoderResult> = {},
-): google.maps.GeocoderResult {
+function geocodeResult(overrides: Partial<NonNullable<RawGeocodeResult>> = {}): RawGeocodeResult {
   return {
     formatted_address: 'Tokyo, Japan',
     geometry: {
-      location: googleLatLng(35.6762, 139.6503),
+      location: { lat: 35.6762, lng: 139.6503 },
     },
     ...overrides,
-  } as google.maps.GeocoderResult
+  }
 }
+
+beforeEach(() => {
+  apiMock = new MockAdapter(apiClient)
+})
+
+afterEach(() => {
+  apiMock.restore()
+})
 
 describe('google maps geocode adapter', () => {
   it('normalizes geocoder results into destination coordinates', () => {
@@ -36,70 +36,45 @@ describe('google maps geocode adapter', () => {
 
   it('returns null when there is no geocoder result location', () => {
     expect(normalizeGeocodeResult(undefined, 'Unknown')).toBeNull()
+    expect(normalizeGeocodeResult({ formatted_address: 'Unknown' }, 'Unknown')).toBeNull()
   })
 
-  it('resolves the first geocoder result', async () => {
-    const geocoder = {
-      geocode: vi.fn((_request: google.maps.GeocoderRequest, callback: GeocodeCallback) => {
-        callback([geocodeResult()], 'OK')
-      }),
-    }
-    const geocodingLibrary = {
-      Geocoder: vi.fn(function Geocoder() {
-        return geocoder
-      }),
-      GeocoderStatus: { OK: 'OK' },
-    } as unknown as google.maps.GeocodingLibrary
-
-    await expect(
-      geocodeDestination('Tokyo', geocodingLibrary),
-    ).resolves.toEqual({
+  it('resolves backend geocode results', async () => {
+    apiMock.onPost('/maps/geocode').reply(200, {
       label: 'Tokyo, Japan',
       lat: 35.6762,
       lng: 139.6503,
     })
-    expect(geocoder.geocode).toHaveBeenCalledWith(
-      { address: 'Tokyo' },
-      expect.any(Function),
-    )
+
+    await expect(geocodeDestination(' Tokyo ')).resolves.toEqual({
+      label: 'Tokyo, Japan',
+      lat: 35.6762,
+      lng: 139.6503,
+    })
+    expect(apiMock.history.post[0].url).toBe('/maps/geocode')
+    expect(JSON.parse(String(apiMock.history.post[0].data))).toEqual({
+      address: 'Tokyo',
+    })
   })
 
-  it('returns null for zero geocoder results', async () => {
-    const geocoder = {
-      geocode: vi.fn((_request: google.maps.GeocoderRequest, callback: GeocodeCallback) => {
-        callback([], 'ZERO_RESULTS')
-      }),
-    }
-    const geocodingLibrary = {
-      Geocoder: vi.fn(function Geocoder() {
-        return geocoder
-      }),
-      GeocoderStatus: { OK: 'OK' },
-    } as unknown as google.maps.GeocodingLibrary
+  it('returns null for backend zero-result geocodes', async () => {
+    apiMock.onPost('/maps/geocode').reply(200, null)
 
-    await expect(geocodeDestination('Unknown', geocodingLibrary)).resolves.toBeNull()
+    await expect(geocodeDestination('Unknown')).resolves.toBeNull()
   })
 
-  it('rejects failed geocoder requests', async () => {
-    const geocoder = {
-      geocode: vi.fn((_request: google.maps.GeocoderRequest, callback: GeocodeCallback) => {
-        callback([], 'REQUEST_DENIED')
-      }),
-    }
-    const geocodingLibrary = {
-      Geocoder: vi.fn(function Geocoder() {
-        return geocoder
-      }),
-      GeocoderStatus: { OK: 'OK' },
-    } as unknown as google.maps.GeocodingLibrary
+  it('rejects failed backend geocode requests', async () => {
+    apiMock.onPost('/maps/geocode').reply(502, {
+      error: 'google_maps_unavailable',
+    })
 
-    await expect(geocodeDestination('Tokyo', geocodingLibrary)).rejects.toThrow(
-      'Google geocoding request failed',
-    )
+    await expect(geocodeDestination('Tokyo')).rejects.toMatchObject({
+      response: expect.objectContaining({ status: 502 }),
+    })
   })
 
-  it('short-circuits empty destinations and absent libraries', async () => {
-    await expect(geocodeDestination('   ', null)).resolves.toBeNull()
-    await expect(geocodeDestination('Tokyo', null)).resolves.toBeNull()
+  it('short-circuits empty destinations', async () => {
+    await expect(geocodeDestination('   ')).resolves.toBeNull()
+    expect(apiMock.history.post).toHaveLength(0)
   })
 })

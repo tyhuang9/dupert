@@ -3,7 +3,7 @@ import { GooglePlaceAutocomplete } from './GooglePlaceAutocomplete'
 import type { GooglePlaceSearchOptions } from './googlePlaces'
 import { googlePlaceToPlaceSelection } from './placeSelection'
 import type { PlaceSelection } from '../types/place'
-import { googleMapsApiKey, googlePlacesAccessTroubleshooting } from '../utils/googleMapsAccess'
+import { googlePlacesAccessTroubleshooting } from '../utils/googleMapsAccess'
 import styles from './PlaceSearch.module.css'
 
 interface PlaceSearchProps {
@@ -27,7 +27,6 @@ export function PlaceSearch({
   searchOptions,
   searchValue,
 }: PlaceSearchProps) {
-  const apiKey = googleMapsApiKey()
   const [value, setValue] = useState(searchValue ?? '')
   const [searchError, setSearchError] = useState<string | null>(null)
   const displayedValue = searchValue ?? value
@@ -35,14 +34,6 @@ export function PlaceSearch({
     () => ({ language: 'en', ...searchOptions }),
     [searchOptions],
   )
-
-  if (!apiKey) {
-    return (
-      <div className={styles.fallback}>
-        Google Maps API key is not configured for place search.
-      </div>
-    )
-  }
 
   const updateValue = (nextValue: string) => {
     setValue(nextValue)

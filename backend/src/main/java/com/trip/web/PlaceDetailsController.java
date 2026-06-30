@@ -20,7 +20,8 @@ public class PlaceDetailsController {
 
     @GetMapping("/api/places/{placeId}/details")
     public PlaceDetailsResponse details(@PathVariable String placeId,
-                                        @RequestParam(required = false) String fields) {
-        return placeDetailsService.details(placeId, fields);
+                                        @RequestParam(required = false) String fields,
+                                        @RequestParam(required = false) String sessionToken) {
+        return placeDetailsService.details(placeId, fields, sessionToken);
     }
 }

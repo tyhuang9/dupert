@@ -10,31 +10,6 @@ const geocodeMock = vi.hoisted(() => ({
   geocodeDestination: vi.fn(),
 }))
 
-const routesLibraryMock = vi.hoisted(() => ({
-  PolylineQuality: { HIGH_QUALITY: 'HIGH_QUALITY' },
-  Route: { computeRoutes: vi.fn() },
-  TravelMode: { DRIVING: 'DRIVING' },
-}))
-
-const geocodingLibraryMock = vi.hoisted(() => ({
-  Geocoder: vi.fn(),
-  GeocoderStatus: { OK: 'OK' },
-}))
-
-const placesLibraryMock = vi.hoisted(() => {
-  const nearbySearch = vi.fn()
-  return {
-    nearbySearch,
-    PlacesService: vi.fn(function PlacesService() {
-      return { nearbySearch }
-    }),
-    PlacesServiceStatus: {
-      OK: 'OK' as const,
-      ZERO_RESULTS: 'ZERO_RESULTS' as const,
-    },
-  }
-})
-
 const mapControlMock = vi.hoisted(() => ({
   fitBounds: vi.fn(),
   moveCamera: vi.fn(),
@@ -128,12 +103,6 @@ vi.mock('@vis.gl/react-google-maps', () => {
     ),
     useApiLoadingStatus: () => mapMockState.apiStatus,
     useMap: () => googleMap,
-    useMapsLibrary: (library: string) => {
-      if (library === 'routes') return routesLibraryMock
-      if (library === 'geocoding') return geocodingLibraryMock
-      if (library === 'places') return placesLibraryMock
-      return null
-    },
   }
 })
 
@@ -251,8 +220,6 @@ beforeEach(() => {
   geocodeMock.geocodeDestination.mockResolvedValue(null)
   mapControlMock.fitBounds.mockClear()
   mapControlMock.moveCamera.mockClear()
-  placesLibraryMock.nearbySearch.mockReset()
-  placesLibraryMock.PlacesService.mockClear()
   mapMockState.apiStatus = 'LOADED'
   mapMockState.clickableIcons = null
   mapMockState.currentMapTypeId = 'roadmap'
@@ -290,7 +257,6 @@ describe('<TripMap>', () => {
     await waitFor(() => {
       expect(directionsMock).toHaveBeenCalledWith(
         ACTIVITIES,
-        routesLibraryMock,
         expect.any(AbortSignal),
       )
     })
@@ -385,7 +351,6 @@ describe('<TripMap>', () => {
     await waitFor(() => {
       expect(directionsMock).toHaveBeenCalledWith(
         [ACTIVITIES[0], validStopAfterMalformed],
-        routesLibraryMock,
         expect.any(AbortSignal),
       )
     })
@@ -547,73 +512,6 @@ describe('<TripMap>', () => {
     expect(onMapPlaceClick).toHaveBeenCalledWith({
       location: { lat: 35.7001, lng: 139.8001 },
       placeId: null,
-    })
-  })
-
-  it('resolves coordinate-only clicks to the nearest Maps Places result', async () => {
-    const onMapPlaceClick = vi.fn()
-    const stop = vi.fn()
-    placesLibraryMock.nearbySearch.mockImplementation((
-      _request: google.maps.places.PlaceSearchRequest,
-      callback: Parameters<google.maps.places.PlacesService['nearbySearch']>[1],
-    ) => {
-      callback(
-        [
-          {
-            geometry: {
-              location: { lat: () => 35.72, lng: () => 139.82 } as google.maps.LatLng,
-            },
-            place_id: 'google.far-place',
-          },
-          {
-            geometry: {
-              location: { lat: () => 35.7002, lng: () => 139.8002 } as google.maps.LatLng,
-            },
-            place_id: 'google.clicked-costco',
-          },
-        ],
-        placesLibraryMock.PlacesServiceStatus.OK,
-        null,
-      )
-    })
-
-    render(
-      <TripMap
-        activities={[]}
-        fallbackActivities={[]}
-        destination={null}
-        onMapPlaceClick={onMapPlaceClick}
-      />,
-    )
-
-    act(() => {
-      mapMockState.onClick?.({
-        detail: {
-          latLng: { lat: 35.7001, lng: 139.8001 },
-          placeId: null,
-        },
-        stop,
-      })
-    })
-
-    await waitFor(() => {
-      expect(onMapPlaceClick).toHaveBeenCalledTimes(2)
-    })
-    expect(placesLibraryMock.PlacesService).toHaveBeenCalled()
-    expect(placesLibraryMock.nearbySearch).toHaveBeenCalledWith(
-      {
-        location: { lat: 35.7001, lng: 139.8001 },
-        radius: 500,
-      },
-      expect.any(Function),
-    )
-    expect(onMapPlaceClick).toHaveBeenNthCalledWith(1, {
-      location: { lat: 35.7001, lng: 139.8001 },
-      placeId: null,
-    })
-    expect(onMapPlaceClick).toHaveBeenNthCalledWith(2, {
-      location: { lat: 35.7001, lng: 139.8001 },
-      placeId: 'google.clicked-costco',
     })
   })
 

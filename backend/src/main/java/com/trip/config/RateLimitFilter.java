@@ -52,6 +52,8 @@ public class RateLimitFilter extends OncePerRequestFilter {
     private static final String LOGIN_PATH = "/api/auth/login";
     private static final String REGISTER_PATH = "/api/auth/register";
     private static final String SHARE_PATH_PREFIX = "/api/share/";
+    private static final String PLACES_PATH_PREFIX = "/api/places/";
+    private static final String MAPS_PATH_PREFIX = "/api/maps/";
     /**
      * Shared with {@code AuthController}'s inner per-(ip, email) check so the two
      * layers emit byte-identical 429 bodies — a probing attacker cannot distinguish
@@ -72,9 +74,15 @@ public class RateLimitFilter extends OncePerRequestFilter {
                                     HttpServletResponse response,
                                     FilterChain chain)
             throws ServletException, IOException {
+        String path = request.getRequestURI();
+        String clientIp = clientIp(request, trustProxy);
+        if (isGoogleMapsProxyPath(path)
+            && ("GET".equalsIgnoreCase(request.getMethod()) || "POST".equalsIgnoreCase(request.getMethod()))) {
+            if (!tryConsume(response, RateLimitRegistry.Named.GOOGLE_MAPS, clientIp)) {
+                return;
+            }
+        }
         if ("POST".equalsIgnoreCase(request.getMethod())) {
-            String path = request.getRequestURI();
-            String clientIp = clientIp(request, trustProxy);
             if (LOGIN_PATH.equals(path)) {
                 if (!tryConsume(response, RateLimitRegistry.Named.AUTH_LOGIN, clientIp)) {
                     return;
@@ -90,6 +98,10 @@ public class RateLimitFilter extends OncePerRequestFilter {
             }
         }
         chain.doFilter(request, response);
+    }
+
+    private static boolean isGoogleMapsProxyPath(String path) {
+        return path.startsWith(PLACES_PATH_PREFIX) || path.startsWith(MAPS_PATH_PREFIX);
     }
 
     private static boolean isShareAcceptPath(String path) {

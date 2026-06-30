@@ -57,11 +57,16 @@ app:
     secure: false
   # Local-only helper for POST /api/auth/dev/reset-password. Empty disables the route.
   dev-password-reset-secret: ${APP_DEV_PASSWORD_RESET_SECRET:}
-  # Backend-only Places API key for server-side place details requests.
-  google-maps-api-key: ${GOOGLE_MAPS_API_KEY:${VITE_GOOGLE_MAPS_API_KEY:}}
+  # Backend-only Google Maps API key for server-side Places, Geocoding, and Routes requests.
+  google-maps-api-key: ${GOOGLE_MAPS_API_KEY:}
   place-details:
     basic-ttl: ${PLACE_DETAILS_BASIC_TTL:7d}
     expanded-ttl: ${PLACE_DETAILS_EXPANDED_TTL:1d}
+  google-maps-cache:
+    search-ttl: ${GOOGLE_MAPS_SEARCH_TTL:15m}
+    geocode-ttl: ${GOOGLE_MAPS_GEOCODE_TTL:30d}
+    route-ttl: ${GOOGLE_MAPS_ROUTE_TTL:1h}
+    photo-ttl: ${GOOGLE_MAPS_PHOTO_TTL:1d}
   # Honor X-Forwarded-For for client-IP resolution. Default false; flip to true only
   # behind a proxy that overwrites (not appends) the header (Fly, Vercel).
   trust-proxy: false

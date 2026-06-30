@@ -89,9 +89,43 @@ class RateLimitFilterTest {
         assertThat(limited.getContentAsString()).isEqualTo(RateLimitFilter.RATE_LIMITED_BODY);
     }
 
+    @Test
+    void googleMapsProxyPathsShareRateLimitBucketPerClientIp() throws Exception {
+        RateLimitRegistry registry = new RateLimitRegistry();
+        RateLimitFilter filter = new RateLimitFilter(registry, new AppProperties());
+        AtomicInteger passed = new AtomicInteger();
+        FilterChain chain = (_request, _response) -> passed.incrementAndGet();
+
+        for (int i = 0; i < 60; i++) {
+            MockHttpServletResponse response = new MockHttpServletResponse();
+            filter.doFilter(request("POST", "/api/places/autocomplete"), response, chain);
+            assertThat(response.getStatus()).isEqualTo(200);
+        }
+        for (int i = 0; i < 60; i++) {
+            MockHttpServletResponse response = new MockHttpServletResponse();
+            filter.doFilter(request("POST", "/api/maps/geocode"), response, chain);
+            assertThat(response.getStatus()).isEqualTo(200);
+        }
+
+        assertThat(registry.size()).isEqualTo(1);
+
+        MockHttpServletResponse limited = new MockHttpServletResponse();
+        filter.doFilter(request("POST", "/api/maps/routes/driving"), limited, chain);
+
+        assertThat(passed.get()).isEqualTo(120);
+        assertThat(limited.getStatus()).isEqualTo(429);
+        assertThat(limited.getContentAsString()).isEqualTo(RateLimitFilter.RATE_LIMITED_BODY);
+    }
+
     private static MockHttpServletRequest shareRequest(String token) {
         MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/share/" + token + "/accept");
         request.setRemoteAddr("203.0.113.40");
+        return request;
+    }
+
+    private static MockHttpServletRequest request(String method, String path) {
+        MockHttpServletRequest request = new MockHttpServletRequest(method, path);
+        request.setRemoteAddr("203.0.113.41");
         return request;
     }
 }

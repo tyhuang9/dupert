@@ -4,7 +4,7 @@ import { parseApiError, type ParsedApiError } from '../api/errors'
 import { GooglePlaceAutocomplete } from '../components/GooglePlaceAutocomplete'
 import type { GooglePlaceSelection } from '../components/googlePlaces'
 import { useCreateTrip } from '../hooks/useTrips'
-import { googleMapsApiKey, googlePlacesAccessTroubleshooting } from '../utils/googleMapsAccess'
+import { googlePlacesAccessTroubleshooting } from '../utils/googleMapsAccess'
 import { usePageTitle } from '../utils/usePageTitle'
 import styles from './TripsPage.module.css'
 
@@ -65,7 +65,6 @@ export function NewTripPage() {
 
   const navigate = useNavigate()
   const createTrip = useCreateTrip()
-  const googleMapsKey = googleMapsApiKey()
   const [form, setForm] = useState<FormState>(EMPTY_FORM)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [apiError, setApiError] = useState<ParsedApiError | null>(null)
@@ -181,44 +180,33 @@ export function NewTripPage() {
           <label className={styles.label} htmlFor={destinationId}>
             Destination
           </label>
-          {googleMapsKey ? (
-            <GooglePlaceAutocomplete
-              id={destinationId}
-              className={styles.destinationSearchBox}
-              inputClassName={styles.input}
-              inputLabel="Destination"
-              value={form.destination}
-              onValueChange={(nextValue) => {
-                setField('destination', nextValue)
-                if (!nextValue) setDestinationSearchError(null)
-              }}
-              onPlaceSelect={(place) => {
-                const destination = place.text
-                if (!destination) return
-                const imageUrl = imageUrlFromPlace(place)
-                setDestinationSearchError(null)
-                setFields({
-                  destination,
-                  ...(imageUrl ? { imageUrl } : {}),
-                })
-              }}
-              onSearchError={setDestinationSearchError}
-              placeholder="Search a city, address, or region"
-              maxLength={200}
-              disabled={isSubmitting}
-              searchFailedMessage={`Google Places search failed. ${googlePlacesAccessTroubleshooting()}`}
-              options={DESTINATION_SEARCH_OPTIONS}
-            />
-          ) : (
-            <input
-              id={destinationId}
-              className={styles.input}
-              value={form.destination}
-              onChange={(event) => setField('destination', event.target.value)}
-              maxLength={200}
-              disabled={isSubmitting}
-            />
-          )}
+          <GooglePlaceAutocomplete
+            id={destinationId}
+            className={styles.destinationSearchBox}
+            inputClassName={styles.input}
+            inputLabel="Destination"
+            value={form.destination}
+            onValueChange={(nextValue) => {
+              setField('destination', nextValue)
+              if (!nextValue) setDestinationSearchError(null)
+            }}
+            onPlaceSelect={(place) => {
+              const destination = place.text
+              if (!destination) return
+              const imageUrl = imageUrlFromPlace(place)
+              setDestinationSearchError(null)
+              setFields({
+                destination,
+                ...(imageUrl ? { imageUrl } : {}),
+              })
+            }}
+            onSearchError={setDestinationSearchError}
+            placeholder="Search a city, address, or region"
+            maxLength={200}
+            disabled={isSubmitting}
+            searchFailedMessage={`Google Places search failed. ${googlePlacesAccessTroubleshooting()}`}
+            options={DESTINATION_SEARCH_OPTIONS}
+          />
           {destinationSearchError ? (
             <span className={styles.fieldError} role="alert">
               {destinationSearchError}

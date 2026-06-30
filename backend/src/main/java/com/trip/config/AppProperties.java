@@ -27,11 +27,14 @@ public class AppProperties {
     /** Secret required by the local-only dev password reset helper. */
     private String devPasswordResetSecret = "";
 
-    /** Backend-only Google Maps API key for server-side Places details calls. */
+    /** Backend-only Google Maps API key for server-side Google Maps calls. */
     private String googleMapsApiKey = "";
 
     /** Server-side Places details cache configuration. */
     private PlaceDetails placeDetails = new PlaceDetails();
+
+    /** Server-side Google Maps cache configuration. */
+    private GoogleMapsCache googleMapsCache = new GoogleMapsCache();
 
     /** Password-policy knobs (breached-password threshold, etc.). */
     private Password password = new Password();
@@ -101,6 +104,14 @@ public class AppProperties {
         this.placeDetails = placeDetails == null ? new PlaceDetails() : placeDetails;
     }
 
+    public GoogleMapsCache getGoogleMapsCache() {
+        return googleMapsCache;
+    }
+
+    public void setGoogleMapsCache(GoogleMapsCache googleMapsCache) {
+        this.googleMapsCache = googleMapsCache == null ? new GoogleMapsCache() : googleMapsCache;
+    }
+
     public Password getPassword() {
         return password;
     }
@@ -155,6 +166,46 @@ public class AppProperties {
 
         public void setExpandedTtl(Duration expandedTtl) {
             this.expandedTtl = expandedTtl == null ? Duration.ofDays(1) : expandedTtl;
+        }
+    }
+
+    /** Cache TTLs for non-details Google Maps requests proxied through the backend. */
+    public static class GoogleMapsCache {
+        private Duration searchTtl = Duration.ofMinutes(15);
+        private Duration geocodeTtl = Duration.ofDays(30);
+        private Duration routeTtl = Duration.ofHours(1);
+        private Duration photoTtl = Duration.ofDays(1);
+
+        public Duration getSearchTtl() {
+            return searchTtl;
+        }
+
+        public void setSearchTtl(Duration searchTtl) {
+            this.searchTtl = searchTtl == null ? Duration.ofMinutes(15) : searchTtl;
+        }
+
+        public Duration getGeocodeTtl() {
+            return geocodeTtl;
+        }
+
+        public void setGeocodeTtl(Duration geocodeTtl) {
+            this.geocodeTtl = geocodeTtl == null ? Duration.ofDays(30) : geocodeTtl;
+        }
+
+        public Duration getRouteTtl() {
+            return routeTtl;
+        }
+
+        public void setRouteTtl(Duration routeTtl) {
+            this.routeTtl = routeTtl == null ? Duration.ofHours(1) : routeTtl;
+        }
+
+        public Duration getPhotoTtl() {
+            return photoTtl;
+        }
+
+        public void setPhotoTtl(Duration photoTtl) {
+            this.photoTtl = photoTtl == null ? Duration.ofDays(1) : photoTtl;
         }
     }
 

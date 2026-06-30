@@ -81,6 +81,11 @@ public class RateLimitRegistry {
         /** 60 guest writes per minute per IP before guest-session validation. */
         GUEST_WRITE(() -> Bucket.builder()
             .addLimit(Bandwidth.builder().capacity(60).refillGreedy(60, Duration.ofMinutes(1)).build())
+            .build()),
+
+        /** 120 backend-proxied Google Maps calls per minute per IP. */
+        GOOGLE_MAPS(() -> Bucket.builder()
+            .addLimit(Bandwidth.builder().capacity(120).refillGreedy(120, Duration.ofMinutes(1)).build())
             .build());
 
         private final Supplier<Bucket> factory;

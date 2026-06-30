@@ -67,8 +67,13 @@ public class PlaceDetailsService {
     }
 
     public PlaceDetailsResponse details(String placeId, String fields) {
+        return details(placeId, fields, null);
+    }
+
+    public PlaceDetailsResponse details(String placeId, String fields, String sessionToken) {
         String normalizedPlaceId = normalizePlaceId(placeId);
         String fieldMask = canonicalFieldMask(fields);
+        String normalizedSessionToken = normalizeSessionToken(sessionToken);
         OffsetDateTime now = OffsetDateTime.now(clock);
         PlaceDetailsCacheId cacheId = new PlaceDetailsCacheId(normalizedPlaceId, fieldMask);
         Optional<PlaceDetailsCache> cached = cacheRepository.findById(cacheId);
@@ -85,7 +90,7 @@ public class PlaceDetailsService {
         }
 
         try {
-            JsonNode freshDetails = googleClient.fetchDetails(normalizedPlaceId, fieldMask);
+            JsonNode freshDetails = googleClient.fetchDetails(normalizedPlaceId, fieldMask, normalizedSessionToken);
             OffsetDateTime expiresAt = now.plus(ttlFor(fieldMask));
             PlaceDetailsCache cacheRow = cached.orElseGet(() ->
                 new PlaceDetailsCache(normalizedPlaceId, fieldMask, freshDetails, now, expiresAt));
@@ -129,6 +134,14 @@ public class PlaceDetailsService {
             throw PlaceDetailsException.badRequest("Google Place ID is required");
         }
         return normalized;
+    }
+
+    private static String normalizeSessionToken(String sessionToken) {
+        String normalized = sessionToken == null ? "" : sessionToken.strip();
+        if (normalized.length() > 128) {
+            throw PlaceDetailsException.badRequest("Google autocomplete session token is too long");
+        }
+        return normalized.isEmpty() ? null : normalized;
     }
 
     private Duration ttlFor(String fieldMask) {

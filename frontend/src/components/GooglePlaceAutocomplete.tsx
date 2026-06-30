@@ -19,7 +19,6 @@ import {
   type GooglePlaceSuggestion,
 } from './googlePlaces'
 import styles from './GooglePlaceAutocomplete.module.css'
-import { googleMapsApiKey } from '../utils/googleMapsAccess'
 
 interface GooglePlaceAutocompleteProps {
   ariaDescribedBy?: string
@@ -81,7 +80,6 @@ export function GooglePlaceAutocomplete({
   const generatedInputId = useId()
   const listboxId = useId()
   const inputId = id ?? generatedInputId
-  const apiKey = googleMapsApiKey()
   const inputRef = useRef<HTMLInputElement>(null)
   const sessionTokenRef = useRef<string | null>(null)
   const requestVersionRef = useRef(0)
@@ -137,8 +135,6 @@ export function GooglePlaceAutocomplete({
       return undefined
     }
 
-    if (!apiKey) return undefined
-
     const requestVersion = requestVersionRef.current + 1
     requestVersionRef.current = requestVersion
     let cancelled = false
@@ -148,7 +144,6 @@ export function GooglePlaceAutocomplete({
       sessionTokenRef.current = sessionToken
 
       void fetchGooglePlaceSuggestions({
-        apiKey,
         options,
         query,
         sessionToken,
@@ -171,7 +166,7 @@ export function GooglePlaceAutocomplete({
       cancelled = true
       window.clearTimeout(timeout)
     }
-  }, [apiKey, onSearchError, options, query, searchFailedMessage])
+  }, [onSearchError, options, query, searchFailedMessage])
 
   const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
     selectedValueRef.current = null
@@ -225,7 +220,6 @@ export function GooglePlaceAutocomplete({
     inputRef.current?.blur()
     try {
       const selection = await fetchGooglePlaceSelection({
-        apiKey,
         includePhoto,
         prediction,
         sessionToken,

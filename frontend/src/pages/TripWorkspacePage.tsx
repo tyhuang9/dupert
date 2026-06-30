@@ -110,7 +110,6 @@ import {
   listTripDays,
   parseActivityDragId,
 } from '../utils/activityDrag'
-import { googleMapsApiKey } from '../utils/googleMapsAccess'
 
 function isNotFoundError(err: unknown): boolean {
   return axios.isAxiosError(err) && err.response?.status === 404
@@ -986,18 +985,6 @@ function ShareTripModal({
     () => shareLinksQuery.data?.filter((link) => !link.revokedAt) ?? [],
     [shareLinksQuery.data],
   )
-
-  useEffect(() => {
-    setEditableNames((current) => {
-      const next = { ...current }
-      for (const link of activeLinks) {
-        if (next[link.id] === undefined) {
-          next[link.id] = defaultShareLinkName(link)
-        }
-      }
-      return next
-    })
-  }, [activeLinks])
 
   const handleCreateShareLink = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -1972,16 +1959,12 @@ export function TripWorkspacePage() {
       clearMapSearchState()
       return
     }
-    const apiKey = googleMapsApiKey()
-    if (!apiKey) throw new Error('Google Maps API key is not configured.')
-
     const requestId = mapSearchRequestIdRef.current + 1
     mapSearchRequestIdRef.current = requestId
     setIsMapSearchSubmitting(true)
     focusMapPanel()
     try {
       const page = await fetchGooglePlaceTextSearch({
-        apiKey,
         options: buildMapTextSearchOptions(trimmedQuery),
         pageSize: MAP_SEARCH_PAGE_SIZE,
         query: trimmedQuery,
@@ -2005,8 +1988,6 @@ export function TripWorkspacePage() {
 
   const handleLoadMoreMapSearchResults = async () => {
     if (!mapSearchNextPageToken || !mapSearchQuery || isMapSearchLoadingMore) return
-    const apiKey = googleMapsApiKey()
-    if (!apiKey) return
 
     const requestId = mapSearchRequestIdRef.current
     const query = mapSearchQuery
@@ -2014,7 +1995,6 @@ export function TripWorkspacePage() {
     setIsMapSearchLoadingMore(true)
     try {
       const page = await fetchGooglePlaceTextSearch({
-        apiKey,
         options: buildMapTextSearchOptions(query, pageToken),
         pageSize: MAP_SEARCH_PAGE_SIZE,
         query,
@@ -2047,13 +2027,11 @@ export function TripWorkspacePage() {
     setPendingMapPlace(mapLocationTarget && fallbackPlace ? fallbackPlace : null)
     setIsMapSearchSubmitting(true)
     try {
-      const apiKey = googleMapsApiKey()
       let googlePlace = normalizedPlaceId
         ? await fetchGooglePlaceById({ placeId: normalizedPlaceId })
         : null
-      if (!googlePlace && !normalizedPlaceId && apiKey && location) {
+      if (!googlePlace && !normalizedPlaceId && location) {
         const nearbyPlace = await fetchGooglePlaceNearLocation({
-          apiKey,
           maxResultCount: 10,
           options: buildMapNearbySearchOptions(location),
         })

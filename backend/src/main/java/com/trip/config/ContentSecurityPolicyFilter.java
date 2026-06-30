@@ -30,7 +30,7 @@ public class ContentSecurityPolicyFilter extends OncePerRequestFilter {
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
         "img-src 'self' data: https: https://maps.googleapis.com https://maps.gstatic.com",
         "font-src 'self' https://fonts.gstatic.com",
-        "connect-src 'self' https://maps.googleapis.com https://places.googleapis.com https://routes.googleapis.com https://maps.gstatic.com",
+        "connect-src 'self' https://maps.googleapis.com https://maps.gstatic.com",
         // Google Maps may use blob-backed workers depending on browser/runtime path.
         "worker-src 'self' blob:",
         "frame-ancestors 'none'",

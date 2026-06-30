@@ -1,22 +1,6 @@
 import { apiClient } from '../api/client'
 
-export const GOOGLE_PLACES_AUTOCOMPLETE_URL =
-  'https://places.googleapis.com/v1/places:autocomplete'
-export const GOOGLE_PLACES_BASE_URL = 'https://places.googleapis.com/v1'
-export const GOOGLE_PLACES_NEARBY_SEARCH_URL =
-  'https://places.googleapis.com/v1/places:searchNearby'
-export const GOOGLE_PLACES_TEXT_SEARCH_URL =
-  'https://places.googleapis.com/v1/places:searchText'
 export const GOOGLE_PLACES_SEARCH_RESULT_LIMIT = 10
-
-export const GOOGLE_PLACES_AUTOCOMPLETE_FIELD_MASK = [
-  'suggestions.placePrediction.place',
-  'suggestions.placePrediction.placeId',
-  'suggestions.placePrediction.text.text',
-  'suggestions.placePrediction.structuredFormat.mainText.text',
-  'suggestions.placePrediction.structuredFormat.secondaryText.text',
-  'suggestions.placePrediction.types',
-].join(',')
 
 const GOOGLE_PLACE_DETAILS_DEFAULT_FIELDS = [
   'id',
@@ -43,47 +27,6 @@ export const GOOGLE_PLACE_DETAILS_WITHOUT_PHOTOS_FIELD_MASK =
 export const GOOGLE_PLACE_DETAILS_FIELD_MASK = [
   ...GOOGLE_PLACE_DETAILS_DEFAULT_FIELDS,
   'photos',
-].join(',')
-
-export const GOOGLE_PLACES_TEXT_SEARCH_FIELD_MASK = [
-  'nextPageToken',
-  'places.businessStatus',
-  'places.currentOpeningHours',
-  'places.id',
-  'places.displayName',
-  'places.formattedAddress',
-  'places.googleMapsUri',
-  'places.location',
-  'places.name',
-  'places.photos',
-  'places.primaryType',
-  'places.primaryTypeDisplayName',
-  'places.priceLevel',
-  'places.rating',
-  'places.regularOpeningHours',
-  'places.types',
-  'places.userRatingCount',
-  'places.websiteUri',
-].join(',')
-
-export const GOOGLE_PLACES_NEARBY_SEARCH_FIELD_MASK = [
-  'places.businessStatus',
-  'places.currentOpeningHours',
-  'places.id',
-  'places.displayName',
-  'places.formattedAddress',
-  'places.googleMapsUri',
-  'places.location',
-  'places.name',
-  'places.photos',
-  'places.primaryType',
-  'places.primaryTypeDisplayName',
-  'places.priceLevel',
-  'places.rating',
-  'places.regularOpeningHours',
-  'places.types',
-  'places.userRatingCount',
-  'places.websiteUri',
 ].join(',')
 
 type FetchImplementation = typeof fetch
@@ -223,6 +166,7 @@ interface GooglePlaceDetailsResponse {
   userRatingCount?: number | null
   websiteUri?: string | null
   nationalPhoneNumber?: string | null
+  photoUrl?: string | null
 }
 
 interface GooglePlacesTextSearchResponse {
@@ -244,8 +188,8 @@ interface GoogleReviewResponse {
   text?: GoogleText | null
 }
 
-interface GooglePhotoMediaResponse {
-  photoUri?: string | null
+interface BackendPhotoUrlResponse {
+  photoUrl?: string | null
 }
 
 interface BackendPlaceDetailsResponse {
@@ -422,18 +366,58 @@ function normalizePrediction(
   }
 }
 
-function googlePlacesHeaders(apiKey: string, fieldMask: string): HeadersInit {
-  return {
-    'Content-Type': 'application/json',
-    'X-Goog-Api-Key': apiKey,
-    'X-Goog-FieldMask': fieldMask,
-  }
-}
-
 function assertOk(response: Response, context: string): void {
   if (!response.ok) {
     throw new Error(`${context} failed with ${response.status}`)
   }
+}
+
+function backendFetchUrl(url: string, params?: Record<string, string | boolean | undefined>): string {
+  const backendUrl = new URL(`/api${url}`, window.location.origin)
+  for (const [key, value] of Object.entries(params ?? {})) {
+    if (value !== undefined) backendUrl.searchParams.set(key, String(value))
+  }
+  return `${backendUrl.pathname}${backendUrl.search}`
+}
+
+async function getBackendJson<T>(
+  url: string,
+  context: string,
+  params?: Record<string, string | boolean | undefined>,
+  fetchImpl?: FetchImplementation,
+): Promise<T> {
+  if (fetchImpl) {
+    const response = await fetchImpl(backendFetchUrl(url, params), {
+      credentials: 'include',
+    })
+    assertOk(response, context)
+    return (await response.json()) as T
+  }
+  const response = await apiClient.get<T>(url, { params })
+  return response.data
+}
+
+async function postBackendJson<T>(
+  url: string,
+  body: unknown,
+  context: string,
+  params?: Record<string, string | boolean | undefined>,
+  fetchImpl?: FetchImplementation,
+): Promise<T> {
+  if (fetchImpl) {
+    const response = await fetchImpl(backendFetchUrl(url, params), {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    })
+    assertOk(response, context)
+    return (await response.json()) as T
+  }
+  const response = await apiClient.post<T>(url, body, { params })
+  return response.data
 }
 
 export function googlePredictionPrimaryText(prediction: GooglePlacePrediction): string {
@@ -521,26 +505,23 @@ export function buildGooglePlacesNearbySearchRequest(
 }
 
 export async function fetchGooglePlaceSuggestions({
-  apiKey,
-  fetchImpl = fetch,
+  fetchImpl,
   options,
   query,
   sessionToken,
 }: {
-  apiKey: string
   fetchImpl?: FetchImplementation
   options?: GooglePlaceSearchOptions
   query: string
   sessionToken: string
 }): Promise<GooglePlaceSuggestion[]> {
-  const response = await fetchImpl(GOOGLE_PLACES_AUTOCOMPLETE_URL, {
-    method: 'POST',
-    headers: googlePlacesHeaders(apiKey, GOOGLE_PLACES_AUTOCOMPLETE_FIELD_MASK),
-    body: JSON.stringify(buildGooglePlacesAutocompleteRequest(query, options, sessionToken)),
-  })
-  assertOk(response, 'Google Places autocomplete')
-
-  const body = (await response.json()) as GoogleAutocompleteResponse
+  const body = await postBackendJson<GoogleAutocompleteResponse>(
+    '/places/autocomplete',
+    buildGooglePlacesAutocompleteRequest(query, options, sessionToken),
+    'Google Places autocomplete',
+    undefined,
+    fetchImpl,
+  )
   return (body.suggestions ?? [])
     .map((suggestion) => ({
       placePrediction: normalizePrediction(suggestion.placePrediction),
@@ -549,40 +530,28 @@ export async function fetchGooglePlaceSuggestions({
 }
 
 export async function fetchGooglePlaceTextSearch({
-  apiKey,
-  fetchImpl = fetch,
+  fetchImpl,
   includePhoto = true,
   options,
   pageSize = GOOGLE_PLACES_SEARCH_RESULT_LIMIT,
   query,
 }: {
-  apiKey: string
   fetchImpl?: FetchImplementation
   includePhoto?: boolean
   options?: GooglePlaceTextSearchOptions
   pageSize?: number
   query: string
 }): Promise<GooglePlaceTextSearchPage> {
-  const response = await fetchImpl(GOOGLE_PLACES_TEXT_SEARCH_URL, {
-    method: 'POST',
-    headers: googlePlacesHeaders(apiKey, GOOGLE_PLACES_TEXT_SEARCH_FIELD_MASK),
-    body: JSON.stringify(buildGooglePlacesTextSearchRequest(query, options, pageSize)),
-  })
-  assertOk(response, 'Google Places text search')
-
-  const body = (await response.json()) as GooglePlacesTextSearchResponse
+  const body = await postBackendJson<GooglePlacesTextSearchResponse>(
+    '/places/text-search',
+    buildGooglePlacesTextSearchRequest(query, options, pageSize),
+    'Google Places text search',
+    { includePhoto },
+    fetchImpl,
+  )
   const places = (body.places ?? []).slice(0, pageSize)
-  const normalizedPlaces = await Promise.all(
-    places.map(async (place) => {
-      const photoUrl = includePhoto
-        ? await imageUrlFromGooglePhotoName({
-            apiKey,
-            fetchImpl,
-            photoName: place.photos?.[0]?.name,
-          })
-        : null
-      return normalizeGoogleTextSearchPlace(place, photoUrl)
-    }),
+  const normalizedPlaces = places.map((place) =>
+    normalizeGoogleTextSearchPlace(place, includePhoto ? normalizeHttpsUrl(place.photoUrl) : null),
   )
   return {
     nextPageToken: body.nextPageToken?.trim() || null,
@@ -591,34 +560,25 @@ export async function fetchGooglePlaceTextSearch({
 }
 
 export async function fetchGooglePlaceNearLocation({
-  apiKey,
-  fetchImpl = fetch,
+  fetchImpl,
   includePhoto = false,
   maxResultCount = 1,
   options,
 }: {
-  apiKey: string
   fetchImpl?: FetchImplementation
   includePhoto?: boolean
   maxResultCount?: number
   options: GooglePlaceNearbySearchOptions
 }): Promise<GooglePlaceSelection | null> {
-  const response = await fetchImpl(GOOGLE_PLACES_NEARBY_SEARCH_URL, {
-    method: 'POST',
-    headers: googlePlacesHeaders(apiKey, GOOGLE_PLACES_NEARBY_SEARCH_FIELD_MASK),
-    body: JSON.stringify(buildGooglePlacesNearbySearchRequest(options, maxResultCount)),
-  })
-  assertOk(response, 'Google Places nearby search')
-
-  const body = (await response.json()) as GooglePlacesTextSearchResponse
+  const body = await postBackendJson<GooglePlacesTextSearchResponse>(
+    '/places/nearby-search',
+    buildGooglePlacesNearbySearchRequest(options, maxResultCount),
+    'Google Places nearby search',
+    { includePhoto },
+    fetchImpl,
+  )
   for (const place of body.places ?? []) {
-    const photoUrl = includePhoto
-      ? await imageUrlFromGooglePhotoName({
-          apiKey,
-          fetchImpl,
-          photoName: place.photos?.[0]?.name,
-        })
-      : null
+    const photoUrl = includePhoto ? normalizeHttpsUrl(place.photoUrl) : null
     const normalizedPlace = normalizeGoogleTextSearchPlace(place, photoUrl)
     if (normalizedPlace) return normalizedPlace
   }
@@ -629,8 +589,9 @@ export async function fetchGooglePlaceDetails({
   includePhoto = false,
   placeId,
   fields,
+  fetchImpl,
+  sessionToken,
 }: {
-  apiKey?: string
   fetchImpl?: FetchImplementation
   includePhoto?: boolean
   placeId: string
@@ -638,16 +599,21 @@ export async function fetchGooglePlaceDetails({
   fields?: string | string[]
 }): Promise<GooglePlaceDetailsResponse> {
   const fieldMask = canonicalBackendPlaceDetailsFieldMask({ fields, includePhoto })
-  const cacheKey = `${placeId}\n${fieldMask}`
+  const normalizedSessionToken = sessionToken?.trim() || ''
+  const cacheKey = `${placeId}\n${fieldMask}\n${normalizedSessionToken}`
   const existing = backendPlaceDetailsRequests.get(cacheKey)
   if (existing) return existing
 
   const shouldSendFields = fields !== undefined || includePhoto
-  const request = apiClient
-    .get<BackendPlaceDetailsResponse>(`/places/${encodeURIComponent(placeId)}/details`, {
-      params: shouldSendFields ? { fields: fieldMask } : undefined,
-    })
-    .then((response) => response.data.details)
+  const request = getBackendJson<BackendPlaceDetailsResponse>(
+    `/places/${encodeURIComponent(placeId)}/details`,
+    'Google Place Details',
+    {
+      ...(shouldSendFields ? { fields: fieldMask } : {}),
+      ...(normalizedSessionToken ? { sessionToken: normalizedSessionToken } : {}),
+    },
+    fetchImpl,
+  ).then((response) => response.details)
 
   backendPlaceDetailsRequests.set(cacheKey, request)
   try {
@@ -659,26 +625,21 @@ export async function fetchGooglePlaceDetails({
 }
 
 export async function fetchGooglePlaceById({
-  apiKey,
-  fetchImpl = fetch,
+  fetchImpl,
   includePhoto = false,
   placeId,
 }: {
-  apiKey?: string
   fetchImpl?: FetchImplementation
   includePhoto?: boolean
   placeId: string
 }): Promise<GooglePlaceSelection> {
   const details = await fetchGooglePlaceDetails({
-    apiKey,
     fetchImpl,
     includePhoto,
     placeId,
   })
-  const photoApiKey = apiKey?.trim()
-  const photoUrl = includePhoto && photoApiKey
+  const photoUrl = includePhoto
     ? await imageUrlFromGooglePhotoName({
-        apiKey: photoApiKey,
         fetchImpl,
         photoName: details.photos?.[0]?.name,
       })
@@ -699,29 +660,27 @@ export async function fetchGooglePlaceById({
 }
 
 export async function imageUrlFromGooglePhotoName({
-  apiKey,
-  fetchImpl = fetch,
+  fetchImpl,
   photoName,
 }: {
-  apiKey: string
   fetchImpl?: FetchImplementation
   photoName: string | null | undefined
 }): Promise<string | null> {
   if (!photoName) return null
 
-  const normalizedPhotoName = photoName.replace(/^\/+/, '')
-  const url = new URL(`${GOOGLE_PLACES_BASE_URL}/${normalizedPhotoName}/media`)
-  url.searchParams.set('maxWidthPx', '1600')
-  url.searchParams.set('maxHeightPx', '1000')
-  url.searchParams.set('skipHttpRedirect', 'true')
-  url.searchParams.set('key', apiKey)
-
   try {
-    const response = await fetchImpl(url.toString())
-    if (!response.ok) return null
-
-    const body = (await response.json()) as GooglePhotoMediaResponse
-    return normalizeHttpsUrl(body.photoUri)
+    const body = await postBackendJson<BackendPhotoUrlResponse>(
+      '/places/photo-url',
+      {
+        photoName,
+        maxWidthPx: 1600,
+        maxHeightPx: 1000,
+      },
+      'Google Places photo media',
+      undefined,
+      fetchImpl,
+    )
+    return normalizeHttpsUrl(body.photoUrl)
   } catch {
     return null
   }
@@ -835,29 +794,24 @@ export function normalizeGoogleTextSearchPlace(
 }
 
 export async function fetchGooglePlaceSelection({
-  apiKey,
-  fetchImpl = fetch,
+  fetchImpl,
   includePhoto = false,
   prediction,
   sessionToken,
 }: {
-  apiKey?: string
   fetchImpl?: FetchImplementation
   includePhoto?: boolean
   prediction: GooglePlacePrediction
   sessionToken?: string | null
 }): Promise<GooglePlaceSelection> {
   const place = await fetchGooglePlaceDetails({
-    apiKey,
     fetchImpl,
     includePhoto,
     placeId: prediction.placeId,
     sessionToken,
   })
-  const photoApiKey = apiKey?.trim()
-  const photoUrl = includePhoto && photoApiKey
+  const photoUrl = includePhoto
     ? await imageUrlFromGooglePhotoName({
-        apiKey: photoApiKey,
         fetchImpl,
         photoName: place.photos?.[0]?.name,
       })

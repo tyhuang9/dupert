@@ -66,7 +66,6 @@ function googlePlace(overrides: Partial<GooglePlaceSelection> = {}): GooglePlace
 }
 
 beforeEach(() => {
-  vi.stubEnv('VITE_GOOGLE_MAPS_API_KEY', 'gmaps.test')
   autocompleteState.props = null
 })
 
@@ -86,7 +85,7 @@ describe('<PlaceSearch>', () => {
     })
 
     expect(screen.getByRole('alert')).toHaveTextContent(/google places search failed/i)
-    expect(screen.getByRole('alert')).toHaveTextContent(/http referrer/i)
+    expect(screen.getByRole('alert')).toHaveTextContent(/backend google_maps_api_key/i)
   })
 
   it('clears the diagnostic when suggestions recover', () => {
@@ -225,12 +224,12 @@ describe('<PlaceSearch>', () => {
     expect(screen.queryByRole('button', { name: /shopping/i })).not.toBeInTheDocument()
   })
 
-  it('falls back to a plain diagnostic when the Google Maps key is absent', () => {
+  it('keeps autocomplete available without requiring the browser Maps key', () => {
     vi.stubEnv('VITE_GOOGLE_MAPS_API_KEY', '')
 
     render(<PlaceSearch onPlaceSelect={vi.fn()} />)
 
-    expect(screen.getByText(/google maps api key is not configured/i)).toBeInTheDocument()
-    expect(autocompleteState.props).toBeNull()
+    expect(screen.getByLabelText(/search places/i)).toBeInTheDocument()
+    expect(autocompleteState.props).not.toBeNull()
   })
 })

@@ -15,7 +15,7 @@ Multiple viewers see each other's edits live (under a second) without manual ref
 
 **Frontend** — Vite, React 19, TypeScript, React Router, TanStack Query, Zustand, Axios, `@microsoft/fetch-event-source` (SSE), `@vis.gl/react-google-maps`, `@dnd-kit`, `date-fns`. Plain CSS Modules.
 
-**External services** — [Google Maps Platform](https://developers.google.com/maps) (map rendering, place autocomplete, geocoding, routes); [Neon](https://neon.tech) (managed Postgres).
+**External services** — [Google Maps Platform](https://developers.google.com/maps) (browser map rendering plus backend-proxied Places, geocoding, photos, and routes); [Neon](https://neon.tech) (managed Postgres).
 
 **Realtime** — Server-Sent Events (`/api/trips/{id}/stream`); events carry pointers, not payloads, so subscribers always refetch through the authenticated API.
 
@@ -24,7 +24,8 @@ Multiple viewers see each other's edits live (under a second) without manual ref
 - **JDK 21** (Temurin recommended). Verify: `java -version` reports `21`.
 - **Node 20+** and **npm**.
 - A **Neon** project (free tier is fine). Grab the dev-branch connection string from the Neon dashboard.
-- A **Google Maps Platform** browser API key. Enable billing plus the Maps JavaScript API and Places API (New) for map rendering and place search. The destination fallback and selected-day route line additionally use the Geocoding API and Routes API. Restrict the key by HTTP referrer to `http://localhost:3000/*` for local development and to your production origins later.
+- A **Google Maps Platform** browser API key for the Maps JavaScript API. Restrict this key by HTTP referrer to `http://localhost:3000/*` for local development and to your production origins later.
+- A **Google Maps Platform** server API key for backend Places API (New), Geocoding API, and Routes API requests. Restrict this key for server-side use only.
 
 No Docker, no local Postgres install, no global Gradle.
 
@@ -39,8 +40,8 @@ cp .env.example .env
 #                          contains '&', e.g. '...?sslmode=require&channel_binding=require')
 #   JWT_SECRET            (generate: openssl rand -hex 32)
 #   LOG_EMAIL_PEPPER      (generate: openssl rand -hex 16)
-#   GOOGLE_MAPS_API_KEY   (server-side Google Maps key for cached place details)
-#   VITE_GOOGLE_MAPS_API_KEY  (Google Maps browser API key)
+#   GOOGLE_MAPS_API_KEY       (backend server key for Places, Geocoding, Routes, and photos)
+#   VITE_GOOGLE_MAPS_API_KEY  (browser key for Maps JavaScript rendering only)
 #   VITE_GOOGLE_MAPS_MAP_ID   (optional Google Maps vector map id)
 #   NVD_API_KEY           (optional, strongly recommended before Dependency-Check)
 ```
@@ -165,8 +166,8 @@ trip-planner/
 | `LOG_EMAIL_PEPPER` | backend | 16 random bytes (hex) for hashing emails in logs |
 | `APP_FRONTEND_ORIGIN` | backend | Exact origin allowed by CORS (e.g. `http://localhost:3000`) |
 | `APP_DEV_PASSWORD_RESET_SECRET` | backend | Local-only secret required by `/api/auth/dev/reset-password`; leave unset outside dev |
-| `GOOGLE_MAPS_API_KEY` | backend | Server-side Google Maps key used by the backend Place Details cache when it has to call Google |
-| `VITE_GOOGLE_MAPS_API_KEY` | frontend | Public Google Maps browser key for Maps JavaScript and Places API (New); Geocoding/Routes are used only by optional map fallback/route features; restrict by HTTP referrer to localhost and production origins |
+| `GOOGLE_MAPS_API_KEY` | backend | Server-side Google Maps key used by backend Places autocomplete, text/nearby search, place details, photo media, geocoding, and route calculations |
+| `VITE_GOOGLE_MAPS_API_KEY` | frontend | Public Google Maps browser key for Maps JavaScript rendering only; restrict by HTTP referrer to localhost and production origins |
 | `VITE_GOOGLE_MAPS_MAP_ID` | frontend | Optional Google Maps vector map id for cloud styling |
 | `VITE_DEV_PASSWORD_RESET_SECRET` | frontend | Dev-only value sent by the login-page reset helper; match `APP_DEV_PASSWORD_RESET_SECRET` locally |
 | `NVD_API_KEY` | backend/CI | Optional but strongly recommended key for reliable OWASP Dependency-Check NVD updates |
@@ -181,5 +182,5 @@ Values containing shell metacharacters (`&`, `;`, `$`, spaces) **must** be wrapp
 - Share links store only a SHA-256 hash of the raw token and can be revoked by the trip owner.
 - Anonymous guest writes require the guest cookie plus the `X-TripPlanner-Guest-Write: 1` header, and guest/share endpoints are rate limited.
 - SSE events on `/api/trips/{publicId}/stream` contain only pointers such as event type, trip id, activity id, or day date; clients refetch the real data through authenticated API calls.
-- Google Maps Platform is called directly from the browser with a public browser key. Restrict the key to localhost and production origins with HTTP referrer restrictions, and enable only the APIs the frontend uses.
+- The browser key is only for Maps JavaScript rendering and should be HTTP-referrer restricted. Expensive or cacheable Google web-service calls run through authenticated backend endpoints using `GOOGLE_MAPS_API_KEY`; do not expose that server key to the frontend.
 - Keep `.env` local-only. Commit changes to `.env.example` when configuration requirements change.

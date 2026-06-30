@@ -3,7 +3,6 @@ package com.trip.service.place;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -67,7 +66,7 @@ class PlaceDetailsServiceTest {
         assertThat(response.source()).isEqualTo("cache");
         assertThat(response.stale()).isFalse();
         assertThat(response.details()).isEqualTo(cachedDetails);
-        verify(googleClient, never()).fetchDetails(any(), any());
+        verify(googleClient, never()).fetchDetails(any(), any(), any());
     }
 
     @Test
@@ -75,7 +74,7 @@ class PlaceDetailsServiceTest {
         JsonNode freshDetails = json("{\"id\":\"place-1\",\"displayName\":{\"text\":\"Fresh\"}}");
         when(cacheRepository.findById(new PlaceDetailsCacheId("place-1", DEFAULT_MASK)))
             .thenReturn(Optional.empty());
-        when(googleClient.fetchDetails("place-1", DEFAULT_MASK)).thenReturn(freshDetails);
+        when(googleClient.fetchDetails("place-1", DEFAULT_MASK, null)).thenReturn(freshDetails);
 
         PlaceDetailsResponse response = service.details("place-1", null);
 
@@ -94,7 +93,7 @@ class PlaceDetailsServiceTest {
         PlaceDetailsCache staleRow = cacheRow("place-1", DEFAULT_MASK, staleDetails, -1);
         when(cacheRepository.findById(new PlaceDetailsCacheId("place-1", DEFAULT_MASK)))
             .thenReturn(Optional.of(staleRow));
-        when(googleClient.fetchDetails("place-1", DEFAULT_MASK)).thenReturn(freshDetails);
+        when(googleClient.fetchDetails("place-1", DEFAULT_MASK, null)).thenReturn(freshDetails);
 
         PlaceDetailsResponse response = service.details("place-1", null);
 
@@ -108,7 +107,7 @@ class PlaceDetailsServiceTest {
         JsonNode staleDetails = json("{\"id\":\"place-1\",\"displayName\":{\"text\":\"Stale\"}}");
         when(cacheRepository.findById(new PlaceDetailsCacheId("place-1", DEFAULT_MASK)))
             .thenReturn(Optional.of(cacheRow("place-1", DEFAULT_MASK, staleDetails, -1)));
-        when(googleClient.fetchDetails("place-1", DEFAULT_MASK))
+        when(googleClient.fetchDetails("place-1", DEFAULT_MASK, null))
             .thenThrow(PlaceDetailsException.unavailable("boom"));
 
         PlaceDetailsResponse response = service.details("place-1", null);
@@ -122,7 +121,7 @@ class PlaceDetailsServiceTest {
     void googleFailureWithoutCacheThrows() {
         when(cacheRepository.findById(new PlaceDetailsCacheId("place-1", DEFAULT_MASK)))
             .thenReturn(Optional.empty());
-        when(googleClient.fetchDetails("place-1", DEFAULT_MASK))
+        when(googleClient.fetchDetails("place-1", DEFAULT_MASK, null))
             .thenThrow(PlaceDetailsException.rateLimited("quota"));
 
         assertThatThrownBy(() -> service.details("place-1", null))
@@ -136,7 +135,7 @@ class PlaceDetailsServiceTest {
         when(cacheRepository.findById(new PlaceDetailsCacheId("place-1", expandedMask)))
             .thenReturn(Optional.empty());
         JsonNode freshDetails = json("{\"id\":\"place-1\",\"photos\":[],\"reviews\":[]}");
-        when(googleClient.fetchDetails("place-1", expandedMask)).thenReturn(freshDetails);
+        when(googleClient.fetchDetails("place-1", expandedMask, null)).thenReturn(freshDetails);
 
         PlaceDetailsResponse response = service.details("place-1", "reviews,photos");
 
@@ -149,6 +148,22 @@ class PlaceDetailsServiceTest {
     void unsupportedFieldsAreRejected() {
         assertThatThrownBy(() -> service.details("place-1", "editorialSummary"))
             .isInstanceOf(PlaceDetailsException.class);
+    }
+
+    @Test
+    void cacheMissForwardsAutocompleteSessionTokenToGoogleOnly() {
+        JsonNode freshDetails = json("{\"id\":\"place-1\",\"displayName\":{\"text\":\"Fresh\"}}");
+        when(cacheRepository.findById(new PlaceDetailsCacheId("place-1", DEFAULT_MASK)))
+            .thenReturn(Optional.empty());
+        when(googleClient.fetchDetails("place-1", DEFAULT_MASK, "session-123")).thenReturn(freshDetails);
+
+        PlaceDetailsResponse response = service.details("place-1", null, " session-123 ");
+
+        assertThat(response.source()).isEqualTo("google");
+        verify(googleClient).fetchDetails("place-1", DEFAULT_MASK, "session-123");
+        ArgumentCaptor<PlaceDetailsCache> saved = ArgumentCaptor.forClass(PlaceDetailsCache.class);
+        verify(cacheRepository).save(saved.capture());
+        assertThat(saved.getValue().getId()).isEqualTo(new PlaceDetailsCacheId("place-1", DEFAULT_MASK));
     }
 
     private PlaceDetailsCache cacheRow(String placeId, String fieldMask, JsonNode details, long expiresInDays) {

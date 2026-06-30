@@ -120,6 +120,10 @@ class SmokeTest {
             .andExpect(header().string("Content-Security-Policy",
                 containsString("maps.gstatic.com")))
             .andExpect(header().string("Content-Security-Policy",
+                not(containsString("places.googleapis.com"))))
+            .andExpect(header().string("Content-Security-Policy",
+                not(containsString("routes.googleapis.com"))))
+            .andExpect(header().string("Content-Security-Policy",
                 not(containsString("mapbox.com"))))
             .andExpect(header().string("Content-Security-Policy",
                 containsString("frame-ancestors 'none'")));

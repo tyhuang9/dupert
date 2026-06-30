@@ -40,13 +40,13 @@ public class HttpGooglePlaceDetailsClient implements GooglePlaceDetailsClient {
     }
 
     @Override
-    public JsonNode fetchDetails(String placeId, String fieldMask) {
+    public JsonNode fetchDetails(String placeId, String fieldMask, String sessionToken) {
         String apiKey = appProperties.getGoogleMapsApiKey().strip();
         if (apiKey.isEmpty()) {
             throw PlaceDetailsException.unavailable("Google Maps API key is not configured");
         }
 
-        HttpRequest request = HttpRequest.newBuilder(detailsUri(placeId))
+        HttpRequest request = HttpRequest.newBuilder(detailsUri(placeId, sessionToken))
             .header("X-Goog-Api-Key", apiKey)
             .header("X-Goog-FieldMask", fieldMask)
             .GET()
@@ -75,8 +75,14 @@ public class HttpGooglePlaceDetailsClient implements GooglePlaceDetailsClient {
         }
     }
 
-    private static URI detailsUri(String placeId) {
+    private static URI detailsUri(String placeId, String sessionToken) {
         String encodedPlaceId = URLEncoder.encode(placeId, StandardCharsets.UTF_8).replace("+", "%20");
-        return URI.create(GOOGLE_PLACE_DETAILS_BASE_URL + encodedPlaceId);
+        String normalizedSessionToken = sessionToken == null ? "" : sessionToken.strip();
+        if (normalizedSessionToken.isEmpty()) {
+            return URI.create(GOOGLE_PLACE_DETAILS_BASE_URL + encodedPlaceId);
+        }
+        String encodedSessionToken = URLEncoder.encode(normalizedSessionToken, StandardCharsets.UTF_8)
+            .replace("+", "%20");
+        return URI.create(GOOGLE_PLACE_DETAILS_BASE_URL + encodedPlaceId + "?sessionToken=" + encodedSessionToken);
     }
 }

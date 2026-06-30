@@ -907,7 +907,6 @@ describe('<TripWorkspacePage>', () => {
 
     await waitFor(() => {
       expect(googlePlacesMockState.fetchGooglePlaceTextSearch).toHaveBeenCalledWith({
-        apiKey: 'gmaps.test',
         options: expect.objectContaining({
           includedType: 'restaurant',
           language: 'en',
@@ -970,7 +969,6 @@ describe('<TripWorkspacePage>', () => {
 
     await waitFor(() => {
       expect(googlePlacesMockState.fetchGooglePlaceTextSearch).toHaveBeenCalledWith({
-        apiKey: 'gmaps.test',
         options: expect.objectContaining({
           language: 'en',
           rankPreference: 'RELEVANCE',
@@ -1120,7 +1118,6 @@ describe('<TripWorkspacePage>', () => {
 
     await waitFor(() => {
       expect(googlePlacesMockState.fetchGooglePlaceNearLocation).toHaveBeenCalledWith({
-        apiKey: 'gmaps.test',
         maxResultCount: 10,
         options: {
           language: 'en',

@@ -1,3 +1,5 @@
+import { apiClient } from './client'
+
 export interface LatLng {
   lat: number
   lng: number
@@ -10,28 +12,19 @@ export interface AppRoute {
   legs: Array<{ distance: number; duration: number }>
 }
 
-function latLngFromLegacyGoogle(value: google.maps.LatLng): LatLng {
-  return {
-    lat: value.lat(),
-    lng: value.lng(),
-  }
-}
-
-function latLngFromRoutePath(value: google.maps.LatLngAltitude): LatLng {
-  return {
-    lat: value.lat,
-    lng: value.lng,
-  }
-}
-
 export function normalizeDirectionsResult(
-  result: google.maps.DirectionsResult | null,
+  result: {
+    routes?: Array<{
+      overview_path?: LatLng[]
+      legs?: Array<{ distance?: { value?: number }; duration?: { value?: number } }>
+    }>
+  } | null,
 ): AppRoute | null {
-  const route = result?.routes[0]
+  const route = result?.routes?.[0]
   if (!route) return null
 
-  const path = route.overview_path.map(latLngFromLegacyGoogle)
-  const legs = route.legs.map((leg) => ({
+  const path = route.overview_path ?? []
+  const legs = (route.legs ?? []).map((leg) => ({
     distance: leg.distance?.value ?? 0,
     duration: leg.duration?.value ?? 0,
   }))
@@ -46,7 +39,16 @@ export function normalizeDirectionsResult(
   }
 }
 
-export function normalizeComputedRoute(route: google.maps.routes.Route | undefined): AppRoute | null {
+export function normalizeComputedRoute(
+  route:
+    | {
+        distanceMeters?: number
+        durationMillis?: number
+        path?: LatLng[]
+        legs?: Array<{ distanceMeters: number; durationMillis?: number }>
+      }
+    | undefined,
+): AppRoute | null {
   if (!route) return null
 
   const legs = route.legs?.map((leg) => ({
@@ -62,54 +64,21 @@ export function normalizeComputedRoute(route: google.maps.routes.Route | undefin
       0,
       Math.round((route.durationMillis ?? fallbackDuration * 1000) / 1000),
     ),
-    path: route.path?.map(latLngFromRoutePath) ?? [],
+    path: route.path ?? [],
     legs,
   }
 }
 
-export function getDrivingDirections(
+export async function getDrivingDirections(
   coordinates: LatLng[],
-  routesLibrary: google.maps.RoutesLibrary | null,
   signal?: AbortSignal,
 ): Promise<AppRoute | null> {
-  if (coordinates.length < 2) return Promise.resolve(null)
-  if (!routesLibrary) return Promise.resolve(null)
+  if (coordinates.length < 2) return null
 
-  const [origin, ...remainingCoordinates] = coordinates
-  const destination = remainingCoordinates[remainingCoordinates.length - 1]
-  const intermediates = remainingCoordinates.slice(0, -1).map((coordinate) => ({
-    location: coordinate,
-    vehicleStopover: true,
-  }))
-
-  return new Promise((resolve, reject) => {
-    if (signal?.aborted) {
-      reject(new DOMException('Directions request aborted', 'AbortError'))
-      return
-    }
-
-    const abort = () => {
-      reject(new DOMException('Directions request aborted', 'AbortError'))
-    }
-    signal?.addEventListener('abort', abort, { once: true })
-
-    routesLibrary.Route.computeRoutes({
-      origin,
-      destination,
-      intermediates,
-      travelMode: routesLibrary.TravelMode.DRIVING,
-      polylineQuality: routesLibrary.PolylineQuality.HIGH_QUALITY,
-      fields: ['distanceMeters', 'durationMillis', 'path', 'legs.distanceMeters', 'legs.durationMillis'],
-    })
-      .then((result) => {
-        signal?.removeEventListener('abort', abort)
-        if (signal?.aborted) return
-        resolve(normalizeComputedRoute(result.routes?.[0]))
-      })
-      .catch((error: unknown) => {
-        signal?.removeEventListener('abort', abort)
-        if (signal?.aborted) return
-        reject(error instanceof Error ? error : new Error('Google directions request failed'))
-      })
-  })
+  const response = await apiClient.post<AppRoute | null>(
+    '/maps/routes/driving',
+    { coordinates },
+    { signal },
+  )
+  return response.data
 }
