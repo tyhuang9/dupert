@@ -637,7 +637,6 @@ function TripMapContent({
         lat: selectedSearchDisplayStop.lat,
         lng: selectedSearchDisplayStop.lng,
       },
-      zoom: Math.max(map.getZoom() ?? 0, 15),
     })
     window.requestAnimationFrame(reportViewportContext)
   }, [map, reportViewportContext, selectedSearchDisplayKey, selectedSearchDisplayStop])
@@ -665,7 +664,6 @@ function TripMapContent({
         lat: focusedActivityDisplayStop.lat,
         lng: focusedActivityDisplayStop.lng,
       },
-      zoom: Math.max(map.getZoom() ?? 0, 14),
     })
     window.requestAnimationFrame(reportViewportContext)
   }, [focusedActivityDisplayStop, focusedActivityKey, map, reportViewportContext])

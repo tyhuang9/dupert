@@ -626,7 +626,6 @@ describe('<TripMap>', () => {
     await waitFor(() => {
       expect(mapControlMock.moveCamera).toHaveBeenCalledWith({
         center: { lat: 36.2, lng: 140.2 },
-        zoom: 15,
       })
     })
     expect(mapControlMock.fitBounds).not.toHaveBeenCalled()

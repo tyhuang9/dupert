@@ -15,6 +15,7 @@ interface ActivityListProps {
   busy?: boolean
   dragDisabled?: boolean
   readOnly?: boolean
+  hideEmptyState?: boolean
   activeActivityId?: number | null
   expandedActivityId?: number | null
   onActiveActivityChange?: (activityId: number | null) => void
@@ -74,13 +75,12 @@ function SortableActivityCard({
   return (
     <li
       ref={setNodeRef}
-      style={style}
       className={`${styles.sortableItem} ${isLast ? styles.lastItem : ''} ${isDragging ? styles.dragging : ''}`}
     >
       <span className={styles.timelineMarker} aria-hidden="true">
         {position}
       </span>
-      <div className={styles.cardSlot}>
+      <div className={styles.cardSlot} style={style}>
         <ActivityCard
           activity={activity}
           active={activeActivityId === activity.id}
@@ -107,6 +107,7 @@ export function ActivityList({
   busy = false,
   dragDisabled = false,
   readOnly = false,
+  hideEmptyState = false,
   activeActivityId = null,
   expandedActivityId = null,
   onActiveActivityChange,
@@ -117,6 +118,8 @@ export function ActivityList({
   onToggleExpand,
 }: ActivityListProps) {
   if (activities.length === 0) {
+    if (hideEmptyState) return null
+
     return (
       <div className={styles.emptyState}>
         <span className={styles.emptyIcon} aria-hidden="true">

@@ -1,5 +1,7 @@
 package com.trip.config;
 
+import java.time.Duration;
+
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 /**
@@ -24,6 +26,12 @@ public class AppProperties {
 
     /** Secret required by the local-only dev password reset helper. */
     private String devPasswordResetSecret = "";
+
+    /** Backend-only Google Maps API key for server-side Places details calls. */
+    private String googleMapsApiKey = "";
+
+    /** Server-side Places details cache configuration. */
+    private PlaceDetails placeDetails = new PlaceDetails();
 
     /** Password-policy knobs (breached-password threshold, etc.). */
     private Password password = new Password();
@@ -77,6 +85,22 @@ public class AppProperties {
         this.devPasswordResetSecret = devPasswordResetSecret == null ? "" : devPasswordResetSecret;
     }
 
+    public String getGoogleMapsApiKey() {
+        return googleMapsApiKey;
+    }
+
+    public void setGoogleMapsApiKey(String googleMapsApiKey) {
+        this.googleMapsApiKey = googleMapsApiKey == null ? "" : googleMapsApiKey;
+    }
+
+    public PlaceDetails getPlaceDetails() {
+        return placeDetails;
+    }
+
+    public void setPlaceDetails(PlaceDetails placeDetails) {
+        this.placeDetails = placeDetails == null ? new PlaceDetails() : placeDetails;
+    }
+
     public Password getPassword() {
         return password;
     }
@@ -109,6 +133,28 @@ public class AppProperties {
 
         public void setBreachThreshold(int breachThreshold) {
             this.breachThreshold = breachThreshold;
+        }
+    }
+
+    /** Places details cache TTLs. */
+    public static class PlaceDetails {
+        private Duration basicTtl = Duration.ofDays(7);
+        private Duration expandedTtl = Duration.ofDays(1);
+
+        public Duration getBasicTtl() {
+            return basicTtl;
+        }
+
+        public void setBasicTtl(Duration basicTtl) {
+            this.basicTtl = basicTtl == null ? Duration.ofDays(7) : basicTtl;
+        }
+
+        public Duration getExpandedTtl() {
+            return expandedTtl;
+        }
+
+        public void setExpandedTtl(Duration expandedTtl) {
+            this.expandedTtl = expandedTtl == null ? Duration.ofDays(1) : expandedTtl;
         }
     }
 

@@ -430,8 +430,8 @@ describe('<TripWorkspacePage>', () => {
     expect(await screen.findByRole('heading', { name: /friday, may 1/i })).toBeInTheDocument()
     await userEvent.click(screen.getByTitle('2026-05-02 (1 activities)'))
 
-    expect(await screen.findByTitle('2026-05-02 (1 activities)')).toHaveAttribute('aria-pressed', 'true')
-    expect(within(screen.getByTitle('2026-05-02 (1 activities)')).getByLabelText('1 activities')).toBeInTheDocument()
+    expect(screen.queryByTitle('2026-05-02 (1 activities)')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Calendar')).toBeInTheDocument()
     expect(screen.getAllByText('Tokyo Tower').length).toBeGreaterThan(0)
     expect(screen.queryByLabelText(/day note/i)).not.toBeInTheDocument()
     expect(screen.queryByLabelText(/selected day summary/i)).not.toBeInTheDocument()
@@ -983,7 +983,6 @@ describe('<TripWorkspacePage>', () => {
 
     await waitFor(() => {
       expect(googlePlacesMockState.fetchGooglePlaceById).toHaveBeenCalledWith({
-        apiKey: 'gmaps.test',
         placeId: 'google.poi-clicked',
       })
     })

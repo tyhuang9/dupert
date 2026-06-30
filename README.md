@@ -39,6 +39,7 @@ cp .env.example .env
 #                          contains '&', e.g. '...?sslmode=require&channel_binding=require')
 #   JWT_SECRET            (generate: openssl rand -hex 32)
 #   LOG_EMAIL_PEPPER      (generate: openssl rand -hex 16)
+#   GOOGLE_MAPS_API_KEY   (server-side Google Maps key for cached place details)
 #   VITE_GOOGLE_MAPS_API_KEY  (Google Maps browser API key)
 #   VITE_GOOGLE_MAPS_MAP_ID   (optional Google Maps vector map id)
 #   NVD_API_KEY           (optional, strongly recommended before Dependency-Check)
@@ -164,6 +165,7 @@ trip-planner/
 | `LOG_EMAIL_PEPPER` | backend | 16 random bytes (hex) for hashing emails in logs |
 | `APP_FRONTEND_ORIGIN` | backend | Exact origin allowed by CORS (e.g. `http://localhost:3000`) |
 | `APP_DEV_PASSWORD_RESET_SECRET` | backend | Local-only secret required by `/api/auth/dev/reset-password`; leave unset outside dev |
+| `GOOGLE_MAPS_API_KEY` | backend | Server-side Google Maps key used by the backend Place Details cache when it has to call Google |
 | `VITE_GOOGLE_MAPS_API_KEY` | frontend | Public Google Maps browser key for Maps JavaScript and Places API (New); Geocoding/Routes are used only by optional map fallback/route features; restrict by HTTP referrer to localhost and production origins |
 | `VITE_GOOGLE_MAPS_MAP_ID` | frontend | Optional Google Maps vector map id for cloud styling |
 | `VITE_DEV_PASSWORD_RESET_SECRET` | frontend | Dev-only value sent by the login-page reset helper; match `APP_DEV_PASSWORD_RESET_SECRET` locally |

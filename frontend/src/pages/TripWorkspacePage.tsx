@@ -39,8 +39,8 @@ import {
   Copy,
   ExternalLink,
   Globe,
-  KeyRound,
   Landmark,
+  Mail,
   MapPin,
   Navigation,
   Pencil,
@@ -51,6 +51,7 @@ import {
   Route as TimelineIcon,
   Share2,
   Settings,
+  SlidersHorizontal,
   Utensils,
   UserRound,
   X,
@@ -514,6 +515,27 @@ function activityToPlaceSelection(activity: Activity): PlaceSelection | null {
     address: activity.address,
     lat: activity.lat,
     lng: activity.lng,
+  }
+}
+
+function mergeActivityPlaceSelection(
+  activity: Activity,
+  fallback: PlaceSelection,
+  details: PlaceSelection,
+): PlaceSelection {
+  return {
+    ...fallback,
+    ...details,
+    category: activity.category,
+    notes: activity.notes,
+    startTime: activity.startTime,
+    endTime: activity.endTime,
+    title: details.title || fallback.title || activity.title,
+    mapboxId: details.mapboxId ?? fallback.mapboxId ?? activity.mapboxId,
+    placeName: details.placeName ?? fallback.placeName ?? activity.placeName,
+    address: details.address ?? fallback.address ?? activity.address,
+    lat: Number.isFinite(details.lat) ? details.lat : fallback.lat,
+    lng: Number.isFinite(details.lng) ? details.lng : fallback.lng,
   }
 }
 
@@ -1059,7 +1081,7 @@ function ShareTripModal({
                     <option value="VIEWER">Viewer</option>
                   </select>
                 </label>
-                <label className={styles.checkboxLine}>
+                <label className={[styles.checkboxLine, styles.shareAnonymousCheckbox].join(' ')}>
                   <input
                     type="checkbox"
                     checked={allowAnonymous}
@@ -1179,62 +1201,37 @@ function UserSettingsModal({
 }) {
   const auth = useAuth()
   const [displayName, setDisplayName] = useState(user.displayName)
-  const [currentPassword, setCurrentPassword] = useState('')
-  const [newPassword, setNewPassword] = useState('')
-  const [confirmPassword, setConfirmPassword] = useState('')
-  const [resetEmail, setResetEmail] = useState(user.email)
-  const [savingProfile, setSavingProfile] = useState(false)
-  const [savingPassword, setSavingPassword] = useState(false)
-  const [sendingReset, setSendingReset] = useState(false)
+  const [marketingEmails, setMarketingEmails] = useState(() =>
+    window.localStorage.getItem('tripplanner.marketingEmails') === 'true',
+  )
+  const [colorMode, setColorMode] = useState<'light' | 'dark' | 'system'>(() => {
+    const stored = window.localStorage.getItem('tripplanner.colorMode')
+    return stored === 'dark' || stored === 'system' ? stored : 'light'
+  })
+  const [saving, setSaving] = useState(false)
   const [statusMessage, setStatusMessage] = useState<string | null>(null)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
-  const handleProfileSubmit = async (event: FormEvent<HTMLFormElement>) => {
+  const initials = (displayName || user.email)
+    .split(/\s+|@/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join('')
+
+  const handleSettingsSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    setSavingProfile(true)
+    setSaving(true)
     setErrorMessage(null)
     try {
       await auth.updateProfile({ displayName })
-      setStatusMessage('Profile updated.')
+      window.localStorage.setItem('tripplanner.marketingEmails', String(marketingEmails))
+      window.localStorage.setItem('tripplanner.colorMode', colorMode)
+      setStatusMessage('Account settings saved.')
     } catch (error) {
       setErrorMessage(parseApiError(error).topMessage)
     } finally {
-      setSavingProfile(false)
-    }
-  }
-
-  const handlePasswordSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    setErrorMessage(null)
-    if (newPassword !== confirmPassword) {
-      setErrorMessage('New passwords do not match.')
-      return
-    }
-    setSavingPassword(true)
-    try {
-      await auth.changePassword({ currentPassword, newPassword })
-      setCurrentPassword('')
-      setNewPassword('')
-      setConfirmPassword('')
-      setStatusMessage('Password changed.')
-    } catch (error) {
-      setErrorMessage(parseApiError(error).topMessage)
-    } finally {
-      setSavingPassword(false)
-    }
-  }
-
-  const handleResetSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    setSendingReset(true)
-    setErrorMessage(null)
-    try {
-      await auth.requestPasswordReset({ email: resetEmail })
-      setStatusMessage('Password reset email sent if that account exists.')
-    } catch (error) {
-      setErrorMessage(parseApiError(error).topMessage)
-    } finally {
-      setSendingReset(false)
+      setSaving(false)
     }
   }
 
@@ -1247,107 +1244,122 @@ function UserSettingsModal({
         aria-labelledby="account-settings-title"
       >
         <header className={styles.modalHeader}>
-          <div>
-            <h2 id="account-settings-title">Account settings</h2>
-            <p>{user.email}</p>
-          </div>
+          <h2 id="account-settings-title">Account settings</h2>
           <button type="button" className={styles.iconOnlyButton} onClick={onClose} aria-label="Close account settings">
             <X size={18} aria-hidden="true" />
           </button>
         </header>
-        <div className={styles.modalBody}>
-          {statusMessage && <p className={styles.modalSuccess} role="status">{statusMessage}</p>}
-          {errorMessage && <p className={styles.modalError} role="alert">{errorMessage}</p>}
+        <form className={styles.accountSettingsForm} onSubmit={handleSettingsSubmit}>
+          <div className={[styles.modalBody, styles.accountSettingsBody].join(' ')}>
+            {statusMessage && <p className={styles.modalSuccess} role="status">{statusMessage}</p>}
+            {errorMessage && <p className={styles.modalError} role="alert">{errorMessage}</p>}
 
-          <form className={styles.modalSection} onSubmit={handleProfileSubmit}>
-            <h3>
-              <UserRound size={16} aria-hidden="true" />
-              Profile
-            </h3>
-            <label className={styles.modalLabel}>
-              Display name
-              <input
-                className={styles.modalInput}
-                autoComplete="name"
-                value={displayName}
-                onChange={(event) => setDisplayName(event.target.value)}
-                required
-              />
-            </label>
-            <div className={styles.modalActions}>
-              <button type="submit" className={styles.primaryAction} disabled={savingProfile}>
-                {savingProfile ? 'Saving...' : 'Save name'}
-              </button>
-            </div>
-          </form>
-
-          <form className={styles.modalSection} onSubmit={handlePasswordSubmit}>
-            <h3>
-              <KeyRound size={16} aria-hidden="true" />
-              Password
-            </h3>
-            <label className={styles.modalLabel}>
-              Current password
-              <input
-                className={styles.modalInput}
-                type="password"
-                autoComplete="current-password"
-                value={currentPassword}
-                onChange={(event) => setCurrentPassword(event.target.value)}
-                required
-              />
-            </label>
-            <div className={styles.modalGrid}>
+            <section className={styles.accountSection} aria-labelledby="account-profile-title">
+              <h3 id="account-profile-title">
+                <UserRound size={16} aria-hidden="true" />
+                Profile
+              </h3>
+              <div className={styles.profilePictureRow}>
+                <div className={styles.profileAvatar} aria-hidden="true">
+                  {initials || 'U'}
+                </div>
+                <div>
+                  <p>Profile Picture</p>
+                  <span>JPG, GIF or PNG. Max size of 800K</span>
+                </div>
+              </div>
               <label className={styles.modalLabel}>
-                New password
+                Display name
                 <input
                   className={styles.modalInput}
-                  type="password"
-                  autoComplete="new-password"
-                  value={newPassword}
-                  onChange={(event) => setNewPassword(event.target.value)}
+                  autoComplete="name"
+                  value={displayName}
+                  onChange={(event) => setDisplayName(event.target.value)}
                   required
                 />
               </label>
-              <label className={styles.modalLabel}>
-                Confirm password
-                <input
-                  className={styles.modalInput}
-                  type="password"
-                  autoComplete="new-password"
-                  value={confirmPassword}
-                  onChange={(event) => setConfirmPassword(event.target.value)}
-                  required
-                />
-              </label>
-            </div>
-            <div className={styles.modalActions}>
-              <button type="submit" className={styles.primaryAction} disabled={savingPassword}>
-                {savingPassword ? 'Saving...' : 'Change password'}
-              </button>
-            </div>
-          </form>
+            </section>
 
-          <form className={styles.modalSection} onSubmit={handleResetSubmit}>
-            <h3>Password reset email</h3>
-            <label className={styles.modalLabel}>
-              Email
-              <input
-                className={styles.modalInput}
-                type="email"
-                autoComplete="email"
-                value={resetEmail}
-                onChange={(event) => setResetEmail(event.target.value)}
-                required
-              />
-            </label>
-            <div className={styles.modalActions}>
-              <button type="submit" className={styles.secondaryAction} disabled={sendingReset}>
-                {sendingReset ? 'Sending...' : 'Send reset email'}
-              </button>
-            </div>
-          </form>
-        </div>
+            <section className={styles.accountSection} aria-labelledby="account-email-title">
+              <h3 id="account-email-title">
+                <Mail size={16} aria-hidden="true" />
+                Email Address
+              </h3>
+              <label className={styles.modalLabel}>
+                Email address
+                <span className={styles.emailInputWrap}>
+                  <input
+                    className={styles.modalInput}
+                    type="email"
+                    autoComplete="email"
+                    value={user.email}
+                    readOnly
+                  />
+                  <button
+                    type="button"
+                    className={styles.inlineTextButton}
+                    onClick={() => setStatusMessage('Email updates are not available yet.')}
+                  >
+                    Update
+                  </button>
+                </span>
+              </label>
+              <p className={styles.fieldHelper}>Used for login and notifications</p>
+            </section>
+
+            <section className={styles.accountSection} aria-labelledby="account-preferences-title">
+              <h3 id="account-preferences-title">
+                <SlidersHorizontal size={16} aria-hidden="true" />
+                Preferences
+              </h3>
+              <div className={styles.preferenceRow}>
+                <div>
+                  <p>Marketing Emails</p>
+                  <span>Receive travel tips and destination guides</span>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={marketingEmails}
+                  className={[
+                    styles.switchControl,
+                    marketingEmails ? styles.switchControlOn : '',
+                  ].filter(Boolean).join(' ')}
+                  onClick={() => setMarketingEmails((current) => !current)}
+                >
+                  <span />
+                </button>
+              </div>
+              <div className={styles.preferenceRow}>
+                <div>
+                  <p>App Color Mode</p>
+                  <span>Choose your preferred appearance</span>
+                </div>
+                <div className={styles.segmentedControl} role="group" aria-label="App color mode">
+                  {(['light', 'dark', 'system'] as const).map((mode) => (
+                    <button
+                      key={mode}
+                      type="button"
+                      className={colorMode === mode ? styles.segmentedControlActive : ''}
+                      onClick={() => setColorMode(mode)}
+                      aria-pressed={colorMode === mode}
+                    >
+                      {mode[0].toUpperCase() + mode.slice(1)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </section>
+          </div>
+          <footer className={styles.accountSettingsFooter}>
+            <button type="button" className={styles.secondaryAction} onClick={onClose}>
+              Cancel
+            </button>
+            <button type="submit" className={styles.primaryAction} disabled={saving}>
+              {saving ? 'Saving...' : 'Save Changes'}
+            </button>
+          </footer>
+        </form>
       </section>
     </div>
   )
@@ -1378,6 +1390,7 @@ export function TripWorkspacePage() {
   const [selectedMapSearchResult, setSelectedMapSearchResult] =
     useState<PlaceSelection | null>(null)
   const [selectedMapClickedPlace, setSelectedMapClickedPlace] = useState<PlaceSelection | null>(null)
+  const [selectedMapClickedActivityId, setSelectedMapClickedActivityId] = useState<number | null>(null)
   const [hoveredMapSearchResultId, setHoveredMapSearchResultId] = useState<string | null>(null)
   const [isMapSearchSubmitting, setIsMapSearchSubmitting] = useState(false)
   const [isMapSearchLoadingMore, setIsMapSearchLoadingMore] = useState(false)
@@ -1564,6 +1577,9 @@ export function TripWorkspacePage() {
     ? selectedDayHours(mapDetailPlace, selectedDay)
     : null
   const mapDetailDirectionsUrl = mapDetailPlace ? directionsUrlForPlace(mapDetailPlace) : null
+  const canAddMapDetailPlace =
+    selectedMapSearchResult !== null ||
+    (selectedMapClickedPlace !== null && selectedMapClickedActivityId === null)
   const highlightedMapSearchResultId =
     hoveredMapSearchResultId ?? selectedMapSearchResult?.mapboxId ?? null
 
@@ -1574,6 +1590,7 @@ export function TripWorkspacePage() {
     setMapSearchQuery(null)
     setSelectedMapSearchResult(null)
     setSelectedMapClickedPlace(null)
+    setSelectedMapClickedActivityId(null)
     setHoveredMapSearchResultId(null)
     setIsMapSearchSubmitting(false)
     setIsMapSearchLoadingMore(false)
@@ -1678,17 +1695,43 @@ export function TripWorkspacePage() {
     })
   }
 
+  const showActivityPlaceDetails = async (activity: Activity) => {
+    const fallbackPlace = activityToPlaceSelection(activity)
+    if (!fallbackPlace) return
+
+    const requestId = mapSearchRequestIdRef.current + 1
+    mapSearchRequestIdRef.current = requestId
+    setSelectedMapSearchResult(null)
+    setSelectedMapClickedPlace(fallbackPlace)
+    setSelectedMapClickedActivityId(activity.id)
+    setHoveredMapSearchResultId(null)
+    setMapSearchPreview(null)
+    setPendingMapPlace(null)
+
+    if (!activity.mapboxId) return
+
+    setIsMapSearchSubmitting(true)
+    try {
+      const details = googlePlaceToPlaceSelection(
+        await fetchGooglePlaceById({ placeId: activity.mapboxId }),
+      )
+      if (mapSearchRequestIdRef.current !== requestId) return
+      setSelectedMapClickedPlace(mergeActivityPlaceSelection(activity, fallbackPlace, details))
+    } catch {
+      if (mapSearchRequestIdRef.current === requestId) {
+        setSelectedMapClickedPlace(fallbackPlace)
+      }
+    } finally {
+      if (mapSearchRequestIdRef.current === requestId) {
+        setIsMapSearchSubmitting(false)
+      }
+    }
+  }
+
   const handleActivityActivate = (activityId: number) => {
     focusActivityOnMap(activityId)
     const activity = allActivities.find((item) => item.id === activityId)
-    const activityPlace = activity ? activityToPlaceSelection(activity) : null
-    if (activityPlace) {
-      setSelectedMapSearchResult(null)
-      setSelectedMapClickedPlace(activityPlace)
-      setHoveredMapSearchResultId(null)
-      setMapSearchPreview(null)
-      setPendingMapPlace(null)
-    }
+    if (activity) void showActivityPlaceDetails(activity)
     const target = document.getElementById(`activity-${activityId}`)
     if (!target) return
     const reducedMotion =
@@ -1705,8 +1748,8 @@ export function TripWorkspacePage() {
     focusActivityOnMap(activity.id)
     setPlaceDraft(null)
     setMapSearchPreview(null)
-    clearMapSearchState()
     setPendingMapPlace(null)
+    void showActivityPlaceDetails(activity)
     if (mapLocationTarget?.activityId === activity.id && expandedActivityId === activity.id) {
       setMapLocationTarget(null)
     }
@@ -1821,6 +1864,7 @@ export function TripWorkspacePage() {
       setMapSearchPreview(null)
       setSelectedMapSearchResult(null)
       setSelectedMapClickedPlace(null)
+      setSelectedMapClickedActivityId(null)
       setPendingMapPlace(place)
       setActiveActivityId(null)
       return
@@ -1829,6 +1873,7 @@ export function TripWorkspacePage() {
     setMapSearchPreview(null)
     setSelectedMapSearchResult(null)
     setSelectedMapClickedPlace(null)
+    setSelectedMapClickedActivityId(null)
     setPendingMapPlace(place)
   }
 
@@ -1867,6 +1912,7 @@ export function TripWorkspacePage() {
       setMapSearchQuery(trimmedQuery)
       setSelectedMapSearchResult(null)
       setSelectedMapClickedPlace(null)
+      setSelectedMapClickedActivityId(null)
       setHoveredMapSearchResultId(null)
       setMapSearchPreview(null)
       setPendingMapPlace(null)
@@ -1905,19 +1951,17 @@ export function TripWorkspacePage() {
   }
 
   const handleMapPlaceClick = async (placeId: string) => {
-    const apiKey = googleMapsApiKey()
-    if (!apiKey) return
-
     const requestId = mapSearchRequestIdRef.current + 1
     mapSearchRequestIdRef.current = requestId
     setIsMapSearchSubmitting(true)
     try {
       const place = googlePlaceToPlaceSelection(
-        await fetchGooglePlaceById({ apiKey, placeId }),
+        await fetchGooglePlaceById({ placeId }),
       )
       if (mapSearchRequestIdRef.current !== requestId) return
       setSelectedMapSearchResult(null)
       setSelectedMapClickedPlace(place)
+      setSelectedMapClickedActivityId(null)
       setHoveredMapSearchResultId(null)
       setMapSearchPreview(null)
       setActiveActivityId(null)
@@ -1933,6 +1977,7 @@ export function TripWorkspacePage() {
   const handleMapSearchResultSelect = (place: PlaceSelection) => {
     setSelectedMapSearchResult(place)
     setSelectedMapClickedPlace(null)
+    setSelectedMapClickedActivityId(null)
     setHoveredMapSearchResultId(null)
     setMapSearchPreview(null)
     setActiveActivityId(null)
@@ -1992,6 +2037,7 @@ export function TripWorkspacePage() {
     setMapSearchPreview(null)
     setSelectedMapSearchResult(null)
     setSelectedMapClickedPlace(null)
+    setSelectedMapClickedActivityId(null)
     setPendingMapPlace(null)
     setMapLocationTarget(null)
   }
@@ -2002,7 +2048,7 @@ export function TripWorkspacePage() {
   }
 
   const handleTimelineActivitySelect = (activityId: number) => {
-    focusActivityOnMap(activityId)
+    handleActivityActivate(activityId)
   }
 
   const handleDeleteActivity = (activityId: number) => {
@@ -2208,19 +2254,21 @@ export function TripWorkspacePage() {
                   <span className={styles.railLabel}>Calendar</span>
                 </div>
 
-                <div className={styles.sidebarCalendarReveal}>
-                  <CompactMonthCalendar
-                    activities={allActivities}
-                    disabled={!canEditTrip || isActivityDragDisabled}
-                    dragging={isDraggingActivity}
-                    endDate={tripQuery.data.endDate}
-                    monthKey={displayedCalendarMonth}
-                    onMonthChange={setCalendarMonth}
-                    onSelectDay={handleSelectDay}
-                    selectedDay={selectedDay ?? tripQuery.data.startDate}
-                    startDate={tripQuery.data.startDate}
-                  />
-                </div>
+                {!sidebarCollapsedAfterTabClick && (
+                  <div className={styles.sidebarCalendarReveal}>
+                    <CompactMonthCalendar
+                      activities={allActivities}
+                      disabled={!canEditTrip || isActivityDragDisabled}
+                      dragging={isDraggingActivity}
+                      endDate={tripQuery.data.endDate}
+                      monthKey={displayedCalendarMonth}
+                      onMonthChange={setCalendarMonth}
+                      onSelectDay={handleSelectDay}
+                      selectedDay={selectedDay ?? tripQuery.data.startDate}
+                      startDate={tripQuery.data.startDate}
+                    />
+                  </div>
+                )}
 
                 <div className={styles.railSpacer} />
                 <div className={styles.railFooter}>
@@ -2359,6 +2407,7 @@ export function TripWorkspacePage() {
                           expandedActivityId={expandedActivityId}
                           busy={isActivityEditMutationPending}
                           dragDisabled={isActivityDragDisabled}
+                          hideEmptyState={canEditTrip && placeDraft !== null}
                           readOnly={!canEditTrip}
                           onActiveActivityChange={handleActiveActivityChange}
                           onAddActivity={openActivityComposer}
@@ -2430,6 +2479,7 @@ export function TripWorkspacePage() {
                         onPlacePreview={(place) => {
                           setMapSearchPreview(place)
                           setSelectedMapClickedPlace(null)
+                          setSelectedMapClickedActivityId(null)
                         }}
                         onPlaceSelect={(place) => void handleMapPlaceSelect(place)}
                         onSearchSubmit={handleMapSearchSubmit}
@@ -2483,7 +2533,7 @@ export function TripWorkspacePage() {
                           >
                             Confirm Update
                           </button>
-                        ) : selectedMapSearchResult || selectedMapClickedPlace ? (
+                        ) : canAddMapDetailPlace ? (
                           <button
                             type="button"
                             className={styles.primaryAction}

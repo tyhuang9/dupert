@@ -20,6 +20,7 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 import org.springframework.web.servlet.NoHandlerFoundException;
 
 import com.trip.config.CorrelationIdFilter;
+import com.trip.service.place.PlaceDetailsException;
 import com.trip.service.realtime.TripEventBroker.StreamLimitExceededException;
 import com.trip.web.exception.NotFoundException;
 import com.trip.web.exception.ValidationException;
@@ -133,6 +134,13 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(StreamLimitExceededException.class)
     public ResponseEntity<ErrorResponse> handleStreamLimitExceeded(StreamLimitExceededException ex) {
         return respond(HttpStatus.TOO_MANY_REQUESTS, "rate_limited", "Too many realtime streams.", null);
+    }
+
+    @ExceptionHandler(PlaceDetailsException.class)
+    public ResponseEntity<ErrorResponse> handlePlaceDetails(PlaceDetailsException ex) {
+        String cid = MDC.get(CorrelationIdFilter.MDC_KEY);
+        log.debug("Place details error (correlationId={}, slug={}): {}", cid, ex.slug(), ex.getMessage());
+        return respond(ex.status(), ex.slug(), ex.clientMessage(), null);
     }
 
     /**

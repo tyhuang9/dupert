@@ -1,7 +1,9 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import MockAdapter from 'axios-mock-adapter'
 import { useState } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { apiClient } from '../api/client'
 import { GooglePlaceAutocomplete } from './GooglePlaceAutocomplete'
 import {
   GOOGLE_PLACE_DETAILS_FIELD_MASK,
@@ -11,6 +13,7 @@ import {
   GOOGLE_PLACES_BASE_URL,
   GOOGLE_PLACES_TEXT_SEARCH_FIELD_MASK,
   GOOGLE_PLACES_TEXT_SEARCH_URL,
+  __resetGooglePlaceDetailsCacheForTests,
   buildGooglePlacesTextSearchRequest,
   fetchGooglePlaceSelection,
   fetchGooglePlaceTextSearch,
@@ -22,6 +25,7 @@ import {
 } from './googlePlaces'
 
 const fetchMock = vi.fn<typeof fetch>()
+let apiMock: MockAdapter
 
 const tokyoTowerPrediction = {
   placePrediction: {
@@ -95,16 +99,11 @@ function autocompleteCalls() {
 }
 
 function placeDetailsCall() {
-  return fetchMock.mock.calls.find(([url]) => {
-    const parsedUrl = new URL(url.toString())
-    return (
-      `${parsedUrl.origin}${parsedUrl.pathname}` ===
-      `${GOOGLE_PLACES_BASE_URL}/places/google.tokyo-tower`
-    )
-  })
+  return apiMock.history.get.find((request) => request.url === '/places/google.tokyo-tower/details')
 }
 
 function Harness({
+  includePhoto = false,
   initialValue = '',
   onPlaceSelect = vi.fn(),
   onSearchError = vi.fn(),
@@ -112,6 +111,7 @@ function Harness({
   selectOnFocus = false,
 }: {
   initialValue?: string
+  includePhoto?: boolean
   onPlaceSelect?: (place: GooglePlaceSelection) => void
   onSearchError?: (message: string | null) => void
   onSearchSubmit?: (query: string) => Promise<void> | void
@@ -127,6 +127,7 @@ function Harness({
       onSearchError={onSearchError}
       onSearchSubmit={onSearchSubmit}
       options={{ language: 'en', proximity: { lat: 35.6586, lng: 139.7454 } }}
+      includePhoto={includePhoto}
       placeholder="Search"
       searchFailedMessage="Google Places failed."
       selectOnFocus={selectOnFocus}
@@ -150,9 +151,20 @@ beforeEach(() => {
   })
   fetchMock.mockReset()
   fetchMock.mockImplementation(async (input) => responseFor(input))
+  __resetGooglePlaceDetailsCacheForTests()
+  apiMock = new MockAdapter(apiClient)
+  apiMock.onGet('/places/google.tokyo-tower/details').reply(200, {
+    placeId: 'google.tokyo-tower',
+    fieldMask: GOOGLE_PLACE_DETAILS_FIELD_MASK,
+    source: 'google',
+    stale: false,
+    details: tokyoTowerDetails,
+  })
 })
 
 afterEach(() => {
+  apiMock.restore()
+  __resetGooglePlaceDetailsCacheForTests()
   vi.unstubAllEnvs()
   vi.unstubAllGlobals()
   vi.clearAllMocks()
@@ -162,7 +174,7 @@ describe('<GooglePlaceAutocomplete>', () => {
   it('fetches suggestions from Places API (New), selects a place, and normalizes it for the app', async () => {
     const onPlaceSelect = vi.fn()
 
-    render(<Harness onPlaceSelect={onPlaceSelect} />)
+    render(<Harness includePhoto onPlaceSelect={onPlaceSelect} />)
 
     await userEvent.type(screen.getByLabelText(/destination/i), 'Tokyo')
 
@@ -227,26 +239,13 @@ describe('<GooglePlaceAutocomplete>', () => {
     })
     expect(autocompleteBody.sessionToken).toEqual(expect.any(String))
 
-    const detailsCall = fetchMock.mock.calls.find(
-      ([url]) => {
-        const parsedUrl = new URL(url.toString())
-        return (
-          `${parsedUrl.origin}${parsedUrl.pathname}` ===
-          `${GOOGLE_PLACES_BASE_URL}/places/google.tokyo-tower`
-        )
-      },
-    )
-    const detailsUrl = new URL(detailsCall?.[0].toString() ?? '')
-    expect(detailsUrl.searchParams.get('sessionToken')).toBe(autocompleteBody.sessionToken)
-    expect(detailsCall?.[1]).toMatchObject({
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Goog-Api-Key': 'gmaps.test',
-        'X-Goog-FieldMask': GOOGLE_PLACE_DETAILS_FIELD_MASK,
-      },
-    })
+    expect(placeDetailsCall()?.params).toEqual({ fields: GOOGLE_PLACE_DETAILS_FIELD_MASK })
     expect(GOOGLE_PLACE_DETAILS_FIELD_MASK).not.toContain('reviews')
     expect(GOOGLE_PLACE_DETAILS_WITHOUT_PHOTOS_FIELD_MASK).not.toContain('reviews')
+    expect(placeDetailsCall()).toBeDefined()
+    expect(fetchMock.mock.calls.some(([url]) =>
+      url.toString() === `${GOOGLE_PLACES_BASE_URL}/places/google.tokyo-tower`,
+    )).toBe(false)
 
     const photoCall = fetchMock.mock.calls.find(([url]) =>
       url
@@ -411,16 +410,30 @@ describe('Google place normalization', () => {
     })
 
     const detailsCall = placeDetailsCall()
-    const detailsUrl = new URL(detailsCall?.[0].toString() ?? '')
-    expect(detailsUrl.searchParams.get('sessionToken')).toBe('session-one')
-    expect(detailsCall?.[1]).toMatchObject({
-      headers: {
-        'X-Goog-FieldMask': GOOGLE_PLACE_DETAILS_WITHOUT_PHOTOS_FIELD_MASK,
-      },
-    })
+    expect(detailsCall?.params).toBeUndefined()
     expect(
       fetchMock.mock.calls.some(([url]) => url.toString().includes('/photos/photo1/media')),
     ).toBe(false)
+  })
+
+  it('deduplicates simultaneous backend place detail requests for the same field mask', async () => {
+    const prediction: GooglePlacePrediction = {
+      mainText: 'Tokyo Tower',
+      placeId: 'google.tokyo-tower',
+      placeResourceName: 'places/google.tokyo-tower',
+      secondaryText: 'Minato City, Tokyo',
+      text: 'Tokyo Tower, Minato City, Tokyo',
+      types: ['tourist_attraction'],
+    }
+
+    await Promise.all([
+      fetchGooglePlaceSelection({ includePhoto: false, prediction }),
+      fetchGooglePlaceSelection({ includePhoto: false, prediction }),
+    ])
+
+    expect(apiMock.history.get.filter((request) =>
+      request.url === '/places/google.tokyo-tower/details',
+    )).toHaveLength(1)
   })
 
   it('normalizes Places Photo (New) media URLs to HTTPS only', async () => {
@@ -491,12 +504,6 @@ describe('Google place normalization', () => {
         regularOpeningHours: {
           weekdayDescriptions: ['Friday: 10:00 AM – 10:00 PM'],
         },
-        reviews: [{
-          authorAttribution: { displayName: 'Aya' },
-          rating: 5,
-          relativePublishTimeDescription: '2 weeks ago',
-          text: { text: 'Excellent ramen.' },
-        }],
         types: ['restaurant'],
         userRatingCount: 1200,
       }],

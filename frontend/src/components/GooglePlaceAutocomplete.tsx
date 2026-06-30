@@ -61,7 +61,7 @@ export function GooglePlaceAutocomplete({
   disabled,
   focusKey,
   id,
-  includePhoto = true,
+  includePhoto = false,
   inputClassName,
   inputLabel = 'Search places',
   maxLength,
