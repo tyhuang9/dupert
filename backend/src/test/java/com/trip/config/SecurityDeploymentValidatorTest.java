@@ -11,7 +11,7 @@ class SecurityDeploymentValidatorTest {
 
     @Test
     void localDevelopmentOriginDoesNotRequireTransportHardening() {
-        AppProperties app = appProperties("http://localhost:3001", false);
+        AppProperties app = appProperties("http://localhost:3000", false);
         SecureProperties secure = secureProperties(false);
         SecurityDeploymentValidator validator = new SecurityDeploymentValidator(
             app, secure, new MockEnvironment().withProperty("spring.profiles.active", "dev"));

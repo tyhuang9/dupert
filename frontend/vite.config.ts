@@ -11,13 +11,13 @@ export default defineConfig({
     babel({ presets: [reactCompilerPreset()] }),
   ],
   server: {
-    port: 3001,
+    port: 3000,
     proxy: {
       // Same-origin API proxy during dev: frontend code can call `/api/...`
-      // without worrying about CORS, and the Spring Boot backend on :8001 gets
+      // without worrying about CORS, and the Spring Boot backend on :8000 gets
       // the request verbatim.
       '/api': {
-        target: 'http://localhost:8001',
+        target: 'http://localhost:8000',
         changeOrigin: false,
         secure: false,
       },

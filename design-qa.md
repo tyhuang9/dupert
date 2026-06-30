@@ -1,7 +1,7 @@
 # Design QA
 
 source target: Google Stitch `TripPlanner Collaborative Workspace`, screen `Trip Workspace`
-local target: `http://127.0.0.1:3001/`
+local target: `http://127.0.0.1:3000/`
 
 ## Checks Completed
 

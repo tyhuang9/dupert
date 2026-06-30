@@ -128,11 +128,11 @@ class SmokeTest {
     @Test
     void corsPreflightFromAllowedOriginIsAccepted() throws Exception {
         mvc.perform(options("/api/anything")
-                .header("Origin", "http://localhost:3001")
+                .header("Origin", "http://localhost:3000")
                 .header("Access-Control-Request-Method", "GET"))
             .andExpect(status().isOk())
             .andExpect(header().string("Access-Control-Allow-Origin",
-                equalTo("http://localhost:3001")));
+                equalTo("http://localhost:3000")));
     }
 
     @Test

@@ -12,7 +12,7 @@ spring:
       - org.flywaydb.autoconfigure.FlywayAutoConfiguration
 
 app:
-  frontend-origin: http://localhost:3001
+  frontend-origin: http://localhost:3000
   jwt-secret: 00000000000000000000000000000000000000000000000000000000000000aa
   log-email-pepper: 000000000000000000000000000000aa
 

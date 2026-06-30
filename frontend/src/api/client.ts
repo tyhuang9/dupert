@@ -9,7 +9,7 @@ import type { AuthResponse } from '../types/auth'
 /**
  * Single shared axios instance for every backend call.
  *
- * - `baseURL: '/api'` — Vite proxies `/api/*` to `localhost:8001` in dev;
+ * - `baseURL: '/api'` — Vite proxies `/api/*` to `localhost:8000` in dev;
  *   in prod the SPA and backend share an origin so the same path works.
  * - `withCredentials: true` — required so the browser sends the
  *   `refresh_token` HttpOnly cookie on `/auth/refresh` and `/auth/logout`.

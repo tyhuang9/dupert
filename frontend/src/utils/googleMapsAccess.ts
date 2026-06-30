@@ -8,7 +8,7 @@ function isMismatchedLocalDevOrigin(): boolean {
   if (!import.meta.env.DEV) return false
 
   const { hostname, port } = window.location
-  return hostname === '127.0.0.1' || hostname === '0.0.0.0' || port !== '3001'
+  return hostname === '127.0.0.1' || hostname === '0.0.0.0' || port !== '3000'
 }
 
 export function googleMapsApiKey(): string {
@@ -24,7 +24,7 @@ export function googleMapsAccessTroubleshooting(): string {
   if (!origin) return 'Check the Google Maps API key and HTTP referrer restrictions.'
 
   if (isMismatchedLocalDevOrigin()) {
-    return `Open http://localhost:3001 or add ${origin} to the key's HTTP referrer restrictions.`
+    return `Open http://localhost:3000 or add ${origin} to the key's HTTP referrer restrictions.`
   }
 
   return `Add ${origin} to the key's HTTP referrer restrictions, and confirm Maps JavaScript, Places API (New), Geocoding, and Routes APIs are enabled.`
@@ -35,7 +35,7 @@ export function googlePlacesAccessTroubleshooting(): string {
   if (!origin) return 'Check the Google Maps API key, Places API (New), and HTTP referrer restrictions.'
 
   if (isMismatchedLocalDevOrigin()) {
-    return `Open http://localhost:3001 or add ${origin} to the key's HTTP referrer restrictions.`
+    return `Open http://localhost:3000 or add ${origin} to the key's HTTP referrer restrictions.`
   }
 
   return `Add ${origin} to the key's HTTP referrer restrictions, and confirm Places API (New) is enabled.`

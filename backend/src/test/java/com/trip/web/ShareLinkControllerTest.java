@@ -152,7 +152,7 @@ class ShareLinkControllerTest {
             .andExpect(jsonPath("$.allowAnonymous").value(false))
             .andExpect(jsonPath("$.token").isString())
             .andExpect(jsonPath("$.shareUrl").value(org.hamcrest.Matchers.startsWith(
-                "http://localhost:3001/share/")));
+                "http://localhost:3000/share/")));
 
         ArgumentCaptor<ShareLink> saved = ArgumentCaptor.forClass(ShareLink.class);
         verify(shareLinkRepository).save(saved.capture());
@@ -221,12 +221,12 @@ class ShareLinkControllerTest {
             .andExpect(jsonPath("$[0].name").value("Editors"))
             .andExpect(jsonPath("$[0].allowAnonymous").value(false))
             .andExpect(jsonPath("$[0].token").doesNotExist())
-            .andExpect(jsonPath("$[0].shareUrl").value("http://localhost:3001/share/" + RAW_TOKEN))
+            .andExpect(jsonPath("$[0].shareUrl").value("http://localhost:3000/share/" + RAW_TOKEN))
             .andExpect(jsonPath("$[1].id").value(502))
             .andExpect(jsonPath("$[1].name").value("Shared link"))
             .andExpect(jsonPath("$[1].allowAnonymous").value(true))
             .andExpect(jsonPath("$[1].token").doesNotExist())
-            .andExpect(jsonPath("$[1].shareUrl").value("http://localhost:3001/share/" + RATE_LIMIT_TOKEN));
+            .andExpect(jsonPath("$[1].shareUrl").value("http://localhost:3000/share/" + RATE_LIMIT_TOKEN));
     }
 
     @Test
