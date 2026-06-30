@@ -26,11 +26,11 @@ interface ActivityListProps {
   onToggleExpand: (activity: Activity) => void
 }
 
-function sortableTransformToString(
+function sortableTranslateToString(
   transform: { x: number; y: number; scaleX: number; scaleY: number } | null,
 ): string | undefined {
   if (!transform) return undefined
-  return `translate3d(${Math.round(transform.x)}px, ${Math.round(transform.y)}px, 0) scaleX(${transform.scaleX}) scaleY(${transform.scaleY})`
+  return `translate3d(${Math.round(transform.x)}px, ${Math.round(transform.y)}px, 0)`
 }
 
 interface SortableActivityCardProps extends Omit<ActivityListProps, 'activities'> {
@@ -68,7 +68,7 @@ function SortableActivityCard({
     disabled: readOnly || dragDisabled || isExpanded,
   })
   const style: CSSProperties = {
-    transform: sortableTransformToString(transform),
+    transform: sortableTranslateToString(transform),
     transition,
   }
 

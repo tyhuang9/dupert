@@ -12,6 +12,7 @@ export default defineConfig({
   ],
   server: {
     port: 3000,
+    strictPort: true,
     proxy: {
       // Same-origin API proxy during dev: frontend code can call `/api/...`
       // without worrying about CORS, and the Spring Boot backend on :8000 gets
