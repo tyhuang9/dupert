@@ -3,6 +3,8 @@ import { apiClient } from '../api/client'
 export const GOOGLE_PLACES_AUTOCOMPLETE_URL =
   'https://places.googleapis.com/v1/places:autocomplete'
 export const GOOGLE_PLACES_BASE_URL = 'https://places.googleapis.com/v1'
+export const GOOGLE_PLACES_NEARBY_SEARCH_URL =
+  'https://places.googleapis.com/v1/places:searchNearby'
 export const GOOGLE_PLACES_TEXT_SEARCH_URL =
   'https://places.googleapis.com/v1/places:searchText'
 export const GOOGLE_PLACES_SEARCH_RESULT_LIMIT = 10
@@ -64,6 +66,26 @@ export const GOOGLE_PLACES_TEXT_SEARCH_FIELD_MASK = [
   'places.websiteUri',
 ].join(',')
 
+export const GOOGLE_PLACES_NEARBY_SEARCH_FIELD_MASK = [
+  'places.businessStatus',
+  'places.currentOpeningHours',
+  'places.id',
+  'places.displayName',
+  'places.formattedAddress',
+  'places.googleMapsUri',
+  'places.location',
+  'places.name',
+  'places.photos',
+  'places.primaryType',
+  'places.primaryTypeDisplayName',
+  'places.priceLevel',
+  'places.rating',
+  'places.regularOpeningHours',
+  'places.types',
+  'places.userRatingCount',
+  'places.websiteUri',
+].join(',')
+
 type FetchImplementation = typeof fetch
 
 type AppLatLng = { lat: number; lng: number }
@@ -81,6 +103,7 @@ type FlexibleRectangle =
 export type GooglePlaceLocationBias = FlexibleCircle | FlexibleRectangle
 export type GooglePlaceLocationRestriction = FlexibleCircle | FlexibleRectangle
 export type GooglePlaceRankPreference = 'RELEVANCE' | 'DISTANCE'
+export type GooglePlaceNearbyRankPreference = 'POPULARITY' | 'DISTANCE'
 
 export interface GooglePlaceSearchOptions {
   language?: string
@@ -95,6 +118,14 @@ export interface GooglePlaceTextSearchOptions extends GooglePlaceSearchOptions {
   includedType?: string | null
   pageToken?: string | null
   rankPreference?: GooglePlaceRankPreference | null
+}
+
+export interface GooglePlaceNearbySearchOptions {
+  language?: string
+  location: AppLatLng
+  radius?: number
+  rankPreference?: GooglePlaceNearbyRankPreference | null
+  region?: string
 }
 
 export interface GooglePlacePrediction {
@@ -464,6 +495,31 @@ export function buildGooglePlacesTextSearchRequest(
   }
 }
 
+export function buildGooglePlacesNearbySearchRequest(
+  options: GooglePlaceNearbySearchOptions,
+  maxResultCount = 1,
+) {
+  const center = restLatLng(options.location)
+  if (!center) {
+    throw new Error('Google Places nearby search requires finite coordinates')
+  }
+  const radius =
+    isFiniteCoordinate(options.radius) && options.radius > 0 ? options.radius : 75
+
+  return {
+    languageCode: options.language,
+    locationRestriction: {
+      circle: {
+        center,
+        radius,
+      },
+    },
+    maxResultCount,
+    rankPreference: options.rankPreference || 'DISTANCE',
+    regionCode: options.region,
+  }
+}
+
 export async function fetchGooglePlaceSuggestions({
   apiKey,
   fetchImpl = fetch,
@@ -532,6 +588,40 @@ export async function fetchGooglePlaceTextSearch({
     nextPageToken: body.nextPageToken?.trim() || null,
     places: normalizedPlaces.filter((place): place is GooglePlaceSelection => place !== null),
   }
+}
+
+export async function fetchGooglePlaceNearLocation({
+  apiKey,
+  fetchImpl = fetch,
+  includePhoto = false,
+  maxResultCount = 1,
+  options,
+}: {
+  apiKey: string
+  fetchImpl?: FetchImplementation
+  includePhoto?: boolean
+  maxResultCount?: number
+  options: GooglePlaceNearbySearchOptions
+}): Promise<GooglePlaceSelection | null> {
+  const response = await fetchImpl(GOOGLE_PLACES_NEARBY_SEARCH_URL, {
+    method: 'POST',
+    headers: googlePlacesHeaders(apiKey, GOOGLE_PLACES_NEARBY_SEARCH_FIELD_MASK),
+    body: JSON.stringify(buildGooglePlacesNearbySearchRequest(options, maxResultCount)),
+  })
+  assertOk(response, 'Google Places nearby search')
+
+  const body = (await response.json()) as GooglePlacesTextSearchResponse
+  const place = body.places?.[0]
+  if (!place) return null
+
+  const photoUrl = includePhoto
+    ? await imageUrlFromGooglePhotoName({
+        apiKey,
+        fetchImpl,
+        photoName: place.photos?.[0]?.name,
+      })
+    : null
+  return normalizeGoogleTextSearchPlace(place, photoUrl)
 }
 
 export async function fetchGooglePlaceDetails({

@@ -84,12 +84,19 @@ import { MapSearchResultsShelf } from '../components/MapSearchResultsShelf'
 import { PlaceSearch } from '../components/PlaceSearch'
 import {
   fetchGooglePlaceById,
+  fetchGooglePlaceNearLocation,
   fetchGooglePlaceTextSearch,
   googlePlaceCategoryTypeForQuery,
+  type GooglePlaceNearbySearchOptions,
   type GooglePlaceTextSearchOptions,
 } from '../components/googlePlaces'
 import { googlePlaceToPlaceSelection } from '../components/placeSelection'
-import { TripMap, type MapStyleId, type MapViewportContext } from '../components/TripMap'
+import {
+  TripMap,
+  type MapPlaceClickEvent,
+  type MapStyleId,
+  type MapViewportContext,
+} from '../components/TripMap'
 import type { Activity, CreateActivityRequest } from '../types/activity'
 import type { UserSummary } from '../types/auth'
 import type { PlaceSelection } from '../types/place'
@@ -444,6 +451,14 @@ function hasFiniteCoordinates(activity: Pick<Activity, 'lat' | 'lng'>): boolean 
   return Number.isFinite(activity.lat) && Number.isFinite(activity.lng)
 }
 
+function hasSelectedMapLocation(place: PlaceSelection | null | undefined): place is PlaceSelection {
+  return Boolean(
+    place &&
+    ((typeof place.mapboxId === 'string' && place.mapboxId.trim()) ||
+      (Number.isFinite(place.lat) && Number.isFinite(place.lng))),
+  )
+}
+
 function locationSearchQuery(
   activity: Activity,
   payload: CreateActivityRequest,
@@ -515,6 +530,22 @@ function activityToPlaceSelection(activity: Activity): PlaceSelection | null {
     address: activity.address,
     lat: activity.lat,
     lng: activity.lng,
+  }
+}
+
+function clickedLocationToPlaceSelection(
+  location: MapPlaceClickEvent['location'],
+): PlaceSelection | null {
+  if (!location || !Number.isFinite(location.lat) || !Number.isFinite(location.lng)) {
+    return null
+  }
+  return {
+    category: 'ACTIVITY',
+    title: 'Selected location',
+    placeName: 'Selected location',
+    coordinatesLabel: `${location.lat.toFixed(5)}, ${location.lng.toFixed(5)}`,
+    lat: location.lat,
+    lng: location.lng,
   }
 }
 
@@ -1570,9 +1601,30 @@ export function TripWorkspacePage() {
     },
     [mapCenterLat, mapCenterLng, mapViewportRectangle, placeSearchOptions],
   )
-  const mapPreviewPlace = pendingMapPlace ?? selectedMapClickedPlace ?? mapSearchPreview ?? placeDraft
+  const buildMapNearbySearchOptions = useCallback(
+    (
+      location: NonNullable<MapPlaceClickEvent['location']>,
+    ): GooglePlaceNearbySearchOptions => ({
+      language: 'en',
+      location,
+      radius: 100,
+      rankPreference: 'DISTANCE',
+    }),
+    [],
+  )
+  const concretePlaceDraft = hasSelectedMapLocation(placeDraft) ? placeDraft : null
+  const mapPreviewPlace =
+    pendingMapPlace ??
+    selectedMapClickedPlace ??
+    selectedMapSearchResult ??
+    mapSearchPreview ??
+    concretePlaceDraft
   const mapDetailPlace =
-    pendingMapPlace ?? selectedMapSearchResult ?? selectedMapClickedPlace ?? placeDraft ?? mapSearchPreview
+    pendingMapPlace ??
+    selectedMapSearchResult ??
+    selectedMapClickedPlace ??
+    concretePlaceDraft ??
+    mapSearchPreview
   const mapDetailSelectedDayHours = mapDetailPlace
     ? selectedDayHours(mapDetailPlace, selectedDay)
     : null
@@ -1846,27 +1898,31 @@ export function TripWorkspacePage() {
     })
   }
 
+  const startActivityDraftFromPlace = (place: PlaceSelection) => {
+    setWorkspaceMode('days')
+    setExpandedActivityId(null)
+    setPlaceDraft((current) => ({
+      ...current,
+      ...place,
+      category: current?.category ?? place.category,
+      title: current?.title?.trim()
+        ? current.title
+        : place.title ?? place.placeName ?? current?.title,
+      notes: current?.notes ?? place.notes,
+      startTime: current?.startTime ?? place.startTime,
+      endTime: current?.endTime ?? place.endTime,
+    }))
+    setMapSearchPreview(null)
+    setSelectedMapSearchResult(null)
+    setSelectedMapClickedPlace(null)
+    setSelectedMapClickedActivityId(null)
+    setPendingMapPlace(place)
+    setActiveActivityId(null)
+  }
+
   const handleMapPlaceSelect = async (place: PlaceSelection) => {
     if (!mapLocationTarget) {
-      setWorkspaceMode('days')
-      setExpandedActivityId(null)
-      setPlaceDraft((current) => ({
-        ...current,
-        ...place,
-        category: current?.category ?? place.category,
-        title: current?.title?.trim()
-          ? current.title
-          : place.title ?? place.placeName ?? current?.title,
-        notes: current?.notes ?? place.notes,
-        startTime: current?.startTime ?? place.startTime,
-        endTime: current?.endTime ?? place.endTime,
-      }))
-      setMapSearchPreview(null)
-      setSelectedMapSearchResult(null)
-      setSelectedMapClickedPlace(null)
-      setSelectedMapClickedActivityId(null)
-      setPendingMapPlace(place)
-      setActiveActivityId(null)
+      startActivityDraftFromPlace(place)
       return
     }
 
@@ -1875,6 +1931,30 @@ export function TripWorkspacePage() {
     setSelectedMapClickedPlace(null)
     setSelectedMapClickedActivityId(null)
     setPendingMapPlace(place)
+  }
+
+  const handleMapPlaceSuggestionSelect = (place: PlaceSelection) => {
+    if (mapLocationTarget) {
+      void handleMapPlaceSelect(place)
+      focusMapPanel()
+      return
+    }
+
+    mapSearchRequestIdRef.current += 1
+    setMapSearchResults([])
+    setMapSearchNextPageToken(null)
+    setMapSearchQuery(null)
+    setSelectedMapSearchResult(place)
+    setSelectedMapClickedPlace(null)
+    setSelectedMapClickedActivityId(null)
+    setHoveredMapSearchResultId(null)
+    setMapSearchPreview(null)
+    setPendingMapPlace(null)
+    setActiveActivityId(null)
+    setHoveredActivityId(null)
+    setIsMapSearchSubmitting(false)
+    setIsMapSearchLoadingMore(false)
+    focusMapPanel()
   }
 
   const handleMapSearchValueChange = (nextValue: string) => {
@@ -1950,23 +2030,43 @@ export function TripWorkspacePage() {
     }
   }
 
-  const handleMapPlaceClick = async (placeId: string) => {
+  const handleMapPlaceClick = async ({ location, placeId }: MapPlaceClickEvent) => {
+    const normalizedPlaceId = placeId?.trim() || null
+    const fallbackPlace = clickedLocationToPlaceSelection(location)
+    if (!normalizedPlaceId && !fallbackPlace) return
+
     const requestId = mapSearchRequestIdRef.current + 1
     mapSearchRequestIdRef.current = requestId
+    setSelectedMapSearchResult(null)
+    setSelectedMapClickedPlace(fallbackPlace)
+    setSelectedMapClickedActivityId(null)
+    setHoveredMapSearchResultId(null)
+    setMapSearchPreview(null)
+    setActiveActivityId(null)
+    setHoveredActivityId(null)
+    setPendingMapPlace(mapLocationTarget && fallbackPlace ? fallbackPlace : null)
     setIsMapSearchSubmitting(true)
     try {
-      const place = googlePlaceToPlaceSelection(
-        await fetchGooglePlaceById({ placeId }),
-      )
+      const apiKey = googleMapsApiKey()
+      const googlePlace = normalizedPlaceId
+        ? await fetchGooglePlaceById({ placeId: normalizedPlaceId })
+        : apiKey && location
+          ? await fetchGooglePlaceNearLocation({
+              apiKey,
+              options: buildMapNearbySearchOptions(location),
+            })
+          : null
+      const place = googlePlace ? googlePlaceToPlaceSelection(googlePlace) : null
       if (mapSearchRequestIdRef.current !== requestId) return
-      setSelectedMapSearchResult(null)
-      setSelectedMapClickedPlace(place)
-      setSelectedMapClickedActivityId(null)
-      setHoveredMapSearchResultId(null)
-      setMapSearchPreview(null)
-      setActiveActivityId(null)
-      setHoveredActivityId(null)
-      setPendingMapPlace(mapLocationTarget ? place : null)
+      if (place) {
+        setSelectedMapClickedPlace(place)
+        setPendingMapPlace(mapLocationTarget ? place : null)
+      }
+    } catch {
+      if (mapSearchRequestIdRef.current === requestId && fallbackPlace) {
+        setSelectedMapClickedPlace(fallbackPlace)
+        setPendingMapPlace(mapLocationTarget ? fallbackPlace : null)
+      }
     } finally {
       if (mapSearchRequestIdRef.current === requestId) {
         setIsMapSearchSubmitting(false)
@@ -1992,7 +2092,8 @@ export function TripWorkspacePage() {
   const handleUseMapDetailPlace = () => {
     const place = selectedMapSearchResult ?? selectedMapClickedPlace
     if (!place) return
-    void handleMapPlaceSelect(place).then(scrollActivityComposerIntoView)
+    startActivityDraftFromPlace(place)
+    scrollActivityComposerIntoView()
   }
 
   const scrollActivityComposerIntoView = () => {
@@ -2481,7 +2582,7 @@ export function TripWorkspacePage() {
                           setSelectedMapClickedPlace(null)
                           setSelectedMapClickedActivityId(null)
                         }}
-                        onPlaceSelect={(place) => void handleMapPlaceSelect(place)}
+                        onPlaceSelect={handleMapPlaceSuggestionSelect}
                         onSearchSubmit={handleMapSearchSubmit}
                         onSearchValueChange={handleMapSearchValueChange}
                       />

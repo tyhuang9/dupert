@@ -41,7 +41,10 @@ const mapMockState = vi.hoisted(() => ({
     }
   }) => void),
   onClick: null as null | ((event: {
-    detail: { placeId?: string | null }
+    detail: {
+      latLng?: { lat: number; lng: number } | null
+      placeId?: string | null
+    }
     stop: () => void
   }) => void),
   onMapTypeIdChanged: null as null | (() => void),
@@ -486,13 +489,48 @@ describe('<TripMap>', () => {
 
     act(() => {
       mapMockState.onClick?.({
-        detail: { placeId: 'google.clicked-place' },
+        detail: {
+          latLng: { lat: 35.7, lng: 139.8 },
+          placeId: 'google.clicked-place',
+        },
         stop,
       })
     })
 
     expect(stop).toHaveBeenCalled()
-    expect(onMapPlaceClick).toHaveBeenCalledWith('google.clicked-place')
+    expect(onMapPlaceClick).toHaveBeenCalledWith({
+      location: { lat: 35.7, lng: 139.8 },
+      placeId: 'google.clicked-place',
+    })
+  })
+
+  it('reports coordinate-only map clicks for nearby place resolution', () => {
+    const onMapPlaceClick = vi.fn()
+    const stop = vi.fn()
+    render(
+      <TripMap
+        activities={[]}
+        fallbackActivities={[]}
+        destination={null}
+        onMapPlaceClick={onMapPlaceClick}
+      />,
+    )
+
+    act(() => {
+      mapMockState.onClick?.({
+        detail: {
+          latLng: { lat: 35.7001, lng: 139.8001 },
+          placeId: null,
+        },
+        stop,
+      })
+    })
+
+    expect(stop).toHaveBeenCalled()
+    expect(onMapPlaceClick).toHaveBeenCalledWith({
+      location: { lat: 35.7001, lng: 139.8001 },
+      placeId: null,
+    })
   })
 
   it('shows full-trip fallback markers when the selected day has no mapped stops', async () => {

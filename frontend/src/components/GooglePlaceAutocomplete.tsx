@@ -219,6 +219,10 @@ export function GooglePlaceAutocomplete({
     if (!prediction) return
 
     const sessionToken = sessionTokenRef.current
+    requestVersionRef.current += 1
+    setSuggestions([])
+    setOpen(false)
+    inputRef.current?.blur()
     try {
       const selection = await fetchGooglePlaceSelection({
         apiKey,
@@ -229,9 +233,6 @@ export function GooglePlaceAutocomplete({
       onSearchError?.(null)
       selectedValueRef.current = selection.text
       onValueChange(selection.text)
-      setSuggestions([])
-      setOpen(false)
-      inputRef.current?.blur()
       onPlaceSelect(selection)
     } catch {
       onSearchError?.(searchFailedMessage)

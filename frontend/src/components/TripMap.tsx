@@ -38,7 +38,7 @@ interface TripMapProps {
   focusedActivityKey?: number
   onActivityActivate?: (activityId: number) => void
   onActiveActivityChange?: (activityId: number | null) => void
-  onMapPlaceClick?: (placeId: string) => void
+  onMapPlaceClick?: (event: MapPlaceClickEvent) => void
   onSearchResultHoverChange?: (placeId: string | null) => void
   onSearchResultSelect?: (place: MapSearchPlace) => void
   onViewportContextChange?: (context: MapViewportContext) => void
@@ -58,6 +58,16 @@ export interface MapViewportContext {
     south: number
     west: number
   }
+}
+
+export interface MapClickedLocation {
+  lat: number
+  lng: number
+}
+
+export interface MapPlaceClickEvent {
+  location: MapClickedLocation | null
+  placeId: string | null
 }
 
 export type MapPreviewPlace = Pick<
@@ -133,6 +143,15 @@ function isMapStyleId(value: unknown): value is MapStyleId {
 
 function hasCoordinates(activity: Activity): activity is CoordinateActivity {
   return isFiniteCoordinate(activity.lat) && isFiniteCoordinate(activity.lng)
+}
+
+function normalizeClickedLocation(
+  value: MapMouseEvent['detail']['latLng'],
+): MapClickedLocation | null {
+  if (!value || !isFiniteCoordinate(value.lat) || !isFiniteCoordinate(value.lng)) {
+    return null
+  }
+  return { lat: value.lat, lng: value.lng }
 }
 
 function sortActivitiesByTripOrder(activities: CoordinateActivity[]): CoordinateActivity[] {
@@ -530,10 +549,11 @@ function TripMapContent({
   }, [map, onViewportContextChange])
 
   const handleMapClick = useCallback((event: MapMouseEvent) => {
-    const placeId = event.detail.placeId
-    if (!placeId) return
+    const placeId = event.detail.placeId?.trim() || null
+    const location = normalizeClickedLocation(event.detail.latLng)
+    if (!placeId && !location) return
     event.stop()
-    onMapPlaceClick?.(placeId)
+    onMapPlaceClick?.({ location, placeId })
   }, [onMapPlaceClick])
 
   const handleMapTypeIdChanged = useCallback(() => {

@@ -19,6 +19,7 @@ const placeSearchMockState = vi.hoisted(() => ({
 
 const googlePlacesMockState = vi.hoisted(() => ({
   fetchGooglePlaceById: vi.fn(),
+  fetchGooglePlaceNearLocation: vi.fn(),
   fetchGooglePlaceTextSearch: vi.fn(),
   googlePlaceCategoryTypeForQuery: vi.fn(),
 }))
@@ -47,7 +48,10 @@ vi.mock('../components/TripMap', () => ({
     onActivityActivate?: (activityId: number) => void
     onActiveActivityChange?: (activityId: number | null) => void
     onMapStyleChange?: (mapStyle: string) => void
-    onMapPlaceClick?: (placeId: string) => void
+    onMapPlaceClick?: (event: {
+      location: { lat: number; lng: number } | null
+      placeId: string | null
+    }) => void
     onSearchResultSelect?: (place: Record<string, unknown>) => void
     onViewportContextChange?: (context: {
       bounds?: { north: number; south: number; east: number; west: number }
@@ -59,7 +63,7 @@ vi.mock('../components/TripMap', () => ({
     searchResults?: Array<Record<string, unknown>>
     selectedSearchResultId?: string | null
   }) => (
-    <div data-testid="trip-map">
+    <div id="trip-map-focus-target" data-testid="trip-map" tabIndex={-1}>
       <div data-testid="active-map-activity">{activeActivityId ?? 'none'}</div>
       <div data-testid="map-style">{mapStyle}</div>
       <div data-testid="preview-map-place">
@@ -93,8 +97,23 @@ vi.mock('../components/TripMap', () => ({
       <button type="button" onClick={() => onMapStyleChange?.('satellite')}>
         Mock satellite map style
       </button>
-      <button type="button" onClick={() => onMapPlaceClick?.('google.poi-clicked')}>
+      <button
+        type="button"
+        onClick={() => onMapPlaceClick?.({
+          location: { lat: 35.7, lng: 139.8 },
+          placeId: 'google.poi-clicked',
+        })}
+      >
         Mock map place click
+      </button>
+      <button
+        type="button"
+        onClick={() => onMapPlaceClick?.({
+          location: { lat: 35.7, lng: 139.8 },
+          placeId: null,
+        })}
+      >
+        Mock map location click
       </button>
       <button
         type="button"
@@ -234,6 +253,7 @@ vi.mock('../components/PlaceSearch', () => ({
 
 vi.mock('../components/googlePlaces', () => ({
   fetchGooglePlaceById: googlePlacesMockState.fetchGooglePlaceById,
+  fetchGooglePlaceNearLocation: googlePlacesMockState.fetchGooglePlaceNearLocation,
   fetchGooglePlaceTextSearch: googlePlacesMockState.fetchGooglePlaceTextSearch,
   googlePlaceCategoryTypeForQuery: googlePlacesMockState.googlePlaceCategoryTypeForQuery,
 }))
@@ -340,6 +360,27 @@ beforeEach(() => {
   googlePlacesMockState.fetchGooglePlaceTextSearch.mockResolvedValue({
     nextPageToken: null,
     places: [],
+  })
+  googlePlacesMockState.fetchGooglePlaceNearLocation.mockReset()
+  googlePlacesMockState.fetchGooglePlaceNearLocation.mockResolvedValue({
+    businessStatus: 'OPERATIONAL',
+    currentOpeningHours: null,
+    displayName: 'Nearby Cafe',
+    formattedAddress: 'Nearby address',
+    googleMapsUri: 'https://maps.google.com/?cid=nearby',
+    id: 'google.nearby-cafe',
+    lat: 35.7002,
+    lng: 139.8002,
+    photoUrl: null,
+    primaryType: 'cafe',
+    primaryTypeDisplayName: 'Cafe',
+    rating: 4.7,
+    regularOpeningHours: null,
+    reviews: [],
+    text: 'Nearby Cafe, Nearby address',
+    types: ['cafe'],
+    userRatingCount: 42,
+    websiteUri: null,
   })
   googlePlacesMockState.googlePlaceCategoryTypeForQuery.mockReset()
   googlePlacesMockState.googlePlaceCategoryTypeForQuery.mockImplementation((query: string) => {
@@ -605,6 +646,8 @@ describe('<TripWorkspacePage>', () => {
     renderWorkspace('/trips/abc234def567')
 
     await userEvent.click((await screen.findAllByRole('button', { name: /add activity/i }))[0])
+    expect(screen.queryByLabelText(/selected map place/i)).not.toBeInTheDocument()
+    expect(screen.getByTestId('preview-map-place')).toHaveTextContent('none')
     await userEvent.click(await screen.findByRole('button', { name: /category: other/i }))
     await userEvent.click(screen.getByRole('menuitemradio', { name: /meal/i }))
     await userEvent.type(await screen.findByLabelText(/activity name/i), 'Tsukiji sushi')
@@ -642,12 +685,18 @@ describe('<TripWorkspacePage>', () => {
     await userEvent.click(await screen.findByRole('button', { name: /mock place search/i }))
     expect(screen.queryByRole('heading', { name: /search results/i })).not.toBeInTheDocument()
     expect(screen.queryByText(/ready to add/i)).not.toBeInTheDocument()
-    expect(screen.getByLabelText(/activity name/i)).toHaveValue('Tokyo Tower')
+    expect(screen.queryByLabelText(/activity name/i)).not.toBeInTheDocument()
+    expect(screen.getByTestId('search-map-results')).toBeEmptyDOMElement()
+    expect(screen.getByTestId('selected-search-result')).toHaveTextContent('google.tokyo-tower')
     expect(screen.getByTestId('preview-map-place')).toHaveTextContent('Tokyo Tower')
-    expect(
-      within(screen.getByLabelText(/selected map place/i)).getByRole('img', { name: /tokyo tower/i }),
-    ).toHaveAttribute('src', 'https://example.com/tokyo-tower.webp')
-    expect(screen.getByRole('button', { name: /add to trip/i })).toBeInTheDocument()
+    const detailCard = screen.getByLabelText(/selected map place/i)
+    expect(within(detailCard).getByRole('heading', { name: /tokyo tower/i })).toBeInTheDocument()
+    expect(within(detailCard).getByRole('img', { name: /tokyo tower/i })).toHaveAttribute(
+      'src',
+      'https://example.com/tokyo-tower.webp',
+    )
+    await userEvent.click(within(detailCard).getByRole('button', { name: /add to trip/i }))
+    expect(screen.getByLabelText(/activity name/i)).toHaveValue('Tokyo Tower')
     await userEvent.click(screen.getByRole('button', { name: /^create activity$/i }))
 
     await waitFor(() => {
@@ -973,6 +1022,53 @@ describe('<TripWorkspacePage>', () => {
     expect(screen.queryByLabelText(/selected map place/i)).not.toBeInTheDocument()
   })
 
+  it('clears search results when a concrete place suggestion is selected', async () => {
+    mockWorkspace()
+    googlePlacesMockState.fetchGooglePlaceTextSearch.mockResolvedValueOnce({
+      nextPageToken: null,
+      places: [{
+        businessStatus: 'OPERATIONAL',
+        currentOpeningHours: null,
+        displayName: 'Ramen Street',
+        formattedAddress: '1 Chome Marunouchi, Tokyo',
+        googleMapsUri: 'https://maps.google.com/?cid=ramen',
+        id: 'google.ramen-street',
+        lat: 35.6812,
+        lng: 139.7671,
+        photoUrl: null,
+        primaryType: 'restaurant',
+        primaryTypeDisplayName: 'Restaurant',
+        rating: 4.4,
+        regularOpeningHours: null,
+        reviews: [],
+        text: 'Ramen Street, 1 Chome Marunouchi, Tokyo',
+        types: ['restaurant'],
+        userRatingCount: 1200,
+        websiteUri: null,
+      }],
+    })
+
+    renderWorkspace('/trips/abc234def567/d/2026-05-01')
+
+    await screen.findByTestId('trip-map')
+    await userEvent.click(screen.getByRole('button', { name: /mock type ramen search/i }))
+    await userEvent.click(screen.getByRole('button', { name: /mock submit place search/i }))
+
+    expect(await within(screen.getByTestId('search-map-results')).findByText('Ramen Street')).toBeInTheDocument()
+    expect(screen.getByLabelText(/map search results/i)).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: /mock place search/i }))
+
+    expect(screen.queryByLabelText(/map search results/i)).not.toBeInTheDocument()
+    expect(screen.getByTestId('search-map-results')).toBeEmptyDOMElement()
+    expect(screen.getByTestId('selected-search-result')).toHaveTextContent('google.tokyo-tower')
+    expect(screen.getByTestId('preview-map-place')).toHaveTextContent('Tokyo Tower')
+    expect(screen.queryByLabelText(/activity name/i)).not.toBeInTheDocument()
+    expect(within(screen.getByLabelText(/selected map place/i)).getByRole('heading', {
+      name: /tokyo tower/i,
+    })).toBeInTheDocument()
+  })
+
   it('loads place details from native map place clicks', async () => {
     mockWorkspace()
 
@@ -991,6 +1087,52 @@ describe('<TripWorkspacePage>', () => {
     expect(screen.getByTestId('preview-map-place')).toHaveTextContent('Clicked Place')
     expect(within(screen.getByLabelText(/selected map place/i)).getByRole('heading', {
       name: /clicked place/i,
+    })).toBeInTheDocument()
+  })
+
+  it('resolves coordinate-only map clicks into nearby place details', async () => {
+    mockWorkspace()
+
+    renderWorkspace('/trips/abc234def567/d/2026-05-01')
+
+    await screen.findByTestId('trip-map')
+    await userEvent.click(screen.getByRole('button', { name: /mock map location click/i }))
+
+    await waitFor(() => {
+      expect(googlePlacesMockState.fetchGooglePlaceNearLocation).toHaveBeenCalledWith({
+        apiKey: 'gmaps.test',
+        options: {
+          language: 'en',
+          location: { lat: 35.7, lng: 139.8 },
+          radius: 100,
+          rankPreference: 'DISTANCE',
+        },
+      })
+    })
+
+    expect(googlePlacesMockState.fetchGooglePlaceById).not.toHaveBeenCalled()
+    expect(screen.getByTestId('preview-map-place')).toHaveTextContent('Nearby Cafe')
+    expect(within(screen.getByLabelText(/selected map place/i)).getByRole('heading', {
+      name: /nearby cafe/i,
+    })).toBeInTheDocument()
+  })
+
+  it('shows a coordinate fallback when a map click has no nearby place result', async () => {
+    googlePlacesMockState.fetchGooglePlaceNearLocation.mockResolvedValueOnce(null)
+    mockWorkspace()
+
+    renderWorkspace('/trips/abc234def567/d/2026-05-01')
+
+    await screen.findByTestId('trip-map')
+    await userEvent.click(screen.getByRole('button', { name: /mock map location click/i }))
+
+    await waitFor(() => {
+      expect(googlePlacesMockState.fetchGooglePlaceNearLocation).toHaveBeenCalled()
+    })
+
+    expect(screen.getByTestId('preview-map-place')).toHaveTextContent('Selected location')
+    expect(within(screen.getByLabelText(/selected map place/i)).getByRole('heading', {
+      name: /selected location/i,
     })).toBeInTheDocument()
   })
 

@@ -11,10 +11,14 @@ import {
   GOOGLE_PLACES_AUTOCOMPLETE_FIELD_MASK,
   GOOGLE_PLACES_AUTOCOMPLETE_URL,
   GOOGLE_PLACES_BASE_URL,
+  GOOGLE_PLACES_NEARBY_SEARCH_FIELD_MASK,
+  GOOGLE_PLACES_NEARBY_SEARCH_URL,
   GOOGLE_PLACES_TEXT_SEARCH_FIELD_MASK,
   GOOGLE_PLACES_TEXT_SEARCH_URL,
   __resetGooglePlaceDetailsCacheForTests,
+  buildGooglePlacesNearbySearchRequest,
   buildGooglePlacesTextSearchRequest,
+  fetchGooglePlaceNearLocation,
   fetchGooglePlaceSelection,
   fetchGooglePlaceTextSearch,
   googlePlaceCategoryTypeForQuery,
@@ -208,6 +212,8 @@ describe('<GooglePlaceAutocomplete>', () => {
     expect(screen.getByLabelText(/destination/i)).toHaveValue(
       'Tokyo Tower, 4 Chome-2-8 Shibakoen, Minato City, Tokyo',
     )
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
+    expect(screen.getByLabelText(/destination/i)).not.toHaveFocus()
 
     const autocompleteInit = autocompleteCall?.[1] as RequestInit | undefined
     const autocompleteBody = JSON.parse(String(autocompleteInit?.body ?? '{}')) as {
@@ -554,6 +560,70 @@ describe('Google place normalization', () => {
     })
   })
 
+  it('fetches a nearby place for coordinate map clicks', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({
+      places: [{
+        businessStatus: 'OPERATIONAL',
+        currentOpeningHours: { openNow: true },
+        displayName: { text: 'Clicked Cafe' },
+        formattedAddress: 'Nearby address',
+        googleMapsUri: 'https://maps.google.com/?cid=clicked-cafe',
+        id: 'google.clicked-cafe',
+        location: { latitude: 35.7002, longitude: 139.8002 },
+        name: 'places/google.clicked-cafe',
+        primaryType: 'cafe',
+        primaryTypeDisplayName: { text: 'Cafe' },
+        rating: 4.7,
+        types: ['cafe', 'food'],
+        userRatingCount: 42,
+      }],
+    }))
+
+    await expect(
+      fetchGooglePlaceNearLocation({
+        apiKey: 'gmaps.test',
+        options: {
+          language: 'en',
+          location: { lat: 35.7, lng: 139.8 },
+          radius: 100,
+        },
+      }),
+    ).resolves.toEqual(expect.objectContaining({
+      businessStatus: 'OPERATIONAL',
+      currentOpeningHours: { openNow: true, weekdayDescriptions: [] },
+      displayName: 'Clicked Cafe',
+      formattedAddress: 'Nearby address',
+      googleMapsUri: 'https://maps.google.com/?cid=clicked-cafe',
+      id: 'google.clicked-cafe',
+      lat: 35.7002,
+      lng: 139.8002,
+      rating: 4.7,
+      types: ['cafe', 'food'],
+      userRatingCount: 42,
+    }))
+
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(url).toBe(GOOGLE_PLACES_NEARBY_SEARCH_URL)
+    expect(init).toMatchObject({
+      method: 'POST',
+      headers: {
+        'X-Goog-Api-Key': 'gmaps.test',
+        'X-Goog-FieldMask': GOOGLE_PLACES_NEARBY_SEARCH_FIELD_MASK,
+      },
+    })
+    expect(JSON.parse(String((init as RequestInit).body))).toMatchObject({
+      languageCode: 'en',
+      locationRestriction: {
+        circle: {
+          center: { latitude: 35.7, longitude: 139.8 },
+          radius: 100,
+        },
+      },
+      maxResultCount: 1,
+      rankPreference: 'DISTANCE',
+    })
+  })
+
   it('builds category text search requests with viewport restriction and type normalization', () => {
     expect(googlePlaceCategoryTypeForQuery('restaurants')).toBe('restaurant')
 
@@ -581,6 +651,23 @@ describe('Google place normalization', () => {
       pageSize: 10,
       rankPreference: 'RELEVANCE',
       textQuery: 'restaurants',
+    })
+  })
+
+  it('builds nearby search requests with finite coordinates', () => {
+    expect(
+      buildGooglePlacesNearbySearchRequest({
+        location: { lat: 35.7, lng: 139.8 },
+      }),
+    ).toMatchObject({
+      locationRestriction: {
+        circle: {
+          center: { latitude: 35.7, longitude: 139.8 },
+          radius: 75,
+        },
+      },
+      maxResultCount: 1,
+      rankPreference: 'DISTANCE',
     })
   })
 })
