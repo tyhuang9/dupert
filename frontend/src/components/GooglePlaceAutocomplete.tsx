@@ -8,6 +8,7 @@ import {
   type FocusEvent,
   type KeyboardEvent,
 } from 'react'
+import { Search } from 'lucide-react'
 import {
   fetchGooglePlaceSelection,
   fetchGooglePlaceSuggestions,
@@ -38,8 +39,10 @@ interface GooglePlaceAutocompleteProps {
   onValueChange: (value: string) => void
   options?: GooglePlaceSearchOptions
   placeholder?: string
+  searchButtonLabel?: string
   searchFailedMessage: string
   selectOnFocus?: boolean
+  showSearchButton?: boolean
   value: string
 }
 
@@ -69,8 +72,10 @@ export function GooglePlaceAutocomplete({
   onValueChange,
   options,
   placeholder,
+  searchButtonLabel = 'Search',
   searchFailedMessage,
   selectOnFocus = false,
+  showSearchButton = false,
   value,
 }: GooglePlaceAutocompleteProps) {
   const generatedInputId = useId()
@@ -188,18 +193,25 @@ export function GooglePlaceAutocomplete({
     }
   }
 
-  const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
-    if (event.key !== 'Enter' || event.defaultPrevented || !onSearchSubmit) return
-    if (event.nativeEvent.isComposing) return
+  const submitQuery = () => {
     const submittedQuery = query
-    if (!submittedQuery) return
-
-    event.preventDefault()
+    if (!submittedQuery || !onSearchSubmit) return
+    requestVersionRef.current += 1
     setOpen(false)
+    setSuggestions([])
     sessionTokenRef.current = null
     void Promise.resolve(onSearchSubmit(submittedQuery)).catch(() => {
       onSearchError?.(searchFailedMessage)
     })
+  }
+
+  const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key !== 'Enter' || event.defaultPrevented || !onSearchSubmit) return
+    if (event.nativeEvent.isComposing) return
+    if (!query) return
+
+    event.preventDefault()
+    submitQuery()
   }
 
   const selectSuggestion = async (suggestion: PlaceSuggestion) => {
@@ -229,7 +241,13 @@ export function GooglePlaceAutocomplete({
   }
 
   return (
-    <span className={[styles.root, className].filter(Boolean).join(' ')}>
+    <span
+      className={[
+        styles.root,
+        showSearchButton && onSearchSubmit ? styles.withSearchButton : '',
+        className,
+      ].filter(Boolean).join(' ')}
+    >
       <input
         ref={inputRef}
         id={inputId}
@@ -250,6 +268,19 @@ export function GooglePlaceAutocomplete({
         aria-describedby={ariaDescribedBy}
         role="combobox"
       />
+      {showSearchButton && onSearchSubmit && (
+        <button
+          type="button"
+          className={styles.searchButton}
+          aria-label={searchButtonLabel}
+          title={searchButtonLabel}
+          disabled={disabled || !query}
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={submitQuery}
+        >
+          <Search size={16} aria-hidden="true" />
+        </button>
+      )}
       {open && visibleSuggestions.length > 0 && (
         <ul id={listboxId} className={styles.suggestions} role="listbox">
           {visibleSuggestions.map((suggestion) => {

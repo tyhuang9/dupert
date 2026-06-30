@@ -18,7 +18,15 @@ import {
   useSortable,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
-import { useEffect, useMemo, useState, type CSSProperties, type FormEvent } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type FormEvent,
+} from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
   AlertTriangle,
@@ -39,7 +47,6 @@ import {
   Route as TimelineIcon,
   Share2,
   Settings,
-  Star,
   Utensils,
   X,
 } from 'lucide-react'
@@ -58,8 +65,14 @@ import { usePageTitle } from '../utils/usePageTitle'
 import styles from './TripWorkspacePage.module.css'
 import { ActivityForm } from '../components/ActivityForm'
 import { ActivityList } from '../components/ActivityList'
+import { MapSearchResultsShelf } from '../components/MapSearchResultsShelf'
 import { PlaceSearch } from '../components/PlaceSearch'
-import { fetchGooglePlaceTextSearch } from '../components/googlePlaces'
+import {
+  fetchGooglePlaceById,
+  fetchGooglePlaceTextSearch,
+  googlePlaceCategoryTypeForQuery,
+  type GooglePlaceTextSearchOptions,
+} from '../components/googlePlaces'
 import { googlePlaceToPlaceSelection } from '../components/placeSelection'
 import { TripMap, type MapStyleId, type MapViewportContext } from '../components/TripMap'
 import type { Activity, CreateActivityRequest } from '../types/activity'
@@ -95,6 +108,8 @@ function formatReadableDate(dayDate: string | undefined): string {
 function pluralize(count: number, singular: string, plural = `${singular}s`): string {
   return `${count} ${count === 1 ? singular : plural}`
 }
+
+const MAP_SEARCH_PAGE_SIZE = 10
 
 function parseDateKey(dayDate: string): Date {
   const [year, month, day] = dayDate.split('-').map(Number)
@@ -244,12 +259,14 @@ function SortableTimelineActivity({
   active,
   activity,
   busy,
+  dragDisabled,
   onSelect,
   readOnly,
 }: {
   active: boolean
   activity: Activity
   busy: boolean
+  dragDisabled: boolean
   onSelect: (activityId: number) => void
   readOnly: boolean
 }) {
@@ -263,13 +280,13 @@ function SortableTimelineActivity({
     transition,
   } = useSortable({
     id: activityDragId(activity.id),
-    disabled: readOnly || busy,
+    disabled: readOnly || dragDisabled,
   })
   const style: CSSProperties = {
     transform: sortableTransformToString(transform),
     transition,
   }
-  const canDrag = !readOnly && !busy
+  const canDrag = !readOnly && !busy && !dragDisabled
   const timeLabel = formatActivityTime(activity)
 
   return (
@@ -327,6 +344,7 @@ function SortableTimelineActivity({
 function TimelineDayGroup({
   activeActivityId,
   busy,
+  dragDisabled,
   dragging,
   group,
   onSelectActivity,
@@ -334,6 +352,7 @@ function TimelineDayGroup({
 }: {
   activeActivityId: number | null
   busy: boolean
+  dragDisabled: boolean
   dragging: boolean
   group: TimelineGroup
   onSelectActivity: (activityId: number) => void
@@ -341,9 +360,9 @@ function TimelineDayGroup({
 }) {
   const { isOver, setNodeRef } = useDroppable({
     id: dayDropId(group.dayDate),
-    disabled: readOnly || busy || !dragging,
+    disabled: readOnly || dragDisabled || !dragging,
   })
-  const showDropTarget = dragging && !readOnly && !busy
+  const showDropTarget = dragging && !readOnly && !dragDisabled
 
   return (
     <section
@@ -372,6 +391,7 @@ function TimelineDayGroup({
               activity={activity}
               active={activeActivityId === activity.id}
               busy={busy}
+              dragDisabled={dragDisabled}
               readOnly={readOnly}
               onSelect={onSelectActivity}
             />
@@ -416,23 +436,6 @@ function activityUpdateWithPlace(
   }
 }
 
-function formatBusinessStatus(value: string | null | undefined): string | null {
-  if (!value) return null
-  return value
-    .toLowerCase()
-    .split('_')
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(' ')
-}
-
-function formatRating(place: PlaceSelection): string | null {
-  if (typeof place.rating !== 'number') return null
-  const reviewCount = typeof place.userRatingCount === 'number'
-    ? ` (${pluralize(place.userRatingCount, 'review')})`
-    : ''
-  return `${place.rating.toFixed(1)}${reviewCount}`
-}
-
 function selectedDayHours(place: PlaceSelection, selectedDay: string | undefined): string | null {
   const descriptions = place.regularOpeningHours?.weekdayDescriptions
   if (!selectedDay || !descriptions || descriptions.length === 0) return null
@@ -446,31 +449,8 @@ function selectedDayHours(place: PlaceSelection, selectedDay: string | undefined
   ) ?? null
 }
 
-function currentOpenLabel(place: PlaceSelection): string | null {
-  if (place.currentOpeningHours?.openNow === true) return 'Open now'
-  if (place.currentOpeningHours?.openNow === false) return 'Closed now'
-  return null
-}
-
-function reviewMeta(review: NonNullable<PlaceSelection['reviews']>[number]): string | null {
-  const parts = [
-    review.rating !== null ? `${review.rating.toFixed(1)}` : null,
-    review.authorName,
-    review.relativePublishTimeDescription,
-  ].filter(Boolean)
-  return parts.length > 0 ? parts.join(' · ') : null
-}
-
 function placeDisplayName(place: PlaceSelection): string {
   return place.placeName || place.title || place.address || 'Selected place'
-}
-
-function placeCategoryLabel(place: PlaceSelection): string {
-  return place.placeCategory || place.featureType || place.category || 'Place'
-}
-
-function placeMetadata(place: PlaceSelection): string {
-  return [placeCategoryLabel(place), place.address].filter(Boolean).join(' · ')
 }
 
 function directionsUrlForPlace(place: PlaceSelection): string | null {
@@ -478,6 +458,37 @@ function directionsUrlForPlace(place: PlaceSelection): string | null {
     return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${place.lat},${place.lng}`)}`
   }
   return place.googleMapsUri ?? null
+}
+
+function placeStableId(place: PlaceSelection): string {
+  return place.mapboxId ?? `${placeDisplayName(place)}-${place.lat ?? 'lat'}-${place.lng ?? 'lng'}`
+}
+
+function appendUniquePlaces(
+  existing: PlaceSelection[],
+  incoming: PlaceSelection[],
+): PlaceSelection[] {
+  const seen = new Set(existing.map(placeStableId))
+  const uniqueIncoming = incoming.filter((place) => {
+    const id = placeStableId(place)
+    if (seen.has(id)) return false
+    seen.add(id)
+    return true
+  })
+  return uniqueIncoming.length > 0 ? [...existing, ...uniqueIncoming] : existing
+}
+
+function viewportBoundsToRectangle(
+  bounds: MapViewportContext['bounds'] | null | undefined,
+): GooglePlaceTextSearchOptions['locationRestriction'] | null {
+  if (!bounds) return null
+  const { east, north, south, west } = bounds
+  if (![east, north, south, west].every(Number.isFinite)) return null
+  if (east <= west || north <= south) return null
+  return {
+    low: { lat: south, lng: west },
+    high: { lat: north, lng: east },
+  }
 }
 
 function PlaceThumbnail({ place }: { place: PlaceSelection }) {
@@ -856,10 +867,15 @@ export function TripWorkspacePage() {
   const [mapSearchFocusKey, setMapSearchFocusKey] = useState(0)
   const [mapSearchPreview, setMapSearchPreview] = useState<PlaceSelection | null>(null)
   const [mapSearchResults, setMapSearchResults] = useState<PlaceSelection[]>([])
+  const [mapSearchNextPageToken, setMapSearchNextPageToken] = useState<string | null>(null)
+  const [mapSearchQuery, setMapSearchQuery] = useState<string | null>(null)
   const [selectedMapSearchResult, setSelectedMapSearchResult] =
     useState<PlaceSelection | null>(null)
+  const [selectedMapClickedPlace, setSelectedMapClickedPlace] = useState<PlaceSelection | null>(null)
   const [hoveredMapSearchResultId, setHoveredMapSearchResultId] = useState<string | null>(null)
   const [isMapSearchSubmitting, setIsMapSearchSubmitting] = useState(false)
+  const [isMapSearchLoadingMore, setIsMapSearchLoadingMore] = useState(false)
+  const mapSearchRequestIdRef = useRef(0)
   const [pendingMapPlace, setPendingMapPlace] = useState<PlaceSelection | null>(null)
   const [activeActivityId, setActiveActivityId] = useState<number | null>(null)
   const [calendarMonth, setCalendarMonth] = useState(() =>
@@ -966,12 +982,11 @@ export function TripWorkspacePage() {
     },
     [fullTimelineActivities, tripDays],
   )
-  const isActivityMutationPending =
+  const isActivityEditMutationPending =
     createActivityMutation.isPending ||
     updateActivityMutation.isPending ||
-    deleteActivityMutation.isPending ||
-    reorderActivitiesMutation.isPending ||
-    moveActivityMutation.isPending
+    deleteActivityMutation.isPending
+  const isActivityDragDisabled = moveActivityMutation.isPending
 
   const mutationError =
     createActivityMutation.error ||
@@ -986,32 +1001,86 @@ export function TripWorkspacePage() {
   const canEditTrip = tripQuery.data?.role !== 'VIEWER'
   const mapCenterLat = mapViewportContext?.center?.lat
   const mapCenterLng = mapViewportContext?.center?.lng
+  const mapViewportRectangle = useMemo(
+    () => viewportBoundsToRectangle(mapViewportContext?.bounds),
+    [mapViewportContext?.bounds],
+  )
   const placeSearchOptions = useMemo(
     () =>
       mapCenterLat !== undefined && mapCenterLng !== undefined
-        ? { proximity: { lat: mapCenterLat, lng: mapCenterLng } }
+        ? {
+            locationBias: mapViewportRectangle ?? undefined,
+            proximity: { lat: mapCenterLat, lng: mapCenterLng },
+          }
         : undefined,
-    [mapCenterLat, mapCenterLng],
+    [mapCenterLat, mapCenterLng, mapViewportRectangle],
   )
-  const mapPreviewPlace = pendingMapPlace ?? mapSearchPreview ?? placeDraft
-  const mapDetailPlace = pendingMapPlace ?? selectedMapSearchResult ?? placeDraft ?? mapSearchPreview
+  const buildMapTextSearchOptions = useCallback(
+    (query: string, pageToken?: string | null): GooglePlaceTextSearchOptions | undefined => {
+      const categoryType = googlePlaceCategoryTypeForQuery(query)
+      const baseOptions: GooglePlaceTextSearchOptions = {
+        language: 'en',
+        pageToken,
+        rankPreference: 'RELEVANCE',
+      }
+      if (mapCenterLat !== undefined && mapCenterLng !== undefined) {
+        baseOptions.proximity = { lat: mapCenterLat, lng: mapCenterLng }
+      }
+      if (categoryType) {
+        baseOptions.includedType = categoryType
+        if (mapViewportRectangle) {
+          baseOptions.locationRestriction = mapViewportRectangle
+        } else if (placeSearchOptions?.locationBias) {
+          baseOptions.locationBias = placeSearchOptions.locationBias
+        }
+        return baseOptions
+      }
+      if (mapViewportRectangle) {
+        baseOptions.locationBias = mapViewportRectangle
+      }
+      return Object.keys(baseOptions).length > 0 ? baseOptions : undefined
+    },
+    [mapCenterLat, mapCenterLng, mapViewportRectangle, placeSearchOptions],
+  )
+  const mapPreviewPlace = pendingMapPlace ?? selectedMapClickedPlace ?? mapSearchPreview ?? placeDraft
+  const mapDetailPlace =
+    pendingMapPlace ?? selectedMapSearchResult ?? selectedMapClickedPlace ?? placeDraft ?? mapSearchPreview
   const mapDetailSelectedDayHours = mapDetailPlace
     ? selectedDayHours(mapDetailPlace, selectedDay)
     : null
-  const mapDetailOpenLabel = mapDetailPlace ? currentOpenLabel(mapDetailPlace) : null
-  const mapDetailBusinessStatus = mapDetailPlace
-    ? formatBusinessStatus(mapDetailPlace.businessStatus)
-    : null
-  const mapDetailRating = mapDetailPlace ? formatRating(mapDetailPlace) : null
-  const mapDetailReviews = mapDetailPlace?.reviews?.slice(0, 2) ?? []
   const mapDetailDirectionsUrl = mapDetailPlace ? directionsUrlForPlace(mapDetailPlace) : null
   const highlightedMapSearchResultId =
     hoveredMapSearchResultId ?? selectedMapSearchResult?.mapboxId ?? null
 
   const clearMapSearchState = () => {
+    mapSearchRequestIdRef.current += 1
     setMapSearchResults([])
+    setMapSearchNextPageToken(null)
+    setMapSearchQuery(null)
     setSelectedMapSearchResult(null)
+    setSelectedMapClickedPlace(null)
     setHoveredMapSearchResultId(null)
+    setIsMapSearchSubmitting(false)
+    setIsMapSearchLoadingMore(false)
+  }
+
+  const closeMapSearchResults = () => {
+    mapSearchRequestIdRef.current += 1
+    setMapSearchValue('')
+    setMapSearchResults([])
+    setMapSearchNextPageToken(null)
+    setMapSearchQuery(null)
+    setSelectedMapSearchResult(null)
+    setMapSearchPreview(null)
+    setHoveredMapSearchResultId(null)
+    setPendingMapPlace((current) =>
+      current &&
+      mapSearchResults.some((place) => placeStableId(place) === placeStableId(current))
+        ? null
+        : current,
+    )
+    setIsMapSearchSubmitting(false)
+    setIsMapSearchLoadingMore(false)
   }
 
   const focusItineraryPanel = () => {
@@ -1208,6 +1277,7 @@ export function TripWorkspacePage() {
       }))
       setMapSearchPreview(null)
       setSelectedMapSearchResult(null)
+      setSelectedMapClickedPlace(null)
       setPendingMapPlace(place)
       setActiveActivityId(null)
       return
@@ -1215,6 +1285,7 @@ export function TripWorkspacePage() {
 
     setMapSearchPreview(null)
     setSelectedMapSearchResult(null)
+    setSelectedMapClickedPlace(null)
     setPendingMapPlace(place)
   }
 
@@ -1236,25 +1307,87 @@ export function TripWorkspacePage() {
     const apiKey = googleMapsApiKey()
     if (!apiKey) throw new Error('Google Maps API key is not configured.')
 
+    const requestId = mapSearchRequestIdRef.current + 1
+    mapSearchRequestIdRef.current = requestId
     setIsMapSearchSubmitting(true)
     try {
-      const results = await fetchGooglePlaceTextSearch({
+      const page = await fetchGooglePlaceTextSearch({
         apiKey,
-        options: placeSearchOptions,
+        options: buildMapTextSearchOptions(trimmedQuery),
+        pageSize: MAP_SEARCH_PAGE_SIZE,
         query: trimmedQuery,
       })
-      setMapSearchResults(results.map(googlePlaceToPlaceSelection))
+      if (mapSearchRequestIdRef.current !== requestId) return
+      setMapSearchResults(page.places.map(googlePlaceToPlaceSelection))
+      setMapSearchNextPageToken(page.nextPageToken)
+      setMapSearchQuery(trimmedQuery)
       setSelectedMapSearchResult(null)
+      setSelectedMapClickedPlace(null)
       setHoveredMapSearchResultId(null)
       setMapSearchPreview(null)
       setPendingMapPlace(null)
     } finally {
-      setIsMapSearchSubmitting(false)
+      if (mapSearchRequestIdRef.current === requestId) {
+        setIsMapSearchSubmitting(false)
+      }
+    }
+  }
+
+  const handleLoadMoreMapSearchResults = async () => {
+    if (!mapSearchNextPageToken || !mapSearchQuery || isMapSearchLoadingMore) return
+    const apiKey = googleMapsApiKey()
+    if (!apiKey) return
+
+    const requestId = mapSearchRequestIdRef.current
+    const query = mapSearchQuery
+    const pageToken = mapSearchNextPageToken
+    setIsMapSearchLoadingMore(true)
+    try {
+      const page = await fetchGooglePlaceTextSearch({
+        apiKey,
+        options: buildMapTextSearchOptions(query, pageToken),
+        pageSize: MAP_SEARCH_PAGE_SIZE,
+        query,
+      })
+      if (mapSearchRequestIdRef.current !== requestId || mapSearchQuery !== query) return
+      const nextPlaces = page.places.map(googlePlaceToPlaceSelection)
+      setMapSearchResults((current) => appendUniquePlaces(current, nextPlaces))
+      setMapSearchNextPageToken(page.nextPageToken)
+    } finally {
+      if (mapSearchRequestIdRef.current === requestId) {
+        setIsMapSearchLoadingMore(false)
+      }
+    }
+  }
+
+  const handleMapPlaceClick = async (placeId: string) => {
+    const apiKey = googleMapsApiKey()
+    if (!apiKey) return
+
+    const requestId = mapSearchRequestIdRef.current + 1
+    mapSearchRequestIdRef.current = requestId
+    setIsMapSearchSubmitting(true)
+    try {
+      const place = googlePlaceToPlaceSelection(
+        await fetchGooglePlaceById({ apiKey, placeId }),
+      )
+      if (mapSearchRequestIdRef.current !== requestId) return
+      setSelectedMapSearchResult(null)
+      setSelectedMapClickedPlace(place)
+      setHoveredMapSearchResultId(null)
+      setMapSearchPreview(null)
+      setActiveActivityId(null)
+      setPendingMapPlace(mapLocationTarget ? place : null)
+    } finally {
+      if (mapSearchRequestIdRef.current === requestId) {
+        setIsMapSearchSubmitting(false)
+      }
     }
   }
 
   const handleMapSearchResultSelect = (place: PlaceSelection) => {
     setSelectedMapSearchResult(place)
+    setSelectedMapClickedPlace(null)
     setHoveredMapSearchResultId(null)
     setMapSearchPreview(null)
     setActiveActivityId(null)
@@ -1265,9 +1398,10 @@ export function TripWorkspacePage() {
     }
   }
 
-  const handleUseSelectedMapSearchResult = () => {
-    if (!selectedMapSearchResult) return
-    void handleMapPlaceSelect(selectedMapSearchResult).then(scrollActivityComposerIntoView)
+  const handleUseMapDetailPlace = () => {
+    const place = selectedMapSearchResult ?? selectedMapClickedPlace
+    if (!place) return
+    void handleMapPlaceSelect(place).then(scrollActivityComposerIntoView)
   }
 
   const scrollActivityComposerIntoView = () => {
@@ -1311,6 +1445,7 @@ export function TripWorkspacePage() {
     setPlaceDraft(null)
     setMapSearchPreview(null)
     setSelectedMapSearchResult(null)
+    setSelectedMapClickedPlace(null)
     setPendingMapPlace(null)
     setMapLocationTarget(null)
   }
@@ -1335,7 +1470,7 @@ export function TripWorkspacePage() {
   }
 
   const handleDragEnd = (event: DragEndEvent) => {
-    if (!publicId || !selectedDay || isActivityMutationPending) return
+    if (!publicId || !selectedDay) return
     const operation = workspaceMode === 'timeline'
       ? getTimelineDragOperation({
           activeId: event.active.id,
@@ -1358,6 +1493,8 @@ export function TripWorkspacePage() {
       })
       return
     }
+
+    if (moveActivityMutation.isPending) return
 
     if (activeEditingActivity?.id === operation.activity.id) {
       setExpandedActivityId(null)
@@ -1524,7 +1661,7 @@ export function TripWorkspacePage() {
                 <div className={styles.sidebarCalendarReveal}>
                   <CompactMonthCalendar
                     activities={allActivities}
-                    disabled={!canEditTrip || isActivityMutationPending}
+                    disabled={!canEditTrip || isActivityDragDisabled}
                     dragging={isDraggingActivity}
                     endDate={tripQuery.data.endDate}
                     monthKey={displayedCalendarMonth}
@@ -1657,7 +1794,8 @@ export function TripWorkspacePage() {
                           activities={dayActivities}
                           activeActivityId={visibleActiveActivityId}
                           expandedActivityId={expandedActivityId}
-                          busy={isActivityMutationPending}
+                          busy={isActivityEditMutationPending}
+                          dragDisabled={isActivityDragDisabled}
                           readOnly={!canEditTrip}
                           onActiveActivityChange={handleActiveActivityChange}
                           onAddActivity={openActivityComposer}
@@ -1688,7 +1826,8 @@ export function TripWorkspacePage() {
                             <TimelineDayGroup
                               key={group.dayDate}
                               activeActivityId={visibleActiveActivityId}
-                              busy={isActivityMutationPending}
+                              busy={isActivityEditMutationPending}
+                              dragDisabled={isActivityDragDisabled}
                               dragging={isDraggingActivity}
                               group={group}
                               readOnly={!canEditTrip}
@@ -1725,7 +1864,10 @@ export function TripWorkspacePage() {
                         focusKey={mapSearchFocusKey}
                         searchValue={mapSearchValue}
                         searchOptions={placeSearchOptions}
-                        onPlacePreview={setMapSearchPreview}
+                        onPlacePreview={(place) => {
+                          setMapSearchPreview(place)
+                          setSelectedMapClickedPlace(null)
+                        }}
                         onPlaceSelect={(place) => void handleMapPlaceSelect(place)}
                         onSearchSubmit={handleMapSearchSubmit}
                         onSearchValueChange={handleMapSearchValueChange}
@@ -1744,56 +1886,29 @@ export function TripWorkspacePage() {
                   >
                     <div className={styles.placeHero}>
                       <PlaceThumbnail place={mapDetailPlace} />
-                      <span className={styles.placeCategoryBadge}>
-                        {placeCategoryLabel(mapDetailPlace)}
-                      </span>
+                      <button
+                        type="button"
+                        className={styles.placeDetailClose}
+                        onClick={clearMapSelection}
+                        aria-label="Close place details"
+                      >
+                        <X size={16} aria-hidden="true" />
+                      </button>
                     </div>
                     <div className={styles.placeDetailBody}>
-                      <p className={styles.placeDetailKicker}>
-                        {mapLocationTarget
-                          ? 'Place update'
-                          : selectedMapSearchResult
-                            ? 'Search result'
-                            : 'Place selected'}
-                      </p>
                       <div className={styles.placeDetailHeader}>
                         <h3>{placeDisplayName(mapDetailPlace)}</h3>
-                        {mapDetailRating && (
-                          <span className={styles.placeRating}>
-                            <Star size={13} aria-hidden="true" />
-                            {mapDetailRating}
-                          </span>
-                        )}
                       </div>
+                      {mapDetailSelectedDayHours && (
+                        <p className={styles.placeHours}>
+                          {mapDetailSelectedDayHours}
+                        </p>
+                      )}
                       {mapDetailPlace.address && (
                         <p className={styles.placeAddress}>
                           <MapPin size={13} aria-hidden="true" />
                           {mapDetailPlace.address}
                         </p>
-                      )}
-                      {(mapDetailBusinessStatus || mapDetailOpenLabel) && (
-                        <div className={styles.placeDetailMeta}>
-                          {mapDetailBusinessStatus && <span>{mapDetailBusinessStatus}</span>}
-                          {mapDetailOpenLabel && <span>{mapDetailOpenLabel}</span>}
-                        </div>
-                      )}
-                      {mapDetailSelectedDayHours && (
-                        <p className={styles.placeHours}>
-                          Selected day: {mapDetailSelectedDayHours}
-                        </p>
-                      )}
-                      {mapDetailReviews.length > 0 && (
-                        <div className={styles.placeReviews} aria-label="Place reviews">
-                          {mapDetailReviews.map((review, index) => {
-                            const meta = reviewMeta(review)
-                            return (
-                              <figure key={`${review.authorName ?? 'review'}-${index}`}>
-                                {review.text && <blockquote>{review.text}</blockquote>}
-                                {meta && <figcaption>{meta}</figcaption>}
-                              </figure>
-                            )
-                          })}
-                        </div>
                       )}
                       <div className={styles.placeDetailActions}>
                         {mapLocationTarget && pendingMapPlace ? (
@@ -1805,11 +1920,11 @@ export function TripWorkspacePage() {
                           >
                             Confirm Update
                           </button>
-                        ) : selectedMapSearchResult ? (
+                        ) : selectedMapSearchResult || selectedMapClickedPlace ? (
                           <button
                             type="button"
                             className={styles.primaryAction}
-                            onClick={handleUseSelectedMapSearchResult}
+                            onClick={handleUseMapDetailPlace}
                           >
                             Add to Trip
                           </button>
@@ -1858,59 +1973,25 @@ export function TripWorkspacePage() {
                             <ExternalLink size={15} aria-hidden="true" />
                           </a>
                         )}
-                        <button
-                          type="button"
-                          className={styles.secondaryAction}
-                          onClick={clearMapSelection}
-                        >
-                          Clear
-                        </button>
                       </div>
                     </div>
                   </section>
                 )}
-                {canEditTrip && mapSearchResults.length > 0 && (
-                  <section className={styles.discoveryShelf} aria-label="Map search results">
-                    <div className={styles.discoveryShelfHeader}>
-                      <span>Search Results</span>
-                      <strong>{pluralize(mapSearchResults.length, 'place')}</strong>
-                    </div>
-                    <div className={styles.discoveryList}>
-                      {mapSearchResults.map((place) => {
-                        const placeId = place.mapboxId ?? placeDisplayName(place)
-                        const selected = selectedMapSearchResult?.mapboxId === place.mapboxId
-                        const rating = formatRating(place)
-                        return (
-                          <button
-                            key={`${placeId}-${place.lat ?? 'lat'}-${place.lng ?? 'lng'}`}
-                            type="button"
-                            className={[
-                              styles.discoveryCard,
-                              selected ? styles.discoveryCardSelected : '',
-                            ].filter(Boolean).join(' ')}
-                            aria-pressed={selected}
-                            onClick={() => handleMapSearchResultSelect(place)}
-                            onMouseEnter={() => setHoveredMapSearchResultId(place.mapboxId ?? null)}
-                            onMouseLeave={() => setHoveredMapSearchResultId(null)}
-                            onFocus={() => setHoveredMapSearchResultId(place.mapboxId ?? null)}
-                            onBlur={() => setHoveredMapSearchResultId(null)}
-                          >
-                            <PlaceThumbnail place={place} />
-                            <span className={styles.discoveryCardBody}>
-                              <strong>{placeDisplayName(place)}</strong>
-                              {rating && (
-                                <span className={styles.discoveryRating}>
-                                  <Star size={12} aria-hidden="true" />
-                                  {rating}
-                                </span>
-                              )}
-                              <small>{placeMetadata(place)}</small>
-                            </span>
-                          </button>
-                        )
-                      })}
-                    </div>
-                  </section>
+                {canEditTrip && (
+                  <MapSearchResultsShelf
+                    hasMore={Boolean(mapSearchNextPageToken)}
+                    loadingMore={isMapSearchLoadingMore}
+                    onHoverChange={setHoveredMapSearchResultId}
+                    onLoadMore={() => {
+                      void handleLoadMoreMapSearchResults()
+                    }}
+                    onClose={closeMapSearchResults}
+                    onSelect={handleMapSearchResultSelect}
+                    places={mapSearchResults}
+                    selectedPlaceId={
+                      selectedMapSearchResult ? placeStableId(selectedMapSearchResult) : null
+                    }
+                  />
                 )}
                 <TripMap
                   activities={mapActivities}
@@ -1926,6 +2007,8 @@ export function TripWorkspacePage() {
                   highlightedSearchResultId={highlightedMapSearchResultId}
                   onActivityActivate={handleActivityActivate}
                   onActiveActivityChange={handleActiveActivityChange}
+                  onMapPlaceClick={handleMapPlaceClick}
+                  onSearchResultHoverChange={setHoveredMapSearchResultId}
                   onSearchResultSelect={handleMapSearchResultSelect}
                   onViewportContextChange={setMapViewportContext}
                 />

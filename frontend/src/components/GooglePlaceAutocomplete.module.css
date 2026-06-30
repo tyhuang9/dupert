@@ -4,9 +4,45 @@
   display: block;
 }
 
+.withSearchButton .input {
+  padding-right: 2.875rem;
+}
+
 .input {
   min-width: 0;
   width: 100%;
+}
+
+.searchButton {
+  position: absolute;
+  top: 50%;
+  right: 4px;
+  width: 40px;
+  height: 40px;
+  display: inline-grid;
+  place-items: center;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--color-text-muted);
+  box-shadow: none;
+  cursor: pointer;
+  transform: translateY(-50%);
+}
+
+.searchButton:hover {
+  background: var(--color-surface-2);
+  color: var(--color-text);
+}
+
+.searchButton:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.searchButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
 }
 
 .suggestions {

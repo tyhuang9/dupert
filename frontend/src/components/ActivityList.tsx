@@ -13,6 +13,7 @@ import styles from './ActivityList.module.css'
 interface ActivityListProps {
   activities: Activity[]
   busy?: boolean
+  dragDisabled?: boolean
   readOnly?: boolean
   activeActivityId?: number | null
   expandedActivityId?: number | null
@@ -40,6 +41,7 @@ interface SortableActivityCardProps extends Omit<ActivityListProps, 'activities'
 function SortableActivityCard({
   activity,
   busy = false,
+  dragDisabled = false,
   isLast,
   position,
   readOnly = false,
@@ -62,7 +64,7 @@ function SortableActivityCard({
     transition,
   } = useSortable({
     id: activityDragId(activity.id),
-    disabled: readOnly || busy || isExpanded,
+    disabled: readOnly || dragDisabled || isExpanded,
   })
   const style: CSSProperties = {
     transform: sortableTransformToString(transform),
@@ -83,6 +85,7 @@ function SortableActivityCard({
           activity={activity}
           active={activeActivityId === activity.id}
           busy={busy}
+          dragDisabled={dragDisabled}
           dragActivatorRef={setActivatorNodeRef}
           dragAttributes={attributes}
           dragListeners={listeners}
@@ -102,6 +105,7 @@ function SortableActivityCard({
 export function ActivityList({
   activities,
   busy = false,
+  dragDisabled = false,
   readOnly = false,
   activeActivityId = null,
   expandedActivityId = null,
@@ -148,6 +152,7 @@ export function ActivityList({
             activeActivityId={activeActivityId}
             expandedActivityId={expandedActivityId}
             busy={busy}
+            dragDisabled={dragDisabled}
             isLast={index === activities.length - 1}
             position={index + 1}
             readOnly={readOnly}

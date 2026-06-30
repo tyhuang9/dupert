@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor, within } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { PropsWithChildren, ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -28,10 +28,23 @@ const mapControlMock = vi.hoisted(() => ({
 
 const mapMockState = vi.hoisted(() => ({
   apiStatus: 'LOADED',
+  clickableIcons: null as null | boolean,
+  currentMapTypeId: 'roadmap',
   mapTypeId: null as null | string,
+  mapTypeControl: null as null | boolean,
+  mapTypeControlOptions: null as null | Record<string, unknown>,
   onCameraChanged: null as null | ((event: {
-    detail: { center: { lat: number; lng: number }; zoom: number }
+    detail: {
+      bounds?: { north: number; south: number; east: number; west: number }
+      center: { lat: number; lng: number }
+      zoom: number
+    }
   }) => void),
+  onClick: null as null | ((event: {
+    detail: { placeId?: string | null }
+    stop: () => void
+  }) => void),
+  onMapTypeIdChanged: null as null | (() => void),
   onTilesLoaded: null as null | (() => void),
 }))
 
@@ -46,7 +59,11 @@ vi.mock('../api/googleMapsGeocode', () => ({
 vi.mock('@vis.gl/react-google-maps', () => {
   const googleMap = {
     fitBounds: mapControlMock.fitBounds,
+    getBounds: () => ({
+      toJSON: () => ({ north: 35.7, south: 35.6, east: 139.8, west: 139.7 }),
+    }),
     getCenter: () => ({ lat: () => 35.6586, lng: () => 139.7454 }),
+    getMapTypeId: () => mapMockState.currentMapTypeId,
     getZoom: () => 11,
     moveCamera: mapControlMock.moveCamera,
   }
@@ -61,16 +78,31 @@ vi.mock('@vis.gl/react-google-maps', () => {
     },
     Map: ({
       children,
+      clickableIcons,
       mapTypeId,
+      mapTypeControl,
+      mapTypeControlOptions,
       onCameraChanged,
+      onClick,
+      onMapTypeIdChanged,
       onTilesLoaded,
     }: PropsWithChildren<{
+      clickableIcons?: boolean
       mapTypeId?: string
+      mapTypeControl?: boolean
+      mapTypeControlOptions?: Record<string, unknown>
       onCameraChanged?: typeof mapMockState.onCameraChanged
+      onClick?: typeof mapMockState.onClick
+      onMapTypeIdChanged?: () => void
       onTilesLoaded?: () => void
     }>) => {
+      mapMockState.clickableIcons = clickableIcons ?? null
       mapMockState.mapTypeId = mapTypeId ?? null
+      mapMockState.mapTypeControl = mapTypeControl ?? null
+      mapMockState.mapTypeControlOptions = mapTypeControlOptions ?? null
       mapMockState.onCameraChanged = onCameraChanged ?? null
+      mapMockState.onClick = onClick ?? null
+      mapMockState.onMapTypeIdChanged = onMapTypeIdChanged ?? null
       mapMockState.onTilesLoaded = onTilesLoaded ?? null
       return <div data-testid="map">{children}</div>
     },
@@ -202,8 +234,14 @@ beforeEach(() => {
   mapControlMock.fitBounds.mockClear()
   mapControlMock.moveCamera.mockClear()
   mapMockState.apiStatus = 'LOADED'
+  mapMockState.clickableIcons = null
+  mapMockState.currentMapTypeId = 'roadmap'
   mapMockState.mapTypeId = null
+  mapMockState.mapTypeControl = null
+  mapMockState.mapTypeControlOptions = null
   mapMockState.onCameraChanged = null
+  mapMockState.onClick = null
+  mapMockState.onMapTypeIdChanged = null
   mapMockState.onTilesLoaded = null
   directionsMock.mockResolvedValue({
     distance: 2400,
@@ -372,7 +410,7 @@ describe('<TripMap>', () => {
     expect(mapMockState.mapTypeId).toBe('terrain')
   })
 
-  it('opens compact map style menu and reports selected style', async () => {
+  it('uses the native map type control and reports selected style changes', () => {
     const onMapStyleChange = vi.fn()
 
     render(
@@ -385,18 +423,15 @@ describe('<TripMap>', () => {
       />,
     )
 
-    await userEvent.click(screen.getByRole('button', { name: /map style/i }))
+    expect(mapMockState.mapTypeControl).toBe(true)
+    expect(mapMockState.mapTypeControlOptions).toEqual(expect.objectContaining({ position: 3 }))
+    expect(screen.queryByRole('button', { name: /map style/i })).not.toBeInTheDocument()
 
-    const menu = screen.getByRole('menu', { name: /map styles/i })
-    expect(within(menu).getByRole('menuitemradio', { name: /roadmap/i })).toHaveAttribute(
-      'aria-checked',
-      'true',
-    )
-
-    await userEvent.click(within(menu).getByRole('menuitemradio', { name: /hybrid/i }))
-
+    mapMockState.currentMapTypeId = 'hybrid'
+    act(() => {
+      mapMockState.onMapTypeIdChanged?.()
+    })
     expect(onMapStyleChange).toHaveBeenCalledWith('hybrid')
-    expect(screen.queryByRole('menu', { name: /map styles/i })).not.toBeInTheDocument()
   })
 
   it('reports viewport context on tiles and camera changes', () => {
@@ -414,19 +449,50 @@ describe('<TripMap>', () => {
       mapMockState.onTilesLoaded?.()
     })
     expect(onViewportContextChange).toHaveBeenCalledWith({
+      bounds: { north: 35.7, south: 35.6, east: 139.8, west: 139.7 },
       center: { lng: 139.7454, lat: 35.6586 },
       zoom: 11,
     })
 
     act(() => {
       mapMockState.onCameraChanged?.({
-        detail: { center: { lat: 35.7, lng: 139.8 }, zoom: 12 },
+        detail: {
+          bounds: { north: 35.9, south: 35.5, east: 140, west: 139.5 },
+          center: { lat: 35.7, lng: 139.8 },
+          zoom: 12,
+        },
       })
     })
     expect(onViewportContextChange).toHaveBeenLastCalledWith({
+      bounds: { north: 35.9, south: 35.5, east: 140, west: 139.5 },
       center: { lat: 35.7, lng: 139.8 },
       zoom: 12,
     })
+  })
+
+  it('enables native POI clicks and reports the clicked place id', () => {
+    const onMapPlaceClick = vi.fn()
+    const stop = vi.fn()
+    render(
+      <TripMap
+        activities={[]}
+        fallbackActivities={[]}
+        destination={null}
+        onMapPlaceClick={onMapPlaceClick}
+      />,
+    )
+
+    expect(mapMockState.clickableIcons).toBe(true)
+
+    act(() => {
+      mapMockState.onClick?.({
+        detail: { placeId: 'google.clicked-place' },
+        stop,
+      })
+    })
+
+    expect(stop).toHaveBeenCalled()
+    expect(onMapPlaceClick).toHaveBeenCalledWith('google.clicked-place')
   })
 
   it('shows full-trip fallback markers when the selected day has no mapped stops', async () => {
@@ -470,36 +536,55 @@ describe('<TripMap>', () => {
         fallbackActivities={[]}
         destination="Tokyo"
         previewPlace={{
-          address: '5 Chome-2 Tsukiji, Chuo City, Tokyo',
-          coordinatesLabel: '35.66540, 139.77070',
+          address: 'Kyoto Station, Kyoto',
+          coordinatesLabel: '34.98585, 135.75877',
           featureType: 'poi',
-          placeName: 'Tsukiji Market',
-          placeCategory: 'food and drink',
-          lat: 35.6654,
-          lng: 139.7707,
+          placeName: 'Kyoto Station',
+          placeCategory: 'Transit',
+          lat: 34.98585,
+          lng: 135.75877,
         }}
       />,
     )
 
-    expect(screen.getByRole('img', { name: /search preview: tsukiji market/i })).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: /search preview: kyoto station/i })).toBeInTheDocument()
     expect(screen.queryByText(/previewing selected place/i)).not.toBeInTheDocument()
 
+    expect(mapControlMock.fitBounds).not.toHaveBeenCalled()
     await waitFor(() => {
-      expect(mapControlMock.fitBounds).toHaveBeenCalledWith(
-        {
-          east: 139.7707,
-          north: 35.6654,
-          south: 35.6586,
-          west: 139.7454,
-        },
-        64,
-      )
+      expect(mapControlMock.moveCamera).toHaveBeenCalledWith({
+        center: { lat: 34.98585, lng: 135.75877 },
+      })
     })
     expect(directionsMock).not.toHaveBeenCalled()
   })
 
+  it('leaves the camera alone when a selected place is already in the viewport', () => {
+    render(
+      <TripMap
+        activities={[]}
+        fallbackActivities={[]}
+        destination={null}
+        previewPlace={{
+          address: '4 Chome-2-8 Shibakoen, Minato City, Tokyo',
+          coordinatesLabel: '35.65860, 139.74540',
+          featureType: 'poi',
+          placeName: 'Tokyo Tower',
+          placeCategory: 'Tourist attraction',
+          lat: 35.6586,
+          lng: 139.7454,
+        }}
+      />,
+    )
+
+    expect(screen.getByRole('img', { name: /search preview: tokyo tower/i })).toBeInTheDocument()
+    expect(mapControlMock.fitBounds).not.toHaveBeenCalled()
+    expect(mapControlMock.moveCamera).not.toHaveBeenCalled()
+  })
+
   it('renders clickable search result markers with a selected state', async () => {
     const onSearchResultSelect = vi.fn()
+    const onSearchResultHoverChange = vi.fn()
 
     render(
       <TripMap
@@ -508,24 +593,30 @@ describe('<TripMap>', () => {
         destination="Tokyo"
         searchResults={[{
           address: '1 Chome Marunouchi, Tokyo',
-          coordinatesLabel: '35.68120, 139.76710',
+          coordinatesLabel: '36.20000, 140.20000',
           featureType: 'restaurant',
-          lat: 35.6812,
-          lng: 139.7671,
+          lat: 36.2,
+          lng: 140.2,
           mapboxId: 'google.ramen-street',
           placeCategory: 'Restaurant',
           placeName: 'Ramen Street',
           title: 'Ramen Street',
         }]}
         selectedSearchResultId="google.ramen-street"
+        onSearchResultHoverChange={onSearchResultHoverChange}
         onSearchResultSelect={onSearchResultSelect}
       />,
     )
 
     const marker = screen.getByRole('button', {
-      name: /show place details for search result 1: ramen street/i,
+      name: /show place details for ramen street/i,
     })
     expect(marker).toBeInTheDocument()
+    expect(marker).not.toHaveTextContent('1')
+    await userEvent.hover(marker)
+    expect(onSearchResultHoverChange).toHaveBeenCalledWith('google.ramen-street')
+    await userEvent.unhover(marker)
+    expect(onSearchResultHoverChange).toHaveBeenCalledWith(null)
     await userEvent.click(marker)
 
     expect(onSearchResultSelect).toHaveBeenCalledWith(expect.objectContaining({
@@ -533,16 +624,11 @@ describe('<TripMap>', () => {
       placeName: 'Ramen Street',
     }))
     await waitFor(() => {
-      expect(mapControlMock.fitBounds).toHaveBeenCalledWith(
-        {
-          east: 139.7671,
-          north: 35.6812,
-          south: 35.6586,
-          west: 139.7454,
-        },
-        64,
-      )
+      expect(mapControlMock.moveCamera).toHaveBeenCalledWith({
+        center: { lat: 36.2, lng: 140.2 },
+      })
     })
+    expect(mapControlMock.fitBounds).not.toHaveBeenCalled()
   })
 
   it('ignores preview places without finite coordinates', () => {

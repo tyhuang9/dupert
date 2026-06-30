@@ -25,6 +25,7 @@ import styles from './ActivityCard.module.css'
 interface ActivityCardProps {
   activity: Activity
   busy?: boolean
+  dragDisabled?: boolean
   dragActivatorRef?: (node: HTMLElement | null) => void
   dragAttributes?: DraggableAttributes
   dragListeners?: DraggableSyntheticListeners
@@ -122,10 +123,23 @@ function editInitialValues(activity: Activity): CreateActivityRequest {
   }
 }
 
+function editFormKey(activity: Activity): string {
+  return [
+    'activity-edit',
+    activity.id,
+    activity.mapboxId ?? '',
+    activity.placeName ?? '',
+    activity.address ?? '',
+    activity.lat ?? '',
+    activity.lng ?? '',
+  ].join(':')
+}
+
 export function ActivityCard({
   activity,
   active = false,
   busy = false,
+  dragDisabled = false,
   dragActivatorRef,
   dragAttributes,
   dragListeners,
@@ -140,7 +154,7 @@ export function ActivityCard({
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const timeDisplay = getTimeDisplay(activity)
   const categoryLabel = getCategoryLabel(activity.category)
-  const canDrag = !readOnly && !busy && !expanded
+  const canDrag = !readOnly && !busy && !dragDisabled && !expanded
   const cardClassName = [
     styles.card,
     canDrag ? styles.cardDraggable : '',
@@ -227,7 +241,7 @@ export function ActivityCard({
       {expanded && !readOnly && (
         <div className={styles.editorPanel}>
           <ActivityForm
-            key={`activity-edit-${activity.id}`}
+            key={editFormKey(activity)}
             initialValues={editInitialValues(activity)}
             onSubmit={(payload) => onSubmitEdit(activity, payload)}
             onDelete={handleDelete}

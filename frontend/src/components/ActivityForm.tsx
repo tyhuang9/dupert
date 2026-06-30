@@ -49,6 +49,21 @@ function emptyToNull(value: string): string | null {
   return trimmed === '' ? null : trimmed
 }
 
+function formStateFromInitialValues(initialValues: Partial<CreateActivityRequest> | undefined) {
+  return {
+    address: initialValues?.address ?? '',
+    category: initialValues?.category ?? 'OTHER',
+    endTime: initialValues?.endTime ?? '',
+    lat: initialValues?.lat ?? null,
+    lng: initialValues?.lng ?? null,
+    mapboxId: initialValues?.mapboxId ?? null,
+    notes: initialValues?.notes ?? '',
+    placeName: initialValues?.placeName ?? '',
+    startTime: initialValues?.startTime ?? '',
+    title: initialValues?.title ?? '',
+  } satisfies CreateActivityRequest
+}
+
 function ActivityCategoryIcon({ category }: { category: ActivityCategory }) {
   switch (category) {
     case 'ACTIVITY':
@@ -83,16 +98,17 @@ export function ActivityForm({
   const notesId = useId()
   const categoryMenuId = useId()
   const notesPanelId = useId()
-  const [category, setCategory] = useState<ActivityCategory>(initialValues?.category ?? 'OTHER')
-  const [title, setTitle] = useState(initialValues?.title ?? '')
-  const [notes, setNotes] = useState(initialValues?.notes ?? '')
-  const [startTime, setStartTime] = useState(initialValues?.startTime ?? '')
-  const [endTime, setEndTime] = useState(initialValues?.endTime ?? '')
-  const [placeName, setPlaceName] = useState(initialValues?.placeName ?? '')
-  const [address, setAddress] = useState(initialValues?.address ?? '')
-  const [mapboxId, setMapboxId] = useState<string | null>(initialValues?.mapboxId ?? null)
-  const [lat, setLat] = useState<number | null>(initialValues?.lat ?? null)
-  const [lng, setLng] = useState<number | null>(initialValues?.lng ?? null)
+  const initialFormState = formStateFromInitialValues(initialValues)
+  const [category, setCategory] = useState<ActivityCategory>(initialFormState.category)
+  const [title, setTitle] = useState(initialFormState.title)
+  const [notes, setNotes] = useState(initialFormState.notes ?? '')
+  const [startTime, setStartTime] = useState(initialFormState.startTime ?? '')
+  const [endTime, setEndTime] = useState(initialFormState.endTime ?? '')
+  const [placeName, setPlaceName] = useState(initialFormState.placeName ?? '')
+  const [address, setAddress] = useState(initialFormState.address ?? '')
+  const [mapboxId, setMapboxId] = useState<string | null>(initialFormState.mapboxId ?? null)
+  const [lat, setLat] = useState<number | null>(initialFormState.lat ?? null)
+  const [lng, setLng] = useState<number | null>(initialFormState.lng ?? null)
   const [categoryMenuOpen, setCategoryMenuOpen] = useState(false)
   const [notesOpen, setNotesOpen] = useState(Boolean(initialValues?.notes))
 

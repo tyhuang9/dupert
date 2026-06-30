@@ -1,6 +1,6 @@
 .list {
   display: grid;
-  gap: 7px;
+  gap: var(--space-2);
   padding: 0;
   margin: 0;
   list-style: none;
@@ -10,7 +10,7 @@
   position: relative;
   min-width: 0;
   display: grid;
-  grid-template-columns: 8px minmax(0, 1fr);
+  grid-template-columns: 16px minmax(0, 1fr);
   gap: var(--space-2);
   align-items: start;
   will-change: transform;
@@ -19,11 +19,12 @@
 .sortableItem::before {
   content: '';
   position: absolute;
-  top: 14px;
-  bottom: -9px;
-  left: 3px;
-  width: 1px;
-  background: rgba(148, 163, 184, 0.24);
+  top: 33px;
+  bottom: calc(-1 * var(--space-2) - 8px);
+  left: 7px;
+  width: 2px;
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--color-border-strong) 34%, transparent);
 }
 
 .lastItem::before {
@@ -32,17 +33,20 @@
 
 .timelineMarker {
   z-index: 1;
+  justify-self: center;
+  margin-top: 24px;
   display: inline-grid;
   place-items: center;
-  width: 8px;
-  height: 8px;
-  border: 1px solid rgba(148, 163, 184, 0.32);
+  width: 10px;
+  height: 10px;
+  border: 2px solid var(--color-surface);
   border-radius: var(--radius-pill);
-  background: rgba(148, 163, 184, 0.44);
+  background: color-mix(in srgb, var(--color-border-strong) 62%, var(--color-surface));
   color: transparent;
   font-size: 0;
   font-weight: 800;
   font-variant-numeric: tabular-nums;
+  box-shadow: 0 0 0 1px rgba(148, 163, 184, 0.34);
 }
 
 .cardSlot {
@@ -120,16 +124,16 @@
 
 @media (max-width: 520px) {
   .sortableItem {
-    grid-template-columns: 8px minmax(0, 1fr);
+    grid-template-columns: 16px minmax(0, 1fr);
     gap: var(--space-2);
   }
 
   .timelineMarker {
-    width: 8px;
-    height: 8px;
+    width: 10px;
+    height: 10px;
   }
 
   .sortableItem::before {
-    left: 3px;
+    left: 7px;
   }
 }

@@ -82,10 +82,12 @@ export function PlaceSearch({
           }}
           focusKey={focusKey}
           inputLabel="Search places"
-          includePhoto={false}
+          includePhoto
           placeholder="Search"
+          searchButtonLabel="Search places"
           searchFailedMessage={`Google Places search failed. ${googlePlacesAccessTroubleshooting()}`}
           selectOnFocus
+          showSearchButton={Boolean(onSearchSubmit)}
           options={autocompleteOptions}
         />
       </label>

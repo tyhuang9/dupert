@@ -210,10 +210,10 @@ describe('<PlaceSearch>', () => {
     expect(onSearchSubmit).toHaveBeenCalledWith('Ramen')
   })
 
-  it('disables photo lookups for map-side search', () => {
+  it('keeps photo lookups enabled for map-side place details', () => {
     render(<PlaceSearch onPlaceSelect={vi.fn()} />)
 
-    expect(autocompleteState.props?.includePhoto).toBe(false)
+    expect(autocompleteState.props?.includePhoto).toBe(true)
   })
 
   it('does not render category shortcut buttons around the Google search', () => {

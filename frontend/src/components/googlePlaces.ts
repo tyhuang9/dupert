@@ -3,7 +3,7 @@ export const GOOGLE_PLACES_AUTOCOMPLETE_URL =
 export const GOOGLE_PLACES_BASE_URL = 'https://places.googleapis.com/v1'
 export const GOOGLE_PLACES_TEXT_SEARCH_URL =
   'https://places.googleapis.com/v1/places:searchText'
-export const GOOGLE_PLACES_SEARCH_RESULT_LIMIT = 4
+export const GOOGLE_PLACES_SEARCH_RESULT_LIMIT = 10
 
 export const GOOGLE_PLACES_AUTOCOMPLETE_FIELD_MASK = [
   'suggestions.placePrediction.place',
@@ -28,7 +28,6 @@ export const GOOGLE_PLACE_DETAILS_FIELD_MASK = [
   'primaryTypeDisplayName',
   'rating',
   'regularOpeningHours',
-  'reviews',
   'types',
   'userRatingCount',
   'websiteUri',
@@ -47,13 +46,13 @@ export const GOOGLE_PLACE_DETAILS_WITHOUT_PHOTOS_FIELD_MASK = [
   'primaryTypeDisplayName',
   'rating',
   'regularOpeningHours',
-  'reviews',
   'types',
   'userRatingCount',
   'websiteUri',
 ].join(',')
 
 export const GOOGLE_PLACES_TEXT_SEARCH_FIELD_MASK = [
+  'nextPageToken',
   'places.businessStatus',
   'places.currentOpeningHours',
   'places.id',
@@ -67,7 +66,6 @@ export const GOOGLE_PLACES_TEXT_SEARCH_FIELD_MASK = [
   'places.primaryTypeDisplayName',
   'places.rating',
   'places.regularOpeningHours',
-  'places.reviews',
   'places.types',
   'places.userRatingCount',
   'places.websiteUri',
@@ -89,6 +87,7 @@ type FlexibleRectangle =
 
 export type GooglePlaceLocationBias = FlexibleCircle | FlexibleRectangle
 export type GooglePlaceLocationRestriction = FlexibleCircle | FlexibleRectangle
+export type GooglePlaceRankPreference = 'RELEVANCE' | 'DISTANCE'
 
 export interface GooglePlaceSearchOptions {
   language?: string
@@ -97,6 +96,12 @@ export interface GooglePlaceSearchOptions {
   proximity?: AppLatLng
   locationBias?: GooglePlaceLocationBias | null
   locationRestriction?: GooglePlaceLocationRestriction | null
+}
+
+export interface GooglePlaceTextSearchOptions extends GooglePlaceSearchOptions {
+  includedType?: string | null
+  pageToken?: string | null
+  rankPreference?: GooglePlaceRankPreference | null
 }
 
 export interface GooglePlacePrediction {
@@ -145,6 +150,11 @@ export interface GooglePlaceReview {
   text: string | null
 }
 
+export interface GooglePlaceTextSearchPage {
+  nextPageToken: string | null
+  places: GooglePlaceSelection[]
+}
+
 interface GoogleText {
   text?: string | null
 }
@@ -189,6 +199,7 @@ interface GooglePlaceDetailsResponse {
 }
 
 interface GooglePlacesTextSearchResponse {
+  nextPageToken?: string | null
   places?: GooglePlaceDetailsResponse[] | null
 }
 
@@ -209,6 +220,34 @@ interface GoogleReviewResponse {
 interface GooglePhotoMediaResponse {
   photoUri?: string | null
 }
+
+const GOOGLE_PLACE_CATEGORY_TYPES = new Map<string, string>([
+  ['restaurant', 'restaurant'],
+  ['restaurants', 'restaurant'],
+  ['food', 'restaurant'],
+  ['dining', 'restaurant'],
+  ['cafe', 'cafe'],
+  ['cafes', 'cafe'],
+  ['coffee', 'cafe'],
+  ['coffee shop', 'cafe'],
+  ['coffee shops', 'cafe'],
+  ['bar', 'bar'],
+  ['bars', 'bar'],
+  ['pub', 'bar'],
+  ['pubs', 'bar'],
+  ['museum', 'museum'],
+  ['museums', 'museum'],
+  ['park', 'park'],
+  ['parks', 'park'],
+  ['hotel', 'lodging'],
+  ['hotels', 'lodging'],
+  ['lodging', 'lodging'],
+  ['attraction', 'tourist_attraction'],
+  ['attractions', 'tourist_attraction'],
+  ['tourist attraction', 'tourist_attraction'],
+  ['tourist attractions', 'tourist_attraction'],
+  ['things to do', 'tourist_attraction'],
+])
 
 function isFiniteCoordinate(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value)
@@ -233,6 +272,19 @@ function normalizeHttpsUrl(value: string | null | undefined): string | null {
 
   const normalized = trimmed.startsWith('//') ? `https:${trimmed}` : trimmed
   return isHttpsUrl(normalized) ? normalized : null
+}
+
+function normalizeCategoryQuery(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[_-]+/g, ' ')
+    .replace(/[^\w\s]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+export function googlePlaceCategoryTypeForQuery(query: string): string | null {
+  return GOOGLE_PLACE_CATEGORY_TYPES.get(normalizeCategoryQuery(query)) ?? null
 }
 
 function restLatLng(value: FlexibleLatLng): GoogleRestLatLng | null {
@@ -356,7 +408,7 @@ export function buildGooglePlacesAutocompleteRequest(
 
 export function buildGooglePlacesTextSearchRequest(
   query: string,
-  options: GooglePlaceSearchOptions | undefined,
+  options: GooglePlaceTextSearchOptions | undefined,
   pageSize = GOOGLE_PLACES_SEARCH_RESULT_LIMIT,
 ) {
   const origin = options?.proximity ? restLatLng(options.proximity) : null
@@ -371,10 +423,12 @@ export function buildGooglePlacesTextSearchRequest(
     textQuery: query,
     languageCode: options?.language,
     regionCode: options?.region,
-    includedType: options?.types?.[0],
+    includedType: options?.includedType ?? options?.types?.[0],
     locationBias,
     locationRestriction,
     pageSize,
+    pageToken: options?.pageToken || undefined,
+    rankPreference: options?.rankPreference || undefined,
   }
 }
 
@@ -417,10 +471,10 @@ export async function fetchGooglePlaceTextSearch({
   apiKey: string
   fetchImpl?: FetchImplementation
   includePhoto?: boolean
-  options?: GooglePlaceSearchOptions
+  options?: GooglePlaceTextSearchOptions
   pageSize?: number
   query: string
-}): Promise<GooglePlaceSelection[]> {
+}): Promise<GooglePlaceTextSearchPage> {
   const response = await fetchImpl(GOOGLE_PLACES_TEXT_SEARCH_URL, {
     method: 'POST',
     headers: googlePlacesHeaders(apiKey, GOOGLE_PLACES_TEXT_SEARCH_FIELD_MASK),
@@ -442,7 +496,10 @@ export async function fetchGooglePlaceTextSearch({
       return normalizeGoogleTextSearchPlace(place, photoUrl)
     }),
   )
-  return normalizedPlaces.filter((place): place is GooglePlaceSelection => place !== null)
+  return {
+    nextPageToken: body.nextPageToken?.trim() || null,
+    places: normalizedPlaces.filter((place): place is GooglePlaceSelection => place !== null),
+  }
 }
 
 export async function fetchGooglePlaceDetails({
@@ -472,6 +529,45 @@ export async function fetchGooglePlaceDetails({
   assertOk(response, 'Google Place Details')
 
   return (await response.json()) as GooglePlaceDetailsResponse
+}
+
+export async function fetchGooglePlaceById({
+  apiKey,
+  fetchImpl = fetch,
+  includePhoto = true,
+  placeId,
+}: {
+  apiKey: string
+  fetchImpl?: FetchImplementation
+  includePhoto?: boolean
+  placeId: string
+}): Promise<GooglePlaceSelection> {
+  const details = await fetchGooglePlaceDetails({
+    apiKey,
+    fetchImpl,
+    includePhoto,
+    placeId,
+  })
+  const photoUrl = includePhoto
+    ? await imageUrlFromGooglePhotoName({
+        apiKey,
+        fetchImpl,
+        photoName: details.photos?.[0]?.name,
+      })
+    : null
+
+  return normalizeGooglePlaceResponse(
+    details,
+    {
+      mainText: textValue(details.displayName) || details.formattedAddress?.trim() || 'Selected place',
+      placeId,
+      placeResourceName: details.name?.trim() || null,
+      secondaryText: details.formattedAddress?.trim() || '',
+      text: textValue(details.displayName) || details.formattedAddress?.trim() || 'Selected place',
+      types: details.types?.filter(Boolean) ?? [],
+    },
+    photoUrl,
+  )
 }
 
 export async function imageUrlFromGooglePhotoName({
@@ -576,7 +672,7 @@ function normalizeGooglePlaceResponse(
     primaryTypeDisplayName: textValue(place.primaryTypeDisplayName) || null,
     rating: isFiniteCoordinate(place.rating) ? place.rating : null,
     regularOpeningHours: normalizeOpeningHours(place.regularOpeningHours),
-    reviews: normalizeReviews(place.reviews),
+    reviews: normalizeReviews(undefined),
     text,
     types,
     userRatingCount: isFiniteCoordinate(place.userRatingCount) ? place.userRatingCount : null,

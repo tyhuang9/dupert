@@ -1,3 +1,4 @@
+import { useRef } from 'react'
 import {
   useMutation,
   useQuery,
@@ -196,11 +197,14 @@ export function useReorderActivities(): UseMutationResult<
   { publicId: string; dayDate: string; body: ReorderActivitiesRequest }
 > {
   const queryClient = useQueryClient()
+  const latestReorderMutationIdRef = useRef(0)
 
   return useMutation({
     mutationFn: ({ publicId, dayDate, body }) =>
       reorderActivitiesForDay(publicId, dayDate, body),
     onMutate: async ({ publicId, dayDate, body }) => {
+      const mutationId = latestReorderMutationIdRef.current + 1
+      latestReorderMutationIdRef.current = mutationId
       await queryClient.cancelQueries({ queryKey: activityKeys.list(publicId) })
       const previousActivities =
         queryClient.getQueryData<Activity[]>(activityKeys.list(publicId))
@@ -211,11 +215,18 @@ export function useReorderActivities(): UseMutationResult<
           : existing,
       )
 
-      return { previousActivities }
+      return { mutationId, previousActivities }
     },
     onError: (_error, { publicId }, context) => {
-      if (context?.previousActivities) {
+      if (
+        context?.previousActivities &&
+        context.mutationId === latestReorderMutationIdRef.current
+      ) {
         queryClient.setQueryData(activityKeys.list(publicId), context.previousActivities)
+      } else {
+        void queryClient.invalidateQueries({
+          queryKey: activityKeys.list(publicId),
+        })
       }
     },
     onSettled: (_data, _error, { publicId }) => {

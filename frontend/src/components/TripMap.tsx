@@ -8,8 +8,9 @@ import {
   useMap,
   useMapsLibrary,
   type MapCameraChangedEvent,
+  type MapMouseEvent,
 } from '@vis.gl/react-google-maps'
-import { AlertCircle, Layers, LoaderCircle, MapPinned, Route } from 'lucide-react'
+import { AlertCircle, LoaderCircle, MapPin, MapPinned, Route } from 'lucide-react'
 import { getDrivingDirections, type AppRoute } from '../api/googleMapsRoute'
 import { geocodeDestination, type DestinationCoordinate } from '../api/googleMapsGeocode'
 import type { Activity } from '../types/activity'
@@ -35,6 +36,8 @@ interface TripMapProps {
   activeActivityId?: number | null
   onActivityActivate?: (activityId: number) => void
   onActiveActivityChange?: (activityId: number | null) => void
+  onMapPlaceClick?: (placeId: string) => void
+  onSearchResultHoverChange?: (placeId: string | null) => void
   onSearchResultSelect?: (place: MapSearchPlace) => void
   onViewportContextChange?: (context: MapViewportContext) => void
 }
@@ -47,6 +50,12 @@ export interface MapViewportContext {
     lat: number
   }
   zoom?: number
+  bounds?: {
+    east: number
+    north: number
+    south: number
+    west: number
+  }
 }
 
 export type MapPreviewPlace = Pick<
@@ -108,15 +117,16 @@ const DEFAULT_CAMERA: MapCamera = {
   zoom: 2.7,
 }
 
-const MAP_STYLE_OPTIONS: Array<{ id: MapStyleId; label: string }> = [
-  { id: 'roadmap', label: 'Roadmap' },
-  { id: 'terrain', label: 'Terrain' },
-  { id: 'satellite', label: 'Satellite' },
-  { id: 'hybrid', label: 'Hybrid' },
-]
+const MAP_TYPE_CONTROL_OPTIONS: google.maps.MapTypeControlOptions = {
+  position: 3 as google.maps.ControlPosition,
+}
 
 function isFiniteCoordinate(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value)
+}
+
+function isMapStyleId(value: unknown): value is MapStyleId {
+  return value === 'roadmap' || value === 'terrain' || value === 'satellite' || value === 'hybrid'
 }
 
 function hasCoordinates(activity: Activity): activity is CoordinateActivity {
@@ -179,7 +189,7 @@ function previewPlaceToDisplayStop(previewPlace: MapPreviewPlace | null | undefi
     label,
     lat: previewPlace.lat,
     lng: previewPlace.lng,
-    markerLabel: '+',
+    markerLabel: '',
     source: 'preview',
     title: `Search preview: ${label}`,
   }
@@ -196,7 +206,7 @@ function searchPlaceToDisplayStop(place: MapSearchPlace, index: number): Display
     label,
     lat: place.lat,
     lng: place.lng,
-    markerLabel: String(index + 1),
+    markerLabel: '',
     place,
     source: 'search',
     title: label,
@@ -215,6 +225,19 @@ function initialCamera(stops: DisplayStop[]): MapCamera {
   }
 }
 
+function mapBoundsContainPoint(
+  bounds: MapViewportContext['bounds'] | null | undefined,
+  point: { lat: number; lng: number },
+): boolean {
+  if (!bounds) return false
+  const insideLatitude = point.lat >= bounds.south && point.lat <= bounds.north
+  const insideLongitude =
+    bounds.west <= bounds.east
+      ? point.lng >= bounds.west && point.lng <= bounds.east
+      : point.lng >= bounds.west || point.lng <= bounds.east
+  return insideLatitude && insideLongitude
+}
+
 function formatTravelTime(seconds: number): string {
   const minutes = Math.max(1, Math.round(seconds / 60))
   if (minutes < 60) return `${minutes} min`
@@ -224,10 +247,12 @@ function formatTravelTime(seconds: number): string {
 }
 
 function GoogleOverlayMarker({
+  anchor = 'center',
   children,
   position,
   zIndex,
 }: {
+  anchor?: 'bottom' | 'center'
   children: ReactNode
   position: { lat: number; lng: number }
   zIndex?: number
@@ -236,10 +261,11 @@ function GoogleOverlayMarker({
   const container = useMemo(() => {
     const element = document.createElement('div')
     element.style.position = 'absolute'
-    element.style.transform = 'translate(-50%, -50%)'
+    element.style.transform =
+      anchor === 'bottom' ? 'translate(-50%, -100%)' : 'translate(-50%, -50%)'
     element.style.zIndex = String(zIndex ?? 1)
     return element
-  }, [zIndex])
+  }, [anchor, zIndex])
 
   useEffect(() => {
     if (!map) return undefined
@@ -308,6 +334,8 @@ function TripMapContent({
   highlightedSearchResultId = selectedSearchResultId,
   onActivityActivate,
   onActiveActivityChange,
+  onMapPlaceClick,
+  onSearchResultHoverChange,
   onSearchResultSelect,
   onViewportContextChange,
 }: TripMapProps) {
@@ -334,7 +362,6 @@ function TripMapContent({
     error: null,
     key: '',
   })
-  const [styleMenuOpen, setStyleMenuOpen] = useState(false)
   const selectedMappedActivities = useMemo(
     () => activities.filter(hasCoordinates),
     [activities],
@@ -376,23 +403,23 @@ function TripMapContent({
     destinationState.key === destinationKey ? destinationState.error : null
   const destinationLoading =
     Boolean(geocodingLibrary && destinationKey) && destinationState.key !== destinationKey
-  const displayStops = useMemo(() => {
-    let stops: DisplayStop[]
+  const baseDisplayStops = useMemo(() => {
     if (selectedMappedActivities.length > 0) {
-      stops = selectedMappedActivities.map((activity, index) =>
+      return selectedMappedActivities.map((activity, index) =>
         activityToDisplayStop(activity, index, 'selected'),
       )
-    } else if (fallbackMappedActivities.length > 0) {
-      stops = fallbackMappedActivities.map((activity, index) =>
+    }
+    if (fallbackMappedActivities.length > 0) {
+      return fallbackMappedActivities.map((activity, index) =>
         activityToDisplayStop(activity, index, 'trip'),
       )
-    } else {
-      stops = destinationCoordinate ? [destinationToDisplayStop(destinationCoordinate)] : []
     }
-
+    return destinationCoordinate ? [destinationToDisplayStop(destinationCoordinate)] : []
+  }, [destinationCoordinate, fallbackMappedActivities, selectedMappedActivities])
+  const displayStops = useMemo(() => {
     const mergedStops = searchDisplayStops.length > 0
-      ? [...stops, ...searchDisplayStops]
-      : stops
+      ? [...baseDisplayStops, ...searchDisplayStops]
+      : baseDisplayStops
     if (!previewDisplayStop) return mergedStops
     const previewAlreadySaved = mergedStops.some(
       (stop) =>
@@ -401,16 +428,10 @@ function TripMapContent({
         Math.abs(stop.lng - previewDisplayStop.lng) < 0.000001,
     )
     return previewAlreadySaved ? mergedStops : [...mergedStops, previewDisplayStop]
-  }, [
-    destinationCoordinate,
-    fallbackMappedActivities,
-    previewDisplayStop,
-    searchDisplayStops,
-    selectedMappedActivities,
-  ])
+  }, [baseDisplayStops, previewDisplayStop, searchDisplayStops])
   const camera = useMemo(
-    () => initialCamera(displayStops),
-    [displayStops],
+    () => initialCamera(baseDisplayStops.length > 0 ? baseDisplayStops : displayStops),
+    [baseDisplayStops, displayStops],
   )
   const routeKey = useMemo(
     () =>
@@ -474,20 +495,41 @@ function TripMapContent({
       }) ?? [],
     [currentRoute, routeMappedActivities],
   )
-  const displayKey = useMemo(
-    () => displayStops.map((stop) => `${stop.source}:${stop.lng},${stop.lat}`).join(';'),
-    [displayStops],
+  const baseDisplayKey = useMemo(
+    () => baseDisplayStops.map((stop) => `${stop.source}:${stop.lng},${stop.lat}`).join(';'),
+    [baseDisplayStops],
   )
+  const focusedDisplayStop = selectedSearchDisplayStop ?? previewDisplayStop
+  const focusedDisplayKey = focusedDisplayStop
+    ? `${focusedDisplayStop.source}:${focusedDisplayStop.lng},${focusedDisplayStop.lat}`
+    : ''
   const reportViewportContext = useCallback(() => {
     if (!onViewportContextChange) return
     if (!map) return
     const center = map.getCenter()
     if (!center) return
+    const bounds = typeof map.getBounds === 'function' ? map.getBounds()?.toJSON() : undefined
     onViewportContextChange({
       center: { lng: center.lng(), lat: center.lat() },
       zoom: map.getZoom(),
+      bounds,
     })
   }, [map, onViewportContextChange])
+
+  const handleMapClick = useCallback((event: MapMouseEvent) => {
+    const placeId = event.detail.placeId
+    if (!placeId) return
+    event.stop()
+    onMapPlaceClick?.(placeId)
+  }, [onMapPlaceClick])
+
+  const handleMapTypeIdChanged = useCallback(() => {
+    if (!onMapStyleChange || !map || typeof map.getMapTypeId !== 'function') return
+    const nextMapTypeId = map.getMapTypeId()
+    if (isMapStyleId(nextMapTypeId)) {
+      onMapStyleChange(nextMapTypeId)
+    }
+  }, [map, onMapStyleChange])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -534,10 +576,10 @@ function TripMapContent({
   }, [destinationKey, destinationState.key, geocodingLibrary])
 
   useEffect(() => {
-    if (!map || displayStops.length === 0 || !displayKey) return
+    if (!map || baseDisplayStops.length === 0 || !baseDisplayKey) return
 
-    if (displayStops.length === 1) {
-      const [stop] = displayStops
+    if (baseDisplayStops.length === 1) {
+      const [stop] = baseDisplayStops
       map.moveCamera({
         center: { lat: stop.lat, lng: stop.lng },
         zoom: stop.source === 'destination' ? 9 : 12,
@@ -546,8 +588,8 @@ function TripMapContent({
       return
     }
 
-    const lngs = displayStops.map((stop) => stop.lng)
-    const lats = displayStops.map((stop) => stop.lat)
+    const lngs = baseDisplayStops.map((stop) => stop.lng)
+    const lats = baseDisplayStops.map((stop) => stop.lat)
     const minLng = Math.min(...lngs)
     const maxLng = Math.max(...lngs)
     const minLat = Math.min(...lats)
@@ -572,20 +614,22 @@ function TripMapContent({
       64,
     )
     window.requestAnimationFrame(reportViewportContext)
-  }, [displayKey, displayStops, map, reportViewportContext])
+  }, [baseDisplayKey, baseDisplayStops, map, reportViewportContext])
 
   useEffect(() => {
-    if (!map || !selectedSearchDisplayStop) return
+    if (!map || !focusedDisplayStop || !focusedDisplayKey) return
+
+    const bounds = typeof map.getBounds === 'function' ? map.getBounds()?.toJSON() : undefined
+    if (mapBoundsContainPoint(bounds, focusedDisplayStop)) return
 
     map.moveCamera({
       center: {
-        lat: selectedSearchDisplayStop.lat,
-        lng: selectedSearchDisplayStop.lng,
+        lat: focusedDisplayStop.lat,
+        lng: focusedDisplayStop.lng,
       },
-      zoom: Math.max(map.getZoom() ?? 0, 14),
     })
     window.requestAnimationFrame(reportViewportContext)
-  }, [map, reportViewportContext, selectedSearchDisplayStop])
+  }, [focusedDisplayKey, focusedDisplayStop, map, reportViewportContext])
 
   return (
     <div className={styles.mapShell}>
@@ -600,10 +644,11 @@ function TripMapContent({
           defaultZoom={camera.zoom}
           mapId={mapId}
           mapTypeId={mapStyle}
-          clickableIcons={false}
+          clickableIcons={Boolean(onMapPlaceClick)}
           disableDefaultUI={false}
           fullscreenControl={false}
-          mapTypeControl={false}
+          mapTypeControl={Boolean(onMapStyleChange)}
+          mapTypeControlOptions={MAP_TYPE_CONTROL_OPTIONS}
           streetViewControl={false}
           zoomControl
           gestureHandling="greedy"
@@ -615,8 +660,11 @@ function TripMapContent({
                 lng: event.detail.center.lng,
               },
               zoom: event.detail.zoom,
+              bounds: event.detail.bounds,
             })
           }}
+          onClick={handleMapClick}
+          onMapTypeIdChanged={handleMapTypeIdChanged}
           reuseMaps
           style={{ width: '100%', height: '100%' }}
         >
@@ -630,6 +678,7 @@ function TripMapContent({
           )}
           {displayStops.map((stop) => (
             <GoogleOverlayMarker
+              anchor="bottom"
               key={stop.id}
               position={{ lat: stop.lat, lng: stop.lng }}
               zIndex={
@@ -651,7 +700,9 @@ function TripMapContent({
                   aria-label={stop.title}
                   title={stop.title}
                 >
-                  {stop.markerLabel}
+                  <span className={styles.markerGlyph}>
+                    <MapPin size={17} aria-hidden="true" />
+                  </span>
                 </span>
               ) : stop.source === 'search' && stop.place ? (
                 <button
@@ -663,11 +714,21 @@ function TripMapContent({
                       ? styles.searchMarkerActive
                       : '',
                   ].filter(Boolean).join(' ')}
-                  aria-label={`Show place details for search result ${stop.markerLabel}: ${stop.title}`}
+                  aria-label={`Show place details for ${stop.title}`}
                   title={stop.title}
+                  onMouseEnter={() =>
+                    onSearchResultHoverChange?.(stop.place?.mapboxId ?? stop.id)
+                  }
+                  onMouseLeave={() => onSearchResultHoverChange?.(null)}
+                  onFocus={() =>
+                    onSearchResultHoverChange?.(stop.place?.mapboxId ?? stop.id)
+                  }
+                  onBlur={() => onSearchResultHoverChange?.(null)}
                   onClick={() => onSearchResultSelect?.(stop.place as MapSearchPlace)}
                 >
-                  {stop.markerLabel}
+                  <span className={styles.markerGlyph}>
+                    <MapPin size={17} aria-hidden="true" />
+                  </span>
                 </button>
               ) : (
                 <button
@@ -688,7 +749,9 @@ function TripMapContent({
                     }
                   }}
                 >
-                  {stop.markerLabel}
+                  <span className={styles.markerGlyph}>
+                    {stop.markerLabel}
+                  </span>
                 </button>
               )}
             </GoogleOverlayMarker>
@@ -703,40 +766,6 @@ function TripMapContent({
           ))}
         </Map>
       </div>
-      {onMapStyleChange && (
-        <div className={styles.mapStyleControl}>
-          <button
-            type="button"
-            className={styles.mapStyleButton}
-            aria-label="Map style"
-            aria-haspopup="menu"
-            aria-expanded={styleMenuOpen}
-            title="Map style"
-            onClick={() => setStyleMenuOpen((current) => !current)}
-          >
-            <Layers size={18} aria-hidden="true" />
-          </button>
-          {styleMenuOpen && (
-            <div className={styles.mapStyleMenu} role="menu" aria-label="Map styles">
-              {MAP_STYLE_OPTIONS.map((option) => (
-                <button
-                  key={option.id}
-                  type="button"
-                  role="menuitemradio"
-                  aria-checked={mapStyle === option.id}
-                  className={styles.mapStyleMenuItem}
-                  onClick={() => {
-                    onMapStyleChange(option.id)
-                    setStyleMenuOpen(false)
-                  }}
-                >
-                  {option.label}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
       {mapNotice && (
         <div className={styles.mapNotice} aria-live="polite">
           {routeLoading || destinationLoading ? (
