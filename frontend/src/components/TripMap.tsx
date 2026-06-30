@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import {
   APILoadingStatus,
@@ -132,6 +132,7 @@ const DEFAULT_CAMERA: MapCamera = {
 const MAP_TYPE_CONTROL_OPTIONS: google.maps.MapTypeControlOptions = {
   position: 3 as google.maps.ControlPosition,
 }
+const MAP_CLICK_NEARBY_SEARCH_RADIUS_METERS = 500
 
 function isFiniteCoordinate(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value)
@@ -152,6 +153,43 @@ function normalizeClickedLocation(
     return null
   }
   return { lat: value.lat, lng: value.lng }
+}
+
+function normalizeGoogleLatLng(
+  value: google.maps.LatLng | google.maps.LatLngLiteral | null | undefined,
+): MapClickedLocation | null {
+  if (!value) return null
+  const lat = typeof value.lat === 'function' ? value.lat() : value.lat
+  const lng = typeof value.lng === 'function' ? value.lng() : value.lng
+  if (!isFiniteCoordinate(lat) || !isFiniteCoordinate(lng)) return null
+  return { lat, lng }
+}
+
+function distanceMetersBetween(left: MapClickedLocation, right: MapClickedLocation): number {
+  const latMeters = (left.lat - right.lat) * 111_320
+  const averageLatitudeRadians = ((left.lat + right.lat) / 2) * (Math.PI / 180)
+  const lngMeters = (left.lng - right.lng) * 111_320 * Math.cos(averageLatitudeRadians)
+  return Math.hypot(latMeters, lngMeters)
+}
+
+function nearestPlaceIdFromSearchResults(
+  results: google.maps.places.PlaceResult[] | null,
+  location: MapClickedLocation,
+): string | null {
+  const candidates = (results ?? [])
+    .map((result) => {
+      const placeId = result.place_id?.trim() || null
+      const resultLocation = normalizeGoogleLatLng(result.geometry?.location)
+      if (!placeId || !resultLocation) return null
+      return {
+        placeId,
+        distance: distanceMetersBetween(location, resultLocation),
+      }
+    })
+    .filter((candidate): candidate is { distance: number; placeId: string } => candidate !== null)
+    .sort((left, right) => left.distance - right.distance)
+
+  return candidates[0]?.placeId ?? null
 }
 
 function sortActivitiesByTripOrder(activities: CoordinateActivity[]): CoordinateActivity[] {
@@ -367,6 +405,8 @@ function TripMapContent({
   const apiLoadingStatus = useApiLoadingStatus()
   const routesLibrary = useMapsLibrary('routes')
   const geocodingLibrary = useMapsLibrary('geocoding')
+  const placesLibrary = useMapsLibrary('places')
+  const nearbyPlaceClickRequestIdRef = useRef(0)
   const [directionsState, setDirectionsState] = useState<{
     error: boolean
     key: string
@@ -439,6 +479,9 @@ function TripMapContent({
     }
     return destinationCoordinate ? [destinationToDisplayStop(destinationCoordinate)] : []
   }, [destinationCoordinate, fallbackMappedActivities, selectedMappedActivities])
+  useEffect(() => () => {
+    nearbyPlaceClickRequestIdRef.current += 1
+  }, [])
   const focusedActivityDisplayStop = useMemo(
     () =>
       focusedActivityId === null
@@ -548,13 +591,41 @@ function TripMapContent({
     })
   }, [map, onViewportContextChange])
 
+  const resolveNearbyClickedPlace = useCallback((
+    location: MapClickedLocation,
+    requestId: number,
+  ) => {
+    if (!map || !onMapPlaceClick || !placesLibrary) return
+
+    const placesService = new placesLibrary.PlacesService(map)
+    placesService.nearbySearch(
+      {
+        location,
+        radius: MAP_CLICK_NEARBY_SEARCH_RADIUS_METERS,
+      },
+      (results, status) => {
+        if (nearbyPlaceClickRequestIdRef.current !== requestId) return
+        if (status !== placesLibrary.PlacesServiceStatus.OK) return
+
+        const placeId = nearestPlaceIdFromSearchResults(results, location)
+        if (!placeId) return
+        onMapPlaceClick({ location, placeId })
+      },
+    )
+  }, [map, onMapPlaceClick, placesLibrary])
+
   const handleMapClick = useCallback((event: MapMouseEvent) => {
     const placeId = event.detail.placeId?.trim() || null
     const location = normalizeClickedLocation(event.detail.latLng)
     if (!placeId && !location) return
+    const requestId = nearbyPlaceClickRequestIdRef.current + 1
+    nearbyPlaceClickRequestIdRef.current = requestId
     event.stop()
     onMapPlaceClick?.({ location, placeId })
-  }, [onMapPlaceClick])
+    if (!placeId && location) {
+      resolveNearbyClickedPlace(location, requestId)
+    }
+  }, [onMapPlaceClick, resolveNearbyClickedPlace])
 
   const handleMapTypeIdChanged = useCallback(() => {
     if (!onMapStyleChange || !map || typeof map.getMapTypeId !== 'function') return
