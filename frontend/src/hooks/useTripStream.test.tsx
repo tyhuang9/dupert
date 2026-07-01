@@ -1,8 +1,9 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, cleanup, renderHook, waitFor } from '@testing-library/react'
-import { fetchEventSource } from '@microsoft/fetch-event-source'
+import { fetchEventSource, type FetchEventSourceInit } from '@microsoft/fetch-event-source'
 import type { PropsWithChildren } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { refreshSession } from '../api/client'
 import { useAuthStore } from '../auth/authStore'
 import { activityKeys } from './useActivities'
 import { shareKeys } from './useShareLinks'
@@ -10,12 +11,18 @@ import { tripKeys } from './useTrips'
 import { useTripStream } from './useTripStream'
 
 vi.mock('@microsoft/fetch-event-source', () => ({
+  EventStreamContentType: 'text/event-stream',
   fetchEventSource: vi.fn(() => new Promise(() => undefined)),
+}))
+
+vi.mock('../api/client', () => ({
+  refreshSession: vi.fn(),
 }))
 
 let queryClient: QueryClient
 
 const fetchEventSourceMock = vi.mocked(fetchEventSource)
+const refreshSessionMock = vi.mocked(refreshSession)
 
 function wrapper({ children }: PropsWithChildren) {
   return (
@@ -26,7 +33,7 @@ function wrapper({ children }: PropsWithChildren) {
 }
 
 function streamOptions() {
-  return fetchEventSourceMock.mock.calls[0][1] as {
+  return fetchEventSourceMock.mock.calls[0][1] as FetchEventSourceInit & {
     credentials: RequestCredentials
     headers?: Record<string, string>
     onmessage: (message: { data: string; event: string }) => void
@@ -73,6 +80,72 @@ describe('useTripStream', () => {
     expect(fetchEventSourceMock.mock.calls[0][0]).toBe('/api/trips/abc234def567/stream')
     expect(streamOptions().credentials).toBe('include')
     expect(streamOptions().headers).toEqual({ Authorization: 'Bearer live-token' })
+  })
+
+  it('refreshes an expired signed-in user token before connecting', async () => {
+    useAuthStore.getState().setSession({
+      accessToken: 'stale-token',
+      expiresInSeconds: 1,
+      user: { id: 1, email: 'alice@example.com', displayName: 'Alice' },
+    })
+    refreshSessionMock.mockImplementation(async () => {
+      useAuthStore.getState().setSession({
+        accessToken: 'fresh-token',
+        expiresInSeconds: 900,
+        user: { id: 1, email: 'alice@example.com', displayName: 'Alice' },
+      })
+      return {
+        accessToken: 'fresh-token',
+        expiresInSeconds: 900,
+        tokenType: 'Bearer',
+        user: { id: 1, email: 'alice@example.com', displayName: 'Alice' },
+      }
+    })
+
+    renderHook(() => useTripStream('abc234def567'), { wrapper })
+
+    await waitFor(() => {
+      expect(refreshSessionMock).toHaveBeenCalledTimes(1)
+    })
+    await waitFor(() => {
+      expect(fetchEventSourceMock).toHaveBeenCalledTimes(1)
+    })
+    expect(streamOptions().headers).toEqual({ Authorization: 'Bearer fresh-token' })
+  })
+
+  it('does not retry HTTP stream setup failures', async () => {
+    renderHook(() => useTripStream('abc234def567'), { wrapper })
+
+    await waitFor(() => {
+      expect(fetchEventSourceMock).toHaveBeenCalled()
+    })
+
+    let streamError: unknown
+    try {
+      await streamOptions().onopen?.(
+        new Response(JSON.stringify({ error: 'internal_error' }), {
+          status: 500,
+          headers: { 'content-type': 'application/json' },
+        }),
+      )
+    } catch (error) {
+      streamError = error
+    }
+
+    expect(streamError).toBeInstanceOf(Error)
+    expect(() => streamOptions().onerror?.(streamError)).toThrow(
+      'Trip stream returned HTTP 500',
+    )
+  })
+
+  it('retries dropped streams after a bounded delay', async () => {
+    renderHook(() => useTripStream('abc234def567'), { wrapper })
+
+    await waitFor(() => {
+      expect(fetchEventSourceMock).toHaveBeenCalled()
+    })
+
+    expect(streamOptions().onerror?.(new Error('network lost'))).toBe(5000)
   })
 
   it('invalidates activity queries for activity events', async () => {

@@ -1,7 +1,8 @@
 import { useEffect, useRef } from 'react'
-import { fetchEventSource } from '@microsoft/fetch-event-source'
+import { EventStreamContentType, fetchEventSource } from '@microsoft/fetch-event-source'
 import { useQueryClient } from '@tanstack/react-query'
 import { useAuthStore, useAccessToken } from '../auth/authStore'
+import { refreshSession } from '../api/client'
 import { shareKeys } from './useShareLinks'
 import { activityKeys } from './useActivities'
 import { tripKeys } from './useTrips'
@@ -16,6 +17,11 @@ export interface TripStreamEvent {
 
 interface UseTripStreamOptions {
   bufferActivityEvents?: boolean
+}
+
+const STREAM_RETRY_DELAY_MS = 5_000
+
+class FatalTripStreamError extends Error {
 }
 
 function isActivityEvent(event: TripStreamEvent): boolean {
@@ -59,28 +65,80 @@ export function useTripStream(
   useEffect(() => {
     if (!publicId) return
 
+    const streamPublicId = publicId
     const controller = new AbortController()
-    const token = useAuthStore.getState().getAccessToken()
 
-    void fetchEventSource(`/api/trips/${encodeURIComponent(publicId)}/stream`, {
-      credentials: 'include',
-      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-      openWhenHidden: true,
-      signal: controller.signal,
-      onmessage: (message) => {
-        if (message.event === 'connected') return
-        const event = parseTripStreamEvent(message.data)
-        if (!event || event.publicId !== publicId) return
-        if (bufferActivityEventsRef.current && isActivityEvent(event)) {
-          bufferedEventsRef.current.push(event)
-          return
-        }
-        invalidateForEvent(queryClient, publicId, event)
-      },
+    async function connect() {
+      if (await refreshedStaleUserToken(controller.signal)) {
+        return
+      }
+      if (controller.signal.aborted) {
+        return
+      }
+
+      const token = useAuthStore.getState().getAccessToken()
+      await fetchEventSource(`/api/trips/${encodeURIComponent(streamPublicId)}/stream`, {
+        credentials: 'include',
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        openWhenHidden: true,
+        signal: controller.signal,
+        onopen: async (response) => {
+          assertStreamResponse(response)
+        },
+        onerror: (error) => {
+          if (error instanceof FatalTripStreamError) {
+            throw error
+          }
+          return STREAM_RETRY_DELAY_MS
+        },
+        onmessage: (message) => {
+          if (message.event === 'connected') return
+          const event = parseTripStreamEvent(message.data)
+          if (!event || event.publicId !== streamPublicId) return
+          if (bufferActivityEventsRef.current && isActivityEvent(event)) {
+            bufferedEventsRef.current.push(event)
+            return
+          }
+          invalidateForEvent(queryClient, streamPublicId, event)
+        },
+      })
+    }
+
+    void connect().catch(() => {
+      // Fatal stream setup failures are intentionally not retried here. The next
+      // token or route change will create a fresh connection attempt.
     })
 
     return () => controller.abort()
   }, [accessToken, publicId, queryClient])
+}
+
+async function refreshedStaleUserToken(signal: AbortSignal): Promise<boolean> {
+  const state = useAuthStore.getState()
+  if (state.user === null || state.getAccessToken() !== null) {
+    return false
+  }
+
+  try {
+    await refreshSession()
+  } catch {
+    return true
+  }
+
+  return !signal.aborted
+}
+
+function assertStreamResponse(response: Response): void {
+  if (!response.ok) {
+    throw new FatalTripStreamError(`Trip stream returned HTTP ${response.status}`)
+  }
+
+  const contentType = response.headers.get('content-type')
+  if (!contentType?.startsWith(EventStreamContentType)) {
+    throw new FatalTripStreamError(
+      `Expected trip stream content-type ${EventStreamContentType}, received ${contentType ?? 'none'}`,
+    )
+  }
 }
 
 function invalidateForEvent(
