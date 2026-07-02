@@ -29,7 +29,7 @@ describe('TripWorkspacePage layout scroll contract', () => {
     expect(dayPanelBlock).toMatch(/z-index:\s*50/)
     expect(dayPanelBlock).toMatch(/width:\s*var\(--sidebar-rail-width\)/)
     expect(pinnedWorkspaceBlock).toMatch(/padding-left:\s*var\(--sidebar-expanded-width\)/)
-    expect(workspaceCss).toMatch(/\.dayPanel:hover,\s*\.dayPanel:focus-within,\s*\.dayPanelPinned\s*\{[^}]*width:\s*var\(--sidebar-expanded-width\)/s)
+    expect(workspaceCss).toMatch(/\.dayPanel:hover,\s*\.dayPanel:focus-within,\s*\.dayPanelPinned(?:,\s*[^{}]+)*\s*\{[^}]*width:\s*var\(--sidebar-expanded-width\)/s)
     expect(railIconBlock).toMatch(/width:\s*64px/)
     expect(railIconBlock).toMatch(/flex:\s*0 0 64px/)
   })
