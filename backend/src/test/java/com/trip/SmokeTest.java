@@ -140,6 +140,16 @@ class SmokeTest {
     }
 
     @Test
+    void corsPreflightFromLocalLoopbackAliasIsAcceptedInDevelopment() throws Exception {
+        mvc.perform(options("/api/anything")
+                .header("Origin", "http://127.0.0.1:3000")
+                .header("Access-Control-Request-Method", "GET"))
+            .andExpect(status().isOk())
+            .andExpect(header().string("Access-Control-Allow-Origin",
+                equalTo("http://127.0.0.1:3000")));
+    }
+
+    @Test
     void corsPreflightFromEvilOriginIsRejected() throws Exception {
         mvc.perform(options("/api/anything")
                 .header("Origin", "http://evil.example")
