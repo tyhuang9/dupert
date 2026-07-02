@@ -23,6 +23,8 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 @Configuration
 public class CorsConfig {
 
+    private static final List<String> LOCAL_DEV_HOSTS = List.of("localhost", "127.0.0.1", "0.0.0.0");
+
     @Bean
     public UrlBasedCorsConfigurationSource corsConfigurationSource(AppProperties props,
                                                                    Environment environment) {
@@ -50,21 +52,24 @@ public class CorsConfig {
     }
 
     static List<String> allowedOrigins(AppProperties props, Environment environment) {
-        Set<String> origins = new LinkedHashSet<>(Arrays.stream(props.getFrontendOrigin().split(","))
+        List<String> configuredOrigins = Arrays.stream(props.getFrontendOrigin().split(","))
             .map(String::trim)
             .filter(s -> !s.isEmpty())
-            .toList());
+            .toList();
 
-        if (environment.acceptsProfiles(Profiles.of("dev", "test"))) {
-            for (String origin : List.copyOf(origins)) {
-                addLoopbackAlias(origins, origin);
+        boolean expandLocalAliases = environment.acceptsProfiles(Profiles.of("dev", "test"));
+        Set<String> origins = new LinkedHashSet<>();
+        for (String origin : configuredOrigins) {
+            origins.add(origin);
+            if (expandLocalAliases) {
+                addLocalDevAliases(origins, origin);
             }
         }
 
         return List.copyOf(origins);
     }
 
-    private static void addLoopbackAlias(Set<String> origins, String origin) {
+    private static void addLocalDevAliases(Set<String> origins, String origin) {
         try {
             URI uri = URI.create(origin);
             String scheme = uri.getScheme();
@@ -73,22 +78,23 @@ public class CorsConfig {
                 return;
             }
             String normalizedHost = host.toLowerCase(Locale.ROOT);
-            String aliasHost;
-            if ("localhost".equals(normalizedHost)) {
-                aliasHost = "127.0.0.1";
-            } else if ("127.0.0.1".equals(normalizedHost)) {
-                aliasHost = "localhost";
-            } else {
+            if (!LOCAL_DEV_HOSTS.contains(normalizedHost)) {
                 return;
             }
 
-            StringBuilder alias = new StringBuilder(scheme).append("://").append(aliasHost);
-            if (uri.getPort() >= 0) {
-                alias.append(':').append(uri.getPort());
+            for (String aliasHost : LOCAL_DEV_HOSTS) {
+                origins.add(originFor(uri, aliasHost));
             }
-            origins.add(alias.toString());
         } catch (IllegalArgumentException ignored) {
             // Invalid configured origins are left unchanged so Spring rejects them normally.
         }
+    }
+
+    private static String originFor(URI uri, String host) {
+        StringBuilder origin = new StringBuilder(uri.getScheme()).append("://").append(host);
+        if (uri.getPort() >= 0) {
+            origin.append(':').append(uri.getPort());
+        }
+        return origin.toString();
     }
 }

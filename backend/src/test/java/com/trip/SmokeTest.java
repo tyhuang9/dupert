@@ -150,6 +150,16 @@ class SmokeTest {
     }
 
     @Test
+    void corsPreflightFromLocalBindAddressIsAcceptedInDevelopment() throws Exception {
+        mvc.perform(options("/api/anything")
+                .header("Origin", "http://0.0.0.0:3000")
+                .header("Access-Control-Request-Method", "GET"))
+            .andExpect(status().isOk())
+            .andExpect(header().string("Access-Control-Allow-Origin",
+                equalTo("http://0.0.0.0:3000")));
+    }
+
+    @Test
     void corsPreflightFromEvilOriginIsRejected() throws Exception {
         mvc.perform(options("/api/anything")
                 .header("Origin", "http://evil.example")

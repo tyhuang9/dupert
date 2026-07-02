@@ -16,7 +16,10 @@ class CorsConfigTest {
         environment.setActiveProfiles("dev");
 
         assertThat(CorsConfig.allowedOrigins(props, environment))
-            .containsExactly("http://localhost:3000", "http://127.0.0.1:3000");
+            .containsExactly(
+                "http://localhost:3000",
+                "http://127.0.0.1:3000",
+                "http://0.0.0.0:3000");
     }
 
     @Test
@@ -26,7 +29,23 @@ class CorsConfigTest {
         environment.setActiveProfiles("dev");
 
         assertThat(CorsConfig.allowedOrigins(props, environment))
-            .containsExactly("http://127.0.0.1:3000", "http://localhost:3000");
+            .containsExactly(
+                "http://127.0.0.1:3000",
+                "http://localhost:3000",
+                "http://0.0.0.0:3000");
+    }
+
+    @Test
+    void devExpandsWildcardBindAddressToBrowserLoopbackAliases() {
+        AppProperties props = appProperties("http://0.0.0.0:3000");
+        MockEnvironment environment = new MockEnvironment();
+        environment.setActiveProfiles("dev");
+
+        assertThat(CorsConfig.allowedOrigins(props, environment))
+            .containsExactly(
+                "http://0.0.0.0:3000",
+                "http://localhost:3000",
+                "http://127.0.0.1:3000");
     }
 
     @Test
@@ -60,6 +79,7 @@ class CorsConfigTest {
             .isEqualTo(List.of(
                 "http://localhost:3000",
                 "http://127.0.0.1:3000",
+                "http://0.0.0.0:3000",
                 "https://tripplanner.example"));
     }
 
