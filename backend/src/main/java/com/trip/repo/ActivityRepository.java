@@ -25,10 +25,20 @@ public interface ActivityRepository extends JpaRepository<Activity, Long> {
     List<Activity> findByTripIdAndDayDateOrderByOrderIndex(Long tripId, LocalDate dayDate);
 
     /**
+     * Find all no-day idea activities for a trip, ordered by {@code order_index}.
+     */
+    List<Activity> findByTripIdAndDayDateIsNullOrderByOrderIndex(Long tripId);
+
+    /**
      * Find all activities for a trip within a date range, ordered by day and then index.
      */
-    @Query("SELECT a FROM Activity a WHERE a.tripId = :tripId AND a.dayDate BETWEEN :startDate AND :endDate ORDER BY a.dayDate, a.orderIndex")
-    List<Activity> findAllInDateRange(@Param("tripId") Long tripId, @Param("startDate") LocalDate startDate, @Param("endDate") LocalDate endDate);
+    @Query("""
+        SELECT a FROM Activity a
+        WHERE a.tripId = :tripId
+          AND (a.dayDate IS NULL OR a.dayDate BETWEEN :startDate AND :endDate)
+        ORDER BY CASE WHEN a.dayDate IS NULL THEN 1 ELSE 0 END, a.dayDate, a.orderIndex
+        """)
+    List<Activity> findAllVisibleForTrip(@Param("tripId") Long tripId, @Param("startDate") LocalDate startDate, @Param("endDate") LocalDate endDate);
 
     /**
      * Find a single activity by id, with IDOR checks deferred to service layer.
@@ -45,4 +55,10 @@ public interface ActivityRepository extends JpaRepository<Activity, Long> {
      */
     @Query("SELECT COALESCE(MAX(a.orderIndex), -1) FROM Activity a WHERE a.tripId = :tripId AND a.dayDate = :dayDate")
     int findMaxOrderIndexForDay(@Param("tripId") Long tripId, @Param("dayDate") LocalDate dayDate);
+
+    /**
+     * Find the maximum order_index for no-day ideas to compute the next index.
+     */
+    @Query("SELECT COALESCE(MAX(a.orderIndex), -1) FROM Activity a WHERE a.tripId = :tripId AND a.dayDate IS NULL")
+    int findMaxOrderIndexForIdeas(@Param("tripId") Long tripId);
 }

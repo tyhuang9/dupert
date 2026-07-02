@@ -4,17 +4,19 @@ import type { Activity } from '../types/activity'
 
 const ACTIVITY_PREFIX = 'activity:'
 const DAY_PREFIX = 'day:'
+const IDEAS_DROP_ID = 'ideas'
+const SIDEBAR_DAY_PREFIX = 'sidebar-day:'
 
 export interface ReorderDragOperation {
   type: 'reorder'
-  dayDate: string
+  dayDate: string | null
   activityIds: number[]
 }
 
 export interface MoveDragOperation {
   type: 'move'
   activity: Activity
-  dayDate: string
+  dayDate: string | null
   orderIndex: number
 }
 
@@ -28,6 +30,14 @@ export function dayDropId(dayDate: string): string {
   return `${DAY_PREFIX}${dayDate}`
 }
 
+export function sidebarDayDropId(dayDate: string): string {
+  return `${SIDEBAR_DAY_PREFIX}${dayDate}`
+}
+
+export function ideasDropId(): string {
+  return IDEAS_DROP_ID
+}
+
 export function parseActivityDragId(id: UniqueIdentifier): number | null {
   const value = String(id)
   if (!value.startsWith(ACTIVITY_PREFIX)) return null
@@ -37,9 +47,34 @@ export function parseActivityDragId(id: UniqueIdentifier): number | null {
 
 export function parseDayDropId(id: UniqueIdentifier): string | null {
   const value = String(id)
-  if (!value.startsWith(DAY_PREFIX)) return null
-  const dayDate = value.slice(DAY_PREFIX.length)
+  const dayDate = value.startsWith(DAY_PREFIX)
+    ? value.slice(DAY_PREFIX.length)
+    : value.startsWith(SIDEBAR_DAY_PREFIX)
+      ? value.slice(SIDEBAR_DAY_PREFIX.length)
+      : null
+  if (!dayDate) return null
   return /^\d{4}-\d{2}-\d{2}$/.test(dayDate) ? dayDate : null
+}
+
+export function parseSidebarDayDropId(id: UniqueIdentifier): string | null {
+  const value = String(id)
+  if (!value.startsWith(SIDEBAR_DAY_PREFIX)) return null
+  const dayDate = value.slice(SIDEBAR_DAY_PREFIX.length)
+  return /^\d{4}-\d{2}-\d{2}$/.test(dayDate) ? dayDate : null
+}
+
+export function parseIdeasDropId(id: UniqueIdentifier): boolean {
+  return String(id) === IDEAS_DROP_ID
+}
+
+export function shouldApplySortableTransform({
+  freezeDragPreview,
+  isDragging,
+}: {
+  freezeDragPreview: boolean
+  isDragging: boolean
+}): boolean {
+  return !freezeDragPreview || isDragging
 }
 
 export function listTripDays(startDate: string, endDate: string): string[] {
@@ -55,7 +90,7 @@ export function listTripDays(startDate: string, endDate: string): string[] {
   return days
 }
 
-function activitiesForDay(allActivities: Activity[], dayDate: string): Activity[] {
+function activitiesForDay(allActivities: Activity[], dayDate: string | null): Activity[] {
   return allActivities
     .filter((activity) => activity.dayDate === dayDate)
     .sort((left, right) => left.orderIndex - right.orderIndex)
@@ -93,14 +128,16 @@ export function getActivityDragOperation({
     }
   }
 
-  const targetDay = parseDayDropId(overId)
-  if (!targetDay || targetDay === draggedActivity.dayDate) return null
+  const droppingOnIdeas = parseIdeasDropId(overId)
+  const targetDay = droppingOnIdeas ? null : parseDayDropId(overId)
+  if (!droppingOnIdeas && !targetDay) return null
+  if (targetDay === draggedActivity.dayDate) return null
 
   return {
     type: 'move',
     activity: draggedActivity,
     dayDate: targetDay,
-    orderIndex: allActivities.filter((activity) => activity.dayDate === targetDay).length,
+    orderIndex: activitiesForDay(allActivities, targetDay).length,
   }
 }
 
@@ -151,8 +188,10 @@ export function getTimelineDragOperation({
     }
   }
 
-  const targetDay = parseDayDropId(overId)
-  if (!targetDay || targetDay === draggedActivity.dayDate) return null
+  const droppingOnIdeas = parseIdeasDropId(overId)
+  const targetDay = droppingOnIdeas ? null : parseDayDropId(overId)
+  if (!droppingOnIdeas && !targetDay) return null
+  if (targetDay === draggedActivity.dayDate) return null
 
   return {
     type: 'move',

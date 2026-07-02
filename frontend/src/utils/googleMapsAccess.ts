@@ -1,3 +1,10 @@
+import axios from 'axios'
+
+interface BackendGoogleErrorBody {
+  error?: unknown
+  message?: unknown
+}
+
 function currentOrigin(): string | null {
   if (typeof window === 'undefined') return null
   return window.location.origin
@@ -31,5 +38,93 @@ export function googleMapsAccessTroubleshooting(): string {
 }
 
 export function googlePlacesAccessTroubleshooting(): string {
-  return 'Confirm the backend GOOGLE_MAPS_SERVER_API_KEY is configured, Places API (New) is enabled, and server key restrictions allow backend requests.'
+  return 'Check backend logs, GOOGLE_MAPS_SERVER_API_KEY, Places API (New), and server key restrictions.'
+}
+
+export function googleRoutesAccessTroubleshooting(): string {
+  return 'Check backend logs, GOOGLE_MAPS_SERVER_API_KEY, Routes API, and server key restrictions.'
+}
+
+function sentence(value: string): string {
+  const trimmed = value.trim()
+  if (!trimmed) return trimmed
+  return /[.!?]$/.test(trimmed) ? trimmed : `${trimmed}.`
+}
+
+function backendUnavailableMessage(): string {
+  return 'Could not reach the TripPlanner backend. Start the backend on http://localhost:8000 and keep the frontend dev server proxying /api.'
+}
+
+function backendGoogleFailureDetail(
+  error: unknown,
+  serviceName: string,
+  troubleshooting: string,
+): string {
+  if (axios.isAxiosError<BackendGoogleErrorBody>(error)) {
+    if (!error.response) return backendUnavailableMessage()
+
+    const status = error.response.status
+    const body = error.response.data
+    const code = body && typeof body === 'object' && typeof body.error === 'string'
+      ? body.error
+      : null
+    const backendMessage = body && typeof body === 'object' && typeof body.message === 'string'
+      ? body.message
+      : null
+
+    if (status === 429 || code === 'google_maps_rate_limited') {
+      return `${serviceName} is temporarily rate limited. Try again in a few minutes.`
+    }
+    if (code === 'invalid_google_maps_request') {
+      return backendMessage ?? `${serviceName} request was rejected by the backend.`
+    }
+    if (code === 'google_maps_result_not_found') {
+      return backendMessage ?? `${serviceName} did not find a result.`
+    }
+    if (
+      code?.startsWith('google_maps') ||
+      status === 401 ||
+      status === 403 ||
+      status === 502
+    ) {
+      return `${serviceName} request reached the backend, but Google rejected or failed it. ${troubleshooting}`
+    }
+    if (backendMessage) return backendMessage
+    if (status >= 500) return `The backend returned ${status}. Check backend logs for details.`
+  }
+
+  if (error instanceof Error) {
+    const statusMatch = error.message.match(/\b([45]\d{2})\b/)
+    if (statusMatch) {
+      const status = Number(statusMatch[1])
+      if (status === 429) {
+        return `${serviceName} is temporarily rate limited. Try again in a few minutes.`
+      }
+      if (status === 401 || status === 403 || status === 502) {
+        return `${serviceName} request reached the backend, but Google rejected or failed it. ${troubleshooting}`
+      }
+      if (status >= 500) return `The backend returned ${status}. Check backend logs for details.`
+    }
+  }
+
+  return `${serviceName} request failed. Try again shortly.`
+}
+
+export function googlePlacesSearchFailureMessage(
+  error: unknown,
+  fallbackMessage = 'Google Places search failed.',
+): string {
+  return `${sentence(fallbackMessage)} ${backendGoogleFailureDetail(
+    error,
+    'Google Places',
+    googlePlacesAccessTroubleshooting(),
+  )}`
+}
+
+export function googleRoutesFailureMessage(error: unknown): string {
+  return `Route unavailable. ${backendGoogleFailureDetail(
+    error,
+    'Google Routes',
+    googleRoutesAccessTroubleshooting(),
+  )}`
 }

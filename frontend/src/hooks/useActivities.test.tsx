@@ -13,6 +13,7 @@ import {
   useDeleteActivity,
   useMoveActivity,
   useReorderActivities,
+  useReorderIdeas,
   useUpdateActivity,
   useUpdateDayNote,
 } from './useActivities'
@@ -64,6 +65,15 @@ const NEXT_DAY_ACTIVITY: Activity = {
   dayDate: '2026-05-02',
   title: 'Train station',
   category: 'TRANSPORT',
+  orderIndex: 0,
+}
+
+const IDEA_ACTIVITY: Activity = {
+  ...SAMPLE_ACTIVITY,
+  id: 13,
+  dayDate: null,
+  title: 'Save teamLab',
+  category: 'ACTIVITY',
   orderIndex: 0,
 }
 
@@ -152,6 +162,24 @@ describe('useActivities', () => {
     expect(queryClient.getQueryData(activityKeys.list('abc234def567'))).toEqual([])
   })
 
+  it('optimistically creates an idea without a dayDate query parameter', async () => {
+    apiMock.onPost('/trips/abc234def567/activities').reply(201, IDEA_ACTIVITY)
+
+    const create = renderHook(() => useCreateActivity(), { wrapper })
+    await act(async () => {
+      await create.result.current.mutateAsync({
+        publicId: 'abc234def567',
+        dayDate: null,
+        body: { category: 'ACTIVITY', title: 'Save teamLab' },
+      })
+    })
+
+    expect(apiMock.history.post[0].url).toBe('/trips/abc234def567/activities')
+    expect(queryClient.getQueryData(activityKeys.list('abc234def567'))).toEqual([
+      IDEA_ACTIVITY,
+    ])
+  })
+
   it('optimistically reorders activities before the reorder request resolves', async () => {
     let resolveReorder: (() => void) | undefined
     queryClient.setQueryData(activityKeys.list('abc234def567'), [
@@ -184,6 +212,45 @@ describe('useActivities', () => {
       ).toEqual([
         [11, 0],
         [10, 1],
+      ])
+    })
+
+    await act(async () => {
+      resolveReorder?.()
+    })
+  })
+
+  it('optimistically reorders ideas before the reorder request resolves', async () => {
+    let resolveReorder: (() => void) | undefined
+    queryClient.setQueryData(activityKeys.list('abc234def567'), [
+      IDEA_ACTIVITY,
+      { ...IDEA_ACTIVITY, id: 14, title: 'Save Ghibli Museum', orderIndex: 1 },
+      SAMPLE_ACTIVITY,
+    ])
+    apiMock
+      .onPost('/trips/abc234def567/ideas/order')
+      .reply(() => new Promise((resolve) => {
+        resolveReorder = () => resolve([204])
+      }))
+
+    const reorder = renderHook(() => useReorderIdeas(), { wrapper })
+
+    act(() => {
+      reorder.result.current.mutate({
+        publicId: 'abc234def567',
+        body: { activityIds: [14, 13] },
+      })
+    })
+
+    await waitFor(() => {
+      expect(
+        queryClient
+          .getQueryData<Activity[]>(activityKeys.list('abc234def567'))
+          ?.filter((activity) => activity.dayDate === null)
+          .map((activity) => [activity.id, activity.orderIndex]),
+      ).toEqual([
+        [14, 0],
+        [13, 1],
       ])
     })
 

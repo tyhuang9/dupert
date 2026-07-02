@@ -4,6 +4,10 @@ import java.net.URI;
 import java.time.Clock;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -28,6 +32,7 @@ import com.trip.repo.GoogleApiCacheRepository;
 @Profile("!test")
 public class GoogleMapsService {
     private static final Logger log = LoggerFactory.getLogger(GoogleMapsService.class);
+    private static final int PHOTO_ENRICHMENT_PARALLELISM = 4;
 
     public static final String AUTOCOMPLETE_FIELD_MASK = String.join(",",
         "suggestions.placePrediction.place",
@@ -201,15 +206,42 @@ public class GoogleMapsService {
         ObjectNode copy = response.deepCopy();
         JsonNode places = copy.get("places");
         if (!places.isArray()) return copy;
+        List<ObjectNode> enrichablePlaces = new ArrayList<>();
         for (JsonNode place : places) {
             if (!place.isObject()) continue;
-            String photoName = firstPhotoName(place);
-            String photoUrl = safePhotoUrl(photoName, 1600, 1000);
-            if (photoUrl != null) {
-                ((ObjectNode) place).put("photoUrl", photoUrl);
+            if (firstPhotoName(place) != null) {
+                enrichablePlaces.add((ObjectNode) place);
             }
         }
+        if (enrichablePlaces.isEmpty()) return copy;
+
+        int poolSize = Math.min(PHOTO_ENRICHMENT_PARALLELISM, enrichablePlaces.size());
+        ExecutorService executor = Executors.newFixedThreadPool(poolSize);
+        try {
+            List<CompletableFuture<PhotoEnrichment>> photoRequests = enrichablePlaces.stream()
+                .map(place -> CompletableFuture.supplyAsync(() -> {
+                    String photoUrl = safePhotoUrl(firstPhotoName(place), 1600, 1000);
+                    return new PhotoEnrichment(place, photoUrl);
+                }, executor))
+                .toList();
+
+            for (CompletableFuture<PhotoEnrichment> photoRequest : photoRequests) {
+                try {
+                    PhotoEnrichment enrichment = photoRequest.join();
+                    if (enrichment.photoUrl() != null) {
+                        enrichment.place().put("photoUrl", enrichment.photoUrl());
+                    }
+                } catch (CompletionException ex) {
+                    log.warn("Google photo media enrichment failed: {}", ex.getCause().getClass().getSimpleName());
+                }
+            }
+        } finally {
+            executor.shutdown();
+        }
         return copy;
+    }
+
+    private record PhotoEnrichment(ObjectNode place, String photoUrl) {
     }
 
     private String safePhotoUrl(String photoName, int maxWidthPx, int maxHeightPx) {

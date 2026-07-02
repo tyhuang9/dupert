@@ -4,6 +4,7 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 
 import org.springframework.stereotype.Service;
@@ -93,12 +94,7 @@ public class ActivityService {
         ResolvedTrip resolved = tripAccessGuard.resolveForActorAtLeast(publicId, actor, TripRole.EDITOR);
         Long tripId = resolved.trip().getId();
 
-        // Validate the day is within the trip's date range
-        if (dayDate.isBefore(resolved.trip().getStartDate()) ||
-            dayDate.isAfter(resolved.trip().getEndDate())) {
-            throw new ValidationException("day_out_of_range",
-                "dayDate must fall within the trip's startDate and endDate");
-        }
+        validateActivityBucketDay(dayDate, resolved);
 
         // Enforce resource cap
         long count = activityRepository.countByTripId(tripId);
@@ -107,8 +103,8 @@ public class ActivityService {
                 "Trip has reached the maximum number of activities");
         }
 
-        // Compute the next order index for this day
-        int maxIndex = activityRepository.findMaxOrderIndexForDay(tripId, dayDate);
+        // Compute the next order index for this day or Ideas bucket.
+        int maxIndex = maxOrderIndexForBucket(tripId, dayDate);
         int nextIndex = maxIndex + 1;
 
         // Create the activity
@@ -149,7 +145,7 @@ public class ActivityService {
         ResolvedTrip resolved = tripAccessGuard.resolveForActor(publicId, actor);
         Long tripId = resolved.trip().getId();
 
-        List<Activity> activities = activityRepository.findAllInDateRange(
+        List<Activity> activities = activityRepository.findAllVisibleForTrip(
             tripId,
             resolved.trip().getStartDate(),
             resolved.trip().getEndDate());
@@ -365,19 +361,29 @@ public class ActivityService {
     public void reorderActivitiesForDay(String publicId, LocalDate dayDate, TripActor actor,
                                         ReorderActivitiesRequest request) {
         ResolvedTrip resolved = tripAccessGuard.resolveForActorAtLeast(publicId, actor, TripRole.EDITOR);
+        validateActivityBucketDay(dayDate, resolved);
+        reorderActivitiesInBucket(publicId, dayDate, actor, resolved, request);
+    }
+
+    /**
+     * Reorder no-day Ideas.
+     */
+    @Transactional
+    public void reorderIdeas(String publicId, Long userId, ReorderActivitiesRequest request) {
+        reorderIdeas(publicId, TripActor.user(userId), request);
+    }
+
+    @Transactional
+    public void reorderIdeas(String publicId, TripActor actor, ReorderActivitiesRequest request) {
+        ResolvedTrip resolved = tripAccessGuard.resolveForActorAtLeast(publicId, actor, TripRole.EDITOR);
+        reorderActivitiesInBucket(publicId, null, actor, resolved, request);
+    }
+
+    private void reorderActivitiesInBucket(String publicId, LocalDate dayDate, TripActor actor,
+                                           ResolvedTrip resolved, ReorderActivitiesRequest request) {
         Long tripId = resolved.trip().getId();
+        List<Activity> currentActivities = activitiesForBucket(tripId, dayDate);
 
-        // Validate the day is within the trip's date range
-        if (dayDate.isBefore(resolved.trip().getStartDate()) ||
-            dayDate.isAfter(resolved.trip().getEndDate())) {
-            throw new ValidationException("day_out_of_range",
-                "dayDate must fall within the trip's startDate and endDate");
-        }
-
-        // Load all activities for this day
-        List<Activity> currentDayActivities = activityRepository.findByTripIdAndDayDateOrderByOrderIndex(tripId, dayDate);
-
-        // Validate that all provided IDs belong to this trip/day and build a lookup map
         var requestedIds = request.activityIds();
         Set<Long> uniqueRequestedIds = new HashSet<>(requestedIds);
         if (uniqueRequestedIds.size() != requestedIds.size()) {
@@ -386,18 +392,18 @@ public class ActivityService {
         }
 
         var activityById = new java.util.HashMap<Long, Activity>();
-        for (Activity a : currentDayActivities) {
-            activityById.put(a.getId(), a);
+        for (Activity activity : currentActivities) {
+            activityById.put(activity.getId(), activity);
         }
 
         for (Long id : requestedIds) {
             if (!activityById.containsKey(id)) {
                 throw new ValidationException("activity_not_found_for_day",
-                    "Activity id=" + id + " does not belong to trip=" + tripId + " day=" + dayDate);
+                    "Activity id=" + id + " does not belong to trip=" + tripId + " "
+                        + bucketDescription(dayDate));
             }
         }
 
-        // Update the order_index for all provided activities
         int nextIndex = 0;
         for (Long id : requestedIds) {
             Activity activity = activityById.get(id);
@@ -407,17 +413,52 @@ public class ActivityService {
             nextIndex++;
         }
 
-        // Activities not in the request are moved to the end
-        for (Activity a : currentDayActivities) {
-            if (!uniqueRequestedIds.contains(a.getId())) {
-                a.setOrderIndex(nextIndex);
-                attributeUpdated(a, actor, resolved);
-                activityRepository.save(a);
+        for (Activity activity : currentActivities) {
+            if (!uniqueRequestedIds.contains(activity.getId())) {
+                activity.setOrderIndex(nextIndex);
+                attributeUpdated(activity, actor, resolved);
+                activityRepository.save(activity);
                 nextIndex++;
             }
         }
         tripEventPublisher.publishAfterCommit(
             tripId, TripEvent.dayReordered(publicId, dayDate));
+    }
+
+    private void validateActivityBucketDay(LocalDate dayDate, ResolvedTrip resolved) {
+        if (dayDate == null) {
+            return;
+        }
+        if (dayDate.isBefore(resolved.trip().getStartDate()) ||
+            dayDate.isAfter(resolved.trip().getEndDate())) {
+            throw new ValidationException("day_out_of_range",
+                "dayDate must fall within the trip's startDate and endDate");
+        }
+    }
+
+    private List<Activity> activitiesForBucket(Long tripId, LocalDate dayDate) {
+        return dayDate == null
+            ? activityRepository.findByTripIdAndDayDateIsNullOrderByOrderIndex(tripId)
+            : activityRepository.findByTripIdAndDayDateOrderByOrderIndex(tripId, dayDate);
+    }
+
+    private int maxOrderIndexForBucket(Long tripId, LocalDate dayDate) {
+        return dayDate == null
+            ? activityRepository.findMaxOrderIndexForIdeas(tripId)
+            : activityRepository.findMaxOrderIndexForDay(tripId, dayDate);
+    }
+
+    private void reindexAndSave(List<Activity> activities, TripActor actor, ResolvedTrip resolved) {
+        for (int index = 0; index < activities.size(); index++) {
+            Activity activity = activities.get(index);
+            activity.setOrderIndex(index);
+            attributeUpdated(activity, actor, resolved);
+            activityRepository.save(activity);
+        }
+    }
+
+    private static String bucketDescription(LocalDate dayDate) {
+        return dayDate == null ? "Ideas" : "day=" + dayDate;
     }
 
     /**
@@ -447,12 +488,7 @@ public class ActivityService {
         ResolvedTrip resolved = tripAccessGuard.resolveForActorAtLeast(publicId, actor, TripRole.EDITOR);
         Long tripId = resolved.trip().getId();
 
-        // Validate the destination day is within the trip's date range
-        if (request.dayDate().isBefore(resolved.trip().getStartDate()) ||
-            request.dayDate().isAfter(resolved.trip().getEndDate())) {
-            throw new ValidationException("day_out_of_range",
-                "dayDate must fall within the trip's startDate and endDate");
-        }
+        validateActivityBucketDay(request.dayDate(), resolved);
 
         // Load and verify the activity belongs to this trip
         Activity activity = activityRepository.findById(activityId)
@@ -467,66 +503,23 @@ public class ActivityService {
         LocalDate destDayDate = request.dayDate();
         int targetIndex = request.orderIndex();
 
-        // If moving within the same day, just reorder in-place
-        if (sourceDayDate.equals(destDayDate)) {
-            List<Activity> dayActivities = activityRepository.findByTripIdAndDayDateOrderByOrderIndex(tripId, sourceDayDate);
-            List<Activity> reordered = new ArrayList<>(dayActivities.size());
-            for (Activity a : dayActivities) {
-                if (!a.getId().equals(activityId)) {
-                    reordered.add(a);
-                }
-            }
+        List<Activity> sourceActivities = activitiesForBucket(tripId, sourceDayDate).stream()
+            .filter(a -> !a.getId().equals(activityId))
+            .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
 
-            int insertionIndex = Math.min(targetIndex, reordered.size());
-            reordered.add(insertionIndex, activity);
-
-            for (int index = 0; index < reordered.size(); index++) {
-                Activity a = reordered.get(index);
-                a.setOrderIndex(index);
-                if (!a.getId().equals(activityId)) {
-                    activityRepository.save(a);
-                }
-            }
-        } else {
-            // Moving to a different day
-
-            // Shift down activities on the source day that were after the moving activity
-            List<Activity> sourceDayActivities = activityRepository.findByTripIdAndDayDateOrderByOrderIndex(tripId, sourceDayDate);
-            int sourceIndex = 0;
-            for (Activity a : sourceDayActivities) {
-                if (a.getId().equals(activityId)) {
-                    // Skip the moving activity; it will be updated below
-                    continue;
-                }
-                if (a.getOrderIndex() > activity.getOrderIndex()) {
-                    a.setOrderIndex(sourceIndex);
-                    activityRepository.save(a);
-                    sourceIndex++;
-                } else {
-                    a.setOrderIndex(sourceIndex);
-                    activityRepository.save(a);
-                    sourceIndex++;
-                }
-            }
-
-            // Shift down activities on the destination day at or after the target index
-            List<Activity> destDayActivities = activityRepository.findByTripIdAndDayDateOrderByOrderIndex(tripId, destDayDate);
-            int destIndex = 0;
-            for (Activity a : destDayActivities) {
-                if (destIndex >= targetIndex) {
-                    a.setOrderIndex(destIndex + 1);
-                    activityRepository.save(a);
-                } else {
-                    a.setOrderIndex(destIndex);
-                    activityRepository.save(a);
-                }
-                destIndex++;
-            }
-
-            // Update the moving activity's day and index
-            activity.setDayDate(destDayDate);
-            activity.setOrderIndex(Math.min(targetIndex, destDayActivities.size()));
+        if (!Objects.equals(sourceDayDate, destDayDate)) {
+            reindexAndSave(sourceActivities, actor, resolved);
         }
+
+        List<Activity> destActivities = Objects.equals(sourceDayDate, destDayDate)
+            ? sourceActivities
+            : activitiesForBucket(tripId, destDayDate).stream()
+                .filter(a -> !a.getId().equals(activityId))
+                .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
+        int insertionIndex = Math.max(0, Math.min(targetIndex, destActivities.size()));
+        activity.setDayDate(destDayDate);
+        destActivities.add(insertionIndex, activity);
+        reindexAndSave(destActivities, actor, resolved);
 
         attributeUpdated(activity, actor, resolved);
         Activity updated = activityRepository.save(activity);

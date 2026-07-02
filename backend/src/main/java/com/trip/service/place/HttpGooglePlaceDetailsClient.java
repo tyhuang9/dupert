@@ -7,6 +7,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Profile;
@@ -21,6 +22,7 @@ import com.trip.config.AppProperties;
 @Profile("!test")
 public class HttpGooglePlaceDetailsClient implements GooglePlaceDetailsClient {
     private static final String GOOGLE_PLACE_DETAILS_BASE_URL = "https://places.googleapis.com/v1/places/";
+    private static final Duration GOOGLE_HTTP_TIMEOUT = Duration.ofSeconds(8);
 
     private final AppProperties appProperties;
     private final HttpClient httpClient;
@@ -28,7 +30,9 @@ public class HttpGooglePlaceDetailsClient implements GooglePlaceDetailsClient {
 
     @Autowired
     public HttpGooglePlaceDetailsClient(AppProperties appProperties, ObjectMapper objectMapper) {
-        this(appProperties, objectMapper, HttpClient.newHttpClient());
+        this(appProperties, objectMapper, HttpClient.newBuilder()
+            .connectTimeout(GOOGLE_HTTP_TIMEOUT)
+            .build());
     }
 
     HttpGooglePlaceDetailsClient(AppProperties appProperties,
@@ -47,6 +51,7 @@ public class HttpGooglePlaceDetailsClient implements GooglePlaceDetailsClient {
         }
 
         HttpRequest request = HttpRequest.newBuilder(detailsUri(placeId, sessionToken))
+            .timeout(GOOGLE_HTTP_TIMEOUT)
             .header("X-Goog-Api-Key", apiKey)
             .header("X-Goog-FieldMask", fieldMask)
             .GET()

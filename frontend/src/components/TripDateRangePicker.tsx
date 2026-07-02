@@ -1,0 +1,348 @@
+import { useId, useState } from 'react'
+import { CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react'
+import styles from './TripDateRangePicker.module.css'
+
+export interface TripDateRangeFields {
+  startDate: string
+  endDate: string
+}
+
+type DateRangePart = 'start' | 'end'
+
+interface CalendarDay {
+  dateKey: string | null
+  dayNumber: number | null
+}
+
+interface TripDateRangePickerProps {
+  disabled?: boolean
+  endDate: string
+  endDateError?: string
+  label?: string
+  onChange: (fields: Partial<TripDateRangeFields>) => void
+  startDate: string
+  startDateError?: string
+}
+
+const WEEKDAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
+
+const MONTH_FORMATTER = new Intl.DateTimeFormat('en-US', {
+  month: 'long',
+  timeZone: 'UTC',
+  year: 'numeric',
+})
+
+const FULL_DATE_FORMATTER = new Intl.DateTimeFormat('en-US', {
+  day: 'numeric',
+  month: 'long',
+  timeZone: 'UTC',
+  weekday: 'long',
+  year: 'numeric',
+})
+
+const COMPACT_DATE_FORMATTER = new Intl.DateTimeFormat('en-US', {
+  day: 'numeric',
+  month: 'short',
+  timeZone: 'UTC',
+  weekday: 'short',
+})
+
+function parseDateKey(dateKey: string): Date {
+  return new Date(`${dateKey}T00:00:00.000Z`)
+}
+
+function dateKeyFromUtc(date: Date): string {
+  return date.toISOString().slice(0, 10)
+}
+
+function todayDateKey(): string {
+  return dateKeyFromUtc(new Date())
+}
+
+function getMonthKey(dateKey: string): string {
+  return dateKey.slice(0, 7)
+}
+
+function monthKeyFromDate(date: Date): string {
+  return date.toISOString().slice(0, 7)
+}
+
+function shiftMonthKey(monthKey: string, months: number): string {
+  const [year, month] = monthKey.split('-').map(Number)
+  return monthKeyFromDate(new Date(Date.UTC(year, month - 1 + months, 1)))
+}
+
+function formatMonth(monthKey: string): string {
+  const [year, month] = monthKey.split('-').map(Number)
+  return MONTH_FORMATTER.format(new Date(Date.UTC(year, month - 1, 1)))
+}
+
+function formatCompactDate(dateKey: string): string {
+  return COMPACT_DATE_FORMATTER.format(parseDateKey(dateKey))
+}
+
+function formatFullDate(dateKey: string): string {
+  return FULL_DATE_FORMATTER.format(parseDateKey(dateKey))
+}
+
+function buildCalendarDays(monthKey: string): CalendarDay[] {
+  const [year, month] = monthKey.split('-').map(Number)
+  const firstDay = new Date(Date.UTC(year, month - 1, 1))
+  const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate()
+  const cells: CalendarDay[] = []
+
+  for (let index = 0; index < firstDay.getUTCDay(); index += 1) {
+    cells.push({ dateKey: null, dayNumber: null })
+  }
+
+  for (let day = 1; day <= daysInMonth; day += 1) {
+    cells.push({
+      dateKey: dateKeyFromUtc(new Date(Date.UTC(year, month - 1, day))),
+      dayNumber: day,
+    })
+  }
+
+  while (cells.length % 7 !== 0) {
+    cells.push({ dateKey: null, dayNumber: null })
+  }
+
+  return cells
+}
+
+function rangePickerInitialMonth(startDate: string, endDate: string): string {
+  return getMonthKey(startDate || endDate || todayDateKey())
+}
+
+function dateButtonClasses(dateKey: string, startDate: string, endDate: string): string {
+  const isStart = dateKey === startDate
+  const isEnd = dateKey === endDate
+  const isBetween = Boolean(startDate && endDate && dateKey > startDate && dateKey < endDate)
+  return [
+    styles.calendarDateButton,
+    isBetween ? styles.calendarDateInRange : '',
+    isStart && isEnd ? styles.calendarDateSingle : '',
+    isStart && !isEnd ? styles.calendarDateStart : '',
+    isEnd && !isStart ? styles.calendarDateEnd : '',
+  ].filter(Boolean).join(' ')
+}
+
+export function TripDateRangePicker({
+  disabled = false,
+  endDate,
+  endDateError,
+  label = 'Trip dates',
+  onChange,
+  startDate,
+  startDateError,
+}: TripDateRangePickerProps) {
+  const dateRangeId = useId()
+  const datePickerId = useId()
+  const startErrorId = useId()
+  const endErrorId = useId()
+  const [isOpen, setIsOpen] = useState(false)
+  const [activePart, setActivePart] = useState<DateRangePart>('start')
+  const [visibleMonth, setVisibleMonth] = useState(() =>
+    rangePickerInitialMonth(startDate, endDate),
+  )
+  const secondVisibleMonth = shiftMonthKey(visibleMonth, 1)
+  const errorIds = [
+    startDateError ? startErrorId : '',
+    endDateError ? endErrorId : '',
+  ].filter(Boolean).join(' ') || undefined
+
+  function openPicker(part: DateRangePart = startDate && !endDate ? 'end' : 'start') {
+    if (disabled) return
+    setVisibleMonth(rangePickerInitialMonth(startDate, endDate))
+    setActivePart(part)
+    setIsOpen(true)
+  }
+
+  function selectDate(dateKey: string) {
+    if (activePart === 'start' || !startDate) {
+      onChange({
+        startDate: dateKey,
+        endDate: endDate && endDate >= dateKey ? endDate : '',
+      })
+      setActivePart('end')
+      return
+    }
+
+    if (dateKey < startDate) {
+      onChange({
+        startDate: dateKey,
+        endDate: startDate,
+      })
+      setActivePart('end')
+      return
+    }
+
+    onChange({ endDate: dateKey })
+  }
+
+  function resetRange() {
+    onChange({ startDate: '', endDate: '' })
+    setActivePart('start')
+    setVisibleMonth(getMonthKey(todayDateKey()))
+  }
+
+  function renderMonth(monthKey: string, monthLabel: string) {
+    return (
+      <section className={styles.calendarMonth} aria-label={monthLabel}>
+        <h3>{formatMonth(monthKey)}</h3>
+        <div className={styles.calendarWeekdays} aria-hidden="true">
+          {WEEKDAY_LABELS.map((weekday, index) => (
+            <span key={`${weekday}-${index}`}>{weekday}</span>
+          ))}
+        </div>
+        <div className={styles.calendarGrid} role="grid" aria-label={`${formatMonth(monthKey)} dates`}>
+          {buildCalendarDays(monthKey).map((cell, index) => {
+            if (!cell.dateKey) {
+              return <span key={`empty-${index}`} className={styles.calendarDateEmpty} />
+            }
+
+            const fullDate = formatFullDate(cell.dateKey)
+            return (
+              <button
+                key={cell.dateKey}
+                type="button"
+                className={dateButtonClasses(cell.dateKey, startDate, endDate)}
+                onClick={() => selectDate(cell.dateKey as string)}
+                aria-label={`Choose ${fullDate}`}
+                aria-pressed={cell.dateKey === startDate || cell.dateKey === endDate}
+              >
+                {cell.dayNumber}
+              </button>
+            )
+          })}
+        </div>
+      </section>
+    )
+  }
+
+  return (
+    <div className={styles.dateRangeField}>
+      <span className={styles.label} id={dateRangeId}>
+        {label}
+      </span>
+      <button
+        type="button"
+        className={styles.dateRangeTrigger}
+        onClick={() => openPicker(startDate && !endDate ? 'end' : 'start')}
+        disabled={disabled}
+        aria-haspopup="dialog"
+        aria-expanded={isOpen}
+        aria-controls={isOpen ? datePickerId : undefined}
+        aria-labelledby={dateRangeId}
+        aria-describedby={errorIds}
+        aria-invalid={Boolean(startDateError || endDateError)}
+      >
+        <CalendarDays size={18} aria-hidden="true" />
+        <span className={styles.dateRangeSummary}>
+          <span>
+            <span>Start date</span>
+            <strong>{startDate ? formatCompactDate(startDate) : 'Select date'}</strong>
+          </span>
+          <span className={styles.dateRangeDivider} aria-hidden="true" />
+          <span>
+            <span>End date</span>
+            <strong>{endDate ? formatCompactDate(endDate) : 'Select date'}</strong>
+          </span>
+        </span>
+      </button>
+      {startDateError ? (
+        <span className={styles.fieldError} id={startErrorId}>
+          {startDateError}
+        </span>
+      ) : null}
+      {endDateError ? (
+        <span className={styles.fieldError} id={endErrorId}>
+          {endDateError}
+        </span>
+      ) : null}
+
+      {isOpen ? (
+        <div
+          className={styles.datePickerPanel}
+          role="dialog"
+          aria-modal="false"
+          aria-labelledby={dateRangeId}
+          id={datePickerId}
+        >
+          <div className={styles.datePickerTopbar}>
+            <button
+              type="button"
+              className={styles.datePickerReset}
+              onClick={resetRange}
+              disabled={disabled || (!startDate && !endDate)}
+            >
+              Reset
+            </button>
+            <div className={styles.datePickerSelection}>
+              <button
+                type="button"
+                className={[
+                  styles.dateFieldControl,
+                  activePart === 'start' ? styles.dateFieldControlActive : '',
+                ].filter(Boolean).join(' ')}
+                onClick={() => {
+                  setActivePart('start')
+                  setIsOpen(true)
+                }}
+              >
+                <CalendarDays size={16} aria-hidden="true" />
+                {startDate ? formatCompactDate(startDate) : 'Start date'}
+              </button>
+              <button
+                type="button"
+                className={[
+                  styles.dateFieldControl,
+                  activePart === 'end' ? styles.dateFieldControlActive : '',
+                ].filter(Boolean).join(' ')}
+                onClick={() => {
+                  setActivePart('end')
+                  setIsOpen(true)
+                }}
+              >
+                {endDate ? formatCompactDate(endDate) : 'End date'}
+              </button>
+            </div>
+          </div>
+
+          <div className={styles.datePickerCalendarHeader}>
+            <button
+              type="button"
+              className={styles.dateNavButton}
+              onClick={() => setVisibleMonth((current) => shiftMonthKey(current, -1))}
+              aria-label="Previous month"
+            >
+              <ChevronLeft size={18} aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              className={styles.dateNavButton}
+              onClick={() => setVisibleMonth((current) => shiftMonthKey(current, 1))}
+              aria-label="Next month"
+            >
+              <ChevronRight size={18} aria-hidden="true" />
+            </button>
+          </div>
+
+          <div className={styles.datePickerMonths}>
+            {renderMonth(visibleMonth, 'Start month')}
+            {renderMonth(secondVisibleMonth, 'End month')}
+          </div>
+
+          <div className={styles.datePickerFooter}>
+            <button
+              type="button"
+              className={styles.datePickerDone}
+              onClick={() => setIsOpen(false)}
+            >
+              Done
+            </button>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  )
+}

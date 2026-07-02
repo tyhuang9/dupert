@@ -27,7 +27,7 @@ public class Activity {
     @Column(name = "trip_id", nullable = false, updatable = false)
     private Long tripId;
 
-    @Column(name = "day_date", nullable = false)
+    @Column(name = "day_date")
     private LocalDate dayDate;
 
     @Enumerated(EnumType.STRING)

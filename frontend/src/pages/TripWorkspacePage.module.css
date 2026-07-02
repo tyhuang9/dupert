@@ -116,7 +116,8 @@
 .modalInput:focus-visible,
 .timelineActivityEntry:focus-visible,
 .timelineActivityButton:focus-visible,
-.placeUtilityAction:focus-visible {
+.placeUtilityAction:focus-visible,
+.placeMapsAction:focus-visible {
   outline: var(--focus-ring-width) solid var(--focus-ring-color);
   outline-offset: var(--focus-ring-offset);
 }
@@ -183,7 +184,11 @@
 
 .dayPanel:hover,
 .dayPanel:focus-within,
-.dayPanelPinned {
+.dayPanelPinned,
+.dayPanelDragExpanded,
+.dayPanelCollapsedAfterTabClick.dayPanelDragExpanded,
+.dayPanelCollapsedAfterTabClick.dayPanelDragExpanded:hover,
+.dayPanelCollapsedAfterTabClick.dayPanelDragExpanded:focus-within {
   width: var(--sidebar-expanded-width);
   box-shadow: var(--shadow-lg);
 }
@@ -202,11 +207,12 @@
 
 .dayPanel:hover .sidebarCalendarReveal,
 .dayPanel:focus-within .sidebarCalendarReveal,
-.dayPanelPinned .sidebarCalendarReveal {
+.dayPanelPinned .sidebarCalendarReveal,
+.dayPanelDragExpanded .sidebarCalendarReveal {
   display: block;
 }
 
-.dayPanelCollapsedAfterTabClick .sidebarCalendarReveal {
+.dayPanelCollapsedAfterTabClick:not(.dayPanelDragExpanded) .sidebarCalendarReveal {
   display: none;
 }
 
@@ -376,11 +382,12 @@
 
 .dayPanel:hover .railLabel,
 .dayPanel:focus-within .railLabel,
-.dayPanelPinned .railLabel {
+.dayPanelPinned .railLabel,
+.dayPanelDragExpanded .railLabel {
   opacity: 1;
 }
 
-.dayPanelCollapsedAfterTabClick .railLabel {
+.dayPanelCollapsedAfterTabClick:not(.dayPanelDragExpanded) .railLabel {
   opacity: 0;
 }
 
@@ -467,7 +474,7 @@
   place-items: center;
   padding: 0;
   border: 1px solid transparent;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-pill);
   background: transparent;
   color: var(--color-text);
   font: inherit;
@@ -862,6 +869,33 @@
   box-shadow: var(--shadow-sm);
 }
 
+.ideasLane {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--color-surface-border);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--color-surface) 88%, #eef2ff);
+  transition:
+    background-color var(--transition-base),
+    border-color var(--transition-base),
+    box-shadow var(--transition-base);
+}
+
+.ideasLaneDropTarget {
+  border-color: #dbeafe;
+  background: color-mix(in srgb, var(--color-primary-softer) 34%, var(--color-surface));
+  box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.08);
+}
+
+.ideasLaneOver {
+  border-color: var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary-softer) 58%, var(--color-surface));
+  box-shadow:
+    inset 0 0 0 1px var(--color-primary),
+    0 8px 20px rgba(37, 99, 235, 0.12);
+}
+
 .inlineAlert {
   margin: 0;
   padding: var(--space-3);
@@ -1216,6 +1250,23 @@
   line-height: 1.35;
 }
 
+.placeRating {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--color-text);
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.placeRating svg {
+  color: #d97706;
+  fill: currentColor;
+  flex: 0 0 auto;
+}
+
 .placeHours {
   margin: 0;
   padding: var(--space-2);
@@ -1224,6 +1275,39 @@
   color: var(--color-text-muted);
   font-size: var(--font-size-xs);
   line-height: 1.35;
+}
+
+.placeDetailLoading {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.placeLoadingLine {
+  height: 0.75rem;
+  border-radius: var(--radius-sm);
+  background: linear-gradient(90deg, rgba(148, 163, 184, 0.24), rgba(59, 130, 246, 0.16), rgba(148, 163, 184, 0.24));
+  background-size: 200% 100%;
+  animation: placeLoadingPulse 1.2s ease-in-out infinite;
+}
+
+.placeLoadingLine:nth-child(2) {
+  width: 72%;
+}
+
+.placeLoadingText {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+}
+
+@keyframes placeLoadingPulse {
+  0% {
+    background-position: 200% 0;
+  }
+
+  100% {
+    background-position: -200% 0;
+  }
 }
 
 .placeDetailLink {
@@ -1265,6 +1349,36 @@
 .placeUtilityAction:hover {
   background: var(--color-primary-softer);
   color: var(--color-primary-text);
+}
+
+.placeMapsAction {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-surface-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: var(--font-size-xs);
+  font-weight: 800;
+  text-decoration: none;
+  transition:
+    background-color var(--transition-base),
+    border-color var(--transition-base),
+    color var(--transition-base);
+}
+
+.placeMapsAction:hover {
+  border-color: var(--color-primary);
+  background: var(--color-primary-softer);
+  color: var(--color-primary-text);
+}
+
+.placeMapsAction svg {
+  flex: 0 0 auto;
 }
 
 .mapStyleSelect {

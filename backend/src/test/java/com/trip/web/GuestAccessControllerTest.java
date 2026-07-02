@@ -131,7 +131,7 @@ class GuestAccessControllerTest {
     void guestCookieCanReadTripAndActivities() throws Exception {
         Activity activity = activity(1L, ActivityCategory.MEAL, "Breakfast", 0);
         activity.setUpdatedByGuestSessionId(GUEST_ID);
-        when(activityRepository.findAllInDateRange(TRIP_PK, DAY_ONE, DAY_TWO))
+        when(activityRepository.findAllVisibleForTrip(TRIP_PK, DAY_ONE, DAY_TWO))
             .thenReturn(List.of(activity));
 
         mvc.perform(get("/api/trips/" + TRIP_PUBLIC_ID)

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import {
   APILoadingStatus,
@@ -18,7 +18,13 @@ import {
   googleMapsAccessTroubleshooting,
   googleMapsBrowserApiKey,
   googleMapsMapId,
+  googleRoutesFailureMessage,
 } from '../utils/googleMapsAccess'
+import {
+  createPlaceDetailsTraceId,
+  logPlaceDetailsTiming,
+  placeDetailsNowMs,
+} from '../utils/placeDetailsTiming'
 import styles from './TripMap.module.css'
 
 interface TripMapProps {
@@ -35,6 +41,7 @@ interface TripMapProps {
   activeActivityId?: number | null
   focusedActivityId?: number | null
   focusedActivityKey?: number
+  viewportFitKey?: string
   onActivityActivate?: (activityId: number) => void
   onActiveActivityChange?: (activityId: number | null) => void
   onMapPlaceClick?: (event: MapPlaceClickEvent) => void
@@ -65,8 +72,11 @@ export interface MapClickedLocation {
 }
 
 export interface MapPlaceClickEvent {
+  clickedAtIso: string
+  clickedAtMs: number
   location: MapClickedLocation | null
   placeId: string | null
+  traceId: string
 }
 
 export type MapPreviewPlace = Pick<
@@ -155,7 +165,7 @@ function normalizeClickedLocation(
 
 function sortActivitiesByTripOrder(activities: CoordinateActivity[]): CoordinateActivity[] {
   return [...activities].sort((left, right) => {
-    const dayCompare = left.dayDate.localeCompare(right.dayDate)
+    const dayCompare = (left.dayDate ?? '\uffff').localeCompare(right.dayDate ?? '\uffff')
     if (dayCompare !== 0) return dayCompare
     return left.orderIndex - right.orderIndex
   })
@@ -266,18 +276,25 @@ function formatTravelTime(seconds: number): string {
   return remainder > 0 ? `${hours} hr ${remainder} min` : `${hours} hr`
 }
 
+const MARKER_PRESS_DEDUPLICATION_MS = 350
+const MARKER_TRAILING_CLICK_SUPPRESSION_MS = 750
+
 function GoogleOverlayMarker({
   anchor = 'center',
   children,
+  onClick,
   position,
   zIndex,
 }: {
   anchor?: 'bottom' | 'center'
   children: ReactNode
+  onClick?: () => void
   position: { lat: number; lng: number }
   zIndex?: number
 }) {
   const map = useMap('trip-map')
+  const onClickRef = useRef(onClick)
+  const lastPressActivationAtRef = useRef(0)
   const container = useMemo(() => {
     const element = document.createElement('div')
     element.style.position = 'absolute'
@@ -288,11 +305,54 @@ function GoogleOverlayMarker({
   }, [anchor, zIndex])
 
   useEffect(() => {
+    onClickRef.current = onClick
+  }, [onClick])
+
+  useEffect(() => {
+    const activateMarker = (event: Event) => {
+      if (!onClickRef.current) return
+      const now = Date.now()
+      event.preventDefault()
+      event.stopPropagation()
+      if (now - lastPressActivationAtRef.current < MARKER_PRESS_DEDUPLICATION_MS) {
+        return
+      }
+      lastPressActivationAtRef.current = now
+      onClickRef.current()
+    }
+    const handleClick = (event: MouseEvent) => {
+      if (!onClickRef.current) return
+      event.preventDefault()
+      event.stopPropagation()
+      if (
+        Date.now() - lastPressActivationAtRef.current <
+        MARKER_TRAILING_CLICK_SUPPRESSION_MS
+      ) {
+        return
+      }
+      onClickRef.current()
+    }
+
+    container.addEventListener('pointerdown', activateMarker)
+    container.addEventListener('mousedown', activateMarker)
+    container.addEventListener('touchstart', activateMarker)
+    container.addEventListener('click', handleClick)
+
+    return () => {
+      container.removeEventListener('pointerdown', activateMarker)
+      container.removeEventListener('mousedown', activateMarker)
+      container.removeEventListener('touchstart', activateMarker)
+      container.removeEventListener('click', handleClick)
+    }
+  }, [container])
+
+  useEffect(() => {
     if (!map) return undefined
 
     const overlay = new google.maps.OverlayView()
     overlay.onAdd = () => {
       overlay.getPanes()?.overlayMouseTarget.appendChild(container)
+      google.maps.OverlayView.preventMapHitsAndGesturesFrom?.(container)
     }
     overlay.draw = () => {
       const projection = overlay.getProjection()
@@ -347,6 +407,7 @@ function TripMapContent({
   activeActivityId = null,
   focusedActivityId = null,
   focusedActivityKey = 0,
+  viewportFitKey,
   destination,
   mapStyle = 'roadmap',
   onMapStyleChange,
@@ -365,11 +426,11 @@ function TripMapContent({
   const map = useMap('trip-map')
   const apiLoadingStatus = useApiLoadingStatus()
   const [directionsState, setDirectionsState] = useState<{
-    error: boolean
+    error: string | null
     key: string
     route: AppRoute | null
   }>({
-    error: false,
+    error: null,
     key: '',
     route: null,
   })
@@ -382,6 +443,7 @@ function TripMapContent({
     error: null,
     key: '',
   })
+  const lastViewportFitKeyRef = useRef<string | null>(null)
   const selectedMappedActivities = useMemo(
     () => activities.filter(hasCoordinates),
     [activities],
@@ -466,7 +528,7 @@ function TripMapContent({
     [routeMappedActivities],
   )
   const currentRoute = directionsState.key === routeKey ? directionsState.route : null
-  const routeError = directionsState.key === routeKey && directionsState.error
+  const routeError = directionsState.key === routeKey ? directionsState.error : null
   const routeLoading =
     routeMappedActivities.length >= 2 &&
     directionsState.key !== routeKey
@@ -495,7 +557,7 @@ function TripMapContent({
       return 'Destination could not be mapped. Add a place to start the map.'
     }
     if (routeLoading) return 'Calculating route...'
-    if (routeError) return 'Route unavailable.'
+    if (routeError) return routeError
     return null
   }, [
     destinationError,
@@ -525,6 +587,7 @@ function TripMapContent({
     () => baseDisplayStops.map((stop) => `${stop.source}:${stop.lng},${stop.lat}`).join(';'),
     [baseDisplayStops],
   )
+  const effectiveViewportFitKey = viewportFitKey ?? baseDisplayKey
   const previewDisplayKey = previewDisplayStop
     ? `${previewDisplayStop.source}:${previewDisplayStop.lng},${previewDisplayStop.lat}`
     : ''
@@ -545,11 +608,22 @@ function TripMapContent({
   }, [map, onViewportContextChange])
 
   const handleMapClick = useCallback((event: MapMouseEvent) => {
+    const clickedAtMs = placeDetailsNowMs()
+    const clickedAtIso = new Date().toISOString()
+    const traceId = createPlaceDetailsTraceId()
     const placeId = event.detail.placeId?.trim() || null
     const location = normalizeClickedLocation(event.detail.latLng)
     if (!placeId && !location) return
     event.stop()
-    onMapPlaceClick?.({ location, placeId })
+    logPlaceDetailsTiming('frontend_map_click', {
+      clickedAtIso,
+      clickedAtMs,
+      hasLocation: location !== null,
+      hasPlaceId: placeId !== null,
+      placeId,
+      traceId,
+    })
+    onMapPlaceClick?.({ clickedAtIso, clickedAtMs, location, placeId, traceId })
   }, [onMapPlaceClick])
 
   const handleMapTypeIdChanged = useCallback(() => {
@@ -569,12 +643,16 @@ function TripMapContent({
     void getDrivingDirections(routeMappedActivities, controller.signal)
       .then((nextRoute) => {
         if (controller.signal.aborted) return
-        setDirectionsState({ error: false, key: routeKey, route: nextRoute })
+        setDirectionsState({ error: null, key: routeKey, route: nextRoute })
       })
       .catch((error: unknown) => {
         if (error instanceof DOMException && error.name === 'AbortError') return
         if (controller.signal.aborted) return
-        setDirectionsState({ error: true, key: routeKey, route: null })
+        setDirectionsState({
+          error: googleRoutesFailureMessage(error),
+          key: routeKey,
+          route: null,
+        })
       })
 
     return () => controller.abort()
@@ -606,6 +684,8 @@ function TripMapContent({
 
   useEffect(() => {
     if (!map || baseDisplayStops.length === 0 || !baseDisplayKey) return
+    if (lastViewportFitKeyRef.current === effectiveViewportFitKey) return
+    lastViewportFitKeyRef.current = effectiveViewportFitKey
 
     if (baseDisplayStops.length === 1) {
       const [stop] = baseDisplayStops
@@ -643,7 +723,7 @@ function TripMapContent({
       64,
     )
     window.requestAnimationFrame(reportViewportContext)
-  }, [baseDisplayKey, baseDisplayStops, map, reportViewportContext])
+  }, [baseDisplayKey, baseDisplayStops, effectiveViewportFitKey, map, reportViewportContext])
 
   useEffect(() => {
     if (!map || !selectedSearchDisplayStop || !selectedSearchDisplayKey) return
@@ -735,6 +815,13 @@ function TripMapContent({
             <GoogleOverlayMarker
               anchor="bottom"
               key={stop.id}
+              onClick={
+                stop.source === 'search' && stop.place
+                  ? () => onSearchResultSelect?.(stop.place as MapSearchPlace)
+                  : stop.activityId !== undefined
+                    ? () => onActivityActivate?.(stop.activityId as number)
+                    : undefined
+              }
               position={{ lat: stop.lat, lng: stop.lng }}
               zIndex={
                 activeActivityId === stop.activityId
@@ -782,7 +869,6 @@ function TripMapContent({
                     onSearchResultHoverChange?.(stop.place?.mapboxId ?? stop.id)
                   }
                   onBlur={() => onSearchResultHoverChange?.(null)}
-                  onClick={() => onSearchResultSelect?.(stop.place as MapSearchPlace)}
                 >
                   <span className={styles.markerGlyph}>
                     <MapPin size={17} aria-hidden="true" />
@@ -795,17 +881,12 @@ function TripMapContent({
                     styles.marker,
                     activeActivityId === stop.activityId ? styles.markerActive : '',
                   ].filter(Boolean).join(' ')}
-                  aria-label={`Show timeline item for stop ${stop.markerLabel}: ${stop.title}`}
+                  aria-label={`Show place details for stop ${stop.markerLabel}: ${stop.title}`}
                   title={stop.title}
                   onMouseEnter={() => onActiveActivityChange?.(stop.activityId ?? null)}
                   onMouseLeave={() => onActiveActivityChange?.(null)}
                   onFocus={() => onActiveActivityChange?.(stop.activityId ?? null)}
                   onBlur={() => onActiveActivityChange?.(null)}
-                  onClick={() => {
-                    if (stop.activityId !== undefined) {
-                      onActivityActivate?.(stop.activityId)
-                    }
-                  }}
                 >
                   <span className={styles.markerGlyph}>
                     {stop.markerLabel}

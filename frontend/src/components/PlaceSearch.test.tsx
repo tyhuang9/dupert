@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { GooglePlaceSearchOptions, GooglePlaceSelection } from './googlePlaces'
 import { PlaceSearch } from './PlaceSearch'
@@ -6,6 +6,7 @@ import { PlaceSearch } from './PlaceSearch'
 const autocompleteState = vi.hoisted(() => ({
   props: null as null | {
     inputLabel?: string
+    onClear?: () => void
     onPlaceSelect?: (place: GooglePlaceSelection) => void
     onSearchError?: (message: string | null) => void
     onSearchSubmit?: (query: string) => Promise<void> | void
@@ -15,6 +16,7 @@ const autocompleteState = vi.hoisted(() => ({
     placeholder?: string
     searchFailedMessage?: string
     selectOnFocus?: boolean
+    showClearButton?: boolean
     value?: string
   },
 }))
@@ -51,6 +53,7 @@ function googlePlace(overrides: Partial<GooglePlaceSelection> = {}): GooglePlace
     id: 'google.tokyo-tower',
     lat: 35.6586,
     lng: 139.7454,
+    photoName: null,
     photoUrl: null,
     primaryType: 'tourist_attraction',
     primaryTypeDisplayName: 'Tourist attraction',
@@ -75,7 +78,7 @@ afterEach(() => {
 })
 
 describe('<PlaceSearch>', () => {
-  it('shows a useful Google Places diagnostic when suggestions fail', () => {
+  it('shows the autocomplete failure message when suggestions fail', () => {
     render(<PlaceSearch onPlaceSelect={vi.fn()} />)
 
     act(() => {
@@ -85,7 +88,24 @@ describe('<PlaceSearch>', () => {
     })
 
     expect(screen.getByRole('alert')).toHaveTextContent(/google places search failed/i)
-    expect(screen.getByRole('alert')).toHaveTextContent(/backend google_maps_server_api_key/i)
+    expect(screen.getByRole('alert')).not.toHaveTextContent(/google_maps_server_api_key/i)
+  })
+
+  it('shows a backend connectivity diagnostic when submitted search cannot reach the backend', async () => {
+    const onSearchSubmit = vi.fn().mockRejectedValue({ isAxiosError: true })
+    render(<PlaceSearch onPlaceSelect={vi.fn()} onSearchSubmit={onSearchSubmit} />)
+
+    const input = screen.getByLabelText(/search places/i)
+    act(() => {
+      input.focus()
+    })
+    fireEvent.change(input, { target: { value: 'Ramen' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent(/could not reach the tripplanner backend/i)
+    })
+    expect(screen.getByRole('alert')).toHaveTextContent(/localhost:8000/i)
   })
 
   it('clears the diagnostic when suggestions recover', () => {
@@ -163,6 +183,13 @@ describe('<PlaceSearch>', () => {
 
     expect(autocompleteState.props?.value).toBe('160 Piccadilly')
     expect(screen.getByLabelText(/search places/i)).toHaveValue('160 Piccadilly')
+  })
+
+  it('enables the autocomplete clear button for map search', () => {
+    render(<PlaceSearch onPlaceSelect={vi.fn()} searchValue="160 Piccadilly" />)
+
+    expect(autocompleteState.props?.showClearButton).toBe(true)
+    expect(autocompleteState.props?.onClear).toEqual(expect.any(Function))
   })
 
   it('uses a short search placeholder', () => {

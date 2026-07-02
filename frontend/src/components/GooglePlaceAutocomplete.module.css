@@ -1,22 +1,35 @@
 .root {
+  --autocomplete-input-padding-right: var(--space-3);
   position: relative;
   min-width: 0;
   display: block;
 }
 
-.withSearchButton .input {
-  padding-right: 2.875rem;
+.withClearButton {
+  --autocomplete-input-padding-right: 2.875rem;
+}
+
+.withSearchButton {
+  --autocomplete-input-padding-right: 2.875rem;
+}
+
+.withSearchButton.withClearButton {
+  --autocomplete-input-padding-right: 5.375rem;
 }
 
 .input {
   min-width: 0;
   width: 100%;
+  padding-right: var(--autocomplete-input-padding-right);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.searchButton {
+.searchButton,
+.clearButton {
   position: absolute;
   top: 50%;
-  right: 4px;
   width: 40px;
   height: 40px;
   display: inline-grid;
@@ -30,17 +43,32 @@
   transform: translateY(-50%);
 }
 
-.searchButton:hover {
+.searchButton {
+  right: 4px;
+}
+
+.clearButton {
+  right: 4px;
+}
+
+.withSearchButton .clearButton {
+  right: 44px;
+}
+
+.searchButton:hover,
+.clearButton:hover {
   background: var(--color-surface-2);
   color: var(--color-text);
 }
 
-.searchButton:focus-visible {
+.searchButton:focus-visible,
+.clearButton:focus-visible {
   outline: var(--focus-ring-width) solid var(--focus-ring-color);
   outline-offset: var(--focus-ring-offset);
 }
 
-.searchButton:disabled {
+.searchButton:disabled,
+.clearButton:disabled {
   cursor: not-allowed;
   opacity: 0.48;
 }

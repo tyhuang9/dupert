@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import MockAdapter from 'axios-mock-adapter'
 import type { PropsWithChildren } from 'react'
@@ -22,6 +22,7 @@ const googlePlacesMockState = vi.hoisted(() => ({
   fetchGooglePlaceNearLocation: vi.fn(),
   fetchGooglePlaceTextSearch: vi.fn(),
   googlePlaceCategoryTypeForQuery: vi.fn(),
+  imageUrlFromGooglePhotoName: vi.fn(),
 }))
 
 vi.mock('../components/TripMap', () => ({
@@ -49,8 +50,11 @@ vi.mock('../components/TripMap', () => ({
     onActiveActivityChange?: (activityId: number | null) => void
     onMapStyleChange?: (mapStyle: string) => void
     onMapPlaceClick?: (event: {
+      clickedAtIso: string
+      clickedAtMs: number
       location: { lat: number; lng: number } | null
       placeId: string | null
+      traceId: string
     }) => void
     onSearchResultSelect?: (place: Record<string, unknown>) => void
     onViewportContextChange?: (context: {
@@ -86,6 +90,15 @@ vi.mock('../components/TripMap', () => ({
       </button>
       <button
         type="button"
+        onClick={() => {
+          const activityId = activities[1]?.id
+          if (activityId !== undefined) onActivityActivate?.(activityId)
+        }}
+      >
+        Mock activate second marker
+      </button>
+      <button
+        type="button"
         onClick={() => onViewportContextChange?.({
           bounds: { north: 35.7, south: 35.6, east: 139.8, west: 139.7 },
           center: { lng: 139.7454, lat: 35.6586 },
@@ -100,8 +113,11 @@ vi.mock('../components/TripMap', () => ({
       <button
         type="button"
         onClick={() => onMapPlaceClick?.({
+          clickedAtIso: '2026-06-30T12:00:00.000Z',
+          clickedAtMs: 100,
           location: { lat: 35.7, lng: 139.8 },
           placeId: 'google.poi-clicked',
+          traceId: 'test-map-place-click',
         })}
       >
         Mock map place click
@@ -109,8 +125,11 @@ vi.mock('../components/TripMap', () => ({
       <button
         type="button"
         onClick={() => onMapPlaceClick?.({
+          clickedAtIso: '2026-06-30T12:00:01.000Z',
+          clickedAtMs: 200,
           location: { lat: 35.7, lng: 139.8 },
           placeId: null,
+          traceId: 'test-map-location-click',
         })}
       >
         Mock map location click
@@ -166,6 +185,8 @@ vi.mock('../components/PlaceSearch', () => ({
     lat: place.lat,
     lng: place.lng,
     googleMapsUri: place.googleMapsUri,
+    photoName: place.photoName,
+    photoUrl: place.photoUrl,
     placeCategory: place.primaryTypeDisplayName ?? place.primaryType,
     rating: place.rating,
     regularOpeningHours: place.regularOpeningHours,
@@ -256,6 +277,7 @@ vi.mock('../components/googlePlaces', () => ({
   fetchGooglePlaceNearLocation: googlePlacesMockState.fetchGooglePlaceNearLocation,
   fetchGooglePlaceTextSearch: googlePlacesMockState.fetchGooglePlaceTextSearch,
   googlePlaceCategoryTypeForQuery: googlePlacesMockState.googlePlaceCategoryTypeForQuery,
+  imageUrlFromGooglePhotoName: googlePlacesMockState.imageUrlFromGooglePhotoName,
 }))
 
 let apiMock: MockAdapter
@@ -334,6 +356,10 @@ beforeEach(() => {
     configurable: true,
     value: vi.fn(),
   })
+  Object.defineProperty(HTMLElement.prototype, 'scrollBy', {
+    configurable: true,
+    value: vi.fn(),
+  })
   placeSearchMockState.searchOptions = null
   googlePlacesMockState.fetchGooglePlaceById.mockReset()
   googlePlacesMockState.fetchGooglePlaceById.mockResolvedValue({
@@ -387,6 +413,8 @@ beforeEach(() => {
     const normalized = query.trim().toLowerCase()
     return normalized === 'restaurants' ? 'restaurant' : null
   })
+  googlePlacesMockState.imageUrlFromGooglePhotoName.mockReset()
+  googlePlacesMockState.imageUrlFromGooglePhotoName.mockResolvedValue(null)
 })
 
 afterEach(() => {
@@ -503,12 +531,35 @@ describe('<TripWorkspacePage>', () => {
     expect(map).toBeInTheDocument()
     expect(selectedMapActivities.getByText('Tokyo Tower')).toBeInTheDocument()
     expect(selectedMapActivities.queryByText('Tsukiji sushi')).not.toBeInTheDocument()
-    expect(fallbackMapActivities.getByText('Tokyo Tower')).toBeInTheDocument()
-    expect(fallbackMapActivities.getByText('Tsukiji sushi')).toBeInTheDocument()
+    expect(fallbackMapActivities.queryByText('Tokyo Tower')).not.toBeInTheDocument()
+    expect(fallbackMapActivities.queryByText('Tsukiji sushi')).not.toBeInTheDocument()
     expect(routeMapActivities.getByText('Tokyo Tower')).toBeInTheDocument()
     expect(routeMapActivities.queryByText('Tsukiji sushi')).not.toBeInTheDocument()
     expect(screen.getByText(/1 activity scheduled today/i)).toBeInTheDocument()
     expect(screen.queryByText(/mapped stop in view/i)).not.toBeInTheDocument()
+  })
+
+  it('does not show other-day markers as fallback when the selected day has no mapped activities', async () => {
+    const dayOneMappedActivity = {
+      ...SAMPLE_ACTIVITY,
+      mapboxId: 'google.tsukiji',
+      placeName: 'Tsukiji sushi',
+      address: 'Tsukiji, Chuo City, Tokyo',
+      lat: 35.6654,
+      lng: 139.7707,
+    }
+    mockWorkspace([dayOneMappedActivity])
+
+    renderWorkspace('/trips/abc234def567/d/2026-05-02')
+
+    await screen.findByTestId('trip-map')
+    const selectedMapActivities = within(screen.getByTestId('selected-map-activities'))
+    const fallbackMapActivities = within(screen.getByTestId('fallback-map-activities'))
+    const routeMapActivities = within(screen.getByTestId('route-map-activities'))
+    expect(selectedMapActivities.queryByText('Tsukiji sushi')).not.toBeInTheDocument()
+    expect(fallbackMapActivities.queryByText('Tsukiji sushi')).not.toBeInTheDocument()
+    expect(routeMapActivities.queryByText('Tsukiji sushi')).not.toBeInTheDocument()
+    expect(screen.getByText(/0 activities scheduled today/i)).toBeInTheDocument()
   })
 
   it('switches to a full-trip timeline and maps all trip activities', async () => {
@@ -556,17 +607,145 @@ describe('<TripWorkspacePage>', () => {
     expect(screen.getByTestId('active-map-activity')).toHaveTextContent('22')
   })
 
+  it('keeps Ideas out of day maps and routes while Timeline shows them explicitly', async () => {
+    const dayActivity = {
+      ...SAMPLE_ACTIVITY,
+      mapboxId: 'google.tsukiji',
+      placeName: 'Tsukiji sushi',
+      address: 'Tsukiji, Chuo City, Tokyo',
+      lat: 35.6654,
+      lng: 139.7707,
+    }
+    const ideaActivity = {
+      ...SAMPLE_ACTIVITY,
+      id: 33,
+      dayDate: null,
+      title: 'Save teamLab',
+      mapboxId: 'google.teamlab',
+      placeName: 'teamLab Planets',
+      address: 'Toyosu, Tokyo',
+      lat: 35.6491,
+      lng: 139.7898,
+      orderIndex: 0,
+    }
+    mockWorkspace([dayActivity, ideaActivity])
+
+    renderWorkspace('/trips/abc234def567/d/2026-05-01')
+
+    await screen.findByRole('heading', { name: /friday, may 1/i })
+    expect(screen.getByText(/1 activity scheduled today/i)).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /^ideas$/i })).toBeInTheDocument()
+
+    const selectedDayMapActivities = within(screen.getByTestId('selected-map-activities'))
+    const selectedDayRouteActivities = within(screen.getByTestId('route-map-activities'))
+    expect(selectedDayMapActivities.getByText('Tsukiji sushi')).toBeInTheDocument()
+    expect(selectedDayMapActivities.queryByText('Save teamLab')).not.toBeInTheDocument()
+    expect(selectedDayRouteActivities.getByText('Tsukiji sushi')).toBeInTheDocument()
+    expect(selectedDayRouteActivities.queryByText('Save teamLab')).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: /^timeline$/i }))
+
+    const fullTimeline = screen.getByLabelText(/trip days timeline/i)
+    expect(within(fullTimeline).getByRole('heading', { name: /^ideas$/i })).toBeInTheDocument()
+    expect(within(fullTimeline).getByText('Save teamLab')).toBeInTheDocument()
+    const timelineMapActivities = within(screen.getByTestId('selected-map-activities'))
+    const timelineRouteActivities = within(screen.getByTestId('route-map-activities'))
+    expect(timelineMapActivities.getByText('Tsukiji sushi')).toBeInTheDocument()
+    expect(timelineMapActivities.getByText('Save teamLab')).toBeInTheDocument()
+    expect(timelineRouteActivities.queryByText('Tsukiji sushi')).not.toBeInTheDocument()
+    expect(timelineRouteActivities.queryByText('Save teamLab')).not.toBeInTheDocument()
+  })
+
+  it('switches to an activity day and expands the itinerary item when a cross-day marker is clicked', async () => {
+    const dayOneActivity = {
+      ...SAMPLE_ACTIVITY,
+      mapboxId: 'google.tsukiji',
+      placeName: 'Tsukiji sushi',
+      address: 'Tsukiji, Chuo City, Tokyo',
+      lat: 35.6654,
+      lng: 139.7707,
+    }
+    const dayTwoActivity = {
+      ...SAMPLE_ACTIVITY,
+      id: 22,
+      dayDate: '2026-05-02',
+      title: 'Tokyo Tower',
+      mapboxId: 'google.tokyo-tower',
+      placeName: 'Tokyo Tower',
+      address: '4 Chome-2-8 Shibakoen, Minato City, Tokyo',
+      lat: 35.6586,
+      lng: 139.7454,
+      orderIndex: 0,
+    }
+    mockWorkspace([dayOneActivity, dayTwoActivity])
+
+    renderWorkspace('/trips/abc234def567/d/2026-05-01')
+
+    await screen.findByRole('heading', { name: /friday, may 1/i })
+    await userEvent.click(screen.getByRole('button', { name: /^timeline$/i }))
+    expect(screen.getByRole('heading', { name: /full trip timeline/i })).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: /mock activate second marker/i }))
+
+    expect(await screen.findByRole('heading', { name: /saturday, may 2/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^timeline$/i })).toHaveAttribute('aria-pressed', 'false')
+    const activityCard = await screen.findByRole('article', { name: /collapse tokyo tower/i })
+    await waitFor(() => {
+      expect(activityCard).toHaveAttribute('aria-expanded', 'true')
+    })
+    expect(screen.getByTestId('active-map-activity')).toHaveTextContent('22')
+    expect(within(screen.getByTestId('selected-map-activities')).getByText('Tokyo Tower'))
+      .toBeInTheDocument()
+    expect(within(screen.getByTestId('selected-map-activities')).queryByText('Tsukiji sushi'))
+      .not.toBeInTheDocument()
+  })
+
   it('syncs active activity state between cards and map controls', async () => {
     const dayTwoActivity = {
       ...SAMPLE_ACTIVITY,
       id: 22,
       dayDate: '2026-05-02',
       title: 'Tokyo Tower',
+      mapboxId: 'google.tokyo-tower',
+      placeName: 'Tokyo Tower',
+      address: '4 Chome-2-8 Shibakoen, Minato City, Tokyo',
       lat: 35.6586,
       lng: 139.7454,
       orderIndex: 0,
     }
-    mockWorkspace([dayTwoActivity])
+    const secondDayActivity = {
+      ...SAMPLE_ACTIVITY,
+      id: 23,
+      dayDate: '2026-05-02',
+      title: 'Senso-ji',
+      mapboxId: 'google.sensoji',
+      placeName: 'Senso-ji',
+      address: '2 Chome-3-1 Asakusa, Taito City, Tokyo',
+      lat: 35.7148,
+      lng: 139.7967,
+      orderIndex: 1,
+    }
+    googlePlacesMockState.fetchGooglePlaceById.mockResolvedValue({
+      businessStatus: 'OPERATIONAL',
+      currentOpeningHours: null,
+      displayName: 'Tokyo Tower',
+      formattedAddress: '4 Chome-2-8 Shibakoen, Minato City, Tokyo',
+      googleMapsUri: 'https://maps.google.com/?cid=tokyo-tower',
+      id: 'google.tokyo-tower',
+      lat: 35.6586,
+      lng: 139.7454,
+      photoUrl: 'https://example.com/tokyo-tower-marker.webp',
+      primaryType: 'tourist_attraction',
+      primaryTypeDisplayName: 'Tourist attraction',
+      rating: 4.5,
+      regularOpeningHours: null,
+      reviews: [],
+      text: 'Tokyo Tower, 4 Chome-2-8 Shibakoen, Minato City, Tokyo',
+      types: ['tourist_attraction'],
+      userRatingCount: 10000,
+      websiteUri: null,
+    })
+    mockWorkspace([dayTwoActivity, secondDayActivity])
 
     renderWorkspace('/trips/abc234def567/d/2026-05-02')
 
@@ -576,10 +755,13 @@ describe('<TripWorkspacePage>', () => {
     const activityHeading = await screen.findByRole('heading', { name: /tokyo tower/i })
     const activityCard = activityHeading.closest('article')
     expect(activityCard).not.toBeNull()
+    const secondActivityCard = screen.getByRole('heading', { name: /senso-ji/i }).closest('article')
+    expect(secondActivityCard).not.toBeNull()
 
     expect(screen.queryByRole('button', { name: /drag tokyo tower/i })).not.toBeInTheDocument()
     expect(screen.queryByLabelText(/activity name/i)).not.toBeInTheDocument()
     expect(activityCard).toHaveAttribute('aria-expanded', 'false')
+    expect(secondActivityCard).toHaveAttribute('aria-expanded', 'false')
 
     await userEvent.click(activityCard as HTMLElement)
     expect(screen.getByTestId('active-map-activity')).toHaveTextContent('22')
@@ -591,9 +773,34 @@ describe('<TripWorkspacePage>', () => {
     expect(screen.getByTestId('active-map-activity')).toHaveTextContent('22')
     expect(activityCard).toHaveAttribute('aria-expanded', 'false')
 
+    await userEvent.click(secondActivityCard as HTMLElement)
+    expect(secondActivityCard).toHaveAttribute('aria-expanded', 'true')
+    expect(activityCard).toHaveAttribute('aria-expanded', 'false')
+
     await userEvent.click(screen.getByRole('button', { name: /mock activate marker/i }))
     expect(screen.getByTestId('active-map-activity')).toHaveTextContent('22')
-    expect(document.activeElement).toHaveAttribute('id', 'activity-22')
+    await waitFor(() => {
+      expect(document.activeElement).toHaveAttribute('id', 'activity-22')
+    })
+    expect(activityCard).toHaveAttribute('aria-expanded', 'true')
+    expect(secondActivityCard).toHaveAttribute('aria-expanded', 'false')
+    await waitFor(() => {
+      expect(googlePlacesMockState.fetchGooglePlaceById).toHaveBeenCalledWith({
+        includePhoto: true,
+        placeId: 'google.tokyo-tower',
+      })
+    })
+    expect(within(screen.getByLabelText(/selected map place/i)).getByRole('img', {
+      name: /tokyo tower/i,
+    })).toHaveAttribute('src', 'https://example.com/tokyo-tower-marker.webp')
+    expect(within(screen.getByLabelText(/selected map place/i)).getByText(/4\.5 \(10,000 reviews\)/i))
+      .toBeInTheDocument()
+    expect(within(screen.getByLabelText(/selected map place/i)).getByRole('link', {
+      name: /open in google maps/i,
+    })).toHaveAttribute('href', 'https://maps.google.com/?cid=tokyo-tower')
+
+    await userEvent.click(screen.getByRole('button', { name: /mock activate marker/i }))
+    expect(activityCard).toHaveAttribute('aria-expanded', 'true')
 
     await userEvent.click(screen.getByRole('button', { name: /mock satellite map style/i }))
     expect(screen.getByTestId('map-style')).toHaveTextContent('satellite')
@@ -710,7 +917,11 @@ describe('<TripWorkspacePage>', () => {
         lng: 139.7454,
       })
     })
-    expect(await screen.findByTestId('active-map-activity')).toHaveTextContent('20')
+    await waitFor(() => {
+      expect(within(screen.getByTestId('selected-map-activities')).getByText('Tokyo Tower'))
+        .toBeInTheDocument()
+    })
+    expect(screen.getByTestId('active-map-activity')).toHaveTextContent('none')
     expect(screen.getByTestId('preview-map-place')).toHaveTextContent('none')
   })
 
@@ -907,6 +1118,7 @@ describe('<TripWorkspacePage>', () => {
 
     await waitFor(() => {
       expect(googlePlacesMockState.fetchGooglePlaceTextSearch).toHaveBeenCalledWith({
+        includePhoto: false,
         options: expect.objectContaining({
           includedType: 'restaurant',
           language: 'en',
@@ -925,6 +1137,10 @@ describe('<TripWorkspacePage>', () => {
 
   it('submits map search, maps returned places, and shows selected place details', async () => {
     mockWorkspace()
+    let resolveSearchThumbnail!: (url: string) => void
+    googlePlacesMockState.imageUrlFromGooglePhotoName.mockReturnValueOnce(new Promise((resolve) => {
+      resolveSearchThumbnail = resolve
+    }))
     googlePlacesMockState.fetchGooglePlaceTextSearch.mockResolvedValueOnce({
       nextPageToken: 'next-page',
       places: [{
@@ -939,6 +1155,7 @@ describe('<TripWorkspacePage>', () => {
         id: 'google.ramen-street',
         lat: 35.6812,
         lng: 139.7671,
+        photoName: 'places/google.ramen-street/photos/main',
         photoUrl: null,
         primaryType: 'restaurant',
         primaryTypeDisplayName: 'Restaurant',
@@ -959,6 +1176,52 @@ describe('<TripWorkspacePage>', () => {
         websiteUri: null,
       }],
     })
+    googlePlacesMockState.fetchGooglePlaceTextSearch.mockResolvedValueOnce({
+      nextPageToken: null,
+      places: [{
+        businessStatus: 'OPERATIONAL',
+        currentOpeningHours: null,
+        displayName: 'Udon Alley',
+        formattedAddress: '2 Chome Marunouchi, Tokyo',
+        googleMapsUri: 'https://maps.google.com/?cid=udon',
+        id: 'google.udon-alley',
+        lat: 35.682,
+        lng: 139.768,
+        photoUrl: null,
+        primaryType: 'restaurant',
+        primaryTypeDisplayName: 'Restaurant',
+        rating: 4.2,
+        regularOpeningHours: null,
+        reviews: [],
+        text: 'Udon Alley, 2 Chome Marunouchi, Tokyo',
+        types: ['restaurant'],
+        userRatingCount: 80,
+        websiteUri: null,
+      }],
+    })
+    googlePlacesMockState.fetchGooglePlaceById.mockResolvedValueOnce({
+      businessStatus: 'OPERATIONAL',
+      currentOpeningHours: null,
+      displayName: 'Ramen Street',
+      formattedAddress: '1 Chome Marunouchi, Tokyo',
+      googleMapsUri: 'https://maps.google.com/?cid=ramen',
+      id: 'google.ramen-street',
+      lat: 35.6812,
+      lng: 139.7671,
+      photoUrl: 'https://example.com/ramen-street.webp',
+      primaryType: 'restaurant',
+      primaryTypeDisplayName: 'Restaurant',
+      rating: 4.6,
+      regularOpeningHours: {
+        openNow: null,
+        weekdayDescriptions: ['Friday: 10:00 AM – 10:00 PM'],
+      },
+      reviews: [],
+      text: 'Ramen Street, 1 Chome Marunouchi, Tokyo',
+      types: ['restaurant'],
+      userRatingCount: 1300,
+      websiteUri: null,
+    })
 
     renderWorkspace('/trips/abc234def567/d/2026-05-01')
 
@@ -969,6 +1232,7 @@ describe('<TripWorkspacePage>', () => {
 
     await waitFor(() => {
       expect(googlePlacesMockState.fetchGooglePlaceTextSearch).toHaveBeenCalledWith({
+        includePhoto: false,
         options: expect.objectContaining({
           language: 'en',
           rankPreference: 'RELEVANCE',
@@ -978,6 +1242,45 @@ describe('<TripWorkspacePage>', () => {
       })
     })
     expect(within(screen.getByTestId('search-map-results')).getByText('Ramen Street')).toBeInTheDocument()
+    const mapSearchResults = screen.getByLabelText(/map search results/i)
+    expect(within(mapSearchResults).getByRole('button', { name: /ramen street/i })).toBeInTheDocument()
+    expect(within(mapSearchResults).queryByRole('img', { name: /ramen street/i })).not.toBeInTheDocument()
+    await waitFor(() => {
+      expect(googlePlacesMockState.imageUrlFromGooglePhotoName).toHaveBeenCalledWith({
+        maxHeightPx: 240,
+        maxWidthPx: 320,
+        photoName: 'places/google.ramen-street/photos/main',
+      })
+    })
+
+    resolveSearchThumbnail('https://example.com/ramen-street-thumb.webp')
+    await waitFor(() => {
+      expect(within(mapSearchResults).getByRole('img', { name: /ramen street/i })).toHaveAttribute(
+        'src',
+        'https://example.com/ramen-street-thumb.webp',
+      )
+    })
+
+    const searchResultPlaces = screen.getByLabelText(/search result places/i)
+    Object.defineProperties(searchResultPlaces, {
+      clientWidth: { configurable: true, value: 900 },
+      scrollWidth: { configurable: true, value: 1000 },
+    })
+    fireEvent.scroll(searchResultPlaces, { target: { scrollLeft: 850 } })
+    await waitFor(() => {
+      expect(googlePlacesMockState.fetchGooglePlaceTextSearch).toHaveBeenLastCalledWith({
+        includePhoto: false,
+        options: expect.objectContaining({
+          language: 'en',
+          pageToken: 'next-page',
+          rankPreference: 'RELEVANCE',
+        }),
+        pageSize: 10,
+        query: 'ramen',
+      })
+    })
+    expect(within(screen.getByTestId('search-map-results')).getByText('Udon Alley')).toBeInTheDocument()
+    expect(googlePlacesMockState.fetchGooglePlaceById).not.toHaveBeenCalled()
 
     await userEvent.click(screen.getByRole('button', { name: /mock select search result/i }))
 
@@ -989,10 +1292,21 @@ describe('<TripWorkspacePage>', () => {
       }),
     ).toHaveAttribute('aria-pressed', 'true')
     expect(screen.queryByText('Search result')).not.toBeInTheDocument()
+    await waitFor(() => {
+      expect(googlePlacesMockState.fetchGooglePlaceById).toHaveBeenCalledWith(expect.objectContaining({
+        includePhoto: true,
+        placeId: 'google.ramen-street',
+        traceId: expect.stringMatching(/^place-/),
+      }))
+    })
 
     const detailCard = screen.getByLabelText(/selected map place/i)
     expect(within(detailCard).getByRole('heading', { name: /ramen street/i })).toBeInTheDocument()
-    expect(within(detailCard).queryByText(/4\.4/)).not.toBeInTheDocument()
+    expect(within(detailCard).getByText(/4\.6 \(1,300 reviews\)/i)).toBeInTheDocument()
+    expect(within(detailCard).getByRole('img', { name: /ramen street/i })).toHaveAttribute(
+      'src',
+      'https://example.com/ramen-street.webp',
+    )
     expect(within(detailCard).queryByText('Operational')).not.toBeInTheDocument()
     expect(within(detailCard).queryByText('Open now')).not.toBeInTheDocument()
     expect(within(detailCard).getByText('Friday: 10:00 AM – 10:00 PM')).toBeInTheDocument()
@@ -1067,7 +1381,31 @@ describe('<TripWorkspacePage>', () => {
     })).toBeInTheDocument()
   })
 
-  it('loads place details from native map place clicks', async () => {
+  it('shows a loading card immediately then loads full place details from native map place clicks', async () => {
+    const basicPlace = {
+      businessStatus: 'OPERATIONAL',
+      currentOpeningHours: null,
+      displayName: 'Clicked Place',
+      formattedAddress: 'Clicked address',
+      googleMapsUri: 'https://maps.google.com/?cid=clicked',
+      id: 'google.poi-clicked',
+      lat: 35.7,
+      lng: 139.8,
+      photoUrl: 'https://example.com/clicked-place.webp',
+      primaryType: 'tourist_attraction',
+      primaryTypeDisplayName: 'Tourist attraction',
+      rating: null,
+      regularOpeningHours: null,
+      reviews: [],
+      text: 'Clicked Place, Clicked address',
+      types: ['tourist_attraction'],
+      userRatingCount: null,
+      websiteUri: null,
+    }
+    let resolvePlaceDetails!: (place: typeof basicPlace) => void
+    googlePlacesMockState.fetchGooglePlaceById.mockReturnValueOnce(new Promise((resolve) => {
+      resolvePlaceDetails = resolve
+    }))
     mockWorkspace()
 
     renderWorkspace('/trips/abc234def567/d/2026-05-01')
@@ -1075,21 +1413,47 @@ describe('<TripWorkspacePage>', () => {
     await screen.findByTestId('trip-map')
     await userEvent.click(screen.getByRole('button', { name: /mock map place click/i }))
 
+    expect(within(screen.getByLabelText(/selected map place/i)).getByRole('heading', {
+      name: /fetching place details/i,
+    })).toBeInTheDocument()
+    expect(screen.getByText(/fetching data/i)).toBeInTheDocument()
     await waitFor(() => {
       expect(googlePlacesMockState.fetchGooglePlaceById).toHaveBeenCalledWith({
+        includePhoto: true,
         placeId: 'google.poi-clicked',
+        traceId: 'test-map-place-click',
       })
     })
+    expect(googlePlacesMockState.fetchGooglePlaceById).toHaveBeenCalledTimes(1)
+    expect(within(screen.getByLabelText(/selected map place/i)).queryByRole('button', {
+      name: /add to trip/i,
+    })).not.toBeInTheDocument()
+    expect(within(screen.getByLabelText(/selected map place/i)).getByRole('link', {
+      name: /open in google maps/i,
+    })).toHaveAttribute(
+      'href',
+      'https://www.google.com/maps/search/?api=1&query=35.7%2C139.8',
+    )
+
+    resolvePlaceDetails(basicPlace)
 
     expect(within(screen.getByTestId('search-map-results')).queryByText('Clicked Place')).not.toBeInTheDocument()
-    expect(screen.getByTestId('preview-map-place')).toHaveTextContent('Clicked Place')
-    expect(within(screen.getByLabelText(/selected map place/i)).getByRole('heading', {
+    await waitFor(() => {
+      expect(screen.getByTestId('preview-map-place')).toHaveTextContent('Clicked Place')
+      expect(within(screen.getByLabelText(/selected map place/i)).getByRole('heading', {
+        name: /clicked place/i,
+      })).toBeInTheDocument()
+    })
+    expect(within(screen.getByLabelText(/selected map place/i)).getByRole('img', {
       name: /clicked place/i,
-    })).toBeInTheDocument()
+    })).toHaveAttribute('src', 'https://example.com/clicked-place.webp')
+    expect(within(screen.getByLabelText(/selected map place/i)).getByRole('link', {
+      name: /open in google maps/i,
+    })).toHaveAttribute('href', 'https://maps.google.com/?cid=clicked')
   })
 
   it('resolves coordinate-only map clicks into nearby place details', async () => {
-    googlePlacesMockState.fetchGooglePlaceById.mockResolvedValueOnce({
+    const nearbyDetails = {
       businessStatus: 'OPERATIONAL',
       currentOpeningHours: { openNow: true, weekdayDescriptions: [] },
       displayName: 'Nearby Cafe Details',
@@ -1108,7 +1472,8 @@ describe('<TripWorkspacePage>', () => {
       types: ['cafe'],
       userRatingCount: 42,
       websiteUri: 'https://nearby.example.com',
-    })
+    }
+    googlePlacesMockState.fetchGooglePlaceById.mockResolvedValueOnce(nearbyDetails)
     mockWorkspace()
 
     renderWorkspace('/trips/abc234def567/d/2026-05-01')
@@ -1118,6 +1483,7 @@ describe('<TripWorkspacePage>', () => {
 
     await waitFor(() => {
       expect(googlePlacesMockState.fetchGooglePlaceNearLocation).toHaveBeenCalledWith({
+        includePhoto: false,
         maxResultCount: 10,
         options: {
           language: 'en',
@@ -1129,8 +1495,11 @@ describe('<TripWorkspacePage>', () => {
     })
 
     expect(googlePlacesMockState.fetchGooglePlaceById).toHaveBeenCalledWith({
+      includePhoto: true,
       placeId: 'google.nearby-cafe',
+      traceId: 'test-map-location-click',
     })
+    expect(googlePlacesMockState.fetchGooglePlaceById).toHaveBeenCalledTimes(1)
     expect(screen.getByTestId('preview-map-place')).toHaveTextContent('Nearby Cafe Details')
     expect(within(screen.getByLabelText(/selected map place/i)).getByRole('heading', {
       name: /nearby cafe details/i,
@@ -1148,7 +1517,9 @@ describe('<TripWorkspacePage>', () => {
 
     await waitFor(() => {
       expect(googlePlacesMockState.fetchGooglePlaceById).toHaveBeenCalledWith({
+        includePhoto: true,
         placeId: 'google.nearby-cafe',
+        traceId: 'test-map-location-click',
       })
     })
 
@@ -1176,6 +1547,12 @@ describe('<TripWorkspacePage>', () => {
     expect(within(screen.getByLabelText(/selected map place/i)).getByRole('heading', {
       name: /selected location/i,
     })).toBeInTheDocument()
+    expect(within(screen.getByLabelText(/selected map place/i)).getByRole('link', {
+      name: /open in google maps/i,
+    })).toHaveAttribute(
+      'href',
+      'https://www.google.com/maps/search/?api=1&query=35.7%2C139.8',
+    )
   })
 
   it('updates trip settings, warns about hidden activities, and navigates to a valid day', async () => {
@@ -1207,10 +1584,15 @@ describe('<TripWorkspacePage>', () => {
     await userEvent.clear(destinationInput)
     await userEvent.type(destinationInput, 'Kyoto, Japan')
     await userEvent.type(screen.getByLabelText(/cover image url/i), 'https://example.com/kyoto.jpg')
-    await userEvent.clear(screen.getByLabelText(/start date/i))
-    await userEvent.type(screen.getByLabelText(/start date/i), '2026-05-02')
-    await userEvent.clear(screen.getByLabelText(/end date/i))
-    await userEvent.type(screen.getByLabelText(/end date/i), '2026-05-03')
+    await userEvent.click(screen.getByRole('button', { name: /trip dates/i }))
+    await userEvent.click(screen.getByRole('button', {
+      name: /choose saturday, may 2, 2026/i,
+    }))
+    await userEvent.click(screen.getByRole('button', {
+      name: /choose sunday, may 3, 2026/i,
+    }))
+    expect(screen.queryByText(/round trip/i)).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: /done/i }))
 
     expect(screen.getByText(/1 activity will be outside/i)).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: /save changes/i }))

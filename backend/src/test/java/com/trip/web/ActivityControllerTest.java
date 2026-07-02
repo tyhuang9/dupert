@@ -146,6 +146,33 @@ class ActivityControllerTest {
     }
 
     @Test
+    void createWithoutDayDateCreatesIdea() throws Exception {
+        when(activityRepository.countByTripId(TRIP_PK)).thenReturn(1L);
+        when(activityRepository.findMaxOrderIndexForIdeas(TRIP_PK)).thenReturn(1);
+        when(activityRepository.save(any(Activity.class))).thenAnswer(invocation -> {
+            Activity saved = invocation.getArgument(0);
+            ReflectionIds.setId(saved, 502L);
+            return saved;
+        });
+
+        mvc.perform(post("/api/trips/" + TRIP_PUBLIC_ID + "/activities")
+                .header("Authorization", bearerFor(ALICE_ID))
+                .contentType("application/json")
+                .content(objectMapper.writeValueAsString(Map.of(
+                    "category", "ACTIVITY",
+                    "title", "Save teamLab"))))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.id").value(502))
+            .andExpect(jsonPath("$.dayDate").doesNotExist())
+            .andExpect(jsonPath("$.orderIndex").value(2));
+
+        verify(tripEventPublisher).publishAfterCommit(eq(TRIP_PK), argThat(event ->
+            event.type().equals("activity.created")
+                && event.activityId().equals(502L)
+                && event.dayDate() == null));
+    }
+
+    @Test
     void createOutsideTripRangeReturns400() throws Exception {
         mvc.perform(post("/api/trips/" + TRIP_PUBLIC_ID + "/activities")
                 .queryParam("dayDate", "2099-01-01")
@@ -166,7 +193,7 @@ class ActivityControllerTest {
         Activity museum = activity(2L, TRIP_PK, DAY_TWO, ActivityCategory.ACTIVITY, "Museum", 0);
         meal.setUpdatedByUserId(ALICE_ID);
         museum.setUpdatedByUserId(ALICE_ID);
-        when(activityRepository.findAllInDateRange(TRIP_PK, DAY_ONE, DAY_THREE))
+        when(activityRepository.findAllVisibleForTrip(TRIP_PK, DAY_ONE, DAY_THREE))
             .thenReturn(List.of(meal, museum));
 
         mvc.perform(get("/api/trips/" + TRIP_PUBLIC_ID + "/activities")
@@ -175,6 +202,22 @@ class ActivityControllerTest {
             .andExpect(jsonPath("$[0].title").value("Breakfast"))
             .andExpect(jsonPath("$[1].title").value("Museum"))
             .andExpect(jsonPath("$[0].updatedByUserDisplayName").value("Alice"));
+    }
+
+    @Test
+    void listIncludesIdeasWithNullDayDate() throws Exception {
+        Activity meal = activity(1L, TRIP_PK, DAY_ONE, ActivityCategory.MEAL, "Breakfast", 0);
+        Activity idea = activity(2L, TRIP_PK, null, ActivityCategory.ACTIVITY, "Save teamLab", 0);
+        when(activityRepository.findAllVisibleForTrip(TRIP_PK, DAY_ONE, DAY_THREE))
+            .thenReturn(List.of(meal, idea));
+
+        mvc.perform(get("/api/trips/" + TRIP_PUBLIC_ID + "/activities")
+                .header("Authorization", bearerFor(ALICE_ID)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[0].title").value("Breakfast"))
+            .andExpect(jsonPath("$[0].dayDate").value(DAY_ONE.toString()))
+            .andExpect(jsonPath("$[1].title").value("Save teamLab"))
+            .andExpect(jsonPath("$[1].dayDate").doesNotExist());
     }
 
     @Test
@@ -323,6 +366,29 @@ class ActivityControllerTest {
     }
 
     @Test
+    void reorderIdeasUpdatesProvidedOrderAndAppendsRest() throws Exception {
+        Activity first = activity(1L, TRIP_PK, null, ActivityCategory.ACTIVITY, "First idea", 0);
+        Activity second = activity(2L, TRIP_PK, null, ActivityCategory.ACTIVITY, "Second idea", 1);
+        Activity third = activity(3L, TRIP_PK, null, ActivityCategory.SNACK, "Third idea", 2);
+        when(activityRepository.findByTripIdAndDayDateIsNullOrderByOrderIndex(TRIP_PK))
+            .thenReturn(List.of(first, second, third));
+
+        mvc.perform(post("/api/trips/" + TRIP_PUBLIC_ID + "/ideas/order")
+                .header("Authorization", bearerFor(ALICE_ID))
+                .contentType("application/json")
+                .content(objectMapper.writeValueAsString(Map.of("activityIds", List.of(3L, 1L)))))
+            .andExpect(status().isNoContent());
+
+        org.assertj.core.api.Assertions.assertThat(third.getOrderIndex()).isZero();
+        org.assertj.core.api.Assertions.assertThat(first.getOrderIndex()).isEqualTo(1);
+        org.assertj.core.api.Assertions.assertThat(second.getOrderIndex()).isEqualTo(2);
+        verify(tripEventPublisher).publishAfterCommit(eq(TRIP_PK), argThat(event ->
+            event.type().equals("day.reordered")
+                && event.activityId() == null
+                && event.dayDate() == null));
+    }
+
+    @Test
     void moveWithinDayKeepsSequentialOrderWhenMovingDown() throws Exception {
         Activity first = activity(1L, TRIP_PK, DAY_ONE, ActivityCategory.MEAL, "First", 0);
         Activity second = activity(2L, TRIP_PK, DAY_ONE, ActivityCategory.ACTIVITY, "Second", 1);
@@ -376,6 +442,75 @@ class ActivityControllerTest {
         org.assertj.core.api.Assertions.assertThat(sourceAfter.getOrderIndex()).isEqualTo(1);
         org.assertj.core.api.Assertions.assertThat(destFirst.getOrderIndex()).isZero();
         org.assertj.core.api.Assertions.assertThat(destSecond.getOrderIndex()).isEqualTo(2);
+        org.assertj.core.api.Assertions.assertThat(moving.getOrderIndex()).isEqualTo(1);
+        verify(tripEventPublisher).publishAfterCommit(eq(TRIP_PK), argThat(event ->
+            event.type().equals("activity.moved")
+                && event.activityId().equals(1L)
+                && event.dayDate().equals(DAY_TWO)));
+    }
+
+    @Test
+    void moveScheduledActivityToIdeasUsesNullDayDate() throws Exception {
+        Activity moving = activity(1L, TRIP_PK, DAY_ONE, ActivityCategory.MEAL, "Move me", 1);
+        Activity sourceBefore = activity(2L, TRIP_PK, DAY_ONE, ActivityCategory.ACTIVITY, "Before", 0);
+        Activity idea = activity(3L, TRIP_PK, null, ActivityCategory.SNACK, "Idea", 0);
+        when(activityRepository.findById(1L)).thenReturn(Optional.of(moving));
+        when(activityRepository.findByTripIdAndDayDateOrderByOrderIndex(TRIP_PK, DAY_ONE))
+            .thenReturn(List.of(sourceBefore, moving));
+        when(activityRepository.findByTripIdAndDayDateIsNullOrderByOrderIndex(TRIP_PK))
+            .thenReturn(List.of(idea));
+        when(activityRepository.save(any(Activity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        mvc.perform(post("/api/activities/1/move")
+                .queryParam("publicId", TRIP_PUBLIC_ID)
+                .header("Authorization", bearerFor(ALICE_ID))
+                .contentType("application/json")
+                .content("""
+                    {
+                      "dayDate": null,
+                      "orderIndex": 1
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.dayDate").doesNotExist())
+            .andExpect(jsonPath("$.orderIndex").value(1));
+
+        org.assertj.core.api.Assertions.assertThat(sourceBefore.getOrderIndex()).isZero();
+        org.assertj.core.api.Assertions.assertThat(idea.getOrderIndex()).isZero();
+        org.assertj.core.api.Assertions.assertThat(moving.getDayDate()).isNull();
+        org.assertj.core.api.Assertions.assertThat(moving.getOrderIndex()).isEqualTo(1);
+        verify(tripEventPublisher).publishAfterCommit(eq(TRIP_PK), argThat(event ->
+            event.type().equals("activity.moved")
+                && event.activityId().equals(1L)
+                && event.dayDate() == null));
+    }
+
+    @Test
+    void moveIdeaToScheduledDayUsesRequestedDate() throws Exception {
+        Activity moving = activity(1L, TRIP_PK, null, ActivityCategory.ACTIVITY, "Schedule me", 0);
+        Activity remainingIdea = activity(2L, TRIP_PK, null, ActivityCategory.SNACK, "Later", 1);
+        Activity dayActivity = activity(3L, TRIP_PK, DAY_TWO, ActivityCategory.MEAL, "Dinner", 0);
+        when(activityRepository.findById(1L)).thenReturn(Optional.of(moving));
+        when(activityRepository.findByTripIdAndDayDateIsNullOrderByOrderIndex(TRIP_PK))
+            .thenReturn(List.of(moving, remainingIdea));
+        when(activityRepository.findByTripIdAndDayDateOrderByOrderIndex(TRIP_PK, DAY_TWO))
+            .thenReturn(List.of(dayActivity));
+        when(activityRepository.save(any(Activity.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        mvc.perform(post("/api/activities/1/move")
+                .queryParam("publicId", TRIP_PUBLIC_ID)
+                .header("Authorization", bearerFor(ALICE_ID))
+                .contentType("application/json")
+                .content(objectMapper.writeValueAsString(Map.of(
+                    "dayDate", DAY_TWO.toString(),
+                    "orderIndex", 1))))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.dayDate").value(DAY_TWO.toString()))
+            .andExpect(jsonPath("$.orderIndex").value(1));
+
+        org.assertj.core.api.Assertions.assertThat(remainingIdea.getOrderIndex()).isZero();
+        org.assertj.core.api.Assertions.assertThat(dayActivity.getOrderIndex()).isZero();
+        org.assertj.core.api.Assertions.assertThat(moving.getDayDate()).isEqualTo(DAY_TWO);
         org.assertj.core.api.Assertions.assertThat(moving.getOrderIndex()).isEqualTo(1);
         verify(tripEventPublisher).publishAfterCommit(eq(TRIP_PK), argThat(event ->
             event.type().equals("activity.moved")

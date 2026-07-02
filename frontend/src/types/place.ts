@@ -18,6 +18,8 @@ export interface PlaceSelection extends Partial<CreateActivityRequest> {
   featureType?: string | null
   googleMapsUri?: string | null
   currentOpeningHours?: PlaceOpeningHours | null
+  isLoadingDetails?: boolean
+  photoName?: string | null
   photoUrl?: string | null
   placeCategory?: string | null
   priceLevel?: string | null

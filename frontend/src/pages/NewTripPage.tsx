@@ -2,9 +2,9 @@ import { useId, useMemo, useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { parseApiError, type ParsedApiError } from '../api/errors'
 import { GooglePlaceAutocomplete } from '../components/GooglePlaceAutocomplete'
+import { TripDateRangePicker } from '../components/TripDateRangePicker'
 import type { GooglePlaceSelection } from '../components/googlePlaces'
 import { useCreateTrip } from '../hooks/useTrips'
-import { googlePlacesAccessTroubleshooting } from '../utils/googleMapsAccess'
 import { usePageTitle } from '../utils/usePageTitle'
 import styles from './TripsPage.module.css'
 
@@ -72,8 +72,6 @@ export function NewTripPage() {
 
   const nameId = useId()
   const destinationId = useId()
-  const startDateId = useId()
-  const endDateId = useId()
 
   const isSubmitting = createTrip.isPending
   const banner = apiError?.topMessage
@@ -204,7 +202,7 @@ export function NewTripPage() {
             placeholder="Search a city, address, or region"
             maxLength={200}
             disabled={isSubmitting}
-            searchFailedMessage={`Google Places search failed. ${googlePlacesAccessTroubleshooting()}`}
+            searchFailedMessage="Google Places search failed."
             options={DESTINATION_SEARCH_OPTIONS}
           />
           {destinationSearchError ? (
@@ -240,53 +238,14 @@ export function NewTripPage() {
           ) : null}
         </div>
 
-        <div className={styles.dateGrid}>
-          <div className={styles.field}>
-            <label className={styles.label} htmlFor={startDateId}>
-              Start date
-            </label>
-            <input
-              id={startDateId}
-              className={styles.input}
-              type="date"
-              value={form.startDate}
-              onChange={(event) => setField('startDate', event.target.value)}
-              disabled={isSubmitting}
-              aria-invalid={Boolean(mergedFieldErrors.startDate)}
-              aria-describedby={
-                mergedFieldErrors.startDate ? `${startDateId}-error` : undefined
-              }
-            />
-            {mergedFieldErrors.startDate ? (
-              <span className={styles.fieldError} id={`${startDateId}-error`}>
-                {mergedFieldErrors.startDate}
-              </span>
-            ) : null}
-          </div>
-
-          <div className={styles.field}>
-            <label className={styles.label} htmlFor={endDateId}>
-              End date
-            </label>
-            <input
-              id={endDateId}
-              className={styles.input}
-              type="date"
-              value={form.endDate}
-              onChange={(event) => setField('endDate', event.target.value)}
-              disabled={isSubmitting}
-              aria-invalid={Boolean(mergedFieldErrors.endDate)}
-              aria-describedby={
-                mergedFieldErrors.endDate ? `${endDateId}-error` : undefined
-              }
-            />
-            {mergedFieldErrors.endDate ? (
-              <span className={styles.fieldError} id={`${endDateId}-error`}>
-                {mergedFieldErrors.endDate}
-              </span>
-            ) : null}
-          </div>
-        </div>
+        <TripDateRangePicker
+          disabled={isSubmitting}
+          endDate={form.endDate}
+          endDateError={mergedFieldErrors.endDate}
+          onChange={setFields}
+          startDate={form.startDate}
+          startDateError={mergedFieldErrors.startDate}
+        />
 
         <div className={styles.formActions}>
           <button

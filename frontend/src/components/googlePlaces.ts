@@ -1,4 +1,9 @@
 import { apiClient } from '../api/client'
+import {
+  logPlaceDetailsTiming,
+  placeDetailsElapsedMs,
+  placeDetailsNowMs,
+} from '../utils/placeDetailsTiming'
 
 export const GOOGLE_PLACES_SEARCH_RESULT_LIMIT = 10
 
@@ -93,6 +98,7 @@ export interface GooglePlaceSelection {
   googleMapsUri: string | null
   lat: number | null
   lng: number | null
+  photoName: string | null
   photoUrl: string | null
   primaryType: string | null
   primaryTypeDisplayName: string | null
@@ -591,12 +597,14 @@ export async function fetchGooglePlaceDetails({
   fields,
   fetchImpl,
   sessionToken,
+  traceId,
 }: {
   fetchImpl?: FetchImplementation
   includePhoto?: boolean
   placeId: string
   sessionToken?: string | null
   fields?: string | string[]
+  traceId?: string | null
 }): Promise<GooglePlaceDetailsResponse> {
   const fieldMask = canonicalBackendPlaceDetailsFieldMask({ fields, includePhoto })
   const normalizedSessionToken = sessionToken?.trim() || ''
@@ -605,15 +613,35 @@ export async function fetchGooglePlaceDetails({
   if (existing) return existing
 
   const shouldSendFields = fields !== undefined || includePhoto
+  const requestStartedAtMs = placeDetailsNowMs()
+  logPlaceDetailsTiming('frontend_details_request_start', {
+    fieldMask,
+    includePhoto,
+    placeId,
+    sessionTokenPresent: normalizedSessionToken.length > 0,
+    traceId: traceId?.trim() || null,
+  })
   const request = getBackendJson<BackendPlaceDetailsResponse>(
     `/places/${encodeURIComponent(placeId)}/details`,
     'Google Place Details',
     {
       ...(shouldSendFields ? { fields: fieldMask } : {}),
+      ...(traceId?.trim() ? { clientTraceId: traceId.trim() } : {}),
       ...(normalizedSessionToken ? { sessionToken: normalizedSessionToken } : {}),
     },
     fetchImpl,
-  ).then((response) => response.details)
+  ).then((response) => {
+    logPlaceDetailsTiming('frontend_details_response_received', {
+      durationMs: placeDetailsElapsedMs(requestStartedAtMs),
+      fieldMask: response.fieldMask,
+      includePhoto,
+      placeId: response.placeId,
+      source: response.source,
+      stale: response.stale,
+      traceId: traceId?.trim() || null,
+    })
+    return response.details
+  })
 
   backendPlaceDetailsRequests.set(cacheKey, request)
   try {
@@ -628,22 +656,41 @@ export async function fetchGooglePlaceById({
   fetchImpl,
   includePhoto = false,
   placeId,
+  traceId,
 }: {
   fetchImpl?: FetchImplementation
   includePhoto?: boolean
   placeId: string
+  traceId?: string | null
 }): Promise<GooglePlaceSelection> {
+  const requestStartedAtMs = placeDetailsNowMs()
   const details = await fetchGooglePlaceDetails({
     fetchImpl,
     includePhoto,
     placeId,
+    traceId,
   })
+  logPlaceDetailsTiming('frontend_details_normalized', {
+    durationMs: placeDetailsElapsedMs(requestStartedAtMs),
+    includePhoto,
+    placeId,
+    traceId: traceId?.trim() || null,
+  })
+  const photoStartedAtMs = placeDetailsNowMs()
   const photoUrl = includePhoto
     ? await imageUrlFromGooglePhotoName({
         fetchImpl,
         photoName: details.photos?.[0]?.name,
       })
     : null
+  if (includePhoto) {
+    logPlaceDetailsTiming('frontend_photo_hydration_complete', {
+      durationMs: placeDetailsElapsedMs(photoStartedAtMs),
+      hasPhotoUrl: photoUrl !== null,
+      placeId,
+      traceId: traceId?.trim() || null,
+    })
+  }
 
   return normalizeGooglePlaceResponse(
     details,
@@ -661,9 +708,13 @@ export async function fetchGooglePlaceById({
 
 export async function imageUrlFromGooglePhotoName({
   fetchImpl,
+  maxHeightPx = 1000,
+  maxWidthPx = 1600,
   photoName,
 }: {
   fetchImpl?: FetchImplementation
+  maxHeightPx?: number
+  maxWidthPx?: number
   photoName: string | null | undefined
 }): Promise<string | null> {
   if (!photoName) return null
@@ -673,8 +724,8 @@ export async function imageUrlFromGooglePhotoName({
       '/places/photo-url',
       {
         photoName,
-        maxWidthPx: 1600,
-        maxHeightPx: 1000,
+        maxWidthPx,
+        maxHeightPx,
       },
       'Google Places photo media',
       undefined,
@@ -729,6 +780,10 @@ function normalizeReviews(
   })
 }
 
+function firstPhotoName(place: GooglePlaceDetailsResponse): string | null {
+  return place.photos?.[0]?.name?.trim() || null
+}
+
 function normalizeGooglePlaceResponse(
   place: GooglePlaceDetailsResponse,
   prediction: GooglePlacePrediction,
@@ -754,6 +809,7 @@ function normalizeGooglePlaceResponse(
     googleMapsUri: normalizeHttpsUrl(place.googleMapsUri),
     lat: isFiniteCoordinate(lat) ? lat : null,
     lng: isFiniteCoordinate(lng) ? lng : null,
+    photoName: firstPhotoName(place),
     photoUrl,
     primaryType: place.primaryType ?? null,
     primaryTypeDisplayName: textValue(place.primaryTypeDisplayName) || null,
@@ -798,17 +854,20 @@ export async function fetchGooglePlaceSelection({
   includePhoto = false,
   prediction,
   sessionToken,
+  traceId,
 }: {
   fetchImpl?: FetchImplementation
   includePhoto?: boolean
   prediction: GooglePlacePrediction
   sessionToken?: string | null
+  traceId?: string | null
 }): Promise<GooglePlaceSelection> {
   const place = await fetchGooglePlaceDetails({
     fetchImpl,
     includePhoto,
     placeId: prediction.placeId,
     sessionToken,
+    traceId,
   })
   const photoUrl = includePhoto
     ? await imageUrlFromGooglePhotoName({

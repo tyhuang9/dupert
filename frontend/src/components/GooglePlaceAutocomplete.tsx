@@ -8,7 +8,7 @@ import {
   type FocusEvent,
   type KeyboardEvent,
 } from 'react'
-import { Search } from 'lucide-react'
+import { Search, X } from 'lucide-react'
 import {
   fetchGooglePlaceSelection,
   fetchGooglePlaceSuggestions,
@@ -18,6 +18,7 @@ import {
   type GooglePlaceSelection,
   type GooglePlaceSuggestion,
 } from './googlePlaces'
+import { googlePlacesSearchFailureMessage } from '../utils/googleMapsAccess'
 import styles from './GooglePlaceAutocomplete.module.css'
 
 interface GooglePlaceAutocompleteProps {
@@ -33,6 +34,7 @@ interface GooglePlaceAutocompleteProps {
   maxLength?: number
   maxSuggestions?: number
   onPlaceSelect: (place: GooglePlaceSelection) => void
+  onClear?: () => void
   onSearchError?: (message: string | null) => void
   onSearchSubmit?: (query: string) => Promise<void> | void
   onValueChange: (value: string) => void
@@ -41,6 +43,7 @@ interface GooglePlaceAutocompleteProps {
   searchButtonLabel?: string
   searchFailedMessage: string
   selectOnFocus?: boolean
+  showClearButton?: boolean
   showSearchButton?: boolean
   value: string
 }
@@ -65,6 +68,7 @@ export function GooglePlaceAutocomplete({
   inputLabel = 'Search places',
   maxLength,
   maxSuggestions = 4,
+  onClear,
   onPlaceSelect,
   onSearchError,
   onSearchSubmit,
@@ -74,6 +78,7 @@ export function GooglePlaceAutocomplete({
   searchButtonLabel = 'Search',
   searchFailedMessage,
   selectOnFocus = false,
+  showClearButton = false,
   showSearchButton = false,
   value,
 }: GooglePlaceAutocompleteProps) {
@@ -154,11 +159,11 @@ export function GooglePlaceAutocomplete({
           setOpen(true)
           onSearchError?.(null)
         })
-        .catch(() => {
+        .catch((error: unknown) => {
           if (cancelled || requestVersionRef.current !== requestVersion) return
           setSuggestions([])
           setOpen(false)
-          onSearchError?.(searchFailedMessage)
+          onSearchError?.(googlePlacesSearchFailureMessage(error, searchFailedMessage))
         })
     }, AUTOCOMPLETE_DEBOUNCE_MS)
 
@@ -195,9 +200,21 @@ export function GooglePlaceAutocomplete({
     setOpen(false)
     setSuggestions([])
     sessionTokenRef.current = null
-    void Promise.resolve(onSearchSubmit(submittedQuery)).catch(() => {
-      onSearchError?.(searchFailedMessage)
+    void Promise.resolve(onSearchSubmit(submittedQuery)).catch((error: unknown) => {
+      onSearchError?.(googlePlacesSearchFailureMessage(error, searchFailedMessage))
     })
+  }
+
+  const clearValue = () => {
+    requestVersionRef.current += 1
+    selectedValueRef.current = null
+    sessionTokenRef.current = null
+    setSuggestions([])
+    setOpen(false)
+    onSearchError?.(null)
+    onValueChange('')
+    onClear?.()
+    window.requestAnimationFrame(() => inputRef.current?.focus())
   }
 
   const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
@@ -228,8 +245,8 @@ export function GooglePlaceAutocomplete({
       selectedValueRef.current = selection.text
       onValueChange(selection.text)
       onPlaceSelect(selection)
-    } catch {
-      onSearchError?.(searchFailedMessage)
+    } catch (error) {
+      onSearchError?.(googlePlacesSearchFailureMessage(error, searchFailedMessage))
     } finally {
       sessionTokenRef.current = null
     }
@@ -240,6 +257,7 @@ export function GooglePlaceAutocomplete({
       className={[
         styles.root,
         showSearchButton && onSearchSubmit ? styles.withSearchButton : '',
+        showClearButton && value ? styles.withClearButton : '',
         className,
       ].filter(Boolean).join(' ')}
     >
@@ -263,6 +281,19 @@ export function GooglePlaceAutocomplete({
         aria-describedby={ariaDescribedBy}
         role="combobox"
       />
+      {showClearButton && value && (
+        <button
+          type="button"
+          className={styles.clearButton}
+          aria-label="Clear search"
+          title="Clear search"
+          disabled={disabled}
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={clearValue}
+        >
+          <X size={15} aria-hidden="true" />
+        </button>
+      )}
       {showSearchButton && onSearchSubmit && (
         <button
           type="button"

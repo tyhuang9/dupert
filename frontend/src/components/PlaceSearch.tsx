@@ -3,7 +3,7 @@ import { GooglePlaceAutocomplete } from './GooglePlaceAutocomplete'
 import type { GooglePlaceSearchOptions } from './googlePlaces'
 import { googlePlaceToPlaceSelection } from './placeSelection'
 import type { PlaceSelection } from '../types/place'
-import { googlePlacesAccessTroubleshooting } from '../utils/googleMapsAccess'
+import { googlePlacesSearchFailureMessage } from '../utils/googleMapsAccess'
 import styles from './PlaceSearch.module.css'
 
 interface PlaceSearchProps {
@@ -49,8 +49,8 @@ export function PlaceSearch({
     setSearchError(null)
     try {
       await onSearchSubmit(query)
-    } catch {
-      setSearchError(`Google Places search failed. ${googlePlacesAccessTroubleshooting()}`)
+    } catch (error) {
+      setSearchError(googlePlacesSearchFailureMessage(error))
     }
   }
 
@@ -71,13 +71,17 @@ export function PlaceSearch({
             setSearchError(null)
             onPlaceSelect(payload)
           }}
+          onClear={() => {
+            updateValue('')
+          }}
           focusKey={focusKey}
           inputLabel="Search places"
           includePhoto
           placeholder="Search"
           searchButtonLabel="Search places"
-          searchFailedMessage={`Google Places search failed. ${googlePlacesAccessTroubleshooting()}`}
+          searchFailedMessage="Google Places search failed."
           selectOnFocus
+          showClearButton
           showSearchButton={Boolean(onSearchSubmit)}
           options={autocompleteOptions}
         />

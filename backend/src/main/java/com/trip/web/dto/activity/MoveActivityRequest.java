@@ -3,7 +3,6 @@ package com.trip.web.dto.activity;
 import java.time.LocalDate;
 
 import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.NotNull;
 
 /**
  * Request body for moving an activity to a different day
@@ -18,7 +17,6 @@ import jakarta.validation.constraints.NotNull;
  * insertion point are shifted down (their indices incremented).
  */
 public record MoveActivityRequest(
-    @NotNull(message = "dayDate is required")
     LocalDate dayDate,
 
     @Min(value = 0, message = "orderIndex must be >= 0")

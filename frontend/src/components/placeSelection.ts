@@ -46,6 +46,7 @@ export function googlePlaceToPlaceSelection(place: GooglePlaceSelection): PlaceS
     lat: place.lat,
     lng: place.lng,
     googleMapsUri: place.googleMapsUri,
+    photoName: place.photoName,
     photoUrl: place.photoUrl,
     placeCategory: normalizePlaceCategory(place),
     priceLevel: place.priceLevel,

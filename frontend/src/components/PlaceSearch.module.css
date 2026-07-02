@@ -33,13 +33,17 @@
 .searchInput {
   height: 44px !important;
   min-height: 44px !important;
-  padding: 0 var(--space-4) !important;
+  padding-left: var(--space-4) !important;
+  padding-right: var(--autocomplete-input-padding-right) !important;
   border: 1px solid rgba(194, 198, 214, 0.72) !important;
   border-radius: var(--radius-pill) !important;
   background: rgba(255, 255, 255, 0.98) !important;
   box-shadow: var(--shadow-md) !important;
   font-size: var(--font-size-sm) !important;
   line-height: 44px !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
 }
 
 .searchError {

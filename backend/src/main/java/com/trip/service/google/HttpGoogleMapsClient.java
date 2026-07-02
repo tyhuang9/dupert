@@ -7,6 +7,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Profile;
@@ -23,6 +24,7 @@ public class HttpGoogleMapsClient implements GoogleMapsClient {
     private static final String PLACES_BASE_URL = "https://places.googleapis.com/v1";
     private static final String GEOCODING_URL = "https://maps.googleapis.com/maps/api/geocode/json";
     private static final String ROUTES_COMPUTE_URL = "https://routes.googleapis.com/directions/v2:computeRoutes";
+    private static final Duration GOOGLE_HTTP_TIMEOUT = Duration.ofSeconds(8);
 
     private final AppProperties appProperties;
     private final ObjectMapper objectMapper;
@@ -30,7 +32,9 @@ public class HttpGoogleMapsClient implements GoogleMapsClient {
 
     @Autowired
     public HttpGoogleMapsClient(AppProperties appProperties, ObjectMapper objectMapper) {
-        this(appProperties, objectMapper, HttpClient.newHttpClient());
+        this(appProperties, objectMapper, HttpClient.newBuilder()
+            .connectTimeout(GOOGLE_HTTP_TIMEOUT)
+            .build());
     }
 
     HttpGoogleMapsClient(AppProperties appProperties, ObjectMapper objectMapper, HttpClient httpClient) {
@@ -65,14 +69,20 @@ public class HttpGoogleMapsClient implements GoogleMapsClient {
             + "&maxHeightPx=" + maxHeightPx
             + "&skipHttpRedirect=true"
             + "&key=" + queryEncode(apiKey()));
-        HttpRequest request = HttpRequest.newBuilder(uri).GET().build();
+        HttpRequest request = HttpRequest.newBuilder(uri)
+            .timeout(GOOGLE_HTTP_TIMEOUT)
+            .GET()
+            .build();
         return send(request, "Google Places photo media");
     }
 
     @Override
     public JsonNode geocode(String address) {
         URI uri = URI.create(GEOCODING_URL + "?address=" + queryEncode(address) + "&key=" + queryEncode(apiKey()));
-        HttpRequest request = HttpRequest.newBuilder(uri).GET().build();
+        HttpRequest request = HttpRequest.newBuilder(uri)
+            .timeout(GOOGLE_HTTP_TIMEOUT)
+            .GET()
+            .build();
         return send(request, "Google Geocoding");
     }
 
@@ -90,6 +100,7 @@ public class HttpGoogleMapsClient implements GoogleMapsClient {
         }
 
         HttpRequest request = HttpRequest.newBuilder(uri)
+            .timeout(GOOGLE_HTTP_TIMEOUT)
             .header("Content-Type", "application/json")
             .header("X-Goog-Api-Key", apiKey())
             .header("X-Goog-FieldMask", fieldMask)

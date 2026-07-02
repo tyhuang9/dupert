@@ -144,6 +144,26 @@ function renderNewTrip() {
   )
 }
 
+async function navigateDatePickerToMay2026() {
+  for (let index = 0; index < 12; index += 1) {
+    if (screen.queryByRole('heading', { name: /may 2026/i })) return
+    await userEvent.click(screen.getByRole('button', { name: /previous month/i }))
+  }
+  expect(screen.getByRole('heading', { name: /may 2026/i })).toBeInTheDocument()
+}
+
+async function selectMayTripDates(startDay: number, endDay: number) {
+  await userEvent.click(screen.getByRole('button', { name: /trip dates/i }))
+  await navigateDatePickerToMay2026()
+  await userEvent.click(screen.getByRole('button', {
+    name: new RegExp(`choose .*may ${startDay}, 2026`, 'i'),
+  }))
+  await userEvent.click(screen.getByRole('button', {
+    name: new RegExp(`choose .*may ${endDay}, 2026`, 'i'),
+  }))
+  await userEvent.click(screen.getByRole('button', { name: /done/i }))
+}
+
 beforeEach(() => {
   vi.stubEnv('VITE_GOOGLE_MAPS_BROWSER_KEY', 'gmaps.test')
   searchBoxState.props = null
@@ -355,18 +375,27 @@ describe('<NewTripPage>', () => {
     expect(apiMock.history.post).toHaveLength(0)
   })
 
-  it('validates that the end date is not before the start date', async () => {
+  it('orders a backwards date selection into a valid trip range', async () => {
+    apiMock.onPost('/trips').reply((config) => [
+      201,
+      {
+        ...SAMPLE_TRIP,
+        name: JSON.parse(config.data as string).name,
+      },
+    ])
     renderNewTrip()
 
     await userEvent.type(screen.getByLabelText(/trip name/i), 'Tokyo 2026')
-    await userEvent.type(screen.getByLabelText(/start date/i), '2026-05-05')
-    await userEvent.type(screen.getByLabelText(/end date/i), '2026-05-01')
+    await selectMayTripDates(5, 1)
     await userEvent.click(screen.getByRole('button', { name: /create trip/i }))
 
-    expect(
-      await screen.findByText(/end date must be on or after start date/i),
-    ).toBeInTheDocument()
-    expect(apiMock.history.post).toHaveLength(0)
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace')).toBeInTheDocument()
+    })
+    expect(JSON.parse(apiMock.history.post[0].data as string)).toMatchObject({
+      startDate: '2026-05-01',
+      endDate: '2026-05-05',
+    })
   })
 
   it('creates a trip and navigates to its workspace', async () => {
@@ -382,8 +411,7 @@ describe('<NewTripPage>', () => {
 
     await userEvent.type(screen.getByLabelText(/trip name/i), 'Tokyo 2026')
     await userEvent.type(screen.getByLabelText(/destination/i), 'Tokyo, Japan')
-    await userEvent.type(screen.getByLabelText(/start date/i), '2026-05-01')
-    await userEvent.type(screen.getByLabelText(/end date/i), '2026-05-05')
+    await selectMayTripDates(1, 5)
     await userEvent.click(screen.getByRole('button', { name: /create trip/i }))
 
     await waitFor(() => {
@@ -413,6 +441,7 @@ describe('<NewTripPage>', () => {
         id: 'google.madison',
         lat: 43.0731,
         lng: -89.4012,
+        photoName: 'places/google.madison/photos/main',
         photoUrl: 'https://example.com/madison.webp',
         primaryType: 'locality',
         primaryTypeDisplayName: 'Locality',
@@ -452,6 +481,7 @@ describe('<NewTripPage>', () => {
         id: 'google.madison',
         lat: 43.0731,
         lng: -89.4012,
+        photoName: null,
         photoUrl: 'http://example.com/insecure.webp',
         primaryType: 'locality',
         primaryTypeDisplayName: 'Locality',
@@ -482,8 +512,7 @@ describe('<NewTripPage>', () => {
     renderNewTrip()
 
     await userEvent.type(screen.getByLabelText(/trip name/i), 'Tokyo 2026')
-    await userEvent.type(screen.getByLabelText(/start date/i), '2026-05-01')
-    await userEvent.type(screen.getByLabelText(/end date/i), '2026-05-05')
+    await selectMayTripDates(1, 5)
     await userEvent.click(screen.getByRole('button', { name: /create trip/i }))
 
     expect(await screen.findByText(/must not be blank/i)).toBeInTheDocument()

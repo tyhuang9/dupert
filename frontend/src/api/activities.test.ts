@@ -9,6 +9,7 @@ import {
   listDayNotes,
   moveActivity,
   reorderActivitiesForDay,
+  reorderIdeas,
   updateActivity,
   updateDayNote,
 } from './activities'
@@ -77,6 +78,19 @@ describe('activity api', () => {
     })
   })
 
+  it('creates an idea without a dayDate query parameter', async () => {
+    apiMock
+      .onPost('/trips/abc234def567/activities')
+      .reply(201, { ...SAMPLE_ACTIVITY, dayDate: null, title: 'Save teamLab' })
+
+    await expect(
+      createActivity('abc234def567', null, {
+        category: 'ACTIVITY',
+        title: 'Save teamLab',
+      }),
+    ).resolves.toMatchObject({ dayDate: null, title: 'Save teamLab' })
+  })
+
   it('updates and deletes activities', async () => {
     apiMock.onPatch('/trips/abc234def567/activities/10').reply(200, {
       ...SAMPLE_ACTIVITY,
@@ -92,6 +106,7 @@ describe('activity api', () => {
 
   it('reorders and moves activities', async () => {
     apiMock.onPost('/trips/abc234def567/days/2026-05-01/order').reply(204)
+    apiMock.onPost('/trips/abc234def567/ideas/order').reply(204)
     apiMock.onPost('/activities/10/move?publicId=abc234def567').reply(200, {
       ...SAMPLE_ACTIVITY,
       dayDate: '2026-05-02',
@@ -100,6 +115,9 @@ describe('activity api', () => {
 
     await expect(
       reorderActivitiesForDay('abc234def567', '2026-05-01', { activityIds: [10] }),
+    ).resolves.toBeUndefined()
+    await expect(
+      reorderIdeas('abc234def567', { activityIds: [10] }),
     ).resolves.toBeUndefined()
     await expect(
       moveActivity(10, 'abc234def567', { dayDate: '2026-05-02', orderIndex: 1 }),

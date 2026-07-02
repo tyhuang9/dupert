@@ -5,12 +5,17 @@ import {
   dayDropId,
   getActivityDragOperation,
   getTimelineDragOperation,
+  ideasDropId,
   listTripDays,
   parseActivityDragId,
   parseDayDropId,
+  parseIdeasDropId,
+  parseSidebarDayDropId,
+  shouldApplySortableTransform,
+  sidebarDayDropId,
 } from './activityDrag'
 
-function activity(id: number, dayDate: string, orderIndex: number): Activity {
+function activity(id: number, dayDate: string | null, orderIndex: number): Activity {
   return {
     id,
     dayDate,
@@ -37,10 +42,23 @@ describe('activity drag helpers', () => {
   it('parses activity and day identifiers', () => {
     expect(activityDragId(42)).toBe('activity:42')
     expect(dayDropId('2026-05-03')).toBe('day:2026-05-03')
+    expect(sidebarDayDropId('2026-05-03')).toBe('sidebar-day:2026-05-03')
+    expect(ideasDropId()).toBe('ideas')
     expect(parseActivityDragId('activity:42')).toBe(42)
     expect(parseActivityDragId('activity:nope')).toBeNull()
     expect(parseDayDropId('day:2026-05-03')).toBe('2026-05-03')
+    expect(parseDayDropId('sidebar-day:2026-05-03')).toBe('2026-05-03')
     expect(parseDayDropId('day:May 3')).toBeNull()
+    expect(parseSidebarDayDropId('sidebar-day:2026-05-03')).toBe('2026-05-03')
+    expect(parseSidebarDayDropId('day:2026-05-03')).toBeNull()
+    expect(parseIdeasDropId('ideas')).toBe(true)
+    expect(parseIdeasDropId('day:2026-05-03')).toBe(false)
+  })
+
+  it('freezes non-dragging sortable row transforms while preserving the active row', () => {
+    expect(shouldApplySortableTransform({ freezeDragPreview: false, isDragging: false })).toBe(true)
+    expect(shouldApplySortableTransform({ freezeDragPreview: true, isDragging: false })).toBe(false)
+    expect(shouldApplySortableTransform({ freezeDragPreview: true, isDragging: true })).toBe(true)
   })
 
   it('lists inclusive trip days without local timezone shifts', () => {
@@ -166,6 +184,90 @@ describe('activity drag helpers', () => {
       activity: allActivities[0],
       dayDate: '2026-05-02',
       orderIndex: 2,
+    })
+  })
+
+  it('builds a cross-day move operation from a sidebar day drop', () => {
+    const allActivities = [
+      activity(10, '2026-05-01', 0),
+      activity(11, '2026-05-02', 0),
+      activity(12, '2026-05-02', 1),
+    ]
+
+    expect(
+      getActivityDragOperation({
+        activeId: activityDragId(10),
+        overId: sidebarDayDropId('2026-05-02'),
+        selectedDayActivities: [allActivities[0]],
+        allActivities,
+      }),
+    ).toEqual({
+      type: 'move',
+      activity: allActivities[0],
+      dayDate: '2026-05-02',
+      orderIndex: 2,
+    })
+  })
+
+  it('builds a move operation when a scheduled activity is dropped on ideas', () => {
+    const allActivities = [
+      activity(10, '2026-05-01', 0),
+      activity(11, null, 0),
+      activity(12, null, 1),
+    ]
+
+    expect(
+      getActivityDragOperation({
+        activeId: activityDragId(10),
+        overId: ideasDropId(),
+        selectedDayActivities: [allActivities[0]],
+        allActivities,
+      }),
+    ).toEqual({
+      type: 'move',
+      activity: allActivities[0],
+      dayDate: null,
+      orderIndex: 2,
+    })
+  })
+
+  it('builds an ideas reorder operation in full timeline mode', () => {
+    const allActivities = [
+      activity(10, null, 0),
+      activity(11, null, 1),
+      activity(12, '2026-05-02', 0),
+    ]
+
+    expect(
+      getTimelineDragOperation({
+        activeId: activityDragId(11),
+        overId: activityDragId(10),
+        allActivities,
+      }),
+    ).toEqual({
+      type: 'reorder',
+      dayDate: null,
+      activityIds: [11, 10],
+    })
+  })
+
+  it('builds a move operation when an idea is dropped on a sidebar day', () => {
+    const allActivities = [
+      activity(10, null, 0),
+      activity(11, '2026-05-02', 0),
+    ]
+
+    expect(
+      getTimelineDragOperation({
+        activeId: activityDragId(10),
+        overId: sidebarDayDropId('2026-05-02'),
+        allActivities,
+      }),
+    ).toEqual({
+      type: 'move',
+      activity: allActivities[0],
+      dayDate: '2026-05-02',
+      orderIndex: 1,
     })
   })
 

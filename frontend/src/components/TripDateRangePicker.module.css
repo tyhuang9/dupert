@@ -1,0 +1,330 @@
+.dateRangeField {
+  position: relative;
+  display: grid;
+  gap: var(--space-2);
+}
+
+.label {
+  color: var(--color-text);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}
+
+.fieldError {
+  color: var(--color-danger-fg);
+  font-size: var(--font-size-xs);
+  line-height: var(--line-height-base);
+}
+
+.dateRangeTrigger {
+  width: 100%;
+  min-height: 4.25rem;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--color-surface-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background-color var(--transition-base),
+    border-color var(--transition-base),
+    box-shadow var(--transition-base);
+}
+
+.dateRangeTrigger:hover:not(:disabled),
+.dateRangeTrigger[aria-expanded='true'] {
+  border-color: var(--color-primary);
+  box-shadow: var(--shadow-sm);
+}
+
+.dateRangeTrigger[aria-invalid='true'] {
+  border-color: var(--color-danger);
+}
+
+.dateRangeTrigger:disabled {
+  background: var(--color-surface-2);
+  color: var(--color-text-muted);
+  cursor: not-allowed;
+}
+
+.dateRangeTrigger svg {
+  color: var(--color-primary-text);
+}
+
+.dateRangeTrigger:focus-visible,
+.dateFieldControl:focus-visible,
+.dateNavButton:focus-visible,
+.calendarDateButton:focus-visible,
+.datePickerReset:focus-visible,
+.datePickerDone:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.dateRangeSummary {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.dateRangeSummary > span:not(.dateRangeDivider) {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-1);
+}
+
+.dateRangeSummary span span {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+}
+
+.dateRangeSummary strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--color-text);
+  font-size: var(--font-size-sm);
+  font-weight: 800;
+}
+
+.dateRangeDivider {
+  width: 1px;
+  height: 2rem;
+  background: var(--color-surface-border);
+}
+
+.datePickerPanel {
+  --date-picker-bg: #303134;
+  --date-picker-border: #5f6368;
+  --date-picker-text: #e8eaed;
+  --date-picker-muted: #bdc1c6;
+  --date-picker-blue: #8ab4f8;
+  --date-picker-range: rgba(138, 180, 248, 0.22);
+  z-index: 5;
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  border: 1px solid var(--date-picker-border);
+  border-radius: var(--radius-md);
+  background: var(--date-picker-bg);
+  color: var(--date-picker-text);
+  box-shadow: var(--shadow-lg);
+}
+
+.datePickerTopbar {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-3);
+  padding-bottom: var(--space-3);
+  border-bottom: 1px solid var(--date-picker-border);
+}
+
+.datePickerReset,
+.dateNavButton,
+.dateFieldControl,
+.calendarDateButton,
+.datePickerDone {
+  font: inherit;
+  cursor: pointer;
+}
+
+.datePickerReset {
+  border: 0;
+  background: transparent;
+  color: var(--date-picker-blue);
+  font-size: var(--font-size-sm);
+  font-weight: 800;
+}
+
+.datePickerReset:disabled {
+  color: var(--date-picker-muted);
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+.datePickerSelection {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  justify-self: end;
+  gap: var(--space-2);
+}
+
+.dateFieldControl {
+  min-width: 9rem;
+  min-height: 2.75rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--date-picker-border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--date-picker-text);
+  font-size: var(--font-size-sm);
+  font-weight: 800;
+}
+
+.dateFieldControlActive {
+  border-color: var(--date-picker-blue);
+  box-shadow: 0 0 0 1px var(--date-picker-blue);
+}
+
+.datePickerCalendarHeader {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.dateNavButton {
+  width: 2.25rem;
+  height: 2.25rem;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--date-picker-text);
+}
+
+.dateNavButton:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.datePickerMonths {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-6);
+}
+
+.calendarMonth {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-3);
+}
+
+.calendarMonth h3 {
+  margin: 0;
+  color: var(--date-picker-text);
+  font-size: var(--font-size-md);
+  font-weight: 800;
+  line-height: var(--line-height-tight);
+  text-align: center;
+}
+
+.calendarWeekdays,
+.calendarGrid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  align-items: center;
+}
+
+.calendarWeekdays {
+  color: var(--date-picker-muted);
+  font-size: var(--font-size-xs);
+  font-weight: 800;
+  text-align: center;
+}
+
+.calendarGrid {
+  gap: 0;
+}
+
+.calendarDateEmpty,
+.calendarDateButton {
+  width: 100%;
+  aspect-ratio: 1;
+}
+
+.calendarDateEmpty {
+  display: block;
+}
+
+.calendarDateButton {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  min-width: 2.5rem;
+  border: 1px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: var(--date-picker-text);
+  font-size: var(--font-size-sm);
+  font-weight: 800;
+}
+
+.calendarDateButton:hover {
+  border-color: var(--date-picker-border);
+  border-radius: var(--radius-pill);
+}
+
+.calendarDateInRange {
+  background: var(--date-picker-range);
+}
+
+.calendarDateStart,
+.calendarDateEnd,
+.calendarDateSingle {
+  border-radius: var(--radius-pill);
+}
+
+.calendarDateStart,
+.calendarDateSingle {
+  background: var(--date-picker-blue);
+  color: #202124;
+}
+
+.calendarDateEnd {
+  border-color: var(--date-picker-muted);
+  background: var(--date-picker-range);
+  color: var(--date-picker-text);
+}
+
+.datePickerFooter {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--date-picker-border);
+}
+
+.datePickerDone {
+  min-height: 2.5rem;
+  padding: 0 var(--space-5);
+  border: 1px solid var(--date-picker-blue);
+  border-radius: var(--radius-pill);
+  background: var(--date-picker-blue);
+  color: #202124;
+  font-size: var(--font-size-sm);
+  font-weight: 800;
+}
+
+.datePickerDone:hover {
+  filter: brightness(1.05);
+}
+
+@media (max-width: 52rem) {
+  .dateRangeSummary,
+  .datePickerTopbar,
+  .datePickerSelection,
+  .datePickerMonths {
+    grid-template-columns: 1fr;
+  }
+
+  .datePickerSelection {
+    justify-self: stretch;
+  }
+
+  .dateFieldControl {
+    min-width: 0;
+  }
+}

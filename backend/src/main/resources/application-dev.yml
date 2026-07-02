@@ -11,4 +11,4 @@ secure:
 logging:
   level:
     com.trip: DEBUG
-    org.hibernate.SQL: DEBUG
+    org.hibernate.SQL: WARN

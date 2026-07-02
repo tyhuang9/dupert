@@ -12,6 +12,7 @@ import {
   updateActivity,
   deleteActivity,
   reorderActivitiesForDay,
+  reorderIdeas,
   moveActivity,
   getDayNote,
   listDayNotes,
@@ -42,7 +43,7 @@ export const activityKeys = {
 function sortActivities(activities: Activity[]): Activity[] {
   return [...activities].sort((left, right) => {
     if (left.dayDate !== right.dayDate) {
-      return left.dayDate.localeCompare(right.dayDate)
+      return (left.dayDate ?? '\uffff').localeCompare(right.dayDate ?? '\uffff')
     }
     return left.orderIndex - right.orderIndex
   })
@@ -57,7 +58,7 @@ function reindexActivities(activities: Activity[]): Activity[] {
 
 function reorderActivitiesInCache(
   activities: Activity[],
-  dayDate: string,
+  dayDate: string | null,
   activityIds: number[],
 ): Activity[] {
   const activityById = new Map(activities.map((activity) => [activity.id, activity]))
@@ -129,17 +130,66 @@ export function useActivities(publicId: string | undefined): UseQueryResult<Acti
 export function useCreateActivity(): UseMutationResult<
   Activity,
   Error,
-  { publicId: string; dayDate: string; body: CreateActivityRequest }
+  { publicId: string; dayDate: string | null; body: CreateActivityRequest },
+  { previousActivities: Activity[] | undefined; tempId: number }
 > {
   const queryClient = useQueryClient()
+  const nextTempIdRef = useRef(-1)
 
   return useMutation({
     mutationFn: ({ publicId, dayDate, body }) =>
       createActivity(publicId, dayDate, body),
-    onSuccess: (activity, { publicId }) => {
+    onMutate: async ({ publicId, dayDate, body }) => {
+      await queryClient.cancelQueries({ queryKey: activityKeys.list(publicId) })
+      const previousActivities =
+        queryClient.getQueryData<Activity[]>(activityKeys.list(publicId))
+      const tempId = nextTempIdRef.current
+      nextTempIdRef.current -= 1
+      const now = new Date().toISOString()
+      const orderIndex =
+        previousActivities
+          ?.filter((activity) => activity.dayDate === dayDate)
+          .reduce((max, activity) => Math.max(max, activity.orderIndex), -1) ?? -1
+      const optimisticActivity: Activity = {
+        id: tempId,
+        dayDate,
+        category: body.category,
+        startTime: body.startTime ?? null,
+        endTime: body.endTime ?? null,
+        title: body.title,
+        notes: body.notes ?? null,
+        mapboxId: body.mapboxId ?? null,
+        placeName: body.placeName ?? null,
+        address: body.address ?? null,
+        lat: body.lat ?? null,
+        lng: body.lng ?? null,
+        orderIndex: orderIndex + 1,
+        createdByUserDisplayName: null,
+        updatedByUserDisplayName: null,
+        createdAt: now,
+        updatedAt: now,
+        version: 0,
+      }
+
       queryClient.setQueryData<Activity[]>(activityKeys.list(publicId), (existing) =>
-        sortActivities(existing ? [...existing, activity] : [activity]),
+        sortActivities(existing ? [...existing, optimisticActivity] : [optimisticActivity]),
       )
+
+      return { previousActivities, tempId }
+    },
+    onError: (_error, { publicId }, context) => {
+      queryClient.setQueryData(activityKeys.list(publicId), context?.previousActivities)
+    },
+    onSuccess: (activity, { publicId }, context) => {
+      queryClient.setQueryData<Activity[]>(activityKeys.list(publicId), (existing) => {
+        const activities = existing ?? []
+        const replaced = activities.some((item) => item.id === context.tempId)
+        return sortActivities(
+          replaced
+            ? activities.map((item) => (item.id === context.tempId ? activity : item))
+            : [...activities.filter((item) => item.id !== activity.id), activity],
+        )
+      })
     },
   })
 }
@@ -150,13 +200,66 @@ export function useCreateActivity(): UseMutationResult<
 export function useUpdateActivity(): UseMutationResult<
   Activity,
   Error,
-  { publicId: string; activityId: number; body: UpdateActivityRequest }
+  { publicId: string; activityId: number; body: UpdateActivityRequest },
+  { previousActivities: Activity[] | undefined }
 > {
   const queryClient = useQueryClient()
 
   return useMutation({
     mutationFn: ({ publicId, activityId, body }) =>
       updateActivity(publicId, activityId, body),
+    onMutate: async ({ publicId, activityId, body }) => {
+      await queryClient.cancelQueries({ queryKey: activityKeys.list(publicId) })
+      const previousActivities =
+        queryClient.getQueryData<Activity[]>(activityKeys.list(publicId))
+      const now = new Date().toISOString()
+
+      queryClient.setQueryData<Activity[]>(activityKeys.list(publicId), (existing) =>
+        existing
+          ? sortActivities(
+              existing.map((activity) =>
+                activity.id === activityId
+                  ? {
+                      ...activity,
+                      category: body.category ?? activity.category,
+                      title: body.title ?? activity.title,
+                      notes: Object.prototype.hasOwnProperty.call(body, 'notes')
+                        ? body.notes ?? null
+                        : activity.notes,
+                      startTime: Object.prototype.hasOwnProperty.call(body, 'startTime')
+                        ? body.startTime ?? null
+                        : activity.startTime,
+                      endTime: Object.prototype.hasOwnProperty.call(body, 'endTime')
+                        ? body.endTime ?? null
+                        : activity.endTime,
+                      mapboxId: Object.prototype.hasOwnProperty.call(body, 'mapboxId')
+                        ? body.mapboxId ?? null
+                        : activity.mapboxId,
+                      placeName: Object.prototype.hasOwnProperty.call(body, 'placeName')
+                        ? body.placeName ?? null
+                        : activity.placeName,
+                      address: Object.prototype.hasOwnProperty.call(body, 'address')
+                        ? body.address ?? null
+                        : activity.address,
+                      lat: Object.prototype.hasOwnProperty.call(body, 'lat')
+                        ? body.lat ?? null
+                        : activity.lat,
+                      lng: Object.prototype.hasOwnProperty.call(body, 'lng')
+                        ? body.lng ?? null
+                        : activity.lng,
+                      updatedAt: now,
+                    }
+                  : activity,
+              ),
+            )
+          : existing,
+      )
+
+      return { previousActivities }
+    },
+    onError: (_error, { publicId }, context) => {
+      queryClient.setQueryData(activityKeys.list(publicId), context?.previousActivities)
+    },
     onSuccess: (activity, { publicId }) => {
       queryClient.setQueryData<Activity[]>(activityKeys.list(publicId), (existing) =>
         sortActivities(
@@ -229,10 +332,49 @@ export function useReorderActivities(): UseMutationResult<
         })
       }
     },
-    onSettled: (_data, _error, { publicId }) => {
-      void queryClient.invalidateQueries({
-        queryKey: activityKeys.list(publicId),
-      })
+  })
+}
+
+/**
+ * Hook: Reorder unscheduled Ideas.
+ */
+export function useReorderIdeas(): UseMutationResult<
+  void,
+  Error,
+  { publicId: string; body: ReorderActivitiesRequest }
+> {
+  const queryClient = useQueryClient()
+  const latestReorderMutationIdRef = useRef(0)
+
+  return useMutation({
+    mutationFn: ({ publicId, body }) =>
+      reorderIdeas(publicId, body),
+    onMutate: async ({ publicId, body }) => {
+      const mutationId = latestReorderMutationIdRef.current + 1
+      latestReorderMutationIdRef.current = mutationId
+      await queryClient.cancelQueries({ queryKey: activityKeys.list(publicId) })
+      const previousActivities =
+        queryClient.getQueryData<Activity[]>(activityKeys.list(publicId))
+
+      queryClient.setQueryData<Activity[]>(activityKeys.list(publicId), (existing) =>
+        existing
+          ? reorderActivitiesInCache(existing, null, body.activityIds)
+          : existing,
+      )
+
+      return { mutationId, previousActivities }
+    },
+    onError: (_error, { publicId }, context) => {
+      if (
+        context?.previousActivities &&
+        context.mutationId === latestReorderMutationIdRef.current
+      ) {
+        queryClient.setQueryData(activityKeys.list(publicId), context.previousActivities)
+      } else {
+        void queryClient.invalidateQueries({
+          queryKey: activityKeys.list(publicId),
+        })
+      }
     },
   })
 }
@@ -272,11 +414,6 @@ export function useMoveActivity(): UseMutationResult<
           existing?.map((item) => (item.id === activity.id ? activity : item)) ?? [activity],
         ),
       )
-    },
-    onSettled: (_data, _error, { publicId }) => {
-      void queryClient.invalidateQueries({
-        queryKey: activityKeys.list(publicId),
-      })
     },
   })
 }

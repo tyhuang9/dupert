@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { PropsWithChildren, ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -38,6 +38,7 @@ const mapMockState = vi.hoisted(() => ({
   }) => void),
   onMapTypeIdChanged: null as null | (() => void),
   onTilesLoaded: null as null | (() => void),
+  preventMapHitsAndGesturesFrom: vi.fn(),
 }))
 
 vi.mock('../api/googleMapsRoute', () => ({
@@ -190,6 +191,10 @@ function installGoogleOverlayMock() {
     }
   }
 
+  Object.assign(OverlayViewMock, {
+    preventMapHitsAndGesturesFrom: mapMockState.preventMapHitsAndGesturesFrom,
+  })
+
   const googleMock = { maps: { OverlayView: OverlayViewMock } }
   Object.defineProperty(globalThis, 'google', {
     configurable: true,
@@ -230,6 +235,7 @@ beforeEach(() => {
   mapMockState.onClick = null
   mapMockState.onMapTypeIdChanged = null
   mapMockState.onTilesLoaded = null
+  mapMockState.preventMapHitsAndGesturesFrom.mockClear()
   directionsMock.mockResolvedValue({
     distance: 2400,
     duration: 720,
@@ -288,6 +294,22 @@ describe('<TripMap>', () => {
       ],
     })
     expect(await screen.findByText('12 min total · 2.4 km')).toBeInTheDocument()
+  })
+
+  it('shows backend Google diagnostics when route calculation fails', async () => {
+    directionsMock.mockRejectedValueOnce({
+      isAxiosError: true,
+      response: {
+        status: 502,
+        data: { error: 'google_maps_unavailable' },
+      },
+    })
+
+    render(<TripMap activities={ACTIVITIES} fallbackActivities={[]} destination="Tokyo" />)
+
+    expect(await screen.findByText(/route unavailable/i)).toBeInTheDocument()
+    expect(screen.getByText(/google routes request reached the backend/i)).toBeInTheDocument()
+    expect(screen.getByText(/google_maps_server_api_key/i)).toBeInTheDocument()
   })
 
   it('does not request directions with fewer than two mapped activities', () => {
@@ -480,10 +502,13 @@ describe('<TripMap>', () => {
     })
 
     expect(stop).toHaveBeenCalled()
-    expect(onMapPlaceClick).toHaveBeenCalledWith({
+    expect(onMapPlaceClick).toHaveBeenCalledWith(expect.objectContaining({
+      clickedAtIso: expect.any(String),
+      clickedAtMs: expect.any(Number),
       location: { lat: 35.7, lng: 139.8 },
       placeId: 'google.clicked-place',
-    })
+      traceId: expect.stringMatching(/^place-/),
+    }))
   })
 
   it('reports coordinate-only map clicks for nearby place resolution', () => {
@@ -509,10 +534,13 @@ describe('<TripMap>', () => {
     })
 
     expect(stop).toHaveBeenCalled()
-    expect(onMapPlaceClick).toHaveBeenCalledWith({
+    expect(onMapPlaceClick).toHaveBeenCalledWith(expect.objectContaining({
+      clickedAtIso: expect.any(String),
+      clickedAtMs: expect.any(Number),
       location: { lat: 35.7001, lng: 139.8001 },
       placeId: null,
-    })
+      traceId: expect.stringMatching(/^place-/),
+    }))
   })
 
   it('shows full-trip fallback markers when the selected day has no mapped stops', async () => {
@@ -727,6 +755,9 @@ describe('<TripMap>', () => {
     )
 
     const marker = screen.getByRole('button', { name: /stop 1: tokyo tower/i })
+    expect(mapMockState.preventMapHitsAndGesturesFrom).toHaveBeenCalledWith(
+      expect.any(HTMLDivElement),
+    )
     await userEvent.hover(marker)
     expect(onActiveActivityChange).toHaveBeenCalledWith(10)
     expect(mapControlMock.moveCamera).not.toHaveBeenCalledWith(
@@ -737,8 +768,12 @@ describe('<TripMap>', () => {
     )
     await userEvent.unhover(marker)
     expect(onActiveActivityChange).toHaveBeenCalledWith(null)
-    await userEvent.click(marker)
+    fireEvent.pointerDown(marker)
     expect(onActivityActivate).toHaveBeenCalledWith(10)
+    expect(onActivityActivate).toHaveBeenCalledTimes(1)
+
+    fireEvent.click(marker)
+    expect(onActivityActivate).toHaveBeenCalledTimes(1)
   })
 
   it('shows a useful missing-key fallback', () => {

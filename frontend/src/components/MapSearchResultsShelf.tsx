@@ -142,6 +142,8 @@ export function MapSearchResultsShelf({
 
   const handleWheel = useCallback(
     (event: WheelEvent<HTMLDivElement>) => {
+      event.stopPropagation()
+      event.nativeEvent.stopImmediatePropagation?.()
       const list = event.currentTarget
       if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return
       if (list.scrollWidth <= list.clientWidth) return
@@ -210,7 +212,7 @@ export function MapSearchResultsShelf({
           className={styles.list}
           aria-label="Search result places"
           onScroll={handleScroll}
-          onWheel={handleWheel}
+          onWheelCapture={handleWheel}
         >
           {places.map((place) => {
             const placeId = placeStableId(place)

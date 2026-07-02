@@ -79,7 +79,7 @@ public class ActivityController {
     @PostMapping("/trips/{publicId}/activities")
     public ResponseEntity<ActivityResponse> createActivity(
             @PathVariable @Pattern(regexp = PUBLIC_ID_PATTERN) String publicId,
-            @RequestParam(name = "dayDate") LocalDate dayDate,
+            @RequestParam(name = "dayDate", required = false) LocalDate dayDate,
             @Valid @RequestBody CreateActivityRequest body,
             Authentication authentication) {
         ActivityResponse created = activityService.createActivity(
@@ -183,6 +183,26 @@ public class ActivityController {
             Authentication authentication) {
         activityService.reorderActivitiesForDay(
             publicId, dayDate, AuthenticationActors.requireTripActor(authentication), body);
+        return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * Reorder no-day Ideas.
+     *
+     * <p>Endpoint: {@code POST /api/trips/{publicId}/ideas/order}
+     *
+     * @param publicId the trip's public id
+     * @param body the reorder request
+     * @param authentication the authenticated user
+     * @return 204 No Content
+     */
+    @PostMapping("/trips/{publicId}/ideas/order")
+    public ResponseEntity<Void> reorderIdeas(
+            @PathVariable @Pattern(regexp = PUBLIC_ID_PATTERN) String publicId,
+            @Valid @RequestBody ReorderActivitiesRequest body,
+            Authentication authentication) {
+        activityService.reorderIdeas(
+            publicId, AuthenticationActors.requireTripActor(authentication), body);
         return ResponseEntity.noContent().build();
     }
 

@@ -34,7 +34,9 @@ interface ActivityCardProps {
   active?: boolean
   onActiveChange?: (activityId: number | null) => void
   onDelete: (activityId: number) => void
+  onMoveToIdeas?: (activity: Activity) => void
   onRequestMapLocation?: (activity: Activity, payload: CreateActivityRequest) => void
+  onScheduleForSelectedDay?: (activity: Activity) => void
   onSubmitEdit: (activity: Activity, payload: CreateActivityRequest) => Promise<void> | void
   onToggleExpand: (activity: Activity) => void
 }
@@ -147,7 +149,9 @@ export function ActivityCard({
   readOnly = false,
   onActiveChange,
   onDelete,
+  onMoveToIdeas,
   onRequestMapLocation,
+  onScheduleForSelectedDay,
   onSubmitEdit,
   onToggleExpand,
 }: ActivityCardProps) {
@@ -183,6 +187,17 @@ export function ActivityCard({
     if (!canDrag || isInteractiveTarget(event.target, event.currentTarget)) return
     dragListeners?.onPointerDown?.(event)
   }
+  const quickAction = activity.dayDate === null && onScheduleForSelectedDay
+    ? {
+        label: 'Schedule for selected day',
+        onClick: () => onScheduleForSelectedDay(activity),
+      }
+    : activity.dayDate !== null && onMoveToIdeas
+      ? {
+          label: 'Move to Ideas',
+          onClick: () => onMoveToIdeas(activity),
+        }
+      : null
   const handleKeyDown = (event: KeyboardEvent<HTMLElement>) => {
     if (
       event.defaultPrevented ||
@@ -234,6 +249,20 @@ export function ActivityCard({
                 <span className={styles.time}>{timeDisplay.label}</span>
               ) : null}
             </div>
+            {!readOnly && quickAction && (
+              <div className={styles.cardQuickActions}>
+                <button
+                  type="button"
+                  className={styles.cardQuickAction}
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    quickAction.onClick()
+                  }}
+                >
+                  {quickAction.label}
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}

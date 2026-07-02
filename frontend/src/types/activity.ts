@@ -2,7 +2,7 @@ export type ActivityCategory = 'MEAL' | 'ACTIVITY' | 'SNACK' | 'TRANSPORT' | 'LO
 
 export interface Activity {
   id: number
-  dayDate: string
+  dayDate: string | null
   category: ActivityCategory
   startTime: string | null
   endTime: string | null
@@ -52,7 +52,7 @@ export interface ReorderActivitiesRequest {
 }
 
 export interface MoveActivityRequest {
-  dayDate: string
+  dayDate: string | null
   orderIndex: number
 }
 

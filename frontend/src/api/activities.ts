@@ -23,11 +23,12 @@ export async function listActivities(publicId: string): Promise<Activity[]> {
 
 export async function createActivity(
   publicId: string,
-  dayDate: string,
+  dayDate: string | null,
   body: CreateActivityRequest,
 ): Promise<Activity> {
+  const query = dayDate ? `?dayDate=${encodeURIComponent(dayDate)}` : ''
   const { data } = await apiClient.post<Activity>(
-    `/trips/${encodeURIComponent(publicId)}/activities?dayDate=${encodeURIComponent(dayDate)}`,
+    `/trips/${encodeURIComponent(publicId)}/activities${query}`,
     body,
   )
   return data
@@ -59,6 +60,16 @@ export async function reorderActivitiesForDay(
 ): Promise<void> {
   await apiClient.post(
     `/trips/${encodeURIComponent(publicId)}/days/${encodeURIComponent(dayDate)}/order`,
+    body,
+  )
+}
+
+export async function reorderIdeas(
+  publicId: string,
+  body: ReorderActivitiesRequest,
+): Promise<void> {
+  await apiClient.post(
+    `/trips/${encodeURIComponent(publicId)}/ideas/order`,
     body,
   )
 }

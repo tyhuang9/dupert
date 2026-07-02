@@ -135,6 +135,32 @@ describe('<MapSearchResultsShelf>', () => {
     expect(list.scrollLeft).toBe(120)
   })
 
+  it('keeps vertical wheel scrolling scoped to the shelf instead of bubbling to the map', () => {
+    const parentWheel = vi.fn()
+    render(
+      <div onWheel={parentWheel}>
+        <MapSearchResultsShelf
+          hasMore={false}
+          loadingMore={false}
+          onClose={vi.fn()}
+          onHoverChange={vi.fn()}
+          onLoadMore={vi.fn()}
+          onSelect={vi.fn()}
+          places={PLACES}
+          selectedPlaceId={null}
+        />
+      </div>,
+    )
+
+    const list = screen.getByLabelText(/search result places/i)
+    setScrollableMetrics(list, { clientWidth: 300, scrollLeft: 0, scrollWidth: 900 })
+
+    fireEvent.wheel(list, { deltaX: 0, deltaY: 120 })
+
+    expect(list.scrollLeft).toBe(120)
+    expect(parentWheel).not.toHaveBeenCalled()
+  })
+
   it('keeps native horizontal scrolling as the load-more trigger near the end', () => {
     const onLoadMore = vi.fn()
     renderShelf({ hasMore: true, onLoadMore })

@@ -73,17 +73,21 @@ function placeDetailsCall() {
 function Harness({
   includePhoto = false,
   initialValue = '',
+  onClear,
   onPlaceSelect = vi.fn(),
   onSearchError = vi.fn(),
   onSearchSubmit,
   selectOnFocus = false,
+  showClearButton = false,
 }: {
   initialValue?: string
   includePhoto?: boolean
+  onClear?: () => void
   onPlaceSelect?: (place: GooglePlaceSelection) => void
   onSearchError?: (message: string | null) => void
   onSearchSubmit?: (query: string) => Promise<void> | void
   selectOnFocus?: boolean
+  showClearButton?: boolean
 }) {
   const [value, setValue] = useState(initialValue)
   return (
@@ -93,12 +97,14 @@ function Harness({
       onValueChange={setValue}
       onPlaceSelect={onPlaceSelect}
       onSearchError={onSearchError}
+      onClear={onClear}
       onSearchSubmit={onSearchSubmit}
       options={{ language: 'en', proximity: { lat: 35.6586, lng: 139.7454 } }}
       includePhoto={includePhoto}
       placeholder="Search"
       searchFailedMessage="Google Places failed."
       selectOnFocus={selectOnFocus}
+      showClearButton={showClearButton}
     />
   )
 }
@@ -161,6 +167,7 @@ describe('<GooglePlaceAutocomplete>', () => {
         id: 'google.tokyo-tower',
         lat: 35.6586,
         lng: 139.7454,
+        photoName: 'places/google.tokyo-tower/photos/photo1',
         photoUrl: 'https://example.com/tokyo-tower.webp',
         priceLevel: null,
         primaryType: 'tourist_attraction',
@@ -244,9 +251,29 @@ describe('<GooglePlaceAutocomplete>', () => {
     await userEvent.type(screen.getByLabelText(/destination/i), 'Nope')
 
     await waitFor(() => {
-      expect(onSearchError).toHaveBeenLastCalledWith('Google Places failed.')
+      expect(onSearchError).toHaveBeenLastCalledWith(
+        expect.stringContaining('Google Places request reached the backend'),
+      )
     })
+    expect(onSearchError).toHaveBeenLastCalledWith(expect.stringContaining('Google Places failed.'))
     expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
+  })
+
+  it('reports backend connectivity failures separately from Google API failures', async () => {
+    const onSearchError = vi.fn()
+    apiMock.resetHandlers()
+    apiMock.onPost('/places/autocomplete').networkError()
+
+    render(<Harness onSearchError={onSearchError} />)
+
+    await userEvent.type(screen.getByLabelText(/destination/i), 'Nope')
+
+    await waitFor(() => {
+      expect(onSearchError).toHaveBeenLastCalledWith(
+        expect.stringContaining('Could not reach the TripPlanner backend'),
+      )
+    })
+    expect(onSearchError).toHaveBeenLastCalledWith(expect.stringContaining('localhost:8000'))
   })
 
   it('shows at most four suggestions', async () => {
@@ -331,6 +358,31 @@ describe('<GooglePlaceAutocomplete>', () => {
 
     expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
     expect(onSearchError).toHaveBeenLastCalledWith(null)
+  })
+
+  it('renders an explicit clear button that clears and refocuses the input', async () => {
+    const onClear = vi.fn()
+    const onSearchError = vi.fn()
+
+    render(
+      <Harness
+        initialValue="Tokyo"
+        onClear={onClear}
+        onSearchError={onSearchError}
+        showClearButton
+      />,
+    )
+
+    const input = screen.getByLabelText(/destination/i)
+    expect(screen.getByRole('button', { name: /clear search/i })).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: /clear search/i }))
+
+    expect(input).toHaveValue('')
+    expect(input).toHaveFocus()
+    expect(onClear).toHaveBeenCalledOnce()
+    expect(onSearchError).toHaveBeenLastCalledWith(null)
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
   })
 })
 

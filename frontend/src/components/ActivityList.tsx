@@ -7,13 +7,17 @@ import {
 import { CalendarPlus } from 'lucide-react'
 import { ActivityCard } from './ActivityCard'
 import type { Activity, CreateActivityRequest } from '../types/activity'
-import { activityDragId } from '../utils/activityDrag'
+import { activityDragId, shouldApplySortableTransform } from '../utils/activityDrag'
 import styles from './ActivityList.module.css'
 
 interface ActivityListProps {
   activities: Activity[]
   busy?: boolean
   dragDisabled?: boolean
+  emptyActionLabel?: string
+  emptyDescription?: string
+  emptyTitle?: string
+  freezeDragPreview?: boolean
   readOnly?: boolean
   hideEmptyState?: boolean
   activeActivityId?: number | null
@@ -21,7 +25,9 @@ interface ActivityListProps {
   onActiveActivityChange?: (activityId: number | null) => void
   onAddActivity?: () => void
   onDelete: (activityId: number) => void
+  onMoveToIdeas?: (activity: Activity) => void
   onRequestMapLocation?: (activity: Activity, payload: CreateActivityRequest) => void
+  onScheduleForSelectedDay?: (activity: Activity) => void
   onSubmitEdit: (activity: Activity, payload: CreateActivityRequest) => Promise<void> | void
   onToggleExpand: (activity: Activity) => void
 }
@@ -43,6 +49,7 @@ function SortableActivityCard({
   activity,
   busy = false,
   dragDisabled = false,
+  freezeDragPreview = false,
   isLast,
   position,
   readOnly = false,
@@ -50,7 +57,9 @@ function SortableActivityCard({
   expandedActivityId,
   onActiveActivityChange,
   onDelete,
+  onMoveToIdeas,
   onRequestMapLocation,
+  onScheduleForSelectedDay,
   onSubmitEdit,
   onToggleExpand,
 }: SortableActivityCardProps) {
@@ -67,9 +76,10 @@ function SortableActivityCard({
     id: activityDragId(activity.id),
     disabled: readOnly || dragDisabled || isExpanded,
   })
+  const applyTransform = shouldApplySortableTransform({ freezeDragPreview, isDragging })
   const style: CSSProperties = {
-    transform: sortableTranslateToString(transform),
-    transition,
+    transform: sortableTranslateToString(applyTransform ? transform : null),
+    transition: applyTransform ? transition : undefined,
   }
 
   return (
@@ -93,7 +103,9 @@ function SortableActivityCard({
           readOnly={readOnly}
           onActiveChange={onActiveActivityChange}
           onDelete={onDelete}
+          onMoveToIdeas={onMoveToIdeas}
           onRequestMapLocation={onRequestMapLocation}
+          onScheduleForSelectedDay={onScheduleForSelectedDay}
           onSubmitEdit={onSubmitEdit}
           onToggleExpand={onToggleExpand}
         />
@@ -106,6 +118,10 @@ export function ActivityList({
   activities,
   busy = false,
   dragDisabled = false,
+  emptyActionLabel = 'Add Activity',
+  emptyDescription = 'Start building your itinerary by searching for places or adding a custom activity.',
+  emptyTitle = 'No activities planned for this day',
+  freezeDragPreview = false,
   readOnly = false,
   hideEmptyState = false,
   activeActivityId = null,
@@ -113,7 +129,9 @@ export function ActivityList({
   onActiveActivityChange,
   onAddActivity,
   onDelete,
+  onMoveToIdeas,
   onRequestMapLocation,
+  onScheduleForSelectedDay,
   onSubmitEdit,
   onToggleExpand,
 }: ActivityListProps) {
@@ -127,15 +145,15 @@ export function ActivityList({
         </span>
         <div>
           <p>
-            <strong>No activities planned for this day</strong>
+            <strong>{emptyTitle}</strong>
           </p>
           {!readOnly && (
-            <p>Start building your itinerary by searching for places or adding a custom activity.</p>
+            <p>{emptyDescription}</p>
           )}
         </div>
         {!readOnly && onAddActivity && (
           <button type="button" className={styles.emptyAction} onClick={onAddActivity}>
-            Add Activity
+            {emptyActionLabel}
           </button>
         )}
       </div>
@@ -156,12 +174,15 @@ export function ActivityList({
             expandedActivityId={expandedActivityId}
             busy={busy}
             dragDisabled={dragDisabled}
+            freezeDragPreview={freezeDragPreview}
             isLast={index === activities.length - 1}
             position={index + 1}
             readOnly={readOnly}
             onActiveActivityChange={onActiveActivityChange}
             onDelete={onDelete}
+            onMoveToIdeas={onMoveToIdeas}
             onRequestMapLocation={onRequestMapLocation}
+            onScheduleForSelectedDay={onScheduleForSelectedDay}
             onSubmitEdit={onSubmitEdit}
             onToggleExpand={onToggleExpand}
           />
