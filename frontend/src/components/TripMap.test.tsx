@@ -387,6 +387,36 @@ describe('<TripMap>', () => {
     )
   })
 
+  it('does not refit the viewport when activities change under the same fit key', async () => {
+    const { rerender } = render(
+      <TripMap
+        activities={ACTIVITIES}
+        fallbackActivities={[]}
+        destination="Tokyo"
+        viewportFitKey="days:2026-05-01:Tokyo"
+      />,
+    )
+
+    await waitFor(() => {
+      expect(mapControlMock.fitBounds).toHaveBeenCalled()
+    })
+    mapControlMock.fitBounds.mockClear()
+    mapControlMock.moveCamera.mockClear()
+
+    rerender(
+      <TripMap
+        activities={[ACTIVITIES[1], ACTIVITIES[0]]}
+        fallbackActivities={[]}
+        destination="Tokyo"
+        viewportFitKey="days:2026-05-01:Tokyo"
+      />,
+    )
+
+    expect(screen.getByRole('button', { name: /stop 1: tsukiji market/i })).toBeInTheDocument()
+    expect(mapControlMock.fitBounds).not.toHaveBeenCalled()
+    expect(mapControlMock.moveCamera).not.toHaveBeenCalled()
+  })
+
   it('can render mapped stops without requesting a route', () => {
     render(
       <TripMap
