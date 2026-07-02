@@ -581,7 +581,7 @@ describe('<TripWorkspacePage>', () => {
 
     expect(screen.getByRole('button', { name: /^timeline$/i })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByRole('heading', { name: /full trip timeline/i })).toBeInTheDocument()
-    expect(screen.getByText(/2 activities across 2 days/i)).toBeInTheDocument()
+    expect(screen.getByText(/2 scheduled activities across 2 days/i)).toBeInTheDocument()
 
     const fullTimeline = screen.getByLabelText(/trip days timeline/i)
     expect(within(fullTimeline).getByText('Tsukiji sushi')).toBeInTheDocument()
@@ -607,7 +607,7 @@ describe('<TripWorkspacePage>', () => {
     expect(screen.getByTestId('active-map-activity')).toHaveTextContent('22')
   })
 
-  it('keeps Ideas out of day maps and routes while Timeline shows them explicitly', async () => {
+  it('keeps Ideas out of day maps and routes and shows them in the Ideas tab', async () => {
     const dayActivity = {
       ...SAMPLE_ACTIVITY,
       mapboxId: 'google.tsukiji',
@@ -634,7 +634,8 @@ describe('<TripWorkspacePage>', () => {
 
     await screen.findByRole('heading', { name: /friday, may 1/i })
     expect(screen.getByText(/1 activity scheduled today/i)).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: /^ideas$/i })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: /^saved ideas$/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /move to ideas/i })).not.toBeInTheDocument()
 
     const selectedDayMapActivities = within(screen.getByTestId('selected-map-activities'))
     const selectedDayRouteActivities = within(screen.getByTestId('route-map-activities'))
@@ -643,15 +644,29 @@ describe('<TripWorkspacePage>', () => {
     expect(selectedDayRouteActivities.getByText('Tsukiji sushi')).toBeInTheDocument()
     expect(selectedDayRouteActivities.queryByText('Save teamLab')).not.toBeInTheDocument()
 
+    await userEvent.click(screen.getByRole('button', { name: /^ideas$/i }))
+
+    expect(screen.getByRole('button', { name: /^ideas$/i })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('heading', { name: /^ideas$/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /^saved ideas$/i })).toBeInTheDocument()
+    expect(screen.getAllByText('Save teamLab').length).toBeGreaterThan(0)
+
+    const ideasMapActivities = within(screen.getByTestId('selected-map-activities'))
+    const ideasRouteActivities = within(screen.getByTestId('route-map-activities'))
+    expect(ideasMapActivities.getByText('Save teamLab')).toBeInTheDocument()
+    expect(ideasMapActivities.queryByText('Tsukiji sushi')).not.toBeInTheDocument()
+    expect(ideasRouteActivities.queryByText('Save teamLab')).not.toBeInTheDocument()
+    expect(ideasRouteActivities.queryByText('Tsukiji sushi')).not.toBeInTheDocument()
+
     await userEvent.click(screen.getByRole('button', { name: /^timeline$/i }))
 
     const fullTimeline = screen.getByLabelText(/trip days timeline/i)
-    expect(within(fullTimeline).getByRole('heading', { name: /^ideas$/i })).toBeInTheDocument()
-    expect(within(fullTimeline).getByText('Save teamLab')).toBeInTheDocument()
+    expect(within(fullTimeline).queryByRole('heading', { name: /^ideas$/i })).not.toBeInTheDocument()
+    expect(within(fullTimeline).queryByText('Save teamLab')).not.toBeInTheDocument()
     const timelineMapActivities = within(screen.getByTestId('selected-map-activities'))
     const timelineRouteActivities = within(screen.getByTestId('route-map-activities'))
     expect(timelineMapActivities.getByText('Tsukiji sushi')).toBeInTheDocument()
-    expect(timelineMapActivities.getByText('Save teamLab')).toBeInTheDocument()
+    expect(timelineMapActivities.queryByText('Save teamLab')).not.toBeInTheDocument()
     expect(timelineRouteActivities.queryByText('Tsukiji sushi')).not.toBeInTheDocument()
     expect(timelineRouteActivities.queryByText('Save teamLab')).not.toBeInTheDocument()
   })

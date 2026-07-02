@@ -351,6 +351,16 @@
   color: var(--color-primary-text);
 }
 
+.railNavDropTarget {
+  box-shadow: inset 3px 0 0 rgba(37, 99, 235, 0.22);
+}
+
+.railNavDropTargetOver {
+  background: var(--color-primary-soft);
+  color: var(--color-primary-text);
+  box-shadow: inset 3px 0 0 var(--color-primary);
+}
+
 .railStaticItem {
   min-height: 44px;
   display: flex;
