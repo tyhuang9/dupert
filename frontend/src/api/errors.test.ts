@@ -58,6 +58,18 @@ describe('parseApiError', () => {
     expect(result.topMessage).toMatch(/Too many attempts/)
   })
 
+  it('maps forbidden (403) to a blocked-request banner', () => {
+    const result = parseApiError(makeAxiosError(403, { error: 'forbidden' }))
+    expect(result.topMessage).toMatch(/server blocked/i)
+    expect(result.fieldErrors).toEqual({})
+  })
+
+  it('maps non-json 403 responses to a blocked-request banner', () => {
+    const result = parseApiError(makeAxiosError(403, 'Invalid CORS request'))
+    expect(result.topMessage).toMatch(/server blocked/i)
+    expect(result.fieldErrors).toEqual({})
+  })
+
   it('maps validation_failed (400) with backend list-shape fieldErrors', () => {
     const result = parseApiError(
       makeAxiosError(400, {
