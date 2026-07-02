@@ -51,6 +51,11 @@ public class RateLimitFilter extends OncePerRequestFilter {
 
     private static final String LOGIN_PATH = "/api/auth/login";
     private static final String REGISTER_PATH = "/api/auth/register";
+    private static final String PASSWORD_RESET_REQUEST_PATH = "/api/auth/password-reset/request";
+    private static final String PASSWORD_RESET_CONFIRM_PATH = "/api/auth/password-reset/confirm";
+    private static final String REFRESH_PATH = "/api/auth/refresh";
+    private static final String LOGOUT_PATH = "/api/auth/logout";
+    private static final String DEV_RESET_PASSWORD_PATH = "/api/auth/dev/reset-password";
     private static final String SHARE_PATH_PREFIX = "/api/share/";
     private static final String PLACES_PATH_PREFIX = "/api/places/";
     private static final String MAPS_PATH_PREFIX = "/api/maps/";
@@ -89,6 +94,26 @@ public class RateLimitFilter extends OncePerRequestFilter {
                 }
             } else if (REGISTER_PATH.equals(path)) {
                 if (!tryConsume(response, RateLimitRegistry.Named.AUTH_REGISTER, clientIp)) {
+                    return;
+                }
+            } else if (PASSWORD_RESET_REQUEST_PATH.equals(path)) {
+                if (!tryConsume(response, RateLimitRegistry.Named.AUTH_PASSWORD_RESET_REQUEST, clientIp)) {
+                    return;
+                }
+            } else if (PASSWORD_RESET_CONFIRM_PATH.equals(path)) {
+                if (!tryConsume(response, RateLimitRegistry.Named.AUTH_PASSWORD_RESET_CONFIRM, clientIp)) {
+                    return;
+                }
+            } else if (REFRESH_PATH.equals(path)) {
+                if (!tryConsume(response, RateLimitRegistry.Named.AUTH_REFRESH, clientIp)) {
+                    return;
+                }
+            } else if (LOGOUT_PATH.equals(path)) {
+                if (!tryConsume(response, RateLimitRegistry.Named.AUTH_LOGOUT, clientIp)) {
+                    return;
+                }
+            } else if (DEV_RESET_PASSWORD_PATH.equals(path)) {
+                if (!tryConsume(response, RateLimitRegistry.Named.AUTH_DEV_RESET_PASSWORD, clientIp)) {
                     return;
                 }
             } else if (isShareAcceptPath(path)) {

@@ -117,6 +117,69 @@ class RateLimitFilterTest {
         assertThat(limited.getContentAsString()).isEqualTo(RateLimitFilter.RATE_LIMITED_BODY);
     }
 
+    @Test
+    void authPasswordResetRequestPathIsRateLimitedByClientIp() throws Exception {
+        assertPostPathLimited("/api/auth/password-reset/request", 10);
+    }
+
+    @Test
+    void authPasswordResetConfirmPathIsRateLimitedByClientIp() throws Exception {
+        assertPostPathLimited("/api/auth/password-reset/confirm", 10);
+    }
+
+    @Test
+    void authRefreshPathIsRateLimitedByClientIp() throws Exception {
+        assertPostPathLimited("/api/auth/refresh", 60);
+    }
+
+    @Test
+    void authLogoutPathIsRateLimitedByClientIp() throws Exception {
+        assertPostPathLimited("/api/auth/logout", 120);
+    }
+
+    @Test
+    void authDevResetPasswordPathIsRateLimitedByClientIp() throws Exception {
+        assertPostPathLimited("/api/auth/dev/reset-password", 5);
+    }
+
+    @Test
+    void authRateLimitDoesNotCatchOtherAuthPaths() throws Exception {
+        RateLimitRegistry registry = new RateLimitRegistry();
+        RateLimitFilter filter = new RateLimitFilter(registry, new AppProperties());
+        AtomicInteger passed = new AtomicInteger();
+        FilterChain chain = (_request, _response) -> passed.incrementAndGet();
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request("POST", "/api/auth/me/password"), response, chain);
+
+        assertThat(passed.get()).isEqualTo(1);
+        assertThat(response.getStatus()).isEqualTo(200);
+        assertThat(registry.size()).isZero();
+    }
+
+    private static void assertPostPathLimited(String path, int capacity) throws Exception {
+        RateLimitRegistry registry = new RateLimitRegistry();
+        RateLimitFilter filter = new RateLimitFilter(registry, new AppProperties());
+        AtomicInteger passed = new AtomicInteger();
+        FilterChain chain = (_request, _response) -> passed.incrementAndGet();
+
+        for (int i = 0; i < capacity; i++) {
+            MockHttpServletResponse response = new MockHttpServletResponse();
+            filter.doFilter(request("POST", path), response, chain);
+            assertThat(response.getStatus()).isEqualTo(200);
+        }
+
+        assertThat(registry.size()).isEqualTo(1);
+
+        MockHttpServletResponse limited = new MockHttpServletResponse();
+        filter.doFilter(request("POST", path), limited, chain);
+
+        assertThat(passed.get()).isEqualTo(capacity);
+        assertThat(limited.getStatus()).isEqualTo(429);
+        assertThat(limited.getContentAsString()).isEqualTo(RateLimitFilter.RATE_LIMITED_BODY);
+        assertThat(limited.getHeader("Retry-After")).isNotBlank();
+    }
+
     private static MockHttpServletRequest shareRequest(String token) {
         MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/share/" + token + "/accept");
         request.setRemoteAddr("203.0.113.40");

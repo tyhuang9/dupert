@@ -73,6 +73,36 @@ public class RateLimitRegistry {
             .addLimit(Bandwidth.builder().capacity(10).refillGreedy(10, Duration.ofHours(1)).build())
             .build()),
 
+        /** 10 password reset requests per minute per IP before body parsing. */
+        AUTH_PASSWORD_RESET_REQUEST(() -> Bucket.builder()
+            .addLimit(Bandwidth.builder().capacity(10).refillGreedy(10, Duration.ofMinutes(1)).build())
+            .build()),
+
+        /** 3 password reset requests per hour per {@code (ip, normalizedEmail)}. */
+        AUTH_PASSWORD_RESET_REQUEST_PER_EMAIL(() -> Bucket.builder()
+            .addLimit(Bandwidth.builder().capacity(3).refillGreedy(3, Duration.ofHours(1)).build())
+            .build()),
+
+        /** 10 password reset confirmations per minute per IP. */
+        AUTH_PASSWORD_RESET_CONFIRM(() -> Bucket.builder()
+            .addLimit(Bandwidth.builder().capacity(10).refillGreedy(10, Duration.ofMinutes(1)).build())
+            .build()),
+
+        /** 60 refresh attempts per minute per IP. */
+        AUTH_REFRESH(() -> Bucket.builder()
+            .addLimit(Bandwidth.builder().capacity(60).refillGreedy(60, Duration.ofMinutes(1)).build())
+            .build()),
+
+        /** 120 logout attempts per minute per IP. */
+        AUTH_LOGOUT(() -> Bucket.builder()
+            .addLimit(Bandwidth.builder().capacity(120).refillGreedy(120, Duration.ofMinutes(1)).build())
+            .build()),
+
+        /** 5 dev password reset attempts per minute per IP. */
+        AUTH_DEV_RESET_PASSWORD(() -> Bucket.builder()
+            .addLimit(Bandwidth.builder().capacity(5).refillGreedy(5, Duration.ofMinutes(1)).build())
+            .build()),
+
         /** 10 share-accept / guest-join attempts per minute per IP before token validation. */
         SHARE_ACCEPT(() -> Bucket.builder()
             .addLimit(Bandwidth.builder().capacity(10).refillGreedy(10, Duration.ofMinutes(1)).build())
