@@ -68,16 +68,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 export const useUser = () => useAuthStore((s) => s.user)
 export const useAccessToken = () => useAuthStore((s) => s.accessToken)
 /**
- * True only when the in-memory access token is still usable under the
- * SAME skew window as `getAccessToken()`. This prevents drift where a
- * `<RequireAuth>` consumer thinks the user is authenticated while the
- * very next API call would already short-circuit the token and trigger
- * a refresh.
+ * True when this tab has a local signed-in session candidate that has
+ * not actually expired. The request layer still uses `getAccessToken()`
+ * for the stricter skew-aware bearer check, so near-expired tokens
+ * trigger refresh instead of making protected routes bounce to `/login`
+ * first.
  */
 export const useIsAuthenticated = () =>
   useAuthStore((s) => {
     if (s.accessToken === null || s.user === null || s.expiresAt === null) {
       return false
     }
-    return s.expiresAt - Date.now() > ACCESS_TOKEN_EXPIRY_SKEW_MS
+    return Date.now() < s.expiresAt
   })

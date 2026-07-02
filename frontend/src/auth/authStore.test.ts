@@ -79,16 +79,30 @@ describe('authStore', () => {
     expect(ACCESS_TOKEN_EXPIRY_SKEW_MS).toBeGreaterThanOrEqual(30_000)
   })
 
-  it('useIsAuthenticated returns false inside the expiry skew window', () => {
-    // 20s TTL is inside the 30s skew window: getAccessToken() would
-    // already return null, so useIsAuthenticated must not claim
-    // authenticated and let consumers (e.g. <RequireAuth>) skew from
-    // the request layer.
+  it('useIsAuthenticated remains true inside the expiry skew window', () => {
+    // 20s TTL is inside the 30s skew window: getAccessToken() already
+    // returns null, but route guards should give refresh a chance
+    // instead of redirecting immediately.
     useAuthStore.getState().setSession({
       accessToken: 'tok-skewed',
       expiresInSeconds: 20,
       user: sampleUser,
     })
+
+    const { result } = renderHook(() => useIsAuthenticated())
+    expect(result.current).toBe(true)
+    expect(useAuthStore.getState().getAccessToken()).toBeNull()
+  })
+
+  it('useIsAuthenticated returns false after actual expiry', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-05-05T12:00:00Z'))
+    useAuthStore.getState().setSession({
+      accessToken: 'tok-expired',
+      expiresInSeconds: 1,
+      user: sampleUser,
+    })
+    vi.setSystemTime(Date.now() + 1_001)
 
     const { result } = renderHook(() => useIsAuthenticated())
     expect(result.current).toBe(false)
