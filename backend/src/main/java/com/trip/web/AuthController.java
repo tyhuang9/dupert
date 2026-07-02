@@ -294,8 +294,15 @@ public class AuthController {
     }
 
     @PostMapping("/password-reset/request")
-    public ResponseEntity<Void> requestPasswordReset(@Valid @RequestBody PasswordResetRequest body) {
-        passwordResetService.requestReset(body.email());
+    public ResponseEntity<?> requestPasswordReset(@Valid @RequestBody PasswordResetRequest body,
+                                                  HttpServletRequest request) {
+        String email = EmailNormalizer.normalize(body.email());
+        ResponseEntity<?> limited = enforcePasswordResetRequestLimit(request, email);
+        if (limited != null) {
+            return limited;
+        }
+
+        passwordResetService.requestReset(email);
         return ResponseEntity.noContent().build();
     }
 
@@ -418,6 +425,23 @@ public class AuthController {
     private static ResponseEntity<?> unauthenticated() {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
             .body(Map.of(UNAUTHENTICATED_BODY_KEY, UNAUTHENTICATED_BODY_VALUE));
+    }
+
+    private ResponseEntity<?> enforcePasswordResetRequestLimit(HttpServletRequest request,
+                                                               String normalizedEmail) {
+        String ip = RateLimitFilter.clientIp(request, trustProxy);
+        String discriminator = ip + ":" + normalizedEmail;
+        Bucket bucket = rateLimitRegistry.resolve(
+            RateLimitRegistry.Named.AUTH_PASSWORD_RESET_REQUEST_PER_EMAIL, discriminator);
+        ConsumptionProbe probe = bucket.tryConsumeAndReturnRemaining(1);
+        if (probe.isConsumed()) {
+            return null;
+        }
+        long retryAfterSeconds = Math.max(1L, probe.getNanosToWaitForRefill() / 1_000_000_000L);
+        return ResponseEntity.status(429)
+            .header(HttpHeaders.RETRY_AFTER, Long.toString(retryAfterSeconds))
+            .contentType(MediaType.APPLICATION_JSON)
+            .body(Map.of("error", "rate_limited"));
     }
 
     /**
