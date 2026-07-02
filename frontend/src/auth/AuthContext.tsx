@@ -16,6 +16,12 @@ interface AuthProviderProps {
   children: ReactNode
 }
 
+const PROACTIVE_REFRESH_LEAD_MS = 60_000
+
+function shouldRefreshSessionSoon(expiresAt: number): boolean {
+  return Date.now() >= expiresAt - PROACTIVE_REFRESH_LEAD_MS
+}
+
 /**
  * Wraps the app and exposes the auth API. On first mount, attempts a
  * silent `/auth/refresh` — the refresh cookie may exist from a prior
@@ -26,6 +32,7 @@ interface AuthProviderProps {
 export function AuthProvider({ children }: AuthProviderProps) {
   const user = useUser()
   const isAuthenticated = useIsAuthenticated()
+  const expiresAt = useAuthStore((s) => s.expiresAt)
   const setSession = useAuthStore((s) => s.setSession)
   const setUser = useAuthStore((s) => s.setUser)
   const clearSession = useAuthStore((s) => s.clearSession)
@@ -90,6 +97,44 @@ export function AuthProvider({ children }: AuthProviderProps) {
       cancelledRef.current = true
     }
   }, [])
+
+  useEffect(() => {
+    if (user === null || expiresAt === null) {
+      return
+    }
+
+    const refreshIfDue = () => {
+      if (!shouldRefreshSessionSoon(expiresAt)) {
+        return
+      }
+      refreshSession().catch(() => {
+        // refreshSession clears local auth state on failure.
+      })
+    }
+    const refreshDelayMs = Math.max(
+      0,
+      expiresAt - Date.now() - PROACTIVE_REFRESH_LEAD_MS,
+    )
+    const refreshTimer = window.setTimeout(refreshIfDue, refreshDelayMs)
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        refreshIfDue()
+      }
+    }
+
+    window.addEventListener('focus', refreshIfDue)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    if (document.visibilityState === 'visible') {
+      refreshIfDue()
+    }
+
+    return () => {
+      window.clearTimeout(refreshTimer)
+      window.removeEventListener('focus', refreshIfDue)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [expiresAt, user])
 
   const login = useCallback(
     async (body: LoginRequest) => {

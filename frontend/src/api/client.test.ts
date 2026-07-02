@@ -1,7 +1,7 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import MockAdapter from 'axios-mock-adapter'
 import axios from 'axios'
-import { __resetRefreshSingletonForTests, apiClient } from './client'
+import { __resetRefreshSingletonForTests, apiClient, refreshSession } from './client'
 import { useAuthStore } from '../auth/authStore'
 
 /**
@@ -15,8 +15,20 @@ let apiMock: MockAdapter
 let refreshMock: MockAdapter
 
 const SAMPLE_USER = { id: 7, email: 'q@r.com', displayName: 'Q' }
+const REFRESH_LOCK_STORAGE_KEY = 'tripplanner:auth-refresh-lock'
+let originalLocksDescriptor: PropertyDescriptor | undefined
+
+function readStorageLock() {
+  const raw = localStorage.getItem(REFRESH_LOCK_STORAGE_KEY)
+  return raw ? (JSON.parse(raw) as { owner: string; expiresAt: number }) : null
+}
 
 beforeEach(() => {
+  originalLocksDescriptor = Object.getOwnPropertyDescriptor(
+    globalThis.navigator,
+    'locks',
+  )
+  Reflect.deleteProperty(globalThis.navigator, 'locks')
   __resetRefreshSingletonForTests()
   useAuthStore.getState().clearSession()
   apiMock = new MockAdapter(apiClient)
@@ -26,9 +38,25 @@ beforeEach(() => {
 afterEach(() => {
   apiMock.restore()
   refreshMock.restore()
+  if (originalLocksDescriptor) {
+    Object.defineProperty(
+      globalThis.navigator,
+      'locks',
+      originalLocksDescriptor,
+    )
+  } else {
+    Reflect.deleteProperty(globalThis.navigator, 'locks')
+  }
+  localStorage.removeItem(REFRESH_LOCK_STORAGE_KEY)
+  vi.useRealTimers()
+  vi.restoreAllMocks()
 })
 
 describe('apiClient request interceptor', () => {
+  it('sends cookies with apiClient requests', () => {
+    expect(apiClient.defaults.withCredentials).toBe(true)
+  })
+
   it('attaches Authorization header when a token is present', async () => {
     useAuthStore.getState().setSession({
       accessToken: 'live-tok',
@@ -123,6 +151,61 @@ describe('apiClient request interceptor', () => {
     const { data } = await apiClient.post('/trips/abc234def567/activities', {})
     expect(data.guestWrite).toBeNull()
     expect(data.auth).toBe('Bearer live-tok')
+  })
+
+  it('refreshes a signed-in skewed token before trip writes instead of sending a guest write', async () => {
+    useAuthStore.getState().setSession({
+      accessToken: 'skewed-tok',
+      expiresInSeconds: 20,
+      user: SAMPLE_USER,
+    })
+    refreshMock.onPost('/api/auth/refresh').reply(200, {
+      accessToken: 'fresh-write-tok',
+      tokenType: 'Bearer',
+      expiresInSeconds: 900,
+      user: SAMPLE_USER,
+    })
+    apiMock.onPost('/trips/abc234def567/activities').reply((cfg) => {
+      const guestWrite =
+        cfg.headers?.['X-TripPlanner-Guest-Write'] ??
+        cfg.headers?.['x-tripplanner-guest-write']
+      const auth = cfg.headers?.['Authorization'] ?? cfg.headers?.['authorization']
+      return [200, { guestWrite: guestWrite ?? null, auth: auth ?? null }]
+    })
+
+    const { data } = await apiClient.post('/trips/abc234def567/activities', {})
+
+    expect(refreshMock.history.post).toHaveLength(1)
+    expect(data.guestWrite).toBeNull()
+    expect(data.auth).toBe('Bearer fresh-write-tok')
+  })
+
+  it('does not downgrade a signed-in skewed write to a guest write when refresh fails', async () => {
+    useAuthStore.getState().setSession({
+      accessToken: 'skewed-tok',
+      expiresInSeconds: 20,
+      user: SAMPLE_USER,
+    })
+    refreshMock.onPost('/api/auth/refresh').reply(401, { error: 'unauthenticated' })
+    apiMock.onPost('/trips/abc234def567/activities').reply((cfg) => {
+      const guestWrite =
+        cfg.headers?.['X-TripPlanner-Guest-Write'] ??
+        cfg.headers?.['x-tripplanner-guest-write']
+      const auth = cfg.headers?.['Authorization'] ?? cfg.headers?.['authorization']
+      return [401, { guestWrite: guestWrite ?? null, auth: auth ?? null }]
+    })
+
+    await expect(
+      apiClient.post('/trips/abc234def567/activities', {}),
+    ).rejects.toMatchObject({
+      response: { status: 401 },
+    })
+
+    expect(refreshMock.history.post).toHaveLength(1)
+    expect(apiMock.history.post[0].headers?.['X-TripPlanner-Guest-Write']).toBe(
+      undefined,
+    )
+    expect(apiMock.history.post[0].headers?.['Authorization']).toBe(undefined)
   })
 })
 
@@ -231,5 +314,169 @@ describe('apiClient response interceptor — refresh on 401', () => {
     expect(a.data.who).toBe('a')
     expect(b.data.who).toBe('b')
     expect(refreshCalls).toBe(1)
+  })
+})
+
+describe('refreshSession cross-tab coordination', () => {
+  it('coalesces direct in-tab refresh callers', async () => {
+    let refreshCalls = 0
+    refreshMock.onPost('/api/auth/refresh').reply(() => {
+      refreshCalls += 1
+      return [
+        200,
+        {
+          accessToken: 'coalesced-tok',
+          tokenType: 'Bearer',
+          expiresInSeconds: 900,
+          user: SAMPLE_USER,
+        },
+      ]
+    })
+
+    const [first, second] = await Promise.all([refreshSession(), refreshSession()])
+
+    expect(refreshCalls).toBe(1)
+    expect(first.accessToken).toBe('coalesced-tok')
+    expect(second.accessToken).toBe('coalesced-tok')
+  })
+
+  it('waits for Web Lock acquisition before refreshing', async () => {
+    let releaseLock: (() => void) | undefined
+    const request = vi.fn(
+      (
+        _name: string,
+        _options: { mode: 'exclusive' },
+        callback: () => Promise<unknown>,
+      ) =>
+        new Promise((resolve, reject) => {
+          releaseLock = () => {
+            callback().then(resolve, reject)
+          }
+        }),
+    )
+    Object.defineProperty(globalThis.navigator, 'locks', {
+      configurable: true,
+      value: { request },
+    })
+    refreshMock.onPost('/api/auth/refresh').reply(200, {
+      accessToken: 'web-lock-tok',
+      tokenType: 'Bearer',
+      expiresInSeconds: 900,
+      user: SAMPLE_USER,
+    })
+
+    const pending = refreshSession()
+    await Promise.resolve()
+
+    expect(request).toHaveBeenCalledTimes(1)
+    expect(request.mock.calls[0][0]).toBe('tripplanner:auth-refresh')
+    expect(request.mock.calls[0][1]).toEqual({ mode: 'exclusive' })
+    expect(refreshMock.history.post).toHaveLength(0)
+
+    releaseLock?.()
+
+    await expect(pending).resolves.toMatchObject({
+      accessToken: 'web-lock-tok',
+    })
+    expect(refreshMock.history.post).toHaveLength(1)
+    expect(refreshMock.history.post[0].withCredentials).toBe(true)
+  })
+
+  it('waits on the localStorage lease fallback without storing secrets', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-05-05T12:00:00Z'))
+    localStorage.setItem(
+      REFRESH_LOCK_STORAGE_KEY,
+      JSON.stringify({ owner: 'other-tab', expiresAt: Date.now() + 5_000 }),
+    )
+    refreshMock.onPost('/api/auth/refresh').reply(200, {
+      accessToken: 'storage-lock-tok',
+      tokenType: 'Bearer',
+      expiresInSeconds: 900,
+      user: SAMPLE_USER,
+    })
+
+    const pending = refreshSession()
+
+    await vi.advanceTimersByTimeAsync(49)
+    expect(refreshMock.history.post).toHaveLength(0)
+    expect(localStorage.getItem(REFRESH_LOCK_STORAGE_KEY)).not.toContain('tok')
+
+    localStorage.removeItem(REFRESH_LOCK_STORAGE_KEY)
+    await vi.advanceTimersByTimeAsync(1)
+
+    await expect(pending).resolves.toMatchObject({
+      accessToken: 'storage-lock-tok',
+    })
+    expect(refreshMock.history.post).toHaveLength(1)
+    expect(localStorage.getItem(REFRESH_LOCK_STORAGE_KEY)).toBeNull()
+  })
+
+  it('does not bypass an active localStorage lease after a long wait', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-05-05T12:00:00Z'))
+    localStorage.setItem(
+      REFRESH_LOCK_STORAGE_KEY,
+      JSON.stringify({ owner: 'other-tab', expiresAt: Date.now() + 30_000 }),
+    )
+    refreshMock.onPost('/api/auth/refresh').reply(200, {
+      accessToken: 'after-wait-tok',
+      tokenType: 'Bearer',
+      expiresInSeconds: 900,
+      user: SAMPLE_USER,
+    })
+
+    const pending = refreshSession()
+
+    await vi.advanceTimersByTimeAsync(20_000)
+    expect(refreshMock.history.post).toHaveLength(0)
+
+    localStorage.removeItem(REFRESH_LOCK_STORAGE_KEY)
+    await vi.advanceTimersByTimeAsync(50)
+
+    await expect(pending).resolves.toMatchObject({
+      accessToken: 'after-wait-tok',
+    })
+    expect(refreshMock.history.post).toHaveLength(1)
+  })
+
+  it('renews the localStorage lease while a slow refresh is pending', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-05-05T12:00:00Z'))
+    refreshMock.onPost('/api/auth/refresh').reply(
+      () =>
+        new Promise((resolve) => {
+          setTimeout(() => {
+            resolve([
+              200,
+              {
+                accessToken: 'slow-refresh-tok',
+                tokenType: 'Bearer',
+                expiresInSeconds: 900,
+                user: SAMPLE_USER,
+              },
+            ])
+          }, 12_000)
+        }),
+    )
+
+    const pending = refreshSession()
+    const initialLock = readStorageLock()
+    expect(initialLock).not.toBeNull()
+    expect(localStorage.getItem(REFRESH_LOCK_STORAGE_KEY)).not.toContain('tok')
+
+    await vi.advanceTimersByTimeAsync(5_000)
+    const renewedLock = readStorageLock()
+    expect(renewedLock?.owner).toBe(initialLock?.owner)
+    expect(renewedLock?.expiresAt).toBeGreaterThan(
+      initialLock?.expiresAt ?? 0,
+    )
+
+    await vi.advanceTimersByTimeAsync(7_000)
+
+    await expect(pending).resolves.toMatchObject({
+      accessToken: 'slow-refresh-tok',
+    })
+    expect(localStorage.getItem(REFRESH_LOCK_STORAGE_KEY)).toBeNull()
   })
 })

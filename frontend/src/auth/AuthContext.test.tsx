@@ -1,6 +1,6 @@
 import { StrictMode } from 'react'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import MockAdapter from 'axios-mock-adapter'
 import axios from 'axios'
 import { AuthProvider } from './AuthContext'
@@ -36,6 +36,7 @@ beforeEach(() => {
 
 afterEach(() => {
   refreshMock.restore()
+  vi.useRealTimers()
 })
 
 describe('<AuthProvider> silent refresh on mount', () => {
@@ -107,5 +108,75 @@ describe('<AuthProvider> silent refresh on mount', () => {
     })
 
     expect(refreshMock.history.post).toHaveLength(1)
+  })
+
+  it('refreshes proactively before the access token expires', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-05-05T12:00:00Z'))
+    useAuthStore.getState().setSession({
+      accessToken: 'soon-expiring-tok',
+      expiresInSeconds: 90,
+      user: SAMPLE_USER,
+    })
+    refreshMock.onPost('/api/auth/refresh').reply(200, {
+      accessToken: 'proactive-tok',
+      tokenType: 'Bearer',
+      expiresInSeconds: 900,
+      user: SAMPLE_USER,
+    })
+
+    render(
+      <AuthProvider>
+        <Probe />
+      </AuthProvider>,
+    )
+
+    expect(screen.getByTestId('initializing').textContent).toBe('false')
+    expect(refreshMock.history.post).toHaveLength(0)
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(29_999)
+    })
+    expect(refreshMock.history.post).toHaveLength(0)
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1)
+    })
+
+    expect(refreshMock.history.post).toHaveLength(1)
+    expect(useAuthStore.getState().accessToken).toBe('proactive-tok')
+  })
+
+  it('checks refresh on focus after browser sleep skips the timer window', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-05-05T12:00:00Z'))
+    useAuthStore.getState().setSession({
+      accessToken: 'sleepy-tok',
+      expiresInSeconds: 120,
+      user: SAMPLE_USER,
+    })
+    refreshMock.onPost('/api/auth/refresh').reply(200, {
+      accessToken: 'focus-refresh-tok',
+      tokenType: 'Bearer',
+      expiresInSeconds: 900,
+      user: SAMPLE_USER,
+    })
+
+    render(
+      <AuthProvider>
+        <Probe />
+      </AuthProvider>,
+    )
+
+    expect(refreshMock.history.post).toHaveLength(0)
+    vi.setSystemTime(Date.now() + 70_000)
+
+    await act(async () => {
+      window.dispatchEvent(new Event('focus'))
+      await Promise.resolve()
+    })
+
+    expect(refreshMock.history.post).toHaveLength(1)
+    expect(useAuthStore.getState().accessToken).toBe('focus-refresh-tok')
   })
 })

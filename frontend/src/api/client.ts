@@ -71,6 +71,164 @@ function shouldSendGuestWriteHeader(config: InternalAxiosRequestConfig): boolean
  */
 let refreshPromise: Promise<AuthResponse> | null = null
 
+const REFRESH_LOCK_NAME = 'tripplanner:auth-refresh'
+const REFRESH_LOCK_STORAGE_KEY = 'tripplanner:auth-refresh-lock'
+const REFRESH_LOCK_TTL_MS = 10_000
+const REFRESH_LOCK_POLL_MS = 50
+
+interface LockManagerLike {
+  request<T>(
+    name: string,
+    options: { mode: 'exclusive' },
+    callback: () => T | Promise<T>,
+  ): Promise<T>
+}
+
+interface RefreshLockLease {
+  owner: string
+  expiresAt: number
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms)
+  })
+}
+
+function createLockOwner(): string {
+  return (
+    globalThis.crypto?.randomUUID?.() ??
+    `owner-${Date.now()}-${Math.random().toString(36).slice(2)}`
+  )
+}
+
+function parseRefreshLockLease(raw: string | null): RefreshLockLease | null {
+  if (raw === null) {
+    return null
+  }
+  try {
+    const value = JSON.parse(raw) as Partial<RefreshLockLease>
+    if (typeof value.owner !== 'string' || typeof value.expiresAt !== 'number') {
+      return null
+    }
+    return { owner: value.owner, expiresAt: value.expiresAt }
+  } catch {
+    return null
+  }
+}
+
+function getWebLocks(): LockManagerLike | null {
+  const locks = (globalThis.navigator as { locks?: LockManagerLike } | undefined)
+    ?.locks
+  return locks?.request ? locks : null
+}
+
+function getRefreshLockStorage(): Storage | null {
+  try {
+    return globalThis.localStorage ?? null
+  } catch {
+    return null
+  }
+}
+
+function tryAcquireStorageRefreshLock(storage: Storage, owner: string): boolean {
+  const now = Date.now()
+  const current = parseRefreshLockLease(
+    storage.getItem(REFRESH_LOCK_STORAGE_KEY),
+  )
+  if (current !== null && current.owner !== owner && current.expiresAt > now) {
+    return false
+  }
+
+  const next: RefreshLockLease = {
+    owner,
+    expiresAt: now + REFRESH_LOCK_TTL_MS,
+  }
+  storage.setItem(REFRESH_LOCK_STORAGE_KEY, JSON.stringify(next))
+
+  return (
+    parseRefreshLockLease(storage.getItem(REFRESH_LOCK_STORAGE_KEY))?.owner ===
+    owner
+  )
+}
+
+function renewStorageRefreshLock(storage: Storage, owner: string): boolean {
+  const current = parseRefreshLockLease(
+    storage.getItem(REFRESH_LOCK_STORAGE_KEY),
+  )
+  if (current?.owner !== owner) {
+    return false
+  }
+
+  const next: RefreshLockLease = {
+    owner,
+    expiresAt: Date.now() + REFRESH_LOCK_TTL_MS,
+  }
+  storage.setItem(REFRESH_LOCK_STORAGE_KEY, JSON.stringify(next))
+  return true
+}
+
+function releaseStorageRefreshLock(storage: Storage, owner: string): void {
+  const current = parseRefreshLockLease(
+    storage.getItem(REFRESH_LOCK_STORAGE_KEY),
+  )
+  if (current?.owner === owner) {
+    storage.removeItem(REFRESH_LOCK_STORAGE_KEY)
+  }
+}
+
+async function withStorageRefreshLock<T>(callback: () => Promise<T>): Promise<T> {
+  const storage = getRefreshLockStorage()
+  if (storage === null) {
+    return callback()
+  }
+
+  const owner = createLockOwner()
+
+  while (true) {
+    let acquired: boolean
+    try {
+      acquired = tryAcquireStorageRefreshLock(storage, owner)
+    } catch {
+      return callback()
+    }
+
+    if (acquired) {
+      const renewTimer = window.setInterval(() => {
+        try {
+          renewStorageRefreshLock(storage, owner)
+        } catch {
+          window.clearInterval(renewTimer)
+        }
+      }, REFRESH_LOCK_TTL_MS / 2)
+      try {
+        return await callback()
+      } finally {
+        window.clearInterval(renewTimer)
+        try {
+          releaseStorageRefreshLock(storage, owner)
+        } catch {
+          // If storage becomes unavailable mid-refresh, the short lease
+          // expires by itself and contains no auth material.
+        }
+      }
+    }
+
+    await sleep(REFRESH_LOCK_POLL_MS)
+  }
+}
+
+function refreshWithCrossTabLock(): Promise<AuthResponse> {
+  const locks = getWebLocks()
+  if (locks !== null) {
+    return locks.request(REFRESH_LOCK_NAME, { mode: 'exclusive' }, () =>
+      performRefresh(),
+    )
+  }
+
+  return withStorageRefreshLock(() => performRefresh())
+}
+
 /**
  * POSTs `/auth/refresh` via a bare `axios.post` (NOT through `apiClient`)
  * so it can never be caught by `apiClient`'s own response interceptor —
@@ -114,24 +272,44 @@ async function performRefresh(): Promise<AuthResponse> {
  */
 export function refreshSession(): Promise<AuthResponse> {
   if (refreshPromise === null) {
-    refreshPromise = performRefresh().finally(() => {
+    refreshPromise = refreshWithCrossTabLock().finally(() => {
       refreshPromise = null
     })
   }
   return refreshPromise
 }
 
+type RetryableConfig = InternalAxiosRequestConfig & { _retry?: boolean }
+
+function hasLocalSessionCandidate(): boolean {
+  const { accessToken, expiresAt, user } = useAuthStore.getState()
+  return accessToken !== null && expiresAt !== null && user !== null
+}
+
 // ---------------------------------------------------------------------------
 // Request interceptor — attach Authorization header when we have a usable token.
 // ---------------------------------------------------------------------------
-apiClient.interceptors.request.use((config) => {
+apiClient.interceptors.request.use(async (config) => {
   if (isPublicPath(config.url)) {
     return config
   }
-  const token = useAuthStore.getState().getAccessToken()
+
+  const startedWithSessionCandidate = hasLocalSessionCandidate()
+  let token = useAuthStore.getState().getAccessToken()
+
+  if (!token && startedWithSessionCandidate) {
+    try {
+      await refreshSession()
+      token = useAuthStore.getState().getAccessToken()
+    } catch {
+      const retryableConfig = config as RetryableConfig
+      retryableConfig._retry = true
+    }
+  }
+
   if (token) {
     config.headers.set('Authorization', `Bearer ${token}`)
-  } else if (shouldSendGuestWriteHeader(config)) {
+  } else if (!startedWithSessionCandidate && shouldSendGuestWriteHeader(config)) {
     config.headers.set(GUEST_WRITE_HEADER, '1')
   }
   return config
@@ -142,8 +320,6 @@ apiClient.interceptors.request.use((config) => {
  * 401 + refresh + retry; if the retried request 401s again we let it
  * propagate instead of triggering another refresh round.
  */
-type RetryableConfig = InternalAxiosRequestConfig & { _retry?: boolean }
-
 // ---------------------------------------------------------------------------
 // Response interceptor — single-flight silent refresh on 401, then retry once.
 // ---------------------------------------------------------------------------
@@ -194,4 +370,5 @@ apiClient.interceptors.response.use(
  */
 export function __resetRefreshSingletonForTests(): void {
   refreshPromise = null
+  getRefreshLockStorage()?.removeItem(REFRESH_LOCK_STORAGE_KEY)
 }
