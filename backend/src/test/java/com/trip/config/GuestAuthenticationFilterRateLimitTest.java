@@ -38,6 +38,31 @@ class GuestAuthenticationFilterRateLimitTest {
         assertThat(limited.getContentAsString()).isEqualTo(RateLimitFilter.RATE_LIMITED_BODY);
     }
 
+    @Test
+    void authPostWithGuestCookieDoesNotRequireGuestWriteHeader() throws Exception {
+        RateLimitRegistry registry = new RateLimitRegistry();
+        GuestAuthenticationFilter filter = new GuestAuthenticationFilter(registry, new AppProperties());
+        AtomicInteger passed = new AtomicInteger();
+        FilterChain chain = (_request, _response) -> passed.incrementAndGet();
+
+        SecurityContextHolder.clearContext();
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/auth/login");
+        request.setRemoteAddr("203.0.113.51");
+        request.setCookies(new Cookie(GuestSessionCookie.COOKIE_NAME, "guest-token"));
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        try {
+            filter.doFilter(request, response, chain);
+        } finally {
+            SecurityContextHolder.clearContext();
+        }
+
+        assertThat(passed.get()).isEqualTo(1);
+        assertThat(response.getStatus()).isEqualTo(200);
+        assertThat(response.getContentAsString()).isEmpty();
+        assertThat(registry.size()).isZero();
+    }
+
     private static MockHttpServletResponse doGuestWrite(GuestAuthenticationFilter filter,
                                                         FilterChain chain,
                                                         String guestToken) throws Exception {

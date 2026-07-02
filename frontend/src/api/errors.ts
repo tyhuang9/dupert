@@ -42,6 +42,7 @@ const TOP_MESSAGE_BY_CODE: Record<string, string | null> = {
   validation_failed: 'Please fix the highlighted fields and try again.',
   malformed_request: 'Something went wrong. Please try again.',
   unauthenticated: 'Your session expired. Please sign in again.',
+  forbidden: 'The server blocked this request. Refresh the page and try again.',
   conflict: 'That action conflicts with existing data.',
   invalid_date_range: 'Choose a valid date range.',
 }
@@ -168,6 +169,14 @@ export function parseApiError(err: unknown): ParsedApiError {
     return {
       topMessage: 'Please fix the highlighted fields and try again.',
       fieldErrors,
+      severity: 'error',
+    }
+  }
+
+  if (status === 403) {
+    return {
+      topMessage: 'The server blocked this request. Refresh the page and try again.',
+      fieldErrors: {},
       severity: 'error',
     }
   }

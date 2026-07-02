@@ -34,6 +34,7 @@ import jakarta.servlet.http.HttpServletResponse;
 public class GuestAuthenticationFilter extends OncePerRequestFilter {
 
     public static final String GUEST_WRITE_HEADER = "X-TripPlanner-Guest-Write";
+    private static final String AUTH_PATH_PREFIX = "/api/auth/";
 
     private final RateLimitRegistry rateLimitRegistry;
     private final boolean trustProxy;
@@ -50,6 +51,11 @@ public class GuestAuthenticationFilter extends OncePerRequestFilter {
             throws ServletException, IOException {
         if (SecurityContextHolder.getContext().getAuthentication() != null
                 || hasBearer(request)) {
+            chain.doFilter(request, response);
+            return;
+        }
+
+        if (isAuthPath(request)) {
             chain.doFilter(request, response);
             return;
         }
@@ -94,6 +100,10 @@ public class GuestAuthenticationFilter extends OncePerRequestFilter {
     private static boolean hasBearer(HttpServletRequest request) {
         String header = request.getHeader(HttpHeaders.AUTHORIZATION);
         return header != null && header.startsWith("Bearer ");
+    }
+
+    private static boolean isAuthPath(HttpServletRequest request) {
+        return request.getRequestURI().startsWith(AUTH_PATH_PREFIX);
     }
 
     private static boolean requiresGuestWriteProtection(HttpServletRequest request) {
