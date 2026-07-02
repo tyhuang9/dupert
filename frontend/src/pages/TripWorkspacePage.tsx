@@ -288,7 +288,7 @@ function formatActivityTime(activity: Activity): string | null {
 }
 
 function timelineActivitySummary(activity: Activity): string {
-  const location = activity.placeName || activity.address
+  const location = activity.address || activity.placeName
   if (activity.notes && location) return `${activity.notes} - ${location}`
   return activity.notes || location || 'Location TBD'
 }

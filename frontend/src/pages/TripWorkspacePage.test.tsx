@@ -986,8 +986,8 @@ describe('<TripWorkspacePage>', () => {
     const titleInput = screen.getByLabelText(/activity name/i)
     await userEvent.clear(titleInput)
     await userEvent.type(titleInput, 'Updated sushi')
-    expect(screen.getByText('Tsukiji Outer Market')).toBeInTheDocument()
-    expect(screen.queryByText('Tsukiji, Chuo City, Tokyo')).not.toBeInTheDocument()
+    expect(screen.getByText('Tsukiji, Chuo City, Tokyo')).toBeInTheDocument()
+    expect(screen.queryByText('Tsukiji Outer Market')).not.toBeInTheDocument()
     expect(screen.queryByLabelText(/place name/i)).not.toBeInTheDocument()
     expect(screen.queryByLabelText(/^address$/i)).not.toBeInTheDocument()
     const notesInput = screen.getByLabelText(/^notes$/i)
@@ -1063,6 +1063,8 @@ describe('<TripWorkspacePage>', () => {
     const activityCard = (await screen.findByRole('heading', { name: /tsukiji sushi/i })).closest('article')
     expect(activityCard).not.toBeNull()
     await userEvent.click(activityCard as HTMLElement)
+    expect(screen.getByText('Tsukiji, Chuo City, Tokyo')).toBeInTheDocument()
+    expect(screen.queryByText('Tsukiji Outer Market')).not.toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: /change on map/i }))
 
     expect(screen.getByTestId('place-search-value')).toHaveTextContent('Tsukiji, Chuo City, Tokyo')
@@ -1088,7 +1090,7 @@ describe('<TripWorkspacePage>', () => {
       lat: 35.6586,
       lng: 139.7454,
     })
-    expect(screen.getByText('Tokyo Tower')).toBeInTheDocument()
+    expect(screen.getByText('4 Chome-2-8 Shibakoen, Minato City, Tokyo')).toBeInTheDocument()
     expect(screen.queryByText('Tsukiji Outer Market')).not.toBeInTheDocument()
     expect(screen.getByTestId('preview-map-place')).toHaveTextContent('none')
   })
