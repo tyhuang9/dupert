@@ -185,6 +185,21 @@ describe('<PlaceSearch>', () => {
     expect(screen.getByLabelText(/search places/i)).toHaveValue('160 Piccadilly')
   })
 
+  it('renders update context below the search input', () => {
+    render(
+      <PlaceSearch
+        contextLabel="Updating location for Old Fisherman's Wharf"
+        onPlaceSelect={vi.fn()}
+      />,
+    )
+
+    const input = screen.getByLabelText(/search places/i)
+    const context = screen.getByRole('status')
+    expect(context).toHaveTextContent("Updating location for Old Fisherman's Wharf")
+    expect(input.compareDocumentPosition(context) & Node.DOCUMENT_POSITION_FOLLOWING)
+      .toBeTruthy()
+  })
+
   it('enables the autocomplete clear button for map search', () => {
     render(<PlaceSearch onPlaceSelect={vi.fn()} searchValue="160 Piccadilly" />)
 
