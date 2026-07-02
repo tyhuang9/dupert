@@ -17,6 +17,7 @@
 }
 
 .marker {
+  --marker-accent: var(--map-pin-red);
   appearance: none;
   position: relative;
   display: inline-grid;
@@ -26,7 +27,7 @@
   padding: 0;
   border: 2px solid #ffffff;
   border-radius: 50% 50% 50% 0;
-  background: var(--map-pin-red);
+  background: var(--marker-accent);
   color: #ffffff;
   font-size: var(--font-size-xs);
   font-weight: 900;
@@ -56,8 +57,10 @@
 
 .marker:hover,
 .markerActive {
-  background: var(--map-pin-red-active);
-  box-shadow: 0 0 0 7px var(--map-pin-red-halo), 0 12px 24px rgba(15, 23, 42, 0.24);
+  background: color-mix(in srgb, var(--marker-accent) 82%, #111827);
+  box-shadow:
+    0 0 0 7px color-mix(in srgb, var(--marker-accent) 24%, transparent),
+    0 12px 24px rgba(15, 23, 42, 0.24);
   transform: rotate(-45deg) scale(1.18);
 }
 

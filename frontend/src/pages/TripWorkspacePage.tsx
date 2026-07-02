@@ -129,6 +129,7 @@ import {
   placeDetailsElapsedMs,
   placeDetailsNowMs,
 } from '../utils/placeDetailsTiming'
+import { timelineDayColor } from '../utils/timelineDayColors'
 
 function isNotFoundError(err: unknown): boolean {
   return axios.isAxiosError(err) && err.response?.status === 404
@@ -318,7 +319,9 @@ function sortableTransformToString(
 
 interface TimelineGroup {
   activities: Activity[]
-  dayDate: string | null
+  color: string
+  dayDate: string
+  dayIndex: number
 }
 
 function SortableTimelineActivity({
@@ -327,6 +330,7 @@ function SortableTimelineActivity({
   busy,
   dragDisabled,
   freezeDragPreview,
+  onHover,
   onSelect,
   readOnly,
 }: {
@@ -335,6 +339,7 @@ function SortableTimelineActivity({
   busy: boolean
   dragDisabled: boolean
   freezeDragPreview: boolean
+  onHover: (activityId: number | null) => void
   onSelect: (activityId: number) => void
   readOnly: boolean
 }) {
@@ -381,6 +386,10 @@ function SortableTimelineActivity({
             active ? styles.timelineActivityActive : '',
           ].filter(Boolean).join(' ')}
           onClick={() => onSelect(activity.id)}
+          onMouseEnter={() => onHover(activity.id)}
+          onMouseLeave={() => onHover(null)}
+          onFocus={() => onHover(activity.id)}
+          onBlur={() => onHover(null)}
           onPointerDown={(event) => {
             if (canDrag) {
               listeners?.onPointerDown?.(event)
@@ -413,24 +422,30 @@ function SortableTimelineActivity({
 function TimelineDayGroup({
   activeActivityId,
   busy,
+  collapsed,
   dragDisabled,
   dragging,
   freezeDragPreview,
   group,
+  onActivityHover,
   onSelectActivity,
+  onToggleCollapsed,
   readOnly,
 }: {
   activeActivityId: number | null
   busy: boolean
+  collapsed: boolean
   dragDisabled: boolean
   dragging: boolean
   freezeDragPreview: boolean
   group: TimelineGroup
+  onActivityHover: (activityId: number | null) => void
   onSelectActivity: (activityId: number) => void
+  onToggleCollapsed: (dayDate: string) => void
   readOnly: boolean
 }) {
-  const dropId = group.dayDate === null ? ideasDropId() : dayDropId(group.dayDate)
-  const headingId = group.dayDate === null ? 'timeline-ideas' : `timeline-day-${group.dayDate}`
+  const dropId = dayDropId(group.dayDate)
+  const headingId = `timeline-day-${group.dayDate}`
   const { isOver, setNodeRef } = useDroppable({
     id: dropId,
     disabled: readOnly || dragDisabled || !dragging,
@@ -440,38 +455,56 @@ function TimelineDayGroup({
   return (
     <section
       ref={setNodeRef}
+      style={{ '--timeline-day-color': group.color } as CSSProperties}
       className={[
         styles.timelineDayGroup,
+        collapsed ? styles.timelineDayGroupCollapsed : '',
         showDropTarget ? styles.timelineDayGroupDropTarget : '',
         isOver ? styles.timelineDayGroupOver : '',
       ].filter(Boolean).join(' ')}
       aria-labelledby={headingId}
     >
       <header className={styles.timelineDayHeader}>
-        <div>
-          <h3 id={headingId}>{group.dayDate === null ? 'Ideas' : formatReadableDate(group.dayDate)}</h3>
-        </div>
+        <h3 id={headingId}>
+          <button
+            type="button"
+            className={styles.timelineDayToggle}
+            aria-expanded={!collapsed}
+            onClick={() => onToggleCollapsed(group.dayDate)}
+          >
+            <span className={styles.timelineDayColor} aria-hidden="true" />
+            <span>{formatReadableDate(group.dayDate)}</span>
+            <ChevronRight
+              className={styles.timelineDayChevron}
+              size={16}
+              aria-hidden="true"
+            />
+          </button>
+        </h3>
         <span>{pluralize(group.activities.length, 'item')}</span>
       </header>
-      <SortableContext
-        items={group.activities.map((activity) => activityDragId(activity.id))}
-        strategy={verticalListSortingStrategy}
-      >
-        <ol className={styles.timelineDayActivities}>
-          {group.activities.map((activity) => (
-            <SortableTimelineActivity
-              key={activity.id}
-              activity={activity}
-              active={activeActivityId === activity.id}
-              busy={busy}
-              dragDisabled={dragDisabled}
-              freezeDragPreview={freezeDragPreview}
-              readOnly={readOnly}
-              onSelect={onSelectActivity}
-            />
-          ))}
-        </ol>
-      </SortableContext>
+      {!collapsed && (
+        <SortableContext
+          items={group.activities.map((activity) => activityDragId(activity.id))}
+          strategy={verticalListSortingStrategy}
+        >
+          <ol className={styles.timelineDayActivities}>
+            {group.activities.map((activity) => (
+              <SortableTimelineActivity
+                key={activity.id}
+                activity={activity}
+                active={activeActivityId === activity.id}
+                busy={busy}
+                dragDisabled={dragDisabled}
+                freezeDragPreview={freezeDragPreview}
+                readOnly={readOnly}
+                onHover={onActivityHover}
+                onSelect={onSelectActivity}
+              />
+            ))}
+          </ol>
+        </SortableContext>
+      )}
     </section>
   )
 }
@@ -1586,6 +1619,7 @@ export function TripWorkspacePage() {
   const [workspaceMode, setWorkspaceMode] = useState<WorkspaceMode>('days')
   const [sidebarPinned, setSidebarPinned] = useState(false)
   const [sidebarCollapsedAfterTabClick, setSidebarCollapsedAfterTabClick] = useState(false)
+  const [collapsedTimelineDays, setCollapsedTimelineDays] = useState<Set<string>>(() => new Set())
   const [mapStyle, setMapStyle] = useState<MapStyleId>('roadmap')
   const [mapViewportContext, setMapViewportContext] = useState<MapViewportContext | null>(null)
   const [mapLocationTarget, setMapLocationTarget] = useState<MapLocationTarget | null>(null)
@@ -1727,8 +1761,15 @@ export function TripWorkspacePage() {
     () => fullTimelineActivities.filter((activity) => activity.dayDate !== null),
     [fullTimelineActivities],
   )
+  const visibleTimelineActivities = useMemo(
+    () =>
+      scheduledTimelineActivities.filter(
+        (activity) => activity.dayDate === null || !collapsedTimelineDays.has(activity.dayDate),
+      ),
+    [collapsedTimelineDays, scheduledTimelineActivities],
+  )
   const mapActivities = workspaceMode === 'timeline'
-    ? scheduledTimelineActivities
+    ? visibleTimelineActivities
     : workspaceMode === 'ideas'
       ? ideasActivities
       : dayActivities
@@ -1773,10 +1814,15 @@ export function TripWorkspacePage() {
         groupedActivities.set(activity.dayDate, activities)
       }
 
-      const scheduledGroups = tripDays.flatMap((tripDay): TimelineGroup[] => {
+      const scheduledGroups = tripDays.flatMap((tripDay, dayIndex): TimelineGroup[] => {
         const activities = groupedActivities.get(tripDay)
         return activities && activities.length > 0
-          ? [{ activities, dayDate: tripDay }]
+          ? [{
+              activities,
+              color: timelineDayColor(dayIndex),
+              dayDate: tripDay,
+              dayIndex,
+            }]
           : []
       })
       return scheduledGroups
@@ -1784,9 +1830,18 @@ export function TripWorkspacePage() {
     [fullTimelineActivities, tripDays],
   )
   const scheduledTimelineDayCount = useMemo(
-    () => timelineGroups.filter((group) => group.dayDate !== null).length,
+    () => timelineGroups.length,
     [timelineGroups],
   )
+  const timelineActivityMarkerColors = useMemo(() => {
+    const colors: Record<number, string> = {}
+    for (const group of timelineGroups) {
+      for (const activity of group.activities) {
+        colors[activity.id] = group.color
+      }
+    }
+    return colors
+  }, [timelineGroups])
   const isActivityEditMutationPending =
     createActivityMutation.isPending ||
     updateActivityMutation.isPending ||
@@ -2674,6 +2729,37 @@ export function TripWorkspacePage() {
     handleActivityActivate(activityId)
   }
 
+  const handleToggleTimelineDayCollapsed = (dayDate: string) => {
+    const collapsing = !collapsedTimelineDays.has(dayDate)
+    setCollapsedTimelineDays((current) => {
+      const next = new Set(current)
+      if (next.has(dayDate)) {
+        next.delete(dayDate)
+      } else {
+        next.add(dayDate)
+      }
+      return next
+    })
+
+    if (collapsing) {
+      const hiddenActivityIds = new Set(
+        timelineGroups
+          .find((group) => group.dayDate === dayDate)
+          ?.activities.map((activity) => activity.id) ?? [],
+      )
+      if (
+        (activeActivityId !== null && hiddenActivityIds.has(activeActivityId)) ||
+        (hoveredActivityId !== null && hiddenActivityIds.has(hoveredActivityId))
+      ) {
+        setActiveActivityId(null)
+        setHoveredActivityId(null)
+      }
+      if (focusedActivityId !== null && hiddenActivityIds.has(focusedActivityId)) {
+        setFocusedActivityId(null)
+      }
+    }
+  }
+
   const handleScheduleIdeaForSelectedDay = (activity: Activity) => {
     if (!publicId || !selectedDay || moveActivityMutation.isPending) return
     void moveActivityMutation.mutateAsync({
@@ -3175,15 +3261,18 @@ export function TripWorkspacePage() {
                         {timelineGroups.length > 0 ? (
                           timelineGroups.map((group) => (
                             <TimelineDayGroup
-                              key={group.dayDate ?? 'ideas'}
+                              key={group.dayDate}
                               activeActivityId={visibleActiveActivityId}
                               busy={isActivityEditMutationPending}
+                              collapsed={collapsedTimelineDays.has(group.dayDate)}
                               dragDisabled={isActivityDragDisabled}
                               dragging={isDraggingActivity}
                               freezeDragPreview={isDraggingActivityOverSidebar}
                               group={group}
                               readOnly={!canEditTrip}
+                              onActivityHover={handleActiveActivityChange}
                               onSelectActivity={handleTimelineActivitySelect}
+                              onToggleCollapsed={handleToggleTimelineDayCollapsed}
                             />
                           ))
                         ) : (
@@ -3360,6 +3449,8 @@ export function TripWorkspacePage() {
                 )}
                 <TripMap
                   activities={mapActivities}
+                  activityMarkerColors={workspaceMode === 'timeline' ? timelineActivityMarkerColors : undefined}
+                  activityMarkerMode={workspaceMode === 'timeline' ? 'timeline-days' : 'default'}
                   fallbackActivities={mapFallbackActivities}
                   routeActivities={workspaceMode === 'days' ? dayActivities : []}
                   activeActivityId={visibleActiveActivityId}

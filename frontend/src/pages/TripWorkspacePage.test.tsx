@@ -603,6 +603,21 @@ describe('<TripWorkspacePage>', () => {
     expect(within(fullTimeline).queryByRole('button', { name: /drag tokyo tower/i }))
       .not.toBeInTheDocument()
 
+    const tokyoTowerButton = within(fullTimeline).getByRole('button', { name: /^tokyo tower/i })
+    fireEvent.mouseEnter(tokyoTowerButton)
+    expect(screen.getByTestId('active-map-activity')).toHaveTextContent('22')
+    fireEvent.mouseLeave(tokyoTowerButton)
+    expect(screen.getByTestId('active-map-activity')).toHaveTextContent('none')
+
+    const dayTwoToggle = within(fullTimeline).getByRole('button', { name: /saturday, may 2/i })
+    await userEvent.click(dayTwoToggle)
+    expect(dayTwoToggle).toHaveAttribute('aria-expanded', 'false')
+    expect(within(fullTimeline).queryByRole('button', { name: /^tokyo tower/i })).not.toBeInTheDocument()
+    expect(selectedMapActivities.queryByText('Tokyo Tower')).not.toBeInTheDocument()
+
+    await userEvent.click(dayTwoToggle)
+    expect(dayTwoToggle).toHaveAttribute('aria-expanded', 'true')
+
     await userEvent.click(within(fullTimeline).getByRole('button', { name: /^tokyo tower/i }))
     expect(screen.getByTestId('active-map-activity')).toHaveTextContent('22')
   })

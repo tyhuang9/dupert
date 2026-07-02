@@ -404,6 +404,55 @@ describe('<TripMap>', () => {
     expect(screen.queryByText(/selected-day route/i)).not.toBeInTheDocument()
   })
 
+  it('restarts marker labels per day and applies timeline day colors', () => {
+    render(
+      <TripMap
+        activities={[
+          ACTIVITIES[0],
+          ACTIVITIES[1],
+          runtimeActivity({
+            id: 20,
+            dayDate: '2026-05-02',
+            title: 'Ferry Building',
+            lat: 35.68,
+            lng: 139.76,
+            orderIndex: 0,
+          }),
+          runtimeActivity({
+            id: 21,
+            dayDate: '2026-05-02',
+            title: 'Museum Stop',
+            lat: 35.69,
+            lng: 139.75,
+            orderIndex: 1,
+          }),
+        ]}
+        activityMarkerColors={{
+          10: '#2563eb',
+          11: '#2563eb',
+          20: '#059669',
+          21: '#059669',
+        }}
+        activityMarkerMode="timeline-days"
+        fallbackActivities={[]}
+        routeActivities={[]}
+        destination="Tokyo"
+      />,
+    )
+
+    const dayOneFirst = screen.getByRole('button', { name: /stop 1: tokyo tower/i })
+    const dayOneSecond = screen.getByRole('button', { name: /stop 2: tsukiji market/i })
+    const dayTwoFirst = screen.getByRole('button', { name: /stop 1: ferry building/i })
+    const dayTwoSecond = screen.getByRole('button', { name: /stop 2: museum stop/i })
+
+    expect(dayOneFirst).toHaveTextContent('1')
+    expect(dayOneSecond).toHaveTextContent('2')
+    expect(dayTwoFirst).toHaveTextContent('1')
+    expect(dayTwoSecond).toHaveTextContent('2')
+    expect(dayOneFirst.getAttribute('style')).toContain('--marker-accent: #2563eb')
+    expect(dayTwoFirst.getAttribute('style')).toContain('--marker-accent: #059669')
+  })
+
   it('maps style options to Google map types', () => {
     render(
       <TripMap
