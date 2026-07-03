@@ -35,20 +35,40 @@ const dndMockState = vi.hoisted(() => ({
     active: { id: string }
     over: { id: string } | null
   }) => void),
+  onDragMove: null as null | ((event: {
+    active: { id: string }
+    delta: { x: number; y: number }
+  }) => void),
+  onDragStart: null as null | ((event: {
+    active: { id: string }
+    activatorEvent: Event
+  }) => void),
 }))
 
 vi.mock('@dnd-kit/core', () => ({
   DndContext: ({
     children,
     onDragEnd,
+    onDragMove,
+    onDragStart,
   }: {
     children: ReactNode
     onDragEnd?: (event: {
       active: { id: string }
       over: { id: string } | null
     }) => void
+    onDragMove?: (event: {
+      active: { id: string }
+      delta: { x: number; y: number }
+    }) => void
+    onDragStart?: (event: {
+      active: { id: string }
+      activatorEvent: Event
+    }) => void
   }) => {
     dndMockState.onDragEnd = onDragEnd ?? null
+    dndMockState.onDragMove = onDragMove ?? null
+    dndMockState.onDragStart = onDragStart ?? null
     return <>{children}</>
   },
   KeyboardSensor: vi.fn(),
@@ -448,6 +468,56 @@ function triggerDragEnd(activeId: string, overId: string | null) {
   })
 }
 
+function triggerDragStart(activeId: string, clientX = 0, clientY = 0) {
+  if (!dndMockState.onDragStart) {
+    throw new Error('DndContext onDragStart handler was not registered')
+  }
+
+  act(() => {
+    dndMockState.onDragStart?.({
+      active: { id: activeId },
+      activatorEvent: { clientX, clientY } as Event,
+    })
+  })
+}
+
+function triggerDragMove(activeId: string, delta: { x: number; y: number }) {
+  if (!dndMockState.onDragMove) {
+    throw new Error('DndContext onDragMove handler was not registered')
+  }
+
+  act(() => {
+    dndMockState.onDragMove?.({
+      active: { id: activeId },
+      delta,
+    })
+  })
+}
+
+function domRect({
+  bottom,
+  left,
+  right,
+  top,
+}: {
+  bottom: number
+  left: number
+  right: number
+  top: number
+}): DOMRect {
+  return {
+    bottom,
+    height: bottom - top,
+    left,
+    right,
+    top,
+    width: right - left,
+    x: left,
+    y: top,
+    toJSON: () => ({}),
+  } as DOMRect
+}
+
 beforeEach(() => {
   vi.stubEnv('VITE_GOOGLE_MAPS_BROWSER_KEY', 'gmaps.test')
   apiMock = new MockAdapter(apiClient)
@@ -520,6 +590,8 @@ beforeEach(() => {
   googlePlacesMockState.imageUrlFromGooglePhotoName.mockReset()
   googlePlacesMockState.imageUrlFromGooglePhotoName.mockResolvedValue(null)
   dndMockState.onDragEnd = null
+  dndMockState.onDragMove = null
+  dndMockState.onDragStart = null
 })
 
 afterEach(() => {
@@ -719,6 +791,107 @@ describe('<TripWorkspacePage>', () => {
     expect(apiMock.history.post.some((request) => request.url?.startsWith('/activities/11/move')))
       .toBe(false)
     expect(HTMLElement.prototype.scrollIntoView).not.toHaveBeenCalled()
+  })
+
+  it('opens sidebar calendar pick mode before scheduling a saved idea', async () => {
+    const savedIdea = {
+      ...SAMPLE_ACTIVITY,
+      id: 33,
+      dayDate: null,
+      title: 'Save teamLab',
+      orderIndex: 0,
+    }
+    mockWorkspace([savedIdea])
+
+    renderWorkspace('/trips/abc234def567/d/2026-05-01')
+
+    await screen.findByRole('heading', { level: 2, name: /friday, may 1/i })
+    await userEvent.click(screen.getByRole('button', { name: /^ideas$/i }))
+    await userEvent.click(screen.getByRole('button', { name: /^schedule$/i }))
+
+    expect(screen.getByText(/choose a day for/i)).toHaveTextContent('Choose a day for Save teamLab')
+    expect(screen.getByRole('button', { name: /cancel scheduling save teamlab/i })).toBeInTheDocument()
+    expect(apiMock.history.post.some((request) => request.url?.startsWith('/activities/33/move')))
+      .toBe(false)
+
+    await userEvent.click(screen.getByRole('button', { name: /cancel scheduling save teamlab/i }))
+    expect(screen.queryByText(/choose a day for/i)).not.toBeInTheDocument()
+  })
+
+  it('schedules a saved idea after a sidebar calendar day is selected', async () => {
+    const savedIdea = {
+      ...SAMPLE_ACTIVITY,
+      id: 33,
+      dayDate: null,
+      title: 'Save teamLab',
+      orderIndex: 0,
+    }
+    const dayTwoActivity = {
+      ...SAMPLE_ACTIVITY,
+      id: 22,
+      dayDate: '2026-05-02',
+      title: 'Tokyo Tower',
+      orderIndex: 0,
+    }
+    mockWorkspace([savedIdea, dayTwoActivity])
+    apiMock.onPost('/activities/33/move?publicId=abc234def567').reply((config) => {
+      expect(JSON.parse(config.data as string)).toEqual({
+        dayDate: '2026-05-02',
+        orderIndex: 1,
+      })
+      return [200, {
+        ...savedIdea,
+        dayDate: '2026-05-02',
+        orderIndex: 1,
+      }]
+    })
+
+    renderWorkspace('/trips/abc234def567/d/2026-05-01')
+
+    await screen.findByRole('heading', { level: 2, name: /friday, may 1/i })
+    await userEvent.click(screen.getByRole('button', { name: /^ideas$/i }))
+    await userEvent.click(screen.getByRole('button', { name: /^schedule$/i }))
+    await userEvent.click(screen.getByTitle('2026-05-02 (1 activities)'))
+
+    expect(await screen.findByRole('heading', { level: 2, name: /saturday, may 2/i })).toBeInTheDocument()
+    expect(screen.queryByText(/choose a day for/i)).not.toBeInTheDocument()
+    expect(screen.getByRole('article', { name: /expand save teamlab/i })).toBeInTheDocument()
+    await waitFor(() => {
+      expect(document.activeElement).toHaveAttribute('id', 'activity-33')
+    })
+    expect(HTMLElement.prototype.scrollIntoView).toHaveBeenCalled()
+  })
+
+  it('expands the sidebar only after the dragged card enters it', async () => {
+    mockWorkspace([SAMPLE_ACTIVITY])
+
+    renderWorkspace('/trips/abc234def567/d/2026-05-01')
+
+    await screen.findByRole('heading', { level: 2, name: /friday, may 1/i })
+    const sidebar = screen.getByLabelText('Trip workspace navigation')
+    const activityCard = document.getElementById('activity-10')
+    expect(activityCard).not.toBeNull()
+    vi.spyOn(sidebar, 'getBoundingClientRect').mockReturnValue(domRect({
+      bottom: 700,
+      left: 0,
+      right: 64,
+      top: 0,
+    }))
+    vi.spyOn(activityCard as HTMLElement, 'getBoundingClientRect').mockReturnValue(domRect({
+      bottom: 150,
+      left: 80,
+      right: 320,
+      top: 100,
+    }))
+
+    triggerDragStart(activityDragId(10), 96, 120)
+    triggerDragMove(activityDragId(10), { x: -10, y: 0 })
+
+    expect(sidebar.className).not.toMatch(/dayPanelDragExpanded/)
+
+    triggerDragMove(activityDragId(10), { x: -20, y: 0 })
+
+    expect(sidebar.className).toMatch(/dayPanelDragExpanded/)
   })
 
   it('passes only selected-day activities to the map', async () => {

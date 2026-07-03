@@ -104,6 +104,18 @@ describe('TripWorkspacePage layout scroll contract', () => {
     expect(workspaceCss).not.toMatch(/timelineActivityStatus/)
   })
 
+  it('keeps the Ideas list unframed while preserving lightweight drop feedback', () => {
+    const ideasLaneBlock = cssBlocks(workspaceCss, '.ideasLane')[0] ?? ''
+    const ideasDropBlock = cssBlocks(workspaceCss, '.ideasLaneDropTarget')[0] ?? ''
+    const ideasOverBlock = cssBlocks(workspaceCss, '.ideasLaneOver')[0] ?? ''
+
+    expect(ideasLaneBlock).not.toMatch(/border:/)
+    expect(ideasLaneBlock).not.toMatch(/padding:/)
+    expect(ideasLaneBlock).not.toMatch(/background:/)
+    expect(ideasDropBlock).toMatch(/box-shadow:\s*inset 3px 0 0/)
+    expect(ideasOverBlock).toMatch(/box-shadow:\s*inset 3px 0 0 var\(--color-primary\)/)
+  })
+
   it('keeps the map sized by its bounded workspace panel', () => {
     for (const selector of ['.mapShell', '.fallback']) {
       const block = cssBlocks(tripMapCss, selector).join('\n')
