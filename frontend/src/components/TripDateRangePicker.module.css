@@ -108,9 +108,14 @@
   --date-picker-muted: #bdc1c6;
   --date-picker-blue: #8ab4f8;
   --date-picker-range: rgba(138, 180, 248, 0.22);
-  z-index: 5;
+  position: fixed;
+  z-index: 2000;
+  box-sizing: border-box;
   display: grid;
   gap: var(--space-4);
+  max-height: calc(100dvh - 1.5rem);
+  overflow: auto;
+  overscroll-behavior: contain;
   padding: var(--space-4);
   border: 1px solid var(--date-picker-border);
   border-radius: var(--radius-md);

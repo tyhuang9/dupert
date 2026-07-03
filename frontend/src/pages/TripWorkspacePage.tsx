@@ -8,6 +8,7 @@ import {
   useDroppable,
   useSensor,
   useSensors,
+  type Collision,
   type CollisionDetection,
   type DragEndEvent,
   type DragMoveEvent,
@@ -878,7 +879,7 @@ function CompactMonthCalendar({
   const activityCounts = useMemo(() => {
     const counts = new Map<string, number>()
     for (const activity of activities) {
-      if (activity.dayDate === null) continue
+      if (activity.dayDate == null) continue
       counts.set(activity.dayDate, (counts.get(activity.dayDate) ?? 0) + 1)
     }
     return counts
@@ -1029,7 +1030,7 @@ function TripSettingsModal({
     () =>
       activities.filter(
         (activity) =>
-          activity.dayDate !== null &&
+          activity.dayDate != null &&
           (activity.dayDate < startDate || activity.dayDate > endDate),
       ),
     [activities, endDate, startDate],
@@ -1627,6 +1628,9 @@ export function TripWorkspacePage() {
   const [mapSearchFocusKey, setMapSearchFocusKey] = useState(0)
   const [mapSearchPreview, setMapSearchPreview] = useState<PlaceSelection | null>(null)
   const [mapSearchResults, setMapSearchResults] = useState<PlaceSelection[]>([])
+  const [hiddenMapSearchResultIds, setHiddenMapSearchResultIds] = useState<Set<string>>(
+    () => new Set(),
+  )
   const [mapSearchNextPageToken, setMapSearchNextPageToken] = useState<string | null>(null)
   const [mapSearchQuery, setMapSearchQuery] = useState<string | null>(null)
   const [selectedMapSearchResult, setSelectedMapSearchResult] =
@@ -1692,13 +1696,25 @@ export function TripWorkspacePage() {
   }, [updateDraggingActivityOverSidebar])
   const workspaceCollisionDetection = useCallback<CollisionDetection>((args) => {
     const pointerCollisions = pointerWithin(args)
-    if (isDraggingActivityOverSidebarRef.current) {
-      const sidebarCollisions = pointerCollisions.filter(
-        (collision) =>
-          parseSidebarDayDropId(collision.id) !== null ||
-          parseSidebarIdeasDropId(collision.id),
-      )
+    const isDraggingActivity = parseActivityDragId(args.active.id) !== null
+    const isSidebarDropCollision = (collision: Collision) =>
+      parseSidebarDayDropId(collision.id) !== null ||
+      parseSidebarIdeasDropId(collision.id)
+    const pointerOverSidebar = Boolean(
+      isDraggingActivity &&
+      args.pointerCoordinates &&
+      sidebarPanelRef.current &&
+      pointIsInsideElement(args.pointerCoordinates, sidebarPanelRef.current),
+    )
+    if (pointerOverSidebar || isDraggingActivityOverSidebarRef.current) {
+      const sidebarCollisions = pointerCollisions.filter(isSidebarDropCollision)
+      if (pointerOverSidebar) return sidebarCollisions
       if (sidebarCollisions.length > 0) return sidebarCollisions
+      const nonSidebarCollisions = pointerCollisions.filter(
+        (collision) => !isSidebarDropCollision(collision),
+      )
+      if (nonSidebarCollisions.length > 0) return nonSidebarCollisions
+      return closestCenter(args).filter((collision) => !isSidebarDropCollision(collision))
     }
     return pointerCollisions.length > 0 ? pointerCollisions : closestCenter(args)
   }, [])
@@ -1720,13 +1736,13 @@ export function TripWorkspacePage() {
 
   const allActivities = useMemo(() => activitiesQuery.data ?? [], [activitiesQuery.data])
   const scheduledActivities = useMemo(
-    () => allActivities.filter((activity) => activity.dayDate !== null),
+    () => allActivities.filter((activity) => activity.dayDate != null),
     [allActivities],
   )
   const ideasActivities = useMemo(
     () =>
       allActivities
-        .filter((activity) => activity.dayDate === null)
+        .filter((activity) => activity.dayDate == null)
         .sort((left, right) => left.orderIndex - right.orderIndex),
     [allActivities],
   )
@@ -1737,6 +1753,7 @@ export function TripWorkspacePage() {
         : [],
     [tripQuery.data],
   )
+  const tripDaySet = useMemo(() => new Set(tripDays), [tripDays])
   const displayedCalendarMonth = useMemo(() => {
     if (!tripQuery.data) return calendarMonth
     const firstTripMonth = getMonthKey(tripQuery.data.startDate)
@@ -1758,13 +1775,16 @@ export function TripWorkspacePage() {
     [allActivities],
   )
   const scheduledTimelineActivities = useMemo(
-    () => fullTimelineActivities.filter((activity) => activity.dayDate !== null),
-    [fullTimelineActivities],
+    () =>
+      fullTimelineActivities.filter(
+        (activity) => activity.dayDate != null && tripDaySet.has(activity.dayDate),
+      ),
+    [fullTimelineActivities, tripDaySet],
   )
   const visibleTimelineActivities = useMemo(
     () =>
       scheduledTimelineActivities.filter(
-        (activity) => activity.dayDate === null || !collapsedTimelineDays.has(activity.dayDate),
+        (activity) => activity.dayDate != null && !collapsedTimelineDays.has(activity.dayDate),
       ),
     [collapsedTimelineDays, scheduledTimelineActivities],
   )
@@ -1804,10 +1824,9 @@ export function TripWorkspacePage() {
   )
   const timelineGroups = useMemo(
     () => {
-      const tripDaySet = new Set(tripDays)
       const groupedActivities = new Map<string, Activity[]>()
       for (const activity of fullTimelineActivities) {
-        if (activity.dayDate === null) continue
+        if (activity.dayDate == null) continue
         if (!tripDaySet.has(activity.dayDate)) continue
         const activities = groupedActivities.get(activity.dayDate) ?? []
         activities.push(activity)
@@ -1827,7 +1846,7 @@ export function TripWorkspacePage() {
       })
       return scheduledGroups
     },
-    [fullTimelineActivities, tripDays],
+    [fullTimelineActivities, tripDaySet, tripDays],
   )
   const scheduledTimelineDayCount = useMemo(
     () => timelineGroups.length,
@@ -1941,6 +1960,10 @@ export function TripWorkspacePage() {
     )
   const highlightedMapSearchResultId =
     hoveredMapSearchResultId ?? selectedMapSearchResult?.mapboxId ?? null
+  const visibleMapSearchResults = useMemo(() => {
+    if (hiddenMapSearchResultIds.size === 0) return mapSearchResults
+    return mapSearchResults.filter((place) => !hiddenMapSearchResultIds.has(placeStableId(place)))
+  }, [hiddenMapSearchResultIds, mapSearchResults])
 
   useLayoutEffect(() => {
     const timing = mapPlaceCardTimingRef.current
@@ -1976,7 +1999,9 @@ export function TripWorkspacePage() {
   const clearMapSearchState = () => {
     mapSearchRequestIdRef.current += 1
     mapSearchPhotoHydrationKeysRef.current.clear()
+    setMapSearchValue('')
     setMapSearchResults([])
+    setHiddenMapSearchResultIds(new Set<string>())
     setMapSearchNextPageToken(null)
     setMapSearchQuery(null)
     setSelectedMapSearchResult(null)
@@ -1992,6 +2017,7 @@ export function TripWorkspacePage() {
     mapSearchPhotoHydrationKeysRef.current.clear()
     setMapSearchValue('')
     setMapSearchResults([])
+    setHiddenMapSearchResultIds(new Set<string>())
     setMapSearchNextPageToken(null)
     setMapSearchQuery(null)
     setSelectedMapSearchResult(null)
@@ -2200,6 +2226,11 @@ export function TripWorkspacePage() {
     const activity = allActivities.find((item) => item.id === activityId)
     if (!activity) return
 
+    if (workspaceMode === 'timeline') {
+      showTimelineActivityOnMap(activity)
+      return
+    }
+
     if (activeActivityId === activityId) {
       setActiveActivityId(null)
       setHoveredActivityId(null)
@@ -2225,7 +2256,7 @@ export function TripWorkspacePage() {
     if (
       publicId &&
       tripQuery.data &&
-      activity.dayDate !== null &&
+      activity.dayDate != null &&
       dayInRange(activity.dayDate, tripQuery.data.startDate, tripQuery.data.endDate) &&
       day !== activity.dayDate
     ) {
@@ -2233,6 +2264,18 @@ export function TripWorkspacePage() {
       navigate(`/trips/${encodeURIComponent(publicId)}/d/${encodeURIComponent(activity.dayDate)}`)
     }
     scrollActivityIntoView(activity.id)
+  }
+
+  const showTimelineActivityOnMap = (activity: Activity) => {
+    setExpandedActivityId(null)
+    clearPlaceDraft()
+    setMapLocationTarget(null)
+    setMapSearchPreview(null)
+    clearMapSearchState()
+    setPendingMapPlace(null)
+    focusActivityOnMap(activity.id)
+    void showActivityPlaceDetails(activity)
+    focusMapPanel()
   }
 
   const handleToggleActivityExpand = (activity: Activity) => {
@@ -2479,6 +2522,7 @@ export function TripWorkspacePage() {
       if (mapSearchRequestIdRef.current !== requestId) return
       const places = page.places.map(googlePlaceToPlaceSelection)
       setMapSearchResults(places)
+      setHiddenMapSearchResultIds(new Set<string>())
       setMapSearchNextPageToken(page.nextPageToken)
       setMapSearchQuery(trimmedQuery)
       setSelectedMapSearchResult(null)
@@ -2609,8 +2653,15 @@ export function TripWorkspacePage() {
   }
 
   const handleMapSearchResultSelect = async (place: PlaceSelection) => {
+    const selectedPlaceId = placeStableId(place)
     const requestId = mapSearchRequestIdRef.current + 1
     mapSearchRequestIdRef.current = requestId
+    setHiddenMapSearchResultIds((current) => {
+      if (!current.has(selectedPlaceId)) return current
+      const next = new Set(current)
+      next.delete(selectedPlaceId)
+      return next
+    })
     const clickedAtMs = placeDetailsNowMs()
     const traceId = createPlaceDetailsTraceId()
     mapPlaceCardTimingRef.current = {
@@ -2661,6 +2712,27 @@ export function TripWorkspacePage() {
         setIsMapSearchSubmitting(false)
       }
     }
+  }
+
+  const handleMapSearchResultRemove = (place: PlaceSelection) => {
+    const hiddenPlaceId = placeStableId(place)
+    mapSearchRequestIdRef.current += 1
+    setHiddenMapSearchResultIds((current) => {
+      const next = new Set(current)
+      next.add(hiddenPlaceId)
+      return next
+    })
+    setSelectedMapSearchResult((current) =>
+      current && placeStableId(current) === hiddenPlaceId ? null : current,
+    )
+    setPendingMapPlace((current) =>
+      current && placeStableId(current) === hiddenPlaceId ? null : current,
+    )
+    setMapSearchPreview((current) =>
+      current && placeStableId(current) === hiddenPlaceId ? null : current,
+    )
+    setHoveredMapSearchResultId(null)
+    setIsMapSearchSubmitting(false)
   }
 
   const handleUseMapDetailPlace = () => {
@@ -2726,7 +2798,9 @@ export function TripWorkspacePage() {
   }
 
   const handleTimelineActivitySelect = (activityId: number) => {
-    handleActivityActivate(activityId)
+    const activity = allActivities.find((item) => item.id === activityId)
+    if (!activity) return
+    showTimelineActivityOnMap(activity)
   }
 
   const handleToggleTimelineDayCollapsed = (dayDate: string) => {
@@ -2830,6 +2904,9 @@ export function TripWorkspacePage() {
       publicId,
       body: { dayDate: operation.dayDate, orderIndex: operation.orderIndex },
     })
+    if (operation.dayDate === null) {
+      openIdeasMode()
+    }
   }
 
   const handleWorkspaceDragEnd = (event: DragEndEvent) => {
@@ -3458,7 +3535,7 @@ export function TripWorkspacePage() {
                   mapStyle={mapStyle}
                   onMapStyleChange={setMapStyle}
                   previewPlace={mapPreviewPlace}
-                  searchResults={mapSearchResults}
+                  searchResults={visibleMapSearchResults}
                   selectedSearchResultId={selectedMapSearchResult?.mapboxId ?? null}
                   highlightedSearchResultId={highlightedMapSearchResultId}
                   focusedActivityId={focusedActivityId}
@@ -3466,7 +3543,9 @@ export function TripWorkspacePage() {
                   onActivityActivate={handleActivityActivate}
                   onActiveActivityChange={handleActiveActivityChange}
                   onMapPlaceClick={handleMapPlaceClick}
+                  onPreviewPlaceClear={selectedMapClickedActivityId === null ? clearMapSelection : undefined}
                   onSearchResultHoverChange={setHoveredMapSearchResultId}
+                  onSearchResultRemove={handleMapSearchResultRemove}
                   onSearchResultSelect={handleMapSearchResultSelect}
                   onViewportContextChange={setMapViewportContext}
                   viewportFitKey={viewportFitKey}

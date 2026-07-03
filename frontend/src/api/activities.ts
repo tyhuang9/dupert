@@ -14,11 +14,48 @@ import type {
  * All endpoints require authentication and proper access to the trip.
  */
 
+type NullableActivityField =
+  | 'dayDate'
+  | 'startTime'
+  | 'endTime'
+  | 'notes'
+  | 'mapboxId'
+  | 'placeName'
+  | 'address'
+  | 'lat'
+  | 'lng'
+  | 'createdByUserDisplayName'
+  | 'updatedByUserDisplayName'
+
+type ActivityApiResponse = Omit<Activity, NullableActivityField> &
+  Partial<Pick<Activity, NullableActivityField>>
+
+function normalizeActivity(activity: ActivityApiResponse): Activity {
+  return {
+    ...activity,
+    dayDate: activity.dayDate ?? null,
+    startTime: activity.startTime ?? null,
+    endTime: activity.endTime ?? null,
+    notes: activity.notes ?? null,
+    mapboxId: activity.mapboxId ?? null,
+    placeName: activity.placeName ?? null,
+    address: activity.address ?? null,
+    lat: activity.lat ?? null,
+    lng: activity.lng ?? null,
+    createdByUserDisplayName: activity.createdByUserDisplayName ?? null,
+    updatedByUserDisplayName: activity.updatedByUserDisplayName ?? null,
+  }
+}
+
+function normalizeActivities(activities: ActivityApiResponse[]): Activity[] {
+  return activities.map(normalizeActivity)
+}
+
 export async function listActivities(publicId: string): Promise<Activity[]> {
-  const { data } = await apiClient.get<Activity[]>(
+  const { data } = await apiClient.get<ActivityApiResponse[]>(
     `/trips/${encodeURIComponent(publicId)}/activities`
   )
-  return data
+  return normalizeActivities(data)
 }
 
 export async function createActivity(
@@ -27,11 +64,11 @@ export async function createActivity(
   body: CreateActivityRequest,
 ): Promise<Activity> {
   const query = dayDate ? `?dayDate=${encodeURIComponent(dayDate)}` : ''
-  const { data } = await apiClient.post<Activity>(
+  const { data } = await apiClient.post<ActivityApiResponse>(
     `/trips/${encodeURIComponent(publicId)}/activities${query}`,
     body,
   )
-  return data
+  return normalizeActivity(data)
 }
 
 export async function updateActivity(
@@ -39,11 +76,11 @@ export async function updateActivity(
   activityId: number,
   body: UpdateActivityRequest,
 ): Promise<Activity> {
-  const { data } = await apiClient.patch<Activity>(
+  const { data } = await apiClient.patch<ActivityApiResponse>(
     `/trips/${encodeURIComponent(publicId)}/activities/${activityId}`,
     body,
   )
-  return data
+  return normalizeActivity(data)
 }
 
 export async function deleteActivity(
@@ -79,11 +116,11 @@ export async function moveActivity(
   publicId: string,
   body: MoveActivityRequest,
 ): Promise<Activity> {
-  const { data } = await apiClient.post<Activity>(
+  const { data } = await apiClient.post<ActivityApiResponse>(
     `/activities/${activityId}/move?publicId=${encodeURIComponent(publicId)}`,
     body,
   )
-  return data
+  return normalizeActivity(data)
 }
 
 /**
