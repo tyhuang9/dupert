@@ -34,7 +34,6 @@ interface ActivityCardProps {
   active?: boolean
   onActiveChange?: (activityId: number | null) => void
   onDelete: (activityId: number) => void
-  onMoveToIdeas?: (activity: Activity) => void
   onRequestMapLocation?: (activity: Activity, payload: CreateActivityRequest) => void
   onScheduleForSelectedDay?: (activity: Activity) => void
   onSubmitEdit: (activity: Activity, payload: CreateActivityRequest) => Promise<void> | void
@@ -149,7 +148,6 @@ export function ActivityCard({
   readOnly = false,
   onActiveChange,
   onDelete,
-  onMoveToIdeas,
   onRequestMapLocation,
   onScheduleForSelectedDay,
   onSubmitEdit,
@@ -192,12 +190,7 @@ export function ActivityCard({
         label: 'Schedule for selected day',
         onClick: () => onScheduleForSelectedDay(activity),
       }
-    : activity.dayDate !== null && onMoveToIdeas
-      ? {
-          label: 'Move to Ideas',
-          onClick: () => onMoveToIdeas(activity),
-        }
-      : null
+    : null
   const handleKeyDown = (event: KeyboardEvent<HTMLElement>) => {
     if (
       event.defaultPrevented ||

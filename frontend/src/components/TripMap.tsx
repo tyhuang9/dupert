@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from 'react'
 import { createPortal } from 'react-dom'
 import {
   APILoadingStatus,
@@ -25,10 +33,13 @@ import {
   logPlaceDetailsTiming,
   placeDetailsNowMs,
 } from '../utils/placeDetailsTiming'
+import { timelineDayColor } from '../utils/timelineDayColors'
 import styles from './TripMap.module.css'
 
 interface TripMapProps {
   activities: Activity[]
+  activityMarkerColors?: Record<number, string>
+  activityMarkerMode?: 'default' | 'timeline-days'
   fallbackActivities?: Activity[]
   routeActivities?: Activity[]
   destination: string | null
@@ -45,7 +56,9 @@ interface TripMapProps {
   onActivityActivate?: (activityId: number) => void
   onActiveActivityChange?: (activityId: number | null) => void
   onMapPlaceClick?: (event: MapPlaceClickEvent) => void
+  onPreviewPlaceClear?: () => void
   onSearchResultHoverChange?: (placeId: string | null) => void
+  onSearchResultRemove?: (place: MapSearchPlace) => void
   onSearchResultSelect?: (place: MapSearchPlace) => void
   onViewportContextChange?: (context: MapViewportContext) => void
 }
@@ -116,10 +129,16 @@ interface DisplayStop {
   lat: number
   lng: number
   markerLabel: string
+  markerColor?: string
   source: 'selected' | 'trip' | 'destination' | 'preview' | 'search'
   title: string
   activityId?: number
   place?: MapSearchPlace
+}
+
+interface ActivityMarkerMetadata {
+  color?: string
+  label: string
 }
 
 interface MapCamera {
@@ -175,17 +194,55 @@ function activityToDisplayStop(
   activity: CoordinateActivity,
   index: number,
   source: 'selected' | 'trip',
+  metadata?: ActivityMarkerMetadata,
 ): DisplayStop {
   return {
     id: `${source}-${activity.id}`,
     label: activity.title,
     lat: activity.lat,
     lng: activity.lng,
-    markerLabel: String(index + 1),
+    markerLabel: metadata?.label ?? String(index + 1),
+    markerColor: metadata?.color,
     source,
     title: activity.title,
     activityId: activity.id,
   }
+}
+
+function activityMarkerMetadata(
+  activities: CoordinateActivity[],
+  mode: 'default' | 'timeline-days',
+  colors: Record<number, string> | undefined,
+): Map<number, ActivityMarkerMetadata> {
+  const metadata = new globalThis.Map<number, ActivityMarkerMetadata>()
+  const dayCounters = new globalThis.Map<string, number>()
+  const fallbackDayIndexes = new globalThis.Map<string, number>()
+
+  activities.forEach((activity, index) => {
+    if (mode !== 'timeline-days') {
+      metadata.set(activity.id, { label: String(index + 1), color: colors?.[activity.id] })
+      return
+    }
+
+    if (activity.dayDate == null) {
+      metadata.set(activity.id, { label: '', color: colors?.[activity.id] })
+      return
+    }
+
+    const count = (dayCounters.get(activity.dayDate) ?? 0) + 1
+    dayCounters.set(activity.dayDate, count)
+
+    if (!fallbackDayIndexes.has(activity.dayDate)) {
+      fallbackDayIndexes.set(activity.dayDate, fallbackDayIndexes.size)
+    }
+
+    metadata.set(activity.id, {
+      label: String(count),
+      color: colors?.[activity.id] ?? timelineDayColor(fallbackDayIndexes.get(activity.dayDate) ?? 0),
+    })
+  })
+
+  return metadata
 }
 
 function destinationToDisplayStop(destinationCoordinate: DestinationCoordinate): DisplayStop {
@@ -402,6 +459,8 @@ export function TripMap(props: TripMapProps) {
 
 function TripMapContent({
   activities,
+  activityMarkerColors,
+  activityMarkerMode = 'default',
   fallbackActivities = [],
   routeActivities = activities,
   activeActivityId = null,
@@ -418,7 +477,9 @@ function TripMapContent({
   onActivityActivate,
   onActiveActivityChange,
   onMapPlaceClick,
+  onPreviewPlaceClear,
   onSearchResultHoverChange,
+  onSearchResultRemove,
   onSearchResultSelect,
   onViewportContextChange,
 }: TripMapProps) {
@@ -445,8 +506,11 @@ function TripMapContent({
   })
   const lastViewportFitKeyRef = useRef<string | null>(null)
   const selectedMappedActivities = useMemo(
-    () => activities.filter(hasCoordinates),
-    [activities],
+    () =>
+      activities
+        .filter(hasCoordinates)
+        .filter((activity) => activityMarkerMode !== 'timeline-days' || activity.dayDate != null),
+    [activities, activityMarkerMode],
   )
   const routeMappedActivities = useMemo(
     () => routeActivities.filter(hasCoordinates),
@@ -455,6 +519,15 @@ function TripMapContent({
   const fallbackMappedActivities = useMemo(
     () => sortActivitiesByTripOrder(fallbackActivities.filter(hasCoordinates)),
     [fallbackActivities],
+  )
+  const selectedMarkerMetadata = useMemo(
+    () =>
+      activityMarkerMetadata(
+        selectedMappedActivities,
+        activityMarkerMode,
+        activityMarkerColors,
+      ),
+    [activityMarkerColors, activityMarkerMode, selectedMappedActivities],
   )
   const destinationKey =
     selectedMappedActivities.length === 0 && fallbackMappedActivities.length === 0
@@ -488,7 +561,12 @@ function TripMapContent({
   const baseDisplayStops = useMemo(() => {
     if (selectedMappedActivities.length > 0) {
       return selectedMappedActivities.map((activity, index) =>
-        activityToDisplayStop(activity, index, 'selected'),
+        activityToDisplayStop(
+          activity,
+          index,
+          'selected',
+          selectedMarkerMetadata.get(activity.id),
+        ),
       )
     }
     if (fallbackMappedActivities.length > 0) {
@@ -497,7 +575,7 @@ function TripMapContent({
       )
     }
     return destinationCoordinate ? [destinationToDisplayStop(destinationCoordinate)] : []
-  }, [destinationCoordinate, fallbackMappedActivities, selectedMappedActivities])
+  }, [destinationCoordinate, fallbackMappedActivities, selectedMappedActivities, selectedMarkerMetadata])
   const focusedActivityDisplayStop = useMemo(
     () =>
       focusedActivityId === null
@@ -817,7 +895,11 @@ function TripMapContent({
               key={stop.id}
               onClick={
                 stop.source === 'search' && stop.place
-                  ? () => onSearchResultSelect?.(stop.place as MapSearchPlace)
+                  ? stop.place.mapboxId === selectedSearchResultId && onSearchResultRemove
+                    ? () => onSearchResultRemove(stop.place as MapSearchPlace)
+                    : () => onSearchResultSelect?.(stop.place as MapSearchPlace)
+                  : stop.source === 'preview'
+                    ? onPreviewPlaceClear
                   : stop.activityId !== undefined
                     ? () => onActivityActivate?.(stop.activityId as number)
                     : undefined
@@ -835,12 +917,31 @@ function TripMapContent({
                     : 2
               }
             >
-              {stop.source === 'destination' || stop.source === 'preview' ? (
+              {stop.source === 'destination' ? (
                 <span
-                  className={[
-                    styles.marker,
-                    stop.source === 'destination' ? styles.destinationMarker : styles.previewMarker,
-                  ].join(' ')}
+                  className={[styles.marker, styles.destinationMarker].join(' ')}
+                  role="img"
+                  aria-label={stop.title}
+                  title={stop.title}
+                >
+                  <span className={styles.markerGlyph}>
+                    <MapPin size={17} aria-hidden="true" />
+                  </span>
+                </span>
+              ) : stop.source === 'preview' && onPreviewPlaceClear ? (
+                <button
+                  type="button"
+                  className={[styles.marker, styles.previewMarker].join(' ')}
+                  aria-label={`Remove map marker for ${stop.label}`}
+                  title={stop.title}
+                >
+                  <span className={styles.markerGlyph}>
+                    <MapPin size={17} aria-hidden="true" />
+                  </span>
+                </button>
+              ) : stop.source === 'preview' ? (
+                <span
+                  className={[styles.marker, styles.previewMarker].join(' ')}
                   role="img"
                   aria-label={stop.title}
                   title={stop.title}
@@ -859,7 +960,11 @@ function TripMapContent({
                       ? styles.searchMarkerActive
                       : '',
                   ].filter(Boolean).join(' ')}
-                  aria-label={`Show place details for ${stop.title}`}
+                  aria-label={
+                    stop.place.mapboxId === selectedSearchResultId && onSearchResultRemove
+                      ? `Remove map marker for ${stop.title}`
+                      : `Show place details for ${stop.title}`
+                  }
                   title={stop.title}
                   onMouseEnter={() =>
                     onSearchResultHoverChange?.(stop.place?.mapboxId ?? stop.id)
@@ -881,7 +986,16 @@ function TripMapContent({
                     styles.marker,
                     activeActivityId === stop.activityId ? styles.markerActive : '',
                   ].filter(Boolean).join(' ')}
-                  aria-label={`Show place details for stop ${stop.markerLabel}: ${stop.title}`}
+                  style={
+                    stop.markerColor
+                      ? ({ '--marker-accent': stop.markerColor } as CSSProperties)
+                      : undefined
+                  }
+                  aria-label={
+                    stop.markerLabel
+                      ? `Show place details for stop ${stop.markerLabel}: ${stop.title}`
+                      : `Show place details for ${stop.title}`
+                  }
                   title={stop.title}
                   onMouseEnter={() => onActiveActivityChange?.(stop.activityId ?? null)}
                   onMouseLeave={() => onActiveActivityChange?.(null)}
@@ -889,7 +1003,7 @@ function TripMapContent({
                   onBlur={() => onActiveActivityChange?.(null)}
                 >
                   <span className={styles.markerGlyph}>
-                    {stop.markerLabel}
+                    {stop.markerLabel || <MapPin size={17} aria-hidden="true" />}
                   </span>
                 </button>
               )}

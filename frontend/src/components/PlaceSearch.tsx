@@ -56,7 +56,6 @@ export function PlaceSearch({
 
   return (
     <div className={styles.searchShell}>
-      {contextLabel && <p className={styles.context}>{contextLabel}</p>}
       <label className={styles.label}>
         <span className="sr-only">Search places</span>
         <GooglePlaceAutocomplete
@@ -86,6 +85,11 @@ export function PlaceSearch({
           options={autocompleteOptions}
         />
       </label>
+      {contextLabel && (
+        <p className={styles.context} role="status" aria-live="polite">
+          {contextLabel}
+        </p>
+      )}
       {searchError && (
         <p className={styles.searchError} role="alert">
           {searchError}

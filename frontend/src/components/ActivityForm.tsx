@@ -173,7 +173,7 @@ export function ActivityForm({
     return () => window.clearTimeout(timeoutId)
   }, [autosave, currentPayload, currentPayloadSignature, onSubmit, submitting])
 
-  const locationPrimary = placeName.trim() || address.trim() || 'Location not set'
+  const locationPrimary = address.trim() || placeName.trim() || 'Location not set'
   const hasLocation = Boolean(placeName.trim() || address.trim())
   const locationDisplay = hasLocation ? locationPrimary : 'No location selected'
 

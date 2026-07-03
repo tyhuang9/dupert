@@ -47,6 +47,12 @@ const SAMPLE_NOTE: DayNote = {
   version: 0,
 }
 
+function withoutDayDate(activity: Activity): Omit<Activity, 'dayDate'> {
+  const response = { ...activity }
+  delete (response as Partial<Activity>).dayDate
+  return response
+}
+
 beforeEach(() => {
   apiMock = new MockAdapter(apiClient)
 })
@@ -79,9 +85,14 @@ describe('activity api', () => {
   })
 
   it('creates an idea without a dayDate query parameter', async () => {
+    const ideaResponse = withoutDayDate({
+      ...SAMPLE_ACTIVITY,
+      title: 'Save teamLab',
+    })
+
     apiMock
       .onPost('/trips/abc234def567/activities')
-      .reply(201, { ...SAMPLE_ACTIVITY, dayDate: null, title: 'Save teamLab' })
+      .reply(201, ideaResponse)
 
     await expect(
       createActivity('abc234def567', null, {
@@ -122,6 +133,20 @@ describe('activity api', () => {
     await expect(
       moveActivity(10, 'abc234def567', { dayDate: '2026-05-02', orderIndex: 1 }),
     ).resolves.toMatchObject({ dayDate: '2026-05-02', orderIndex: 1 })
+  })
+
+  it('normalizes move-to-Ideas responses that omit dayDate', async () => {
+    const ideaResponse = withoutDayDate({
+      ...SAMPLE_ACTIVITY,
+      title: 'Save teamLab',
+      orderIndex: 0,
+    })
+
+    apiMock.onPost('/activities/10/move?publicId=abc234def567').reply(200, ideaResponse)
+
+    await expect(
+      moveActivity(10, 'abc234def567', { dayDate: null, orderIndex: 0 }),
+    ).resolves.toMatchObject({ dayDate: null, orderIndex: 0, title: 'Save teamLab' })
   })
 
   it('reads and updates day notes', async () => {

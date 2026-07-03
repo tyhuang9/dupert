@@ -25,7 +25,6 @@ interface ActivityListProps {
   onActiveActivityChange?: (activityId: number | null) => void
   onAddActivity?: () => void
   onDelete: (activityId: number) => void
-  onMoveToIdeas?: (activity: Activity) => void
   onRequestMapLocation?: (activity: Activity, payload: CreateActivityRequest) => void
   onScheduleForSelectedDay?: (activity: Activity) => void
   onSubmitEdit: (activity: Activity, payload: CreateActivityRequest) => Promise<void> | void
@@ -57,7 +56,6 @@ function SortableActivityCard({
   expandedActivityId,
   onActiveActivityChange,
   onDelete,
-  onMoveToIdeas,
   onRequestMapLocation,
   onScheduleForSelectedDay,
   onSubmitEdit,
@@ -103,7 +101,6 @@ function SortableActivityCard({
           readOnly={readOnly}
           onActiveChange={onActiveActivityChange}
           onDelete={onDelete}
-          onMoveToIdeas={onMoveToIdeas}
           onRequestMapLocation={onRequestMapLocation}
           onScheduleForSelectedDay={onScheduleForSelectedDay}
           onSubmitEdit={onSubmitEdit}
@@ -129,7 +126,6 @@ export function ActivityList({
   onActiveActivityChange,
   onAddActivity,
   onDelete,
-  onMoveToIdeas,
   onRequestMapLocation,
   onScheduleForSelectedDay,
   onSubmitEdit,
@@ -180,7 +176,6 @@ export function ActivityList({
             readOnly={readOnly}
             onActiveActivityChange={onActiveActivityChange}
             onDelete={onDelete}
-            onMoveToIdeas={onMoveToIdeas}
             onRequestMapLocation={onRequestMapLocation}
             onScheduleForSelectedDay={onScheduleForSelectedDay}
             onSubmitEdit={onSubmitEdit}

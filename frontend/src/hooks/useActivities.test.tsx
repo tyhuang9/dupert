@@ -77,6 +77,12 @@ const IDEA_ACTIVITY: Activity = {
   orderIndex: 0,
 }
 
+function withoutDayDate(activity: Activity): Omit<Activity, 'dayDate'> {
+  const response = { ...activity }
+  delete (response as Partial<Activity>).dayDate
+  return response
+}
+
 function wrapper({ children }: PropsWithChildren) {
   return (
     <QueryClientProvider client={queryClient}>
@@ -163,7 +169,9 @@ describe('useActivities', () => {
   })
 
   it('optimistically creates an idea without a dayDate query parameter', async () => {
-    apiMock.onPost('/trips/abc234def567/activities').reply(201, IDEA_ACTIVITY)
+    const ideaResponse = withoutDayDate(IDEA_ACTIVITY)
+
+    apiMock.onPost('/trips/abc234def567/activities').reply(201, ideaResponse)
 
     const create = renderHook(() => useCreateActivity(), { wrapper })
     await act(async () => {
@@ -302,6 +310,40 @@ describe('useActivities', () => {
     await act(async () => {
       resolveMove?.()
     })
+  })
+
+  it('keeps a moved idea in cache when the move response omits dayDate', async () => {
+    const ideaResponse = withoutDayDate({
+      ...SAMPLE_ACTIVITY,
+      dayDate: null,
+      orderIndex: 0,
+      version: 1,
+    })
+
+    queryClient.setQueryData(activityKeys.list('abc234def567'), [
+      SAMPLE_ACTIVITY,
+      SECOND_ACTIVITY,
+    ])
+    apiMock.onPost('/activities/10/move?publicId=abc234def567').reply(200, ideaResponse)
+
+    const move = renderHook(() => useMoveActivity(), { wrapper })
+
+    await act(async () => {
+      await move.result.current.mutateAsync({
+        publicId: 'abc234def567',
+        activityId: 10,
+        body: { dayDate: null, orderIndex: 0 },
+      })
+    })
+
+    const activities = queryClient.getQueryData<Activity[]>(activityKeys.list('abc234def567'))
+    expect(activities?.find((activity) => activity.id === 10)).toMatchObject({
+      dayDate: null,
+      orderIndex: 0,
+      version: 1,
+    })
+    expect(activities?.filter((activity) => activity.dayDate === null).map((activity) => activity.id))
+      .toEqual([10])
   })
 
   it('rolls back an optimistic move if the request fails', async () => {

@@ -6,6 +6,7 @@ const ACTIVITY_PREFIX = 'activity:'
 const DAY_PREFIX = 'day:'
 const IDEAS_DROP_ID = 'ideas'
 const SIDEBAR_DAY_PREFIX = 'sidebar-day:'
+const SIDEBAR_IDEAS_DROP_ID = 'sidebar-ideas'
 
 export interface ReorderDragOperation {
   type: 'reorder'
@@ -38,6 +39,10 @@ export function ideasDropId(): string {
   return IDEAS_DROP_ID
 }
 
+export function sidebarIdeasDropId(): string {
+  return SIDEBAR_IDEAS_DROP_ID
+}
+
 export function parseActivityDragId(id: UniqueIdentifier): number | null {
   const value = String(id)
   if (!value.startsWith(ACTIVITY_PREFIX)) return null
@@ -63,8 +68,12 @@ export function parseSidebarDayDropId(id: UniqueIdentifier): string | null {
   return /^\d{4}-\d{2}-\d{2}$/.test(dayDate) ? dayDate : null
 }
 
+export function parseSidebarIdeasDropId(id: UniqueIdentifier): boolean {
+  return String(id) === SIDEBAR_IDEAS_DROP_ID
+}
+
 export function parseIdeasDropId(id: UniqueIdentifier): boolean {
-  return String(id) === IDEAS_DROP_ID
+  return String(id) === IDEAS_DROP_ID || parseSidebarIdeasDropId(id)
 }
 
 export function shouldApplySortableTransform({

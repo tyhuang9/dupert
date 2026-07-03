@@ -387,6 +387,36 @@ describe('<TripMap>', () => {
     )
   })
 
+  it('does not refit the viewport when activities change under the same fit key', async () => {
+    const { rerender } = render(
+      <TripMap
+        activities={ACTIVITIES}
+        fallbackActivities={[]}
+        destination="Tokyo"
+        viewportFitKey="days:2026-05-01:Tokyo"
+      />,
+    )
+
+    await waitFor(() => {
+      expect(mapControlMock.fitBounds).toHaveBeenCalled()
+    })
+    mapControlMock.fitBounds.mockClear()
+    mapControlMock.moveCamera.mockClear()
+
+    rerender(
+      <TripMap
+        activities={[ACTIVITIES[1], ACTIVITIES[0]]}
+        fallbackActivities={[]}
+        destination="Tokyo"
+        viewportFitKey="days:2026-05-01:Tokyo"
+      />,
+    )
+
+    expect(screen.getByRole('button', { name: /stop 1: tsukiji market/i })).toBeInTheDocument()
+    expect(mapControlMock.fitBounds).not.toHaveBeenCalled()
+    expect(mapControlMock.moveCamera).not.toHaveBeenCalled()
+  })
+
   it('can render mapped stops without requesting a route', () => {
     render(
       <TripMap
@@ -402,6 +432,67 @@ describe('<TripMap>', () => {
     expect(directionsMock).not.toHaveBeenCalled()
     expect(screen.queryByTestId('route-layer')).not.toBeInTheDocument()
     expect(screen.queryByText(/selected-day route/i)).not.toBeInTheDocument()
+  })
+
+  it('numbers timeline markers per day without rendering unscheduled ideas', () => {
+    const unscheduledActivity = runtimeActivity({
+      id: 22,
+      dayDate: null,
+      title: 'Crystal Fish',
+      lat: 35.7,
+      lng: 139.74,
+      orderIndex: 0,
+    })
+    delete (unscheduledActivity as Partial<Activity>).dayDate
+
+    render(
+      <TripMap
+        activities={[
+          ACTIVITIES[0],
+          ACTIVITIES[1],
+          runtimeActivity({
+            id: 20,
+            dayDate: '2026-05-02',
+            title: 'Ferry Building',
+            lat: 35.68,
+            lng: 139.76,
+            orderIndex: 0,
+          }),
+          runtimeActivity({
+            id: 21,
+            dayDate: '2026-05-02',
+            title: 'Museum Stop',
+            lat: 35.69,
+            lng: 139.75,
+            orderIndex: 1,
+          }),
+          unscheduledActivity,
+        ]}
+        activityMarkerColors={{
+          10: '#2563eb',
+          11: '#2563eb',
+          20: '#059669',
+          21: '#059669',
+        }}
+        activityMarkerMode="timeline-days"
+        fallbackActivities={[]}
+        routeActivities={[]}
+        destination="Tokyo"
+      />,
+    )
+
+    const dayOneFirst = screen.getByRole('button', { name: /stop 1: tokyo tower/i })
+    const dayOneSecond = screen.getByRole('button', { name: /stop 2: tsukiji market/i })
+    const dayTwoFirst = screen.getByRole('button', { name: /stop 1: ferry building/i })
+    const dayTwoSecond = screen.getByRole('button', { name: /stop 2: museum stop/i })
+
+    expect(screen.queryByRole('button', { name: /crystal fish/i })).not.toBeInTheDocument()
+    expect(dayOneFirst).toHaveTextContent('1')
+    expect(dayOneSecond).toHaveTextContent('2')
+    expect(dayTwoFirst).toHaveTextContent('1')
+    expect(dayTwoSecond).toHaveTextContent('2')
+    expect(dayOneFirst.getAttribute('style')).toContain('--marker-accent: #2563eb')
+    expect(dayTwoFirst.getAttribute('style')).toContain('--marker-accent: #059669')
   })
 
   it('maps style options to Google map types', () => {
@@ -677,6 +768,72 @@ describe('<TripMap>', () => {
       })
     })
     expect(mapControlMock.fitBounds).not.toHaveBeenCalled()
+  })
+
+  it('removes a selected search marker when it is clicked again', async () => {
+    const onSearchResultRemove = vi.fn()
+    const onSearchResultSelect = vi.fn()
+
+    render(
+      <TripMap
+        activities={[ACTIVITIES[0]]}
+        fallbackActivities={[]}
+        destination="Tokyo"
+        searchResults={[{
+          address: '1 Chome Marunouchi, Tokyo',
+          coordinatesLabel: '36.20000, 140.20000',
+          featureType: 'restaurant',
+          lat: 36.2,
+          lng: 140.2,
+          mapboxId: 'google.ramen-street',
+          placeCategory: 'Restaurant',
+          placeName: 'Ramen Street',
+          title: 'Ramen Street',
+        }]}
+        selectedSearchResultId="google.ramen-street"
+        onSearchResultRemove={onSearchResultRemove}
+        onSearchResultSelect={onSearchResultSelect}
+      />,
+    )
+
+    const marker = screen.getByRole('button', {
+      name: /remove map marker for ramen street/i,
+    })
+    await userEvent.click(marker)
+
+    expect(onSearchResultRemove).toHaveBeenCalledWith(expect.objectContaining({
+      mapboxId: 'google.ramen-street',
+      placeName: 'Ramen Street',
+    }))
+    expect(onSearchResultSelect).not.toHaveBeenCalled()
+  })
+
+  it('clears a loose preview marker when it is clicked', async () => {
+    const onPreviewPlaceClear = vi.fn()
+
+    render(
+      <TripMap
+        activities={[ACTIVITIES[0]]}
+        fallbackActivities={[]}
+        destination="Tokyo"
+        previewPlace={{
+          address: 'Kyoto Station, Kyoto',
+          coordinatesLabel: '34.98585, 135.75877',
+          featureType: 'poi',
+          placeName: 'Kyoto Station',
+          placeCategory: 'Transit',
+          lat: 34.98585,
+          lng: 135.75877,
+        }}
+        onPreviewPlaceClear={onPreviewPlaceClear}
+      />,
+    )
+
+    await userEvent.click(screen.getByRole('button', {
+      name: /remove map marker for kyoto station/i,
+    }))
+
+    expect(onPreviewPlaceClear).toHaveBeenCalledTimes(1)
   })
 
   it('ignores preview places without finite coordinates', () => {

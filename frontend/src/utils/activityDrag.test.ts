@@ -11,8 +11,10 @@ import {
   parseDayDropId,
   parseIdeasDropId,
   parseSidebarDayDropId,
+  parseSidebarIdeasDropId,
   shouldApplySortableTransform,
   sidebarDayDropId,
+  sidebarIdeasDropId,
 } from './activityDrag'
 
 function activity(id: number, dayDate: string | null, orderIndex: number): Activity {
@@ -43,6 +45,7 @@ describe('activity drag helpers', () => {
     expect(activityDragId(42)).toBe('activity:42')
     expect(dayDropId('2026-05-03')).toBe('day:2026-05-03')
     expect(sidebarDayDropId('2026-05-03')).toBe('sidebar-day:2026-05-03')
+    expect(sidebarIdeasDropId()).toBe('sidebar-ideas')
     expect(ideasDropId()).toBe('ideas')
     expect(parseActivityDragId('activity:42')).toBe(42)
     expect(parseActivityDragId('activity:nope')).toBeNull()
@@ -52,6 +55,9 @@ describe('activity drag helpers', () => {
     expect(parseSidebarDayDropId('sidebar-day:2026-05-03')).toBe('2026-05-03')
     expect(parseSidebarDayDropId('day:2026-05-03')).toBeNull()
     expect(parseIdeasDropId('ideas')).toBe(true)
+    expect(parseIdeasDropId('sidebar-ideas')).toBe(true)
+    expect(parseSidebarIdeasDropId('sidebar-ideas')).toBe(true)
+    expect(parseSidebarIdeasDropId('ideas')).toBe(false)
     expect(parseIdeasDropId('day:2026-05-03')).toBe(false)
   })
 
@@ -219,7 +225,7 @@ describe('activity drag helpers', () => {
     expect(
       getActivityDragOperation({
         activeId: activityDragId(10),
-        overId: ideasDropId(),
+        overId: sidebarIdeasDropId(),
         selectedDayActivities: [allActivities[0]],
         allActivities,
       }),
