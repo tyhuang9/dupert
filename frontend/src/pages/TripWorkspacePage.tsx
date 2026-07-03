@@ -780,6 +780,25 @@ function rectIntersectsElement(
   )
 }
 
+function elementDragRect(element: HTMLElement): DragRect {
+  const rect = element.getBoundingClientRect()
+  return {
+    bottom: rect.bottom,
+    left: rect.left,
+    right: rect.right,
+    top: rect.top,
+  }
+}
+
+function translateDragRect(rect: DragRect, delta: PointerCoordinates): DragRect {
+  return {
+    bottom: rect.bottom + delta.y,
+    left: rect.left + delta.x,
+    right: rect.right + delta.x,
+    top: rect.top + delta.y,
+  }
+}
+
 function sortActivitiesByTripOrder(activities: Activity[]): Activity[] {
   return [...activities].sort((left, right) => {
     const dayCompare = (left.dayDate ?? '\uffff').localeCompare(right.dayDate ?? '\uffff')
@@ -1617,6 +1636,7 @@ export function TripWorkspacePage() {
   const [isAccountSettingsOpen, setIsAccountSettingsOpen] = useState(false)
   const [isDraggingActivity, setIsDraggingActivity] = useState(false)
   const [isDraggingActivityOverSidebar, setIsDraggingActivityOverSidebar] = useState(false)
+  const [schedulingIdeaActivityId, setSchedulingIdeaActivityId] = useState<number | null>(null)
   const [workspaceMode, setWorkspaceMode] = useState<WorkspaceMode>('days')
   const [sidebarPinned, setSidebarPinned] = useState(false)
   const [sidebarCollapsedAfterTabClick, setSidebarCollapsedAfterTabClick] = useState(false)
@@ -1644,6 +1664,7 @@ export function TripWorkspacePage() {
   const mapSearchPhotoHydrationKeysRef = useRef<Set<string>>(new Set())
   const sidebarPanelRef = useRef<HTMLElement | null>(null)
   const dragStartPointerRef = useRef<PointerCoordinates | null>(null)
+  const dragStartActivityCardRectRef = useRef<DragRect | null>(null)
   const isDraggingActivityOverSidebarRef = useRef(false)
   const mapPlaceCardTimingRef = useRef<{
     clickedAtIso: string
@@ -1691,6 +1712,7 @@ export function TripWorkspacePage() {
   }, [])
   const resetDraggingActivityState = useCallback(() => {
     dragStartPointerRef.current = null
+    dragStartActivityCardRectRef.current = null
     setIsDraggingActivity(false)
     updateDraggingActivityOverSidebar(false)
   }, [updateDraggingActivityOverSidebar])
@@ -1745,6 +1767,15 @@ export function TripWorkspacePage() {
         .filter((activity) => activity.dayDate == null)
         .sort((left, right) => left.orderIndex - right.orderIndex),
     [allActivities],
+  )
+  const schedulingIdeaActivity = useMemo(
+    () =>
+      schedulingIdeaActivityId === null
+        ? null
+        : allActivities.find(
+          (activity) => activity.id === schedulingIdeaActivityId && activity.dayDate === null,
+        ) ?? null,
+    [allActivities, schedulingIdeaActivityId],
   )
   const tripDays = useMemo(
     () =>
@@ -2102,7 +2133,32 @@ export function TripWorkspacePage() {
     focusItineraryPanel()
   }
 
+  const scheduleIdeaForDay = (activity: Activity, nextDay: string) => {
+    if (
+      !publicId ||
+      !tripQuery.data ||
+      moveActivityMutation.isPending ||
+      !dayInRange(nextDay, tripQuery.data.startDate, tripQuery.data.endDate)
+    ) {
+      return
+    }
+
+    const orderIndex = allActivities.filter((item) => item.dayDate === nextDay).length
+    setSchedulingIdeaActivityId(null)
+    void moveActivityMutation.mutateAsync({
+      activityId: activity.id,
+      publicId,
+      body: { dayDate: nextDay, orderIndex },
+    })
+    jumpToActivityMoveDestination(activity.id, nextDay)
+  }
+
   const handleSelectDay = (nextDay: string) => {
+    if (schedulingIdeaActivity) {
+      scheduleIdeaForDay(schedulingIdeaActivity, nextDay)
+      return
+    }
+
     if (
       publicId &&
       tripQuery.data &&
@@ -2149,6 +2205,37 @@ export function TripWorkspacePage() {
     setActiveActivityId(null)
     setHoveredActivityId(null)
     setFocusedActivityId(null)
+  }
+
+  const jumpToActivityMoveDestination = (activityId: number, dayDate: string | null) => {
+    if (dayDate === null) {
+      openIdeasMode()
+      focusActivityOnMap(activityId)
+      scrollActivityIntoView(activityId)
+      return
+    }
+
+    if (
+      !publicId ||
+      !tripQuery.data ||
+      !dayInRange(dayDate, tripQuery.data.startDate, tripQuery.data.endDate)
+    ) {
+      return
+    }
+
+    setWorkspaceMode('days')
+    collapseSidebarAndFocusItinerary()
+    setExpandedActivityId(null)
+    clearPlaceDraft()
+    setMapLocationTarget(null)
+    setMapSearchPreview(null)
+    clearMapSearchState()
+    setPendingMapPlace(null)
+    setHoveredActivityId(null)
+    setCalendarMonth(getMonthKey(dayDate))
+    navigate(`/trips/${encodeURIComponent(publicId)}/d/${encodeURIComponent(dayDate)}`)
+    focusActivityOnMap(activityId)
+    scrollActivityIntoView(activityId)
   }
 
   const openActivityComposer = () => {
@@ -2835,16 +2922,19 @@ export function TripWorkspacePage() {
   }
 
   const handleScheduleIdeaForSelectedDay = (activity: Activity) => {
-    if (!publicId || !selectedDay || moveActivityMutation.isPending) return
-    void moveActivityMutation.mutateAsync({
-      activityId: activity.id,
-      publicId,
-      body: { dayDate: selectedDay, orderIndex: dayActivities.length },
-    })
+    if (!canEditTrip || activity.dayDate !== null) return
+    setSchedulingIdeaActivityId(activity.id)
+    setSidebarCollapsedAfterTabClick(false)
+    setCalendarMonth(
+      getMonthKey(selectedDay ?? tripQuery.data?.startDate ?? new Date().toISOString().slice(0, 10)),
+    )
   }
 
   const handleDeleteActivity = (activityId: number) => {
     if (!publicId) return
+    if (schedulingIdeaActivityId === activityId) {
+      setSchedulingIdeaActivityId(null)
+    }
     if (activeEditingActivity?.id === activityId) {
       setExpandedActivityId(null)
     }
@@ -2904,9 +2994,7 @@ export function TripWorkspacePage() {
       publicId,
       body: { dayDate: operation.dayDate, orderIndex: operation.orderIndex },
     })
-    if (operation.dayDate === null) {
-      openIdeasMode()
-    }
+    jumpToActivityMoveDestination(operation.activity.id, operation.dayDate)
   }
 
   const handleWorkspaceDragEnd = (event: DragEndEvent) => {
@@ -2917,9 +3005,13 @@ export function TripWorkspacePage() {
   const handleWorkspaceDragStart = (event: DragStartEvent) => {
     const activityId = parseActivityDragId(event.active.id)
     const draggingActivity = activityId !== null
+    const activityCard = draggingActivity
+      ? document.getElementById(`activity-${activityId}`)
+      : null
     dragStartPointerRef.current = draggingActivity
       ? pointerCoordinatesFromEvent(event.activatorEvent)
       : null
+    dragStartActivityCardRectRef.current = activityCard ? elementDragRect(activityCard) : null
     setIsDraggingActivity(draggingActivity)
     updateDraggingActivityOverSidebar(false)
   }
@@ -2931,15 +3023,17 @@ export function TripWorkspacePage() {
     }
 
     const startPointer = dragStartPointerRef.current
+    const startActivityCardRect = dragStartActivityCardRectRef.current
     const sidebarPanel = sidebarPanelRef.current
     if (!sidebarPanel) {
       updateDraggingActivityOverSidebar(false)
       return
     }
 
-    const translatedRect = event.active.rect.current.translated
-    if (translatedRect) {
-      updateDraggingActivityOverSidebar(rectIntersectsElement(translatedRect, sidebarPanel))
+    if (startActivityCardRect) {
+      updateDraggingActivityOverSidebar(
+        rectIntersectsElement(translateDragRect(startActivityCardRect, event.delta), sidebarPanel),
+      )
       return
     }
 
@@ -3045,6 +3139,7 @@ export function TripWorkspacePage() {
                   styles.dayPanel,
                   sidebarPinned ? styles.dayPanelPinned : '',
                   isDraggingActivityOverSidebar ? styles.dayPanelDragExpanded : '',
+                  schedulingIdeaActivity ? styles.dayPanelScheduleExpanded : '',
                   sidebarCollapsedAfterTabClick ? styles.dayPanelCollapsedAfterTabClick : '',
                 ].filter(Boolean).join(' ')}
                 onMouseLeave={() => setSidebarCollapsedAfterTabClick(false)}
@@ -3102,8 +3197,23 @@ export function TripWorkspacePage() {
                   <span className={styles.railLabel}>Calendar</span>
                 </div>
 
-                {(!sidebarCollapsedAfterTabClick || isDraggingActivityOverSidebar) && (
+                {(!sidebarCollapsedAfterTabClick || isDraggingActivityOverSidebar || schedulingIdeaActivity) && (
                   <div className={styles.sidebarCalendarReveal}>
+                    {schedulingIdeaActivity && (
+                      <div className={styles.schedulePickerNotice} role="status">
+                        <span>
+                          Choose a day for <strong>{schedulingIdeaActivity.title}</strong>
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setSchedulingIdeaActivityId(null)}
+                          aria-label={`Cancel scheduling ${schedulingIdeaActivity.title}`}
+                          title="Cancel scheduling"
+                        >
+                          <X size={14} aria-hidden="true" />
+                        </button>
+                      </div>
+                    )}
                     <CompactMonthCalendar
                       activities={scheduledActivities}
                       disabled={!canEditTrip || isActivityDragDisabled}

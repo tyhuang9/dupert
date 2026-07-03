@@ -1,13 +1,18 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import MockAdapter from 'axios-mock-adapter'
-import type { PropsWithChildren } from 'react'
+import type { PropsWithChildren, ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { apiClient } from '../api/client'
 import type { Activity } from '../types/activity'
 import type { Trip } from '../types/trip'
+import {
+  activityDragId,
+  sidebarDayDropId,
+  sidebarIdeasDropId,
+} from '../utils/activityDrag'
 import { TripWorkspacePage } from './TripWorkspacePage'
 
 const placeSearchMockState = vi.hoisted(() => ({
@@ -23,6 +28,86 @@ const googlePlacesMockState = vi.hoisted(() => ({
   fetchGooglePlaceTextSearch: vi.fn(),
   googlePlaceCategoryTypeForQuery: vi.fn(),
   imageUrlFromGooglePhotoName: vi.fn(),
+}))
+
+const dndMockState = vi.hoisted(() => ({
+  onDragEnd: null as null | ((event: {
+    active: { id: string }
+    over: { id: string } | null
+  }) => void),
+  onDragMove: null as null | ((event: {
+    active: { id: string }
+    delta: { x: number; y: number }
+  }) => void),
+  onDragStart: null as null | ((event: {
+    active: { id: string }
+    activatorEvent: Event
+  }) => void),
+}))
+
+vi.mock('@dnd-kit/core', () => ({
+  DndContext: ({
+    children,
+    onDragEnd,
+    onDragMove,
+    onDragStart,
+  }: {
+    children: ReactNode
+    onDragEnd?: (event: {
+      active: { id: string }
+      over: { id: string } | null
+    }) => void
+    onDragMove?: (event: {
+      active: { id: string }
+      delta: { x: number; y: number }
+    }) => void
+    onDragStart?: (event: {
+      active: { id: string }
+      activatorEvent: Event
+    }) => void
+  }) => {
+    dndMockState.onDragEnd = onDragEnd ?? null
+    dndMockState.onDragMove = onDragMove ?? null
+    dndMockState.onDragStart = onDragStart ?? null
+    return <>{children}</>
+  },
+  KeyboardSensor: vi.fn(),
+  PointerSensor: vi.fn(),
+  closestCenter: vi.fn(() => []),
+  pointerWithin: vi.fn(() => []),
+  useDroppable: vi.fn(() => ({
+    isOver: false,
+    setNodeRef: vi.fn(),
+  })),
+  useSensor: vi.fn((sensor, options) => ({ sensor, options })),
+  useSensors: vi.fn((...sensors) => sensors),
+}))
+
+vi.mock('@dnd-kit/sortable', () => ({
+  SortableContext: ({ children }: { children: ReactNode }) => <>{children}</>,
+  arrayMove: <T,>(array: T[], from: number, to: number): T[] => {
+    const next = [...array]
+    const startIndex = from < 0 ? next.length + from : from
+    if (startIndex < 0 || startIndex >= next.length) return next
+    const [item] = next.splice(startIndex, 1)
+    const endIndex = to < 0 ? next.length + to : to
+    next.splice(endIndex, 0, item)
+    return next
+  },
+  sortableKeyboardCoordinates: vi.fn(),
+  useSortable: vi.fn(() => ({
+    attributes: {},
+    isDragging: false,
+    listeners: {
+      onKeyDown: vi.fn(),
+      onPointerDown: vi.fn(),
+    },
+    setActivatorNodeRef: vi.fn(),
+    setNodeRef: vi.fn(),
+    transform: null,
+    transition: undefined,
+  })),
+  verticalListSortingStrategy: {},
 }))
 
 vi.mock('../components/TripMap', () => ({
@@ -370,6 +455,69 @@ function renderWorkspace(path: string) {
   )
 }
 
+function triggerDragEnd(activeId: string, overId: string | null) {
+  if (!dndMockState.onDragEnd) {
+    throw new Error('DndContext onDragEnd handler was not registered')
+  }
+
+  act(() => {
+    dndMockState.onDragEnd?.({
+      active: { id: activeId },
+      over: overId === null ? null : { id: overId },
+    })
+  })
+}
+
+function triggerDragStart(activeId: string, clientX = 0, clientY = 0) {
+  if (!dndMockState.onDragStart) {
+    throw new Error('DndContext onDragStart handler was not registered')
+  }
+
+  act(() => {
+    dndMockState.onDragStart?.({
+      active: { id: activeId },
+      activatorEvent: { clientX, clientY } as Event,
+    })
+  })
+}
+
+function triggerDragMove(activeId: string, delta: { x: number; y: number }) {
+  if (!dndMockState.onDragMove) {
+    throw new Error('DndContext onDragMove handler was not registered')
+  }
+
+  act(() => {
+    dndMockState.onDragMove?.({
+      active: { id: activeId },
+      delta,
+    })
+  })
+}
+
+function domRect({
+  bottom,
+  left,
+  right,
+  top,
+}: {
+  bottom: number
+  left: number
+  right: number
+  top: number
+}): DOMRect {
+  return {
+    bottom,
+    height: bottom - top,
+    left,
+    right,
+    top,
+    width: right - left,
+    x: left,
+    y: top,
+    toJSON: () => ({}),
+  } as DOMRect
+}
+
 beforeEach(() => {
   vi.stubEnv('VITE_GOOGLE_MAPS_BROWSER_KEY', 'gmaps.test')
   apiMock = new MockAdapter(apiClient)
@@ -441,6 +589,9 @@ beforeEach(() => {
   })
   googlePlacesMockState.imageUrlFromGooglePhotoName.mockReset()
   googlePlacesMockState.imageUrlFromGooglePhotoName.mockResolvedValue(null)
+  dndMockState.onDragEnd = null
+  dndMockState.onDragMove = null
+  dndMockState.onDragStart = null
 })
 
 afterEach(() => {
@@ -534,6 +685,213 @@ describe('<TripWorkspacePage>', () => {
     const selectedMapActivities = within(screen.getByTestId('selected-map-activities'))
     expect(selectedMapActivities.getByText('Tokyo Tower')).toBeInTheDocument()
     expect(selectedMapActivities.queryByText('Tsukiji sushi')).not.toBeInTheDocument()
+  })
+
+  it('jumps to the target day after dragging an activity to another day', async () => {
+    const dayTwoActivity = {
+      ...SAMPLE_ACTIVITY,
+      id: 22,
+      dayDate: '2026-05-02',
+      title: 'Tokyo Tower',
+      notes: 'Sunset slot',
+      orderIndex: 0,
+    }
+    mockWorkspace([SAMPLE_ACTIVITY, dayTwoActivity])
+    apiMock.onPost('/activities/10/move?publicId=abc234def567').reply((config) => {
+      expect(JSON.parse(config.data as string)).toEqual({
+        dayDate: '2026-05-02',
+        orderIndex: 1,
+      })
+      return [200, {
+        ...SAMPLE_ACTIVITY,
+        dayDate: '2026-05-02',
+        orderIndex: 1,
+      }]
+    })
+
+    renderWorkspace('/trips/abc234def567/d/2026-05-01')
+
+    expect(await screen.findByRole('heading', { level: 2, name: /friday, may 1/i })).toBeInTheDocument()
+
+    triggerDragEnd(activityDragId(10), sidebarDayDropId('2026-05-02'))
+
+    expect(await screen.findByRole('heading', { level: 2, name: /saturday, may 2/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /day schedule/i })).toBeInTheDocument()
+    expect(screen.getByText(/2 activities scheduled today/i)).toBeInTheDocument()
+    expect(screen.getByRole('article', { name: /expand tsukiji sushi/i })).toBeInTheDocument()
+    await waitFor(() => {
+      expect(document.activeElement).toHaveAttribute('id', 'activity-10')
+    })
+    expect(HTMLElement.prototype.scrollIntoView).toHaveBeenCalled()
+  })
+
+  it('jumps to Ideas after dragging a scheduled activity to ideas', async () => {
+    const savedIdea = {
+      ...SAMPLE_ACTIVITY,
+      id: 33,
+      dayDate: null,
+      title: 'Save teamLab',
+      orderIndex: 0,
+    }
+    mockWorkspace([SAMPLE_ACTIVITY, savedIdea])
+    apiMock.onPost('/activities/10/move?publicId=abc234def567').reply((config) => {
+      expect(JSON.parse(config.data as string)).toEqual({
+        dayDate: null,
+        orderIndex: 1,
+      })
+      return [200, {
+        ...SAMPLE_ACTIVITY,
+        dayDate: null,
+        orderIndex: 1,
+      }]
+    })
+
+    renderWorkspace('/trips/abc234def567/d/2026-05-01')
+
+    expect(await screen.findByRole('heading', { level: 2, name: /friday, may 1/i })).toBeInTheDocument()
+
+    triggerDragEnd(activityDragId(10), sidebarIdeasDropId())
+
+    expect(await screen.findByRole('heading', { level: 2, name: /^ideas$/i })).toBeInTheDocument()
+    const ideasSection = screen.getByRole('heading', { name: /saved ideas/i }).closest('section')
+    expect(ideasSection).not.toBeNull()
+    expect(within(ideasSection as HTMLElement).getByRole('article', { name: /expand tsukiji sushi/i }))
+      .toBeInTheDocument()
+    await waitFor(() => {
+      expect(document.activeElement).toHaveAttribute('id', 'activity-10')
+    })
+    expect(within(ideasSection as HTMLElement).getByRole('article', { name: /expand tsukiji sushi/i }))
+      .toHaveAttribute('aria-expanded', 'false')
+    expect(HTMLElement.prototype.scrollIntoView).toHaveBeenCalled()
+  })
+
+  it('keeps the current day after same-day drag reorder', async () => {
+    const secondDayOneActivity = {
+      ...SAMPLE_ACTIVITY,
+      id: 11,
+      title: 'Morning market',
+      orderIndex: 1,
+    }
+    mockWorkspace([SAMPLE_ACTIVITY, secondDayOneActivity])
+    apiMock.onPost('/trips/abc234def567/days/2026-05-01/order').reply((config) => {
+      expect(JSON.parse(config.data as string)).toEqual({
+        activityIds: [11, 10],
+      })
+      return [204]
+    })
+
+    renderWorkspace('/trips/abc234def567/d/2026-05-01')
+
+    expect(await screen.findByRole('heading', { level: 2, name: /friday, may 1/i })).toBeInTheDocument()
+
+    triggerDragEnd(activityDragId(11), activityDragId(10))
+
+    expect(screen.getByRole('heading', { level: 2, name: /friday, may 1/i })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { level: 2, name: /saturday, may 2/i })).not.toBeInTheDocument()
+    expect(apiMock.history.post.some((request) => request.url?.startsWith('/activities/11/move')))
+      .toBe(false)
+    expect(HTMLElement.prototype.scrollIntoView).not.toHaveBeenCalled()
+  })
+
+  it('opens sidebar calendar pick mode before scheduling a saved idea', async () => {
+    const savedIdea = {
+      ...SAMPLE_ACTIVITY,
+      id: 33,
+      dayDate: null,
+      title: 'Save teamLab',
+      orderIndex: 0,
+    }
+    mockWorkspace([savedIdea])
+
+    renderWorkspace('/trips/abc234def567/d/2026-05-01')
+
+    await screen.findByRole('heading', { level: 2, name: /friday, may 1/i })
+    await userEvent.click(screen.getByRole('button', { name: /^ideas$/i }))
+    await userEvent.click(screen.getByRole('button', { name: /^schedule$/i }))
+
+    expect(screen.getByText(/choose a day for/i)).toHaveTextContent('Choose a day for Save teamLab')
+    expect(screen.getByRole('button', { name: /cancel scheduling save teamlab/i })).toBeInTheDocument()
+    expect(apiMock.history.post.some((request) => request.url?.startsWith('/activities/33/move')))
+      .toBe(false)
+
+    await userEvent.click(screen.getByRole('button', { name: /cancel scheduling save teamlab/i }))
+    expect(screen.queryByText(/choose a day for/i)).not.toBeInTheDocument()
+  })
+
+  it('schedules a saved idea after a sidebar calendar day is selected', async () => {
+    const savedIdea = {
+      ...SAMPLE_ACTIVITY,
+      id: 33,
+      dayDate: null,
+      title: 'Save teamLab',
+      orderIndex: 0,
+    }
+    const dayTwoActivity = {
+      ...SAMPLE_ACTIVITY,
+      id: 22,
+      dayDate: '2026-05-02',
+      title: 'Tokyo Tower',
+      orderIndex: 0,
+    }
+    mockWorkspace([savedIdea, dayTwoActivity])
+    apiMock.onPost('/activities/33/move?publicId=abc234def567').reply((config) => {
+      expect(JSON.parse(config.data as string)).toEqual({
+        dayDate: '2026-05-02',
+        orderIndex: 1,
+      })
+      return [200, {
+        ...savedIdea,
+        dayDate: '2026-05-02',
+        orderIndex: 1,
+      }]
+    })
+
+    renderWorkspace('/trips/abc234def567/d/2026-05-01')
+
+    await screen.findByRole('heading', { level: 2, name: /friday, may 1/i })
+    await userEvent.click(screen.getByRole('button', { name: /^ideas$/i }))
+    await userEvent.click(screen.getByRole('button', { name: /^schedule$/i }))
+    await userEvent.click(screen.getByTitle('2026-05-02 (1 activities)'))
+
+    expect(await screen.findByRole('heading', { level: 2, name: /saturday, may 2/i })).toBeInTheDocument()
+    expect(screen.queryByText(/choose a day for/i)).not.toBeInTheDocument()
+    expect(screen.getByRole('article', { name: /expand save teamlab/i })).toBeInTheDocument()
+    await waitFor(() => {
+      expect(document.activeElement).toHaveAttribute('id', 'activity-33')
+    })
+    expect(HTMLElement.prototype.scrollIntoView).toHaveBeenCalled()
+  })
+
+  it('expands the sidebar only after the dragged card enters it', async () => {
+    mockWorkspace([SAMPLE_ACTIVITY])
+
+    renderWorkspace('/trips/abc234def567/d/2026-05-01')
+
+    await screen.findByRole('heading', { level: 2, name: /friday, may 1/i })
+    const sidebar = screen.getByLabelText('Trip workspace navigation')
+    const activityCard = document.getElementById('activity-10')
+    expect(activityCard).not.toBeNull()
+    vi.spyOn(sidebar, 'getBoundingClientRect').mockReturnValue(domRect({
+      bottom: 700,
+      left: 0,
+      right: 64,
+      top: 0,
+    }))
+    vi.spyOn(activityCard as HTMLElement, 'getBoundingClientRect').mockReturnValue(domRect({
+      bottom: 150,
+      left: 80,
+      right: 320,
+      top: 100,
+    }))
+
+    triggerDragStart(activityDragId(10), 96, 120)
+    triggerDragMove(activityDragId(10), { x: -10, y: 0 })
+
+    expect(sidebar.className).not.toMatch(/dayPanelDragExpanded/)
+
+    triggerDragMove(activityDragId(10), { x: -20, y: 0 })
+
+    expect(sidebar.className).toMatch(/dayPanelDragExpanded/)
   })
 
   it('passes only selected-day activities to the map', async () => {

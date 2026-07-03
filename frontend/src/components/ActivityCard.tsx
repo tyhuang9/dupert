@@ -187,7 +187,7 @@ export function ActivityCard({
   }
   const quickAction = activity.dayDate === null && onScheduleForSelectedDay
     ? {
-        label: 'Schedule for selected day',
+        label: 'Schedule',
         onClick: () => onScheduleForSelectedDay(activity),
       }
     : null
