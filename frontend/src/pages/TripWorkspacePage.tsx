@@ -2151,6 +2151,37 @@ export function TripWorkspacePage() {
     setFocusedActivityId(null)
   }
 
+  const jumpToActivityMoveDestination = (activityId: number, dayDate: string | null) => {
+    if (dayDate === null) {
+      openIdeasMode()
+      focusActivityOnMap(activityId)
+      scrollActivityIntoView(activityId)
+      return
+    }
+
+    if (
+      !publicId ||
+      !tripQuery.data ||
+      !dayInRange(dayDate, tripQuery.data.startDate, tripQuery.data.endDate)
+    ) {
+      return
+    }
+
+    setWorkspaceMode('days')
+    collapseSidebarAndFocusItinerary()
+    setExpandedActivityId(null)
+    clearPlaceDraft()
+    setMapLocationTarget(null)
+    setMapSearchPreview(null)
+    clearMapSearchState()
+    setPendingMapPlace(null)
+    setHoveredActivityId(null)
+    setCalendarMonth(getMonthKey(dayDate))
+    navigate(`/trips/${encodeURIComponent(publicId)}/d/${encodeURIComponent(dayDate)}`)
+    focusActivityOnMap(activityId)
+    scrollActivityIntoView(activityId)
+  }
+
   const openActivityComposer = () => {
     setWorkspaceMode('days')
     setExpandedActivityId(null)
@@ -2904,9 +2935,7 @@ export function TripWorkspacePage() {
       publicId,
       body: { dayDate: operation.dayDate, orderIndex: operation.orderIndex },
     })
-    if (operation.dayDate === null) {
-      openIdeasMode()
-    }
+    jumpToActivityMoveDestination(operation.activity.id, operation.dayDate)
   }
 
   const handleWorkspaceDragEnd = (event: DragEndEvent) => {
