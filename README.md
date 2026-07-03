@@ -42,6 +42,7 @@ cp .env.example .env
 #   LOG_EMAIL_PEPPER      (generate: openssl rand -hex 16)
 #   GOOGLE_MAPS_SERVER_API_KEY (backend server key for Places, Geocoding, Routes, and photos)
 #   VITE_GOOGLE_MAPS_BROWSER_KEY (browser key for Maps JavaScript rendering only)
+#   VITE_APP_ACCESS_PASSWORD (optional soft frontend wall password)
 #   VITE_GOOGLE_MAPS_MAP_ID   (optional Google Maps vector map id)
 #   NVD_API_KEY           (optional, strongly recommended before Dependency-Check)
 ```
@@ -168,6 +169,7 @@ trip-planner/
 | `APP_DEV_PASSWORD_RESET_SECRET` | backend | Local-only secret required by `/api/auth/dev/reset-password`; leave unset outside dev |
 | `GOOGLE_MAPS_SERVER_API_KEY` | backend | Server-side Google Maps key used by backend Places autocomplete, text/nearby search, place details, photo media, geocoding, and route calculations |
 | `VITE_GOOGLE_MAPS_BROWSER_KEY` | frontend | Public Google Maps browser key for Maps JavaScript rendering only; restrict by HTTP referrer to localhost and production origins |
+| `VITE_APP_ACCESS_PASSWORD` | frontend | Optional lightweight app-wall password; bundled into the browser, so treat it as a soft gate only |
 | `VITE_GOOGLE_MAPS_MAP_ID` | frontend | Optional Google Maps vector map id for cloud styling |
 | `VITE_DEV_PASSWORD_RESET_SECRET` | frontend | Dev-only value sent by the login-page reset helper; match `APP_DEV_PASSWORD_RESET_SECRET` locally |
 | `NVD_API_KEY` | backend/CI | Optional but strongly recommended key for reliable OWASP Dependency-Check NVD updates |
@@ -183,4 +185,5 @@ Values containing shell metacharacters (`&`, `;`, `$`, spaces) **must** be wrapp
 - Anonymous guest writes require the guest cookie plus the `X-TripPlanner-Guest-Write: 1` header, and guest/share endpoints are rate limited.
 - SSE events on `/api/trips/{publicId}/stream` contain only pointers such as event type, trip id, activity id, or day date; clients refetch the real data through authenticated API calls.
 - The browser key is only for Maps JavaScript rendering and should be HTTP-referrer restricted. Expensive or cacheable Google web-service calls run through authenticated backend endpoints using `GOOGLE_MAPS_SERVER_API_KEY`; do not expose that server key to the frontend.
+- `VITE_APP_ACCESS_PASSWORD` is a lightweight first-screen wall only. Because Vite embeds `VITE_*` values in the browser bundle, it is not a replacement for backend access control.
 - Keep `.env` local-only. Commit changes to `.env.example` when configuration requirements change.

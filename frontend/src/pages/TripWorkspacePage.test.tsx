@@ -476,7 +476,7 @@ function triggerDragStart(activeId: string, clientX = 0, clientY = 0) {
   act(() => {
     dndMockState.onDragStart?.({
       active: { id: activeId },
-      activatorEvent: { clientX, clientY } as Event,
+      activatorEvent: new MouseEvent('pointerdown', { clientX, clientY }),
     })
   })
 }
