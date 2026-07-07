@@ -4,7 +4,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -24,18 +23,13 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.core.env.Environment;
-import org.springframework.core.env.Profiles;
 import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.trip.config.AppProperties;
-import com.trip.config.RateLimitRegistry;
 import com.trip.domain.RefreshToken;
 import com.trip.domain.User;
 import com.trip.repo.ActivityRepository;
@@ -47,11 +41,10 @@ import com.trip.repo.TripMemberRepository;
 import com.trip.repo.TripRepository;
 import com.trip.repo.UserRepository;
 import com.trip.service.auth.JwtService;
+import com.trip.service.auth.EmailVerificationOperations;
 import com.trip.service.auth.RefreshTokenService;
 import com.trip.service.auth.RefreshTokenService.IssuedRefreshToken;
 import com.trip.service.auth.password.BreachedPasswordChecker;
-import com.trip.web.auth.RefreshCookie;
-import com.trip.web.dto.DevPasswordResetRequest;
 import com.trip.web.dto.LoginRequest;
 import com.trip.web.dto.RegisterRequest;
 
@@ -74,7 +67,7 @@ import com.trip.web.dto.RegisterRequest;
  * (no Postgres needed). The actual rate-limit and Spring-Security wiring is intact and
  * runs against the test profile (HSTS off, real CORS, etc.).
  */
-@SpringBootTest(properties = "app.dev-password-reset-secret=test-dev-secret")
+@SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles({"test", "dev"})
 class AuthControllerTest {
@@ -102,14 +95,8 @@ class AuthControllerTest {
     @MockitoBean
     BreachedPasswordChecker breachedPasswordChecker;
 
-    @Autowired
-    AppProperties appProperties;
-
-    @Autowired
-    RateLimitRegistry rateLimitRegistry;
-
-    @Autowired
-    RefreshCookie refreshCookie;
+    @MockitoBean
+    EmailVerificationOperations emailVerificationService;
 
     // TripAccessGuard component-scans the trip repos; test profile excludes JPA
     // auto-config so we mock them like the auth repos above.
@@ -144,30 +131,23 @@ class AuthControllerTest {
     }
 
     @Test
-    void registerHappyPathReturns200WithTokenAndSetsCookie() throws Exception {
+    void registerHappyPathReturns202VerificationRequiredWithoutTokens() throws Exception {
         when(userRepository.existsByEmailIgnoreCase("alice@example.com")).thenReturn(false);
         User saved = userWith(42L, "alice@example.com", "Alice");
         when(userRepository.save(any(User.class))).thenReturn(saved);
-        when(refreshTokenService.issueFor(any(User.class)))
-            .thenReturn(new IssuedRefreshToken("raw-refresh-token", refreshTokenEntity(42L)));
 
         mvc.perform(post("/api/auth/register")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(
                     new RegisterRequest("alice@example.com", "password1234", "Alice"))))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.accessToken").value("jwt-access-token"))
-            .andExpect(jsonPath("$.tokenType").value("Bearer"))
-            .andExpect(jsonPath("$.expiresInSeconds").value(900))
-            .andExpect(jsonPath("$.user.id").value(42))
-            .andExpect(jsonPath("$.user.email").value("alice@example.com"))
-            .andExpect(jsonPath("$.user.displayName").value("Alice"))
-            .andExpect(header().string("Set-Cookie",
-                org.hamcrest.Matchers.containsString("refresh_token=raw-refresh-token")))
-            .andExpect(header().string("Set-Cookie",
-                org.hamcrest.Matchers.containsString("HttpOnly")))
-            .andExpect(header().string("Set-Cookie",
-                org.hamcrest.Matchers.containsString("SameSite=Strict")));
+            .andExpect(status().isAccepted())
+            .andExpect(jsonPath("$.status").value("verification_required"))
+            .andExpect(jsonPath("$.email").value("alice@example.com"))
+            .andExpect(header().doesNotExist("Set-Cookie"));
+
+        verify(emailVerificationService).sendInitialVerification(saved);
+        verify(refreshTokenService, never()).issueFor(any(User.class));
+        verify(jwtService, never()).issueAccessToken(any());
     }
 
     @Test
@@ -209,14 +189,12 @@ class AuthControllerTest {
         when(userRepository.existsByEmailIgnoreCase("clean@example.com")).thenReturn(false);
         User saved = userWith(7L, "clean@example.com", "Alice");
         when(userRepository.save(any(User.class))).thenReturn(saved);
-        when(refreshTokenService.issueFor(any(User.class)))
-            .thenReturn(new IssuedRefreshToken("rt", refreshTokenEntity(7L)));
 
         mvc.perform(post("/api/auth/register")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(
                     new RegisterRequest("clean@example.com", "password1234", "Alice\r"))))
-            .andExpect(status().isOk());
+            .andExpect(status().isAccepted());
 
         ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
         verify(userRepository).save(captor.capture());
@@ -249,15 +227,14 @@ class AuthControllerTest {
         when(breachedPasswordChecker.isBreached("password1234")).thenReturn(false);
         User saved = userWith(99L, "ok@example.com", "Ok");
         when(userRepository.save(any(User.class))).thenReturn(saved);
-        when(refreshTokenService.issueFor(any(User.class)))
-            .thenReturn(new IssuedRefreshToken("rt", refreshTokenEntity(99L)));
 
         mvc.perform(post("/api/auth/register")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(
                     new RegisterRequest("ok@example.com", "password1234", "Ok"))))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.user.id").value(99));
+            .andExpect(status().isAccepted())
+            .andExpect(jsonPath("$.status").value("verification_required"))
+            .andExpect(jsonPath("$.email").value("ok@example.com"));
     }
 
     @Test
@@ -289,6 +266,26 @@ class AuthControllerTest {
             .andExpect(jsonPath("$.user.id").value(11))
             .andExpect(header().string("Set-Cookie",
                 org.hamcrest.Matchers.containsString("refresh_token=login-refresh-tok")));
+    }
+
+    @Test
+    void loginUnverifiedEmailReturns403WithoutIssuingTokens() throws Exception {
+        User user = unverifiedUserWith(12L, "pending@example.com", "Pending");
+        user.setPasswordHash("real-hash");
+        when(userRepository.findByEmailIgnoreCase("pending@example.com"))
+            .thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("password1234", "real-hash")).thenReturn(true);
+
+        mvc.perform(post("/api/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(
+                    new LoginRequest("pending@example.com", "password1234"))))
+            .andExpect(status().isForbidden())
+            .andExpect(jsonPath("$.error").value("email_unverified"))
+            .andExpect(header().doesNotExist("Set-Cookie"));
+
+        verify(refreshTokenService, never()).issueFor(any(User.class));
+        verify(jwtService, never()).issueAccessToken(any());
     }
 
     @Test
@@ -349,92 +346,13 @@ class AuthControllerTest {
         verify(userRepository, times(1)).findByEmailIgnoreCase("alice@example.com");
     }
 
-    @Test
-    void devResetPasswordUpdatesHashAndRevokesRefreshTokens() throws Exception {
-        User user = userWith(55L, "alice@example.com", "Alice");
-        user.setPasswordHash("old-hash");
-        when(userRepository.findByEmailIgnoreCase("alice@example.com"))
-            .thenReturn(Optional.of(user));
-        when(passwordEncoder.encode("new-password-123")).thenReturn("new-hash");
-
-        mvc.perform(post("/api/auth/dev/reset-password")
-                .header("X-TripPlanner-Dev-Reset", "test-dev-secret")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(
-                    new DevPasswordResetRequest("ALICE@Example.com", "new-password-123"))))
-            .andExpect(status().isNoContent());
-
-        org.assertj.core.api.Assertions.assertThat(user.getPasswordHash())
-            .isEqualTo("new-hash");
-        verify(userRepository).save(user);
-        verify(refreshTokenService).revokeAllForUser(55L);
-    }
-
-    @Test
-    void devResetPasswordUnknownEmailReturns404WithoutSideEffects() throws Exception {
-        when(userRepository.findByEmailIgnoreCase("missing@example.com"))
-            .thenReturn(Optional.empty());
-
-        mvc.perform(post("/api/auth/dev/reset-password")
-                .header("X-TripPlanner-Dev-Reset", "test-dev-secret")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(
-                    new DevPasswordResetRequest("missing@example.com", "new-password-123"))))
-            .andExpect(status().isNotFound())
-            .andExpect(jsonPath("$.error").value("user_not_found"));
-
-        verify(passwordEncoder, never()).encode("new-password-123");
-        verify(userRepository, never()).save(any(User.class));
-        verify(refreshTokenService, never()).revokeAllForUser(any());
-    }
-
-    @Test
-    void devResetPasswordWithoutSecretHeaderReturns404WithoutSideEffects() throws Exception {
-        mvc.perform(post("/api/auth/dev/reset-password")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(
-                    new DevPasswordResetRequest("alice@example.com", "new-password-123"))))
-            .andExpect(status().isNotFound())
-            .andExpect(jsonPath("$.error").value("not_found"));
-
-        verify(userRepository, never()).findByEmailIgnoreCase(anyString());
-        verify(passwordEncoder, never()).encode("new-password-123");
-        verify(refreshTokenService, never()).revokeAllForUser(any());
-    }
-
-    @Test
-    void devResetPasswordReturns404WhenProdProfileIsActive() {
-        Environment environment = mock(Environment.class);
-        when(environment.acceptsProfiles(any(Profiles.class))).thenReturn(false);
-        AuthController controller = new AuthController(
-            userRepository,
-            passwordEncoder,
-            jwtService,
-            refreshTokenService,
-            refreshCookie,
-            breachedPasswordChecker,
-            mock(com.trip.service.auth.AccountService.class),
-            mock(com.trip.service.auth.PasswordResetService.class),
-            rateLimitRegistry,
-            appProperties,
-            environment
-        );
-
-        ResponseEntity<?> response = controller.devResetPassword(
-            new DevPasswordResetRequest("alice@example.com", "new-password-123"),
-            new org.springframework.mock.web.MockHttpServletRequest());
-
-        org.assertj.core.api.Assertions.assertThat(response.getStatusCode())
-            .isEqualTo(org.springframework.http.HttpStatus.NOT_FOUND);
-        verify(userRepository, never()).findByEmailIgnoreCase(anyString());
-    }
-
     // ------------------------------------------------------------------
     // helpers
     // ------------------------------------------------------------------
 
     private static User userWith(long id, String email, String displayName) {
         User u = new User(email, "ignored-hash", displayName);
+        u.markEmailVerified(OffsetDateTime.now());
         try {
             var f = User.class.getDeclaredField("id");
             f.setAccessible(true);
@@ -443,6 +361,12 @@ class AuthControllerTest {
             throw new RuntimeException(e);
         }
         return u;
+    }
+
+    private static User unverifiedUserWith(long id, String email, String displayName) {
+        User user = userWith(id, email, displayName);
+        user.setEmailVerifiedAt(null);
+        return user;
     }
 
     private static RefreshToken refreshTokenEntity(long userId) {

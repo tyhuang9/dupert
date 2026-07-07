@@ -15,6 +15,9 @@ public class AppProperties {
     /** Comma-separated list of exact origins allowed by CORS. */
     private String frontendOrigin = "";
 
+    /** Public frontend origin used to build links sent in transactional emails. */
+    private String publicFrontendUrl = "";
+
     /** Hex-encoded HS256 secret; must decode to at least 32 bytes. */
     private String jwtSecret = "";
 
@@ -24,8 +27,11 @@ public class AppProperties {
     /** Cookie-related toggles. */
     private Cookies cookies = new Cookies();
 
-    /** Secret required by the local-only dev password reset helper. */
-    private String devPasswordResetSecret = "";
+    /** Enables open signup. Prod should keep this true only when email is configured. */
+    private boolean signupEnabled = true;
+
+    /** Transactional auth email configuration. */
+    private Email email = new Email();
 
     /** Backend-only Google Maps API key for server-side Google Maps web service calls. */
     private String googleMapsServerApiKey = "";
@@ -56,6 +62,14 @@ public class AppProperties {
         this.frontendOrigin = frontendOrigin == null ? "" : frontendOrigin;
     }
 
+    public String getPublicFrontendUrl() {
+        return publicFrontendUrl;
+    }
+
+    public void setPublicFrontendUrl(String publicFrontendUrl) {
+        this.publicFrontendUrl = publicFrontendUrl == null ? "" : publicFrontendUrl;
+    }
+
     public String getJwtSecret() {
         return jwtSecret;
     }
@@ -80,12 +94,20 @@ public class AppProperties {
         this.cookies = cookies == null ? new Cookies() : cookies;
     }
 
-    public String getDevPasswordResetSecret() {
-        return devPasswordResetSecret;
+    public boolean isSignupEnabled() {
+        return signupEnabled;
     }
 
-    public void setDevPasswordResetSecret(String devPasswordResetSecret) {
-        this.devPasswordResetSecret = devPasswordResetSecret == null ? "" : devPasswordResetSecret;
+    public void setSignupEnabled(boolean signupEnabled) {
+        this.signupEnabled = signupEnabled;
+    }
+
+    public Email getEmail() {
+        return email;
+    }
+
+    public void setEmail(Email email) {
+        this.email = email == null ? new Email() : email;
     }
 
     public String getGoogleMapsServerApiKey() {
@@ -144,6 +166,37 @@ public class AppProperties {
 
         public void setBreachThreshold(int breachThreshold) {
             this.breachThreshold = breachThreshold;
+        }
+    }
+
+    /** Transactional auth email provider configuration. */
+    public static class Email {
+        private String brevoApiKey = "";
+        private String fromEmail = "";
+        private String fromName = "TripPlanner";
+
+        public String getBrevoApiKey() {
+            return brevoApiKey;
+        }
+
+        public void setBrevoApiKey(String brevoApiKey) {
+            this.brevoApiKey = brevoApiKey == null ? "" : brevoApiKey;
+        }
+
+        public String getFromEmail() {
+            return fromEmail;
+        }
+
+        public void setFromEmail(String fromEmail) {
+            this.fromEmail = fromEmail == null ? "" : fromEmail;
+        }
+
+        public String getFromName() {
+            return fromName;
+        }
+
+        public void setFromName(String fromName) {
+            this.fromName = fromName == null || fromName.isBlank() ? "TripPlanner" : fromName;
         }
     }
 

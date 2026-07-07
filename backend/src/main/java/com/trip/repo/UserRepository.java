@@ -1,8 +1,11 @@
 package com.trip.repo;
 
+import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -33,4 +36,11 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     @Query("SELECT (COUNT(u) > 0) FROM User u WHERE LOWER(u.email) = :email")
     boolean existsByEmailIgnoreCase(@Param("email") String email);
+
+    @Query("SELECT u FROM User u WHERE LOWER(u.email) LIKE CONCAT('%', :suffix) ORDER BY u.email")
+    List<User> findByEmailEndingWithIgnoreCaseOrderByEmail(@Param("suffix") String suffix);
+
+    @Modifying
+    @Query("DELETE FROM User u WHERE u.emailVerifiedAt IS NULL AND u.createdAt < :before")
+    int deleteUnverifiedCreatedBefore(@Param("before") OffsetDateTime before);
 }

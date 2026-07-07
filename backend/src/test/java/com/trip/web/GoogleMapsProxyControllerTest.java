@@ -33,6 +33,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.trip.repo.ActivityRepository;
 import com.trip.repo.DayNoteRepository;
+import com.trip.repo.EmailVerificationTokenRepository;
 import com.trip.repo.GoogleApiCacheRepository;
 import com.trip.repo.GuestSessionRepository;
 import com.trip.repo.PasswordResetTokenRepository;
@@ -50,7 +51,8 @@ import com.trip.service.place.GooglePlaceDetailsClient;
 @SpringBootTest(properties = {
     "app.frontend-origin=http://localhost:3000",
     "app.jwt-secret=00000000000000000000000000000000000000000000000000000000000000aa",
-    "app.log-email-pepper=000000000000000000000000000000aa"
+    "app.log-email-pepper=000000000000000000000000000000aa",
+    "app.signup-enabled=false"
 }, classes = com.trip.Application.class)
 @AutoConfigureMockMvc
 @ActiveProfiles("google-proxy-test")
@@ -96,6 +98,9 @@ class GoogleMapsProxyControllerTest {
 
     @MockitoBean
     PasswordResetTokenRepository passwordResetTokenRepository;
+
+    @MockitoBean
+    EmailVerificationTokenRepository emailVerificationTokenRepository;
 
     @MockitoBean
     ShareLinkRepository shareLinkRepository;

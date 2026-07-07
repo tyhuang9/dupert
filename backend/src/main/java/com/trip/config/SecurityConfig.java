@@ -2,6 +2,8 @@ package com.trip.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.env.Environment;
+import org.springframework.core.env.Profiles;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
@@ -44,8 +46,10 @@ public class SecurityConfig {
     public SecurityFilterChain filterChain(HttpSecurity http,
                                            UrlBasedCorsConfigurationSource corsSource,
                                            JwtAuthenticationFilter jwtAuthFilter,
-                                           GuestAuthenticationFilter guestAuthenticationFilter)
+                                           GuestAuthenticationFilter guestAuthenticationFilter,
+                                           Environment environment)
             throws Exception {
+        boolean localProfile = environment.acceptsProfiles(Profiles.of("local"));
 
         http
             .cors(cors -> cors.configurationSource(corsSource))
@@ -62,31 +66,34 @@ public class SecurityConfig {
             // picked up automatically because they're @Component + @Order annotated.
             .exceptionHandling(ex -> ex
                 .authenticationEntryPoint(new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED)))
-            .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/actuator/health").permitAll()
-                .requestMatchers("/actuator/health/**").permitAll()
-                .requestMatchers("/actuator/info").permitAll()
-                .requestMatchers("/error").permitAll()
+            .authorizeHttpRequests(auth -> {
+                auth.requestMatchers("/actuator/health").permitAll();
+                auth.requestMatchers("/actuator/health/**").permitAll();
+                auth.requestMatchers("/error").permitAll();
                 // Auth surface — split intentionally. register/login/refresh/logout
                 // never carry a bearer (refresh and logout rely on the refresh cookie;
                 // register and login mint the first bearer). /api/auth/me requires the
                 // bearer the client just received.
-                .requestMatchers(HttpMethod.POST, "/api/auth/register").permitAll()
-                .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
-                .requestMatchers(HttpMethod.POST, "/api/auth/dev/reset-password").permitAll()
-                .requestMatchers(HttpMethod.POST, "/api/auth/password-reset/request").permitAll()
-                .requestMatchers(HttpMethod.POST, "/api/auth/password-reset/confirm").permitAll()
-                .requestMatchers(HttpMethod.POST, "/api/auth/refresh").permitAll()
-                .requestMatchers(HttpMethod.POST, "/api/auth/logout").permitAll()
-                .requestMatchers("/api/auth/me").authenticated()
+                auth.requestMatchers(HttpMethod.POST, "/api/auth/register").permitAll();
+                auth.requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll();
+                auth.requestMatchers(HttpMethod.POST, "/api/auth/password-reset/request").permitAll();
+                auth.requestMatchers(HttpMethod.POST, "/api/auth/password-reset/confirm").permitAll();
+                auth.requestMatchers(HttpMethod.POST, "/api/auth/email/verify").permitAll();
+                auth.requestMatchers(HttpMethod.POST, "/api/auth/email/resend").permitAll();
+                auth.requestMatchers(HttpMethod.POST, "/api/auth/refresh").permitAll();
+                auth.requestMatchers(HttpMethod.POST, "/api/auth/logout").permitAll();
+                if (localProfile) {
+                    auth.requestMatchers("/api/dev/**").permitAll();
+                }
+                auth.requestMatchers("/api/auth/me").authenticated();
                 // Share-link landing pages — token in URL, no bearer expected.
-                .requestMatchers("/api/share/*/**").permitAll()
+                auth.requestMatchers("/api/share/*/**").permitAll();
                 // Everything else under /api/** requires a valid bearer.
-                .requestMatchers("/api/**").authenticated()
+                auth.requestMatchers("/api/**").authenticated();
                 // Non-/api paths (static assets, etc.) are not served by this backend,
                 // but we deny-by-default as a belt-and-suspenders measure.
-                .anyRequest().denyAll()
-            );
+                auth.anyRequest().denyAll();
+            });
 
         return http.build();
     }

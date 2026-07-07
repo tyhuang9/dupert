@@ -88,6 +88,21 @@ public class RateLimitRegistry {
             .addLimit(Bandwidth.builder().capacity(10).refillGreedy(10, Duration.ofMinutes(1)).build())
             .build()),
 
+        /** 10 email verification submissions per minute per IP. */
+        AUTH_EMAIL_VERIFICATION_VERIFY(() -> Bucket.builder()
+            .addLimit(Bandwidth.builder().capacity(10).refillGreedy(10, Duration.ofMinutes(1)).build())
+            .build()),
+
+        /** 10 email verification resend requests per minute per IP. */
+        AUTH_EMAIL_VERIFICATION_RESEND(() -> Bucket.builder()
+            .addLimit(Bandwidth.builder().capacity(10).refillGreedy(10, Duration.ofMinutes(1)).build())
+            .build()),
+
+        /** 5 email verification resend requests per hour per {@code (ip, normalizedEmail)}. */
+        AUTH_EMAIL_VERIFICATION_RESEND_PER_EMAIL(() -> Bucket.builder()
+            .addLimit(Bandwidth.builder().capacity(5).refillGreedy(5, Duration.ofHours(1)).build())
+            .build()),
+
         /** 60 refresh attempts per minute per IP. */
         AUTH_REFRESH(() -> Bucket.builder()
             .addLimit(Bandwidth.builder().capacity(60).refillGreedy(60, Duration.ofMinutes(1)).build())
@@ -98,9 +113,14 @@ public class RateLimitRegistry {
             .addLimit(Bandwidth.builder().capacity(120).refillGreedy(120, Duration.ofMinutes(1)).build())
             .build()),
 
-        /** 5 dev password reset attempts per minute per IP. */
-        AUTH_DEV_RESET_PASSWORD(() -> Bucket.builder()
-            .addLimit(Bandwidth.builder().capacity(5).refillGreedy(5, Duration.ofMinutes(1)).build())
+        /** 60 local dev login-as attempts per minute per IP. Local profile only. */
+        AUTH_DEV_LOGIN_AS(() -> Bucket.builder()
+            .addLimit(Bandwidth.builder().capacity(60).refillGreedy(60, Duration.ofMinutes(1)).build())
+            .build()),
+
+        /** 60 local dev user-management attempts per minute per IP. Local profile only. */
+        AUTH_DEV_USERS(() -> Bucket.builder()
+            .addLimit(Bandwidth.builder().capacity(60).refillGreedy(60, Duration.ofMinutes(1)).build())
             .build()),
 
         /** 10 share-accept / guest-join attempts per minute per IP before token validation. */

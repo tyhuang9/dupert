@@ -1,5 +1,7 @@
 package com.trip.web.dto;
 
+import com.trip.domain.User;
+
 /**
  * Trimmed view of a user, safe to return in any authenticated response. Never includes
  * the password hash or internal audit fields.
@@ -12,6 +14,14 @@ package com.trip.web.dto;
 public record UserSummary(
     long id,
     String email,
-    String displayName
+    String displayName,
+    boolean emailVerified
 ) {
+    public static UserSummary from(User user) {
+        return new UserSummary(
+            user.getId(),
+            user.getEmail(),
+            user.getDisplayName(),
+            user.isEmailVerified());
+    }
 }

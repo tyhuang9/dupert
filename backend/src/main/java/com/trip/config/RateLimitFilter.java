@@ -53,9 +53,13 @@ public class RateLimitFilter extends OncePerRequestFilter {
     private static final String REGISTER_PATH = "/api/auth/register";
     private static final String PASSWORD_RESET_REQUEST_PATH = "/api/auth/password-reset/request";
     private static final String PASSWORD_RESET_CONFIRM_PATH = "/api/auth/password-reset/confirm";
+    private static final String EMAIL_VERIFICATION_VERIFY_PATH = "/api/auth/email/verify";
+    private static final String EMAIL_VERIFICATION_RESEND_PATH = "/api/auth/email/resend";
     private static final String REFRESH_PATH = "/api/auth/refresh";
     private static final String LOGOUT_PATH = "/api/auth/logout";
-    private static final String DEV_RESET_PASSWORD_PATH = "/api/auth/dev/reset-password";
+    private static final String DEV_LOGIN_AS_PATH = "/api/dev/auth/login-as";
+    private static final String DEV_USERS_PATH = "/api/dev/users";
+    private static final String DEV_USERS_RESEED_PATH = "/api/dev/users/reseed";
     private static final String SHARE_PATH_PREFIX = "/api/share/";
     private static final String PLACES_PATH_PREFIX = "/api/places/";
     private static final String MAPS_PATH_PREFIX = "/api/maps/";
@@ -104,6 +108,14 @@ public class RateLimitFilter extends OncePerRequestFilter {
                 if (!tryConsume(response, RateLimitRegistry.Named.AUTH_PASSWORD_RESET_CONFIRM, clientIp)) {
                     return;
                 }
+            } else if (EMAIL_VERIFICATION_VERIFY_PATH.equals(path)) {
+                if (!tryConsume(response, RateLimitRegistry.Named.AUTH_EMAIL_VERIFICATION_VERIFY, clientIp)) {
+                    return;
+                }
+            } else if (EMAIL_VERIFICATION_RESEND_PATH.equals(path)) {
+                if (!tryConsume(response, RateLimitRegistry.Named.AUTH_EMAIL_VERIFICATION_RESEND, clientIp)) {
+                    return;
+                }
             } else if (REFRESH_PATH.equals(path)) {
                 if (!tryConsume(response, RateLimitRegistry.Named.AUTH_REFRESH, clientIp)) {
                     return;
@@ -112,8 +124,12 @@ public class RateLimitFilter extends OncePerRequestFilter {
                 if (!tryConsume(response, RateLimitRegistry.Named.AUTH_LOGOUT, clientIp)) {
                     return;
                 }
-            } else if (DEV_RESET_PASSWORD_PATH.equals(path)) {
-                if (!tryConsume(response, RateLimitRegistry.Named.AUTH_DEV_RESET_PASSWORD, clientIp)) {
+            } else if (DEV_LOGIN_AS_PATH.equals(path)) {
+                if (!tryConsume(response, RateLimitRegistry.Named.AUTH_DEV_LOGIN_AS, clientIp)) {
+                    return;
+                }
+            } else if (DEV_USERS_PATH.equals(path) || DEV_USERS_RESEED_PATH.equals(path)) {
+                if (!tryConsume(response, RateLimitRegistry.Named.AUTH_DEV_USERS, clientIp)) {
                     return;
                 }
             } else if (isShareAcceptPath(path)) {

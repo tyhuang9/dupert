@@ -28,7 +28,7 @@ import com.trip.domain.PasswordResetToken;
 import com.trip.domain.User;
 import com.trip.repo.PasswordResetTokenRepository;
 import com.trip.repo.UserRepository;
-import com.trip.service.auth.PasswordResetEmailSender.PasswordResetEmail;
+import com.trip.service.auth.AuthEmailSender.PasswordResetEmail;
 import com.trip.service.auth.password.BreachedPasswordChecker;
 import com.trip.web.exception.ValidationException;
 
@@ -53,7 +53,7 @@ class PasswordResetServiceTest {
     BreachedPasswordChecker breachedPasswordChecker;
 
     @Mock
-    PasswordResetEmailSender emailSender;
+    AuthEmailSender emailSender;
 
     PasswordResetService service;
 

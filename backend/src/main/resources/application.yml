@@ -2,7 +2,7 @@ spring:
   application:
     name: trip-planner-backend
   profiles:
-    default: dev
+    default: local
   datasource:
     # DATABASE_URL is expected in the format postgresql://USER:PASSWORD@HOST/DB?... (as Neon provides).
     # Spring/JDBC wants `jdbc:postgresql://...` with user/password pulled into separate props; the
@@ -47,6 +47,8 @@ server:
 app:
   # CORS allowlist. Comma-separated list of exact origins. Required.
   frontend-origin: ${ALLOWED_ORIGINS:}
+  # Public browser origin used when composing email links.
+  public-frontend-url: ${APP_PUBLIC_FRONTEND_URL:}
   # JWT HS256 secret. Required — must be >= 32 bytes after decode. No default in prod.
   jwt-secret: ${JWT_SECRET:}
   # Hex pepper used to SHA-256-hash emails before they end up in logs.
@@ -55,8 +57,11 @@ app:
   # so dev browsers (http://localhost) actually receive the cookie.
   cookies:
     secure: false
-  # Local-only helper for POST /api/auth/dev/reset-password. Empty disables the route.
-  dev-password-reset-secret: ${APP_DEV_PASSWORD_RESET_SECRET:}
+  signup-enabled: ${SIGNUP_ENABLED:true}
+  email:
+    brevo-api-key: ${BREVO_API_KEY:}
+    from-email: ${APP_EMAIL_FROM_EMAIL:}
+    from-name: ${APP_EMAIL_FROM_NAME:TripPlanner}
   # Backend-local Google Maps API key for Places, Geocoding, and Routes requests.
   google-maps-server-api-key: ${GOOGLE_MAPS_API_KEY:}
   place-details:
@@ -69,7 +74,7 @@ app:
     photo-ttl: ${GOOGLE_MAPS_PHOTO_TTL:1d}
   # Honor X-Forwarded-For for client-IP resolution. Default false; flip to true only
   # behind a proxy that overwrites (not appends) the header (Fly, Vercel).
-  trust-proxy: false
+  trust-proxy: ${APP_TRUST_PROXY:false}
 
 # Security knobs (toggled on in prod, off in dev).
 secure:
@@ -80,7 +85,7 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health
   endpoint:
     health:
       probes:

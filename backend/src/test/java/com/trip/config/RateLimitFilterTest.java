@@ -128,6 +128,16 @@ class RateLimitFilterTest {
     }
 
     @Test
+    void authEmailVerificationVerifyPathIsRateLimitedByClientIp() throws Exception {
+        assertPostPathLimited("/api/auth/email/verify", 10);
+    }
+
+    @Test
+    void authEmailVerificationResendPathIsRateLimitedByClientIp() throws Exception {
+        assertPostPathLimited("/api/auth/email/resend", 10);
+    }
+
+    @Test
     void authRefreshPathIsRateLimitedByClientIp() throws Exception {
         assertPostPathLimited("/api/auth/refresh", 60);
     }
@@ -138,8 +148,18 @@ class RateLimitFilterTest {
     }
 
     @Test
-    void authDevResetPasswordPathIsRateLimitedByClientIp() throws Exception {
-        assertPostPathLimited("/api/auth/dev/reset-password", 5);
+    void localDevLoginAsPathIsRateLimitedByClientIp() throws Exception {
+        assertPostPathLimited("/api/dev/auth/login-as", 60);
+    }
+
+    @Test
+    void localDevUsersPathIsRateLimitedByClientIp() throws Exception {
+        assertPostPathLimited("/api/dev/users", 60);
+    }
+
+    @Test
+    void localDevUsersReseedPathIsRateLimitedByClientIp() throws Exception {
+        assertPostPathLimited("/api/dev/users/reseed", 60);
     }
 
     @Test

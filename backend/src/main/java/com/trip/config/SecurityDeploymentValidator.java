@@ -1,6 +1,8 @@
 package com.trip.config;
 
 import java.net.URI;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Locale;
 
 import org.springframework.boot.ApplicationArguments;
@@ -29,12 +31,13 @@ public class SecurityDeploymentValidator implements ApplicationRunner {
 
     @Override
     public void run(ApplicationArguments args) {
-        if (!requiresTransportHardening()) {
-            return;
+        boolean publicDeployment = requiresTransportHardening();
+        if (publicDeployment) {
+            validateCorsOrigins();
+            validateTransportHardening();
         }
-        if (!appProperties.getCookies().isSecure() || !secureProperties.getHsts().isEnabled()) {
-            throw new IllegalStateException(
-                "Production-like deployments require app.cookies.secure=true and secure.hsts.enabled=true");
+        if (requiresEmailConfig()) {
+            validateEmailConfig();
         }
     }
 
@@ -42,16 +45,69 @@ public class SecurityDeploymentValidator implements ApplicationRunner {
         if (environment.acceptsProfiles(Profiles.of("prod"))) {
             return true;
         }
-        String origins = appProperties.getFrontendOrigin();
-        if (origins == null || origins.isBlank()) {
+        List<String> origins = configuredOrigins();
+        if (origins.isEmpty()) {
             return false;
         }
-        for (String origin : origins.split(",")) {
-            if (!origin.isBlank() && !isLocalOrigin(origin.strip())) {
+        for (String origin : origins) {
+            if (!isLocalOrigin(origin)) {
                 return true;
             }
         }
         return false;
+    }
+
+    private void validateTransportHardening() {
+        if (!appProperties.getCookies().isSecure() || !secureProperties.getHsts().isEnabled()) {
+            throw new IllegalStateException(
+                "Production-like deployments require app.cookies.secure=true and secure.hsts.enabled=true");
+        }
+        if (!appProperties.isTrustProxy()) {
+            throw new IllegalStateException(
+                "Production-like deployments require app.trust-proxy=true behind the platform proxy");
+        }
+    }
+
+    private void validateCorsOrigins() {
+        List<String> origins = configuredOrigins();
+        boolean hasWildcard = origins.stream().anyMatch(origin -> origin.contains("*"));
+        if (hasWildcard) {
+            throw new IllegalStateException(
+                "Production-like deployments require exact ALLOWED_ORIGINS values; wildcards are not allowed");
+        }
+        if (environment.acceptsProfiles(Profiles.of("prod")) && origins.isEmpty()) {
+            throw new IllegalStateException(
+                "Production deployments require ALLOWED_ORIGINS to be set to the exact frontend origin");
+        }
+    }
+
+    boolean requiresEmailConfig() {
+        return appProperties.isSignupEnabled()
+            && !environment.acceptsProfiles(Profiles.of("local", "test"));
+    }
+
+    private void validateEmailConfig() {
+        if (appProperties.getPublicFrontendUrl().isBlank()) {
+            throw new IllegalStateException(
+                "Signup requires APP_PUBLIC_FRONTEND_URL so verification and reset links can be built");
+        }
+        if (appProperties.getEmail().getBrevoApiKey().isBlank()) {
+            throw new IllegalStateException("Signup requires BREVO_API_KEY");
+        }
+        if (appProperties.getEmail().getFromEmail().isBlank()) {
+            throw new IllegalStateException("Signup requires APP_EMAIL_FROM_EMAIL");
+        }
+    }
+
+    private List<String> configuredOrigins() {
+        String origins = appProperties.getFrontendOrigin();
+        if (origins == null || origins.isBlank()) {
+            return List.of();
+        }
+        return Arrays.stream(origins.split(","))
+            .map(String::strip)
+            .filter(origin -> !origin.isBlank())
+            .toList();
     }
 
     private static boolean isLocalOrigin(String origin) {

@@ -21,7 +21,7 @@ import com.trip.domain.PasswordResetToken;
 import com.trip.domain.User;
 import com.trip.repo.PasswordResetTokenRepository;
 import com.trip.repo.UserRepository;
-import com.trip.service.auth.PasswordResetEmailSender.PasswordResetEmail;
+import com.trip.service.auth.AuthEmailSender.PasswordResetEmail;
 import com.trip.service.auth.password.BreachedPasswordChecker;
 import com.trip.web.exception.ValidationException;
 
@@ -39,7 +39,7 @@ public class PasswordResetService {
     private final PasswordEncoder passwordEncoder;
     private final RefreshTokenService refreshTokenService;
     private final BreachedPasswordChecker breachedPasswordChecker;
-    private final PasswordResetEmailSender emailSender;
+    private final AuthEmailSender emailSender;
     private final SecureRandom random;
 
     @Autowired
@@ -48,7 +48,7 @@ public class PasswordResetService {
                                 PasswordEncoder passwordEncoder,
                                 RefreshTokenService refreshTokenService,
                                 BreachedPasswordChecker breachedPasswordChecker,
-                                PasswordResetEmailSender emailSender) {
+                                AuthEmailSender emailSender) {
         this(passwordResetTokenRepository, userRepository, passwordEncoder, refreshTokenService,
             breachedPasswordChecker, emailSender, new SecureRandom());
     }
@@ -58,7 +58,7 @@ public class PasswordResetService {
                          PasswordEncoder passwordEncoder,
                          RefreshTokenService refreshTokenService,
                          BreachedPasswordChecker breachedPasswordChecker,
-                         PasswordResetEmailSender emailSender,
+                         AuthEmailSender emailSender,
                          SecureRandom random) {
         this.passwordResetTokenRepository = passwordResetTokenRepository;
         this.userRepository = userRepository;

@@ -65,6 +65,6 @@ public class AccountService {
     }
 
     private static UserSummary summary(User user) {
-        return new UserSummary(user.getId(), user.getEmail(), user.getDisplayName());
+        return UserSummary.from(user);
     }
 }

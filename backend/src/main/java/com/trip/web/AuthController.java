@@ -1,7 +1,6 @@
 package com.trip.web;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
+import java.time.OffsetDateTime;
 import java.util.Map;
 import java.util.Optional;
 
@@ -29,7 +28,9 @@ import com.trip.config.RateLimitRegistry;
 import com.trip.domain.User;
 import com.trip.repo.UserRepository;
 import com.trip.service.auth.AccountService;
+import com.trip.service.auth.AuthTokenService;
 import com.trip.service.auth.EmailNormalizer;
+import com.trip.service.auth.EmailVerificationOperations;
 import com.trip.service.auth.JwtService;
 import com.trip.service.auth.PasswordResetService;
 import com.trip.service.auth.RefreshTokenService;
@@ -37,13 +38,14 @@ import com.trip.service.auth.RefreshTokenService.IssuedRefreshToken;
 import com.trip.service.auth.password.BreachedPasswordChecker;
 import com.trip.web.auth.DisplayNameSanitizer;
 import com.trip.web.auth.RefreshCookie;
-import com.trip.web.dto.AuthResponse;
 import com.trip.web.dto.ChangePasswordRequest;
-import com.trip.web.dto.DevPasswordResetRequest;
+import com.trip.web.dto.EmailVerificationRequest;
+import com.trip.web.dto.EmailVerificationResendRequest;
 import com.trip.web.dto.LoginRequest;
 import com.trip.web.dto.PasswordResetConfirmRequest;
 import com.trip.web.dto.PasswordResetRequest;
 import com.trip.web.dto.RegisterRequest;
+import com.trip.web.dto.RegisterResponse;
 import com.trip.web.dto.UpdateProfileRequest;
 import com.trip.web.dto.UserSummary;
 
@@ -79,7 +81,6 @@ public class AuthController {
 
     private static final String UNAUTHENTICATED_BODY_KEY = "error";
     private static final String UNAUTHENTICATED_BODY_VALUE = "unauthenticated";
-    private static final String DEV_RESET_SECRET_HEADER = "X-TripPlanner-Dev-Reset";
 
     /**
      * Static dummy bcrypt hash used to keep login wall-clock time uniform when the
@@ -93,22 +94,26 @@ public class AuthController {
     private final JwtService jwtService;
     private final RefreshTokenService refreshTokenService;
     private final RefreshCookie refreshCookie;
+    private final AuthTokenService authTokenService;
     private final BreachedPasswordChecker breachedPasswordChecker;
     private final AccountService accountService;
     private final PasswordResetService passwordResetService;
+    private final EmailVerificationOperations emailVerificationService;
     private final RateLimitRegistry rateLimitRegistry;
     private final boolean trustProxy;
-    private final boolean devPasswordResetEnabled;
-    private final String devPasswordResetSecret;
+    private final boolean localProfile;
+    private final boolean signupEnabled;
 
     public AuthController(UserRepository userRepository,
                           PasswordEncoder passwordEncoder,
                           JwtService jwtService,
                           RefreshTokenService refreshTokenService,
                           RefreshCookie refreshCookie,
+                          AuthTokenService authTokenService,
                           BreachedPasswordChecker breachedPasswordChecker,
                           AccountService accountService,
                           PasswordResetService passwordResetService,
+                          EmailVerificationOperations emailVerificationService,
                           RateLimitRegistry rateLimitRegistry,
                           AppProperties appProperties,
                           Environment environment) {
@@ -117,21 +122,25 @@ public class AuthController {
         this.jwtService = jwtService;
         this.refreshTokenService = refreshTokenService;
         this.refreshCookie = refreshCookie;
+        this.authTokenService = authTokenService;
         this.breachedPasswordChecker = breachedPasswordChecker;
         this.accountService = accountService;
         this.passwordResetService = passwordResetService;
+        this.emailVerificationService = emailVerificationService;
         this.rateLimitRegistry = rateLimitRegistry;
         this.trustProxy = appProperties.isTrustProxy();
-        this.devPasswordResetSecret = appProperties.getDevPasswordResetSecret();
-        this.devPasswordResetEnabled = environment.acceptsProfiles(Profiles.of("dev"))
-            && !environment.acceptsProfiles(Profiles.of("prod"))
-            && !this.devPasswordResetSecret.isBlank();
+        this.localProfile = environment.acceptsProfiles(Profiles.of("local"));
+        this.signupEnabled = appProperties.isSignupEnabled();
         this.dummyHash = passwordEncoder.encode("dummy-password-for-anti-enumeration");
     }
 
     @PostMapping("/register")
-    public ResponseEntity<?> register(@Valid @RequestBody RegisterRequest body,
-                                      HttpServletResponse response) {
+    public ResponseEntity<?> register(@Valid @RequestBody RegisterRequest body) {
+        if (!signupEnabled) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(Map.of("error", "signup_disabled"));
+        }
+
         String email = EmailNormalizer.normalize(body.email());
         String displayName = DisplayNameSanitizer.sanitize(body.displayName());
 
@@ -154,9 +163,20 @@ public class AuthController {
         }
 
         String passwordHash = passwordEncoder.encode(body.password());
-        User saved = userRepository.save(new User(email, passwordHash, displayName));
+        User user = new User(email, passwordHash, displayName);
+        if (localProfile) {
+            user.markEmailVerified(OffsetDateTime.now());
+        }
+        User saved = userRepository.save(user);
 
-        return ResponseEntity.ok(issueTokens(saved, response));
+        if (localProfile) {
+            return ResponseEntity.status(HttpStatus.CREATED)
+                .body(new RegisterResponse("verified", saved.getEmail()));
+        }
+
+        emailVerificationService.sendInitialVerification(saved);
+        return ResponseEntity.status(HttpStatus.ACCEPTED)
+            .body(new RegisterResponse("verification_required", saved.getEmail()));
     }
 
     @PostMapping("/login")
@@ -189,7 +209,13 @@ public class AuthController {
                 .body(Map.of("error", "invalid_credentials"));
         }
 
-        return ResponseEntity.ok(issueTokens(maybeUser.get(), response));
+        User user = maybeUser.get();
+        if (!user.isEmailVerified()) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(Map.of("error", "email_unverified"));
+        }
+
+        return ResponseEntity.ok(authTokenService.issueTokens(user, response));
     }
 
     /**
@@ -251,7 +277,7 @@ public class AuthController {
         // Set the new refresh cookie and return the new access token.
         refreshCookie.addToResponse(response, next.rawToken());
         String accessToken = jwtService.issueAccessToken(maybeUser.get().getId());
-        return ResponseEntity.ok(buildAuthResponse(maybeUser.get(), accessToken));
+        return ResponseEntity.ok(authTokenService.buildAuthResponse(maybeUser.get(), accessToken));
     }
 
     /**
@@ -267,29 +293,6 @@ public class AuthController {
             refreshTokenService.revokeByRawToken(cookie.getValue());
         }
         refreshCookie.clearOnResponse(response);
-        return ResponseEntity.noContent().build();
-    }
-
-    @PostMapping("/dev/reset-password")
-    @Transactional
-    public ResponseEntity<?> devResetPassword(@Valid @RequestBody DevPasswordResetRequest body,
-                                              HttpServletRequest request) {
-        if (!devResetSecretMatches(request.getHeader(DEV_RESET_SECRET_HEADER))) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                .body(Map.of("error", "not_found"));
-        }
-
-        String email = EmailNormalizer.normalize(body.email());
-        Optional<User> maybeUser = userRepository.findByEmailIgnoreCase(email);
-        if (maybeUser.isEmpty()) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                .body(Map.of("error", "user_not_found"));
-        }
-
-        User user = maybeUser.get();
-        user.setPasswordHash(passwordEncoder.encode(body.password()));
-        userRepository.save(user);
-        refreshTokenService.revokeAllForUser(user.getId());
         return ResponseEntity.noContent().build();
     }
 
@@ -313,6 +316,26 @@ public class AuthController {
         return ResponseEntity.noContent().build();
     }
 
+    @PostMapping("/email/verify")
+    public ResponseEntity<Void> verifyEmail(@Valid @RequestBody EmailVerificationRequest body) {
+        emailVerificationService.verify(body.token());
+        return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/email/resend")
+    public ResponseEntity<?> resendEmailVerification(
+            @Valid @RequestBody EmailVerificationResendRequest body,
+            HttpServletRequest request) {
+        String email = EmailNormalizer.normalize(body.email());
+        ResponseEntity<?> limited = enforceEmailVerificationResendLimit(request, email);
+        if (limited != null) {
+            return limited;
+        }
+
+        emailVerificationService.resend(email);
+        return ResponseEntity.noContent().build();
+    }
+
     @GetMapping("/me")
     public ResponseEntity<?> me(Authentication authentication) {
         Long userId = principalUserId(authentication);
@@ -328,7 +351,7 @@ public class AuthController {
             return unauthenticated();
         }
         User user = maybeUser.get();
-        return ResponseEntity.ok(new UserSummary(user.getId(), user.getEmail(), user.getDisplayName()));
+        return ResponseEntity.ok(UserSummary.from(user));
     }
 
     @PatchMapping("/me/profile")
@@ -398,30 +421,6 @@ public class AuthController {
     // helpers
     // ------------------------------------------------------------------
 
-    /** Mints both tokens and sets the refresh cookie. Shared by register and login. */
-    private AuthResponse issueTokens(User user, HttpServletResponse response) {
-        String accessToken = jwtService.issueAccessToken(user.getId());
-        IssuedRefreshToken refresh = refreshTokenService.issueFor(user);
-        // Set-Cookie is the only place the raw refresh token appears in the response. We
-        // intentionally do NOT log the token, even at DEBUG.
-        refreshCookie.addToResponse(response, refresh.rawToken());
-        return buildAuthResponse(user, accessToken);
-    }
-
-    /**
-     * Builds the {@link AuthResponse} body shared by register / login / refresh. The
-     * access-token TTL is sourced from {@link JwtService#getAccessTokenTtlSeconds()} so
-     * the wire value cannot drift from the actual JWT expiry.
-     */
-    private AuthResponse buildAuthResponse(User user, String accessToken) {
-        return new AuthResponse(
-            accessToken,
-            "Bearer",
-            (int) jwtService.getAccessTokenTtlSeconds(),
-            new UserSummary(user.getId(), user.getEmail(), user.getDisplayName())
-        );
-    }
-
     private static ResponseEntity<?> unauthenticated() {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
             .body(Map.of(UNAUTHENTICATED_BODY_KEY, UNAUTHENTICATED_BODY_VALUE));
@@ -433,6 +432,23 @@ public class AuthController {
         String discriminator = ip + ":" + normalizedEmail;
         Bucket bucket = rateLimitRegistry.resolve(
             RateLimitRegistry.Named.AUTH_PASSWORD_RESET_REQUEST_PER_EMAIL, discriminator);
+        ConsumptionProbe probe = bucket.tryConsumeAndReturnRemaining(1);
+        if (probe.isConsumed()) {
+            return null;
+        }
+        long retryAfterSeconds = Math.max(1L, probe.getNanosToWaitForRefill() / 1_000_000_000L);
+        return ResponseEntity.status(429)
+            .header(HttpHeaders.RETRY_AFTER, Long.toString(retryAfterSeconds))
+            .contentType(MediaType.APPLICATION_JSON)
+            .body(Map.of("error", "rate_limited"));
+    }
+
+    private ResponseEntity<?> enforceEmailVerificationResendLimit(HttpServletRequest request,
+                                                                  String normalizedEmail) {
+        String ip = RateLimitFilter.clientIp(request, trustProxy);
+        String discriminator = ip + ":" + normalizedEmail;
+        Bucket bucket = rateLimitRegistry.resolve(
+            RateLimitRegistry.Named.AUTH_EMAIL_VERIFICATION_RESEND_PER_EMAIL, discriminator);
         ConsumptionProbe probe = bucket.tryConsumeAndReturnRemaining(1);
         if (probe.isConsumed()) {
             return null;
@@ -461,12 +477,4 @@ public class AuthController {
         return null;
     }
 
-    private boolean devResetSecretMatches(String providedSecret) {
-        if (!devPasswordResetEnabled || providedSecret == null || providedSecret.isBlank()) {
-            return false;
-        }
-        return MessageDigest.isEqual(
-            providedSecret.getBytes(StandardCharsets.UTF_8),
-            devPasswordResetSecret.getBytes(StandardCharsets.UTF_8));
-    }
 }

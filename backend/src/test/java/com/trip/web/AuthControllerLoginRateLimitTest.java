@@ -326,6 +326,7 @@ class AuthControllerLoginRateLimitTest {
 
     private static User userWith(long id, String email, String displayName) {
         User u = new User(email, "ignored-hash", displayName);
+        u.markEmailVerified(OffsetDateTime.now());
         try {
             var f = User.class.getDeclaredField("id");
             f.setAccessible(true);

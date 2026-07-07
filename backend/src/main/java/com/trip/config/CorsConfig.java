@@ -57,7 +57,7 @@ public class CorsConfig {
             .filter(s -> !s.isEmpty())
             .toList();
 
-        boolean expandLocalAliases = environment.acceptsProfiles(Profiles.of("dev", "test"));
+        boolean expandLocalAliases = environment.acceptsProfiles(Profiles.of("local", "dev", "test"));
         Set<String> origins = new LinkedHashSet<>();
         for (String origin : configuredOrigins) {
             origins.add(origin);
