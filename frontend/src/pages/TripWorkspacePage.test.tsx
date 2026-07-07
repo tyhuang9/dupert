@@ -613,6 +613,7 @@ describe('<TripWorkspacePage>', () => {
     expect(screen.getByRole('button', { name: /^pin sidebar$/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /^settings$/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /share trip/i })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^account$/i })).not.toBeInTheDocument()
     expect(screen.getByText(/Tokyo, Japan/)).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: /may 2026/i })).toBeInTheDocument()
     expect(screen.getByTitle('2026-05-01 (0 activities)')).toHaveAttribute('aria-pressed', 'true')

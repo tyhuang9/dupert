@@ -14,6 +14,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth'
 import { parseApiError } from '../api/errors'
 import { useDeleteTrip, useTrips } from '../hooks/useTrips'
+import { AccountSettingsDialog } from '../components/AccountSettingsDialog'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import type { Trip, TripRole } from '../types/trip'
 import coastalCard from '../assets/trips/coastal-card.webp'
@@ -101,12 +102,13 @@ function tripMatchesSearch(trip: Trip, searchTerm: string): boolean {
 export function TripsPage() {
   usePageTitle('Trips – TripPlanner')
 
-  const { logout } = useAuth()
+  const { logout, user } = useAuth()
   const navigate = useNavigate()
   const searchInputRef = useRef<HTMLInputElement>(null)
   const [loggingOut, setLoggingOut] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [roleFilter, setRoleFilter] = useState<RoleFilter>('ALL')
+  const [isAccountSettingsOpen, setIsAccountSettingsOpen] = useState(false)
   const [deletingTripId, setDeletingTripId] = useState<string | null>(null)
   const [tripPendingDelete, setTripPendingDelete] = useState<Trip | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
@@ -173,6 +175,16 @@ export function TripsPage() {
             <Plus aria-hidden="true" size={18} />
             New trip
           </Link>
+          {user ? (
+            <button
+              type="button"
+              onClick={() => setIsAccountSettingsOpen(true)}
+              className={styles.secondaryAction}
+            >
+              <UserRound aria-hidden="true" size={18} />
+              Account
+            </button>
+          ) : null}
           <button
             type="button"
             onClick={onLogout}
@@ -384,6 +396,16 @@ export function TripsPage() {
           confirming={deletingTripId === tripPendingDelete.publicId}
           onCancel={() => setTripPendingDelete(null)}
           onConfirm={() => void confirmDeleteTrip()}
+        />
+      ) : null}
+      {isAccountSettingsOpen && user ? (
+        <AccountSettingsDialog
+          onClose={() => setIsAccountSettingsOpen(false)}
+          onDeleted={() => {
+            setIsAccountSettingsOpen(false)
+            navigate('/login', { replace: true })
+          }}
+          user={user}
         />
       ) : null}
     </main>

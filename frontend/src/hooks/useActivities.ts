@@ -14,9 +14,6 @@ import {
   reorderActivitiesForDay,
   reorderIdeas,
   moveActivity,
-  getDayNote,
-  listDayNotes,
-  updateDayNote,
 } from '../api/activities'
 import type {
   Activity,
@@ -24,20 +21,16 @@ import type {
   UpdateActivityRequest,
   ReorderActivitiesRequest,
   MoveActivityRequest,
-  DayNote,
-  UpdateDayNoteRequest,
 } from '../types/activity'
 
 /**
  * Query keys for React Query. Following the factory pattern for nested resources.
- * Activities are scoped to a trip (publicId), and day notes are also trip-scoped.
+ * Activities are scoped to a trip (publicId).
  */
 export const activityKeys = {
   all: ['activities'] as const,
   forTrip: (publicId: string) => [...activityKeys.all, 'trip', publicId] as const,
   list: (publicId: string) => [...activityKeys.forTrip(publicId), 'list'] as const,
-  dayNotes: (publicId: string) => [...activityKeys.forTrip(publicId), 'dayNotes'] as const,
-  dayNote: (publicId: string, dayDate: string) => [...activityKeys.dayNotes(publicId), dayDate] as const,
 }
 
 function sortActivities(activities: Activity[]): Activity[] {
@@ -414,61 +407,6 @@ export function useMoveActivity(): UseMutationResult<
           existing?.map((item) => (item.id === activity.id ? activity : item)) ?? [activity],
         ),
       )
-    },
-  })
-}
-
-/**
- * Hook: Get a single day note.
- */
-export function useDayNote(
-  publicId: string | undefined,
-  dayDate: string | undefined,
-): UseQueryResult<DayNote> {
-  return useQuery({
-    queryKey: activityKeys.dayNote(publicId ?? '', dayDate ?? ''),
-    queryFn: () => getDayNote(publicId as string, dayDate as string),
-    enabled: Boolean(publicId && dayDate),
-  })
-}
-
-/**
- * Hook: List all day notes for a trip.
- */
-export function useDayNotes(publicId: string | undefined): UseQueryResult<DayNote[]> {
-  return useQuery({
-    queryKey: activityKeys.dayNotes(publicId ?? ''),
-    queryFn: () => listDayNotes(publicId as string),
-    enabled: Boolean(publicId),
-  })
-}
-
-/**
- * Hook: Update a day note (idempotent upsert).
- */
-export function useUpdateDayNote(): UseMutationResult<
-  DayNote,
-  Error,
-  { publicId: string; dayDate: string; body: UpdateDayNoteRequest }
-> {
-  const queryClient = useQueryClient()
-
-  return useMutation({
-    mutationFn: ({ publicId, dayDate, body }) =>
-      updateDayNote(publicId, dayDate, body),
-    onSuccess: (note, variables) => {
-      const { publicId, dayDate } = variables
-      queryClient.setQueryData(
-        activityKeys.dayNote(publicId, dayDate),
-        note,
-      )
-      queryClient.setQueryData<DayNote[]>(activityKeys.dayNotes(publicId), (existing) => {
-        if (!existing) return [note]
-        const found = existing.some((item) => item.dayDate === note.dayDate)
-        return found
-          ? existing.map((item) => (item.dayDate === note.dayDate ? note : item))
-          : [...existing, note]
-      })
     },
   })
 }

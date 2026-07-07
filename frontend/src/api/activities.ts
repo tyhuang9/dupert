@@ -5,8 +5,6 @@ import type {
   UpdateActivityRequest,
   ReorderActivitiesRequest,
   MoveActivityRequest,
-  DayNote,
-  UpdateDayNoteRequest,
 } from '../types/activity'
 
 /**
@@ -121,35 +119,4 @@ export async function moveActivity(
     body,
   )
   return normalizeActivity(data)
-}
-
-/**
- * Day notes API — read and write notes for each day of a trip.
- * All endpoints require authentication and proper access to the trip.
- */
-
-export async function getDayNote(publicId: string, dayDate: string): Promise<DayNote> {
-  const { data } = await apiClient.get<DayNote>(
-    `/trips/${encodeURIComponent(publicId)}/notes/${encodeURIComponent(dayDate)}`
-  )
-  return data
-}
-
-export async function listDayNotes(publicId: string): Promise<DayNote[]> {
-  const { data } = await apiClient.get<DayNote[]>(
-    `/trips/${encodeURIComponent(publicId)}/notes`
-  )
-  return data
-}
-
-export async function updateDayNote(
-  publicId: string,
-  dayDate: string,
-  body: UpdateDayNoteRequest,
-): Promise<DayNote> {
-  const { data } = await apiClient.put<DayNote>(
-    `/trips/${encodeURIComponent(publicId)}/notes/${encodeURIComponent(dayDate)}`,
-    body,
-  )
-  return data
 }

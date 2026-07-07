@@ -155,21 +155,10 @@ function invalidateForEvent(
     return
   }
 
-  if (event.type === 'note.updated') {
-    void queryClient.invalidateQueries({ queryKey: activityKeys.dayNotes(publicId) })
-    if (event.dayDate) {
-      void queryClient.invalidateQueries({
-        queryKey: activityKeys.dayNote(publicId, event.dayDate),
-      })
-    }
-    return
-  }
-
   if (event.type === 'share-links.changed') {
     void queryClient.invalidateQueries({ queryKey: shareKeys.forTrip(publicId) })
     void queryClient.invalidateQueries({ queryKey: shareKeys.members(publicId) })
     void queryClient.invalidateQueries({ queryKey: tripKeys.detail(publicId) })
     void queryClient.invalidateQueries({ queryKey: activityKeys.list(publicId) })
-    void queryClient.invalidateQueries({ queryKey: activityKeys.dayNotes(publicId) })
   }
 }

@@ -4,16 +4,13 @@ import { apiClient } from './client'
 import {
   createActivity,
   deleteActivity,
-  getDayNote,
   listActivities,
-  listDayNotes,
   moveActivity,
   reorderActivitiesForDay,
   reorderIdeas,
   updateActivity,
-  updateDayNote,
 } from './activities'
-import type { Activity, DayNote } from '../types/activity'
+import type { Activity } from '../types/activity'
 
 let apiMock: MockAdapter
 
@@ -34,15 +31,6 @@ const SAMPLE_ACTIVITY: Activity = {
   createdByUserDisplayName: 'Alice',
   updatedByUserDisplayName: 'Alice',
   createdAt: '2026-05-22T16:00:00Z',
-  updatedAt: '2026-05-22T16:00:00Z',
-  version: 0,
-}
-
-const SAMPLE_NOTE: DayNote = {
-  tripId: 42,
-  dayDate: '2026-05-01',
-  note: 'Check reservation email',
-  updatedByUserDisplayName: 'Alice',
   updatedAt: '2026-05-22T16:00:00Z',
   version: 0,
 }
@@ -149,18 +137,4 @@ describe('activity api', () => {
     ).resolves.toMatchObject({ dayDate: null, orderIndex: 0, title: 'Save teamLab' })
   })
 
-  it('reads and updates day notes', async () => {
-    apiMock.onGet('/trips/abc234def567/notes/2026-05-01').reply(200, SAMPLE_NOTE)
-    apiMock.onGet('/trips/abc234def567/notes').reply(200, [SAMPLE_NOTE])
-    apiMock.onPut('/trips/abc234def567/notes/2026-05-01').reply(200, {
-      ...SAMPLE_NOTE,
-      note: 'Updated',
-    })
-
-    await expect(getDayNote('abc234def567', '2026-05-01')).resolves.toEqual(SAMPLE_NOTE)
-    await expect(listDayNotes('abc234def567')).resolves.toEqual([SAMPLE_NOTE])
-    await expect(
-      updateDayNote('abc234def567', '2026-05-01', { note: 'Updated' }),
-    ).resolves.toMatchObject({ note: 'Updated' })
-  })
 })

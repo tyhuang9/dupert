@@ -1,0 +1,433 @@
+.modalBackdrop,
+.confirmBackdrop {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: var(--space-5);
+  background: rgba(15, 23, 42, 0.42);
+}
+
+.modalBackdrop {
+  z-index: 1000;
+}
+
+.confirmBackdrop {
+  z-index: 1010;
+}
+
+.accountSettingsModal,
+.confirmDialog {
+  width: min(100%, 35rem);
+  overflow: hidden;
+  border: 1px solid var(--color-surface-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-lg);
+}
+
+.accountSettingsModal {
+  max-height: min(90vh, 42rem);
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.confirmDialog {
+  width: min(100%, 27rem);
+  display: grid;
+  gap: var(--space-5);
+  padding: var(--space-5);
+  border-radius: var(--radius-md);
+}
+
+.modalHeader,
+.accountSettingsFooter,
+.confirmActions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.modalHeader {
+  justify-content: space-between;
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--color-surface-border);
+}
+
+.modalHeader h2,
+.confirmBody h2 {
+  margin: 0;
+  color: var(--color-text);
+  font-size: var(--font-size-lg);
+  font-weight: 800;
+  line-height: var(--line-height-tight);
+}
+
+.iconOnlyButton {
+  width: 32px;
+  height: 32px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.iconOnlyButton:hover {
+  background: var(--color-surface-2);
+  color: var(--color-text);
+}
+
+.accountSettingsForm {
+  min-height: 0;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) auto;
+}
+
+.accountSettingsBody {
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  overflow-y: auto;
+}
+
+.accountSection,
+.dangerSection,
+.confirmBody {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.accountSection h3,
+.dangerSection h3 {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-text);
+  font-size: var(--font-size-sm);
+  font-weight: 900;
+}
+
+.dangerSection {
+  padding: var(--space-4);
+  border: 1px solid color-mix(in srgb, var(--color-danger) 32%, var(--color-danger-bg));
+  border-radius: var(--radius-md);
+  background: var(--color-danger-bg);
+}
+
+.dangerSection p,
+.confirmBody p {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-base);
+}
+
+.profilePictureRow {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-1) 0;
+}
+
+.profileAvatar {
+  flex: 0 0 auto;
+  width: 64px;
+  height: 64px;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid var(--color-surface-border);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-3);
+  color: var(--color-primary);
+  font-size: var(--font-size-lg);
+  font-weight: 900;
+}
+
+.profilePictureRow p,
+.preferenceRow p {
+  margin: 0;
+  color: var(--color-text);
+  font-size: var(--font-size-sm);
+  font-weight: 900;
+}
+
+.profilePictureRow span,
+.preferenceRow span,
+.fieldHelper {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  line-height: var(--line-height-base);
+}
+
+.modalLabel {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-2);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-weight: 800;
+}
+
+.modalInput {
+  min-width: 0;
+  width: 100%;
+  min-height: 36px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-surface-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-2);
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--font-size-sm);
+}
+
+.modalInput:focus-visible,
+.primaryAction:focus-visible,
+.secondaryAction:focus-visible,
+.destructiveAction:focus-visible,
+.iconOnlyButton:focus-visible,
+.inlineTextButton:focus-visible,
+.switchControl:focus-visible,
+.segmentedControl button:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
+}
+
+.emailInputWrap {
+  position: relative;
+  display: block;
+}
+
+.emailInputWrap input {
+  padding-right: 5rem;
+  color: var(--color-text-muted);
+}
+
+.inlineTextButton {
+  position: absolute;
+  top: 50%;
+  right: var(--space-3);
+  transform: translateY(-50%);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-primary);
+  font: inherit;
+  font-size: var(--font-size-xs);
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.inlineTextButton:hover {
+  text-decoration: underline;
+}
+
+.fieldHelper {
+  margin: calc(-1 * var(--space-2)) 0 0 var(--space-1);
+  font-style: italic;
+}
+
+.preferenceRow {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--color-surface-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-2);
+}
+
+.switchControl {
+  flex: 0 0 auto;
+  position: relative;
+  width: 42px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-3);
+  cursor: pointer;
+}
+
+.switchControl span {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  width: 16px;
+  height: 16px;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-sm);
+  transition: transform var(--transition-base);
+}
+
+.switchControlOn {
+  background: var(--color-primary);
+}
+
+.switchControlOn span {
+  transform: translateX(18px);
+}
+
+.segmentedControl {
+  flex: 0 0 auto;
+  display: inline-flex;
+  gap: var(--space-1);
+  padding: var(--space-1);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-3);
+}
+
+.segmentedControl button {
+  min-height: 28px;
+  padding: 0 var(--space-3);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-muted);
+  font: inherit;
+  font-size: var(--font-size-xs);
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.segmentedControl .segmentedControlActive {
+  background: var(--color-surface);
+  color: var(--color-text);
+  box-shadow: var(--shadow-sm);
+}
+
+.accountSettingsFooter {
+  justify-content: flex-end;
+  padding: var(--space-3) var(--space-5);
+  border-top: 1px solid var(--color-surface-border);
+  background: var(--color-surface);
+}
+
+.confirmActions {
+  justify-content: flex-end;
+}
+
+.primaryAction,
+.secondaryAction,
+.destructiveAction {
+  min-height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-4);
+  border-radius: var(--radius-md);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.primaryAction {
+  border: 1px solid var(--color-primary);
+  background: var(--color-primary);
+  color: var(--color-primary-fg);
+}
+
+.secondaryAction {
+  border: 1px solid var(--color-surface-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+.destructiveAction {
+  border: 1px solid var(--color-danger);
+  background: var(--color-danger);
+  color: #fff;
+}
+
+.primaryAction:hover:not(:disabled) {
+  background: var(--color-primary-hover);
+  border-color: var(--color-primary-hover);
+}
+
+.secondaryAction:hover:not(:disabled) {
+  background: var(--color-surface-2);
+  border-color: var(--color-border-strong);
+}
+
+.destructiveAction:hover:not(:disabled) {
+  background: #991b1b;
+  border-color: #991b1b;
+}
+
+.primaryAction:disabled,
+.secondaryAction:disabled,
+.destructiveAction:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.modalError,
+.modalSuccess {
+  margin: 0;
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-xs);
+  line-height: var(--line-height-base);
+}
+
+.modalError {
+  border: 1px solid #fecaca;
+  background: var(--color-danger-bg);
+  color: var(--color-danger-fg);
+}
+
+.modalSuccess {
+  border: 1px solid #bbf7d0;
+  background: #f0fdf4;
+  color: #166534;
+  font-weight: 800;
+}
+
+@media (max-width: 620px) {
+  .modalBackdrop,
+  .confirmBackdrop {
+    padding: var(--space-3);
+  }
+
+  .modalHeader,
+  .accountSettingsFooter,
+  .confirmActions,
+  .preferenceRow {
+    align-items: stretch;
+  }
+
+  .accountSettingsFooter,
+  .confirmActions {
+    flex-direction: column-reverse;
+  }
+
+  .primaryAction,
+  .secondaryAction,
+  .destructiveAction {
+    width: 100%;
+  }
+
+  .preferenceRow {
+    flex-direction: column;
+  }
+
+  .segmentedControl {
+    width: 100%;
+  }
+
+  .segmentedControl button {
+    flex: 1;
+  }
+}

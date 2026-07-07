@@ -81,12 +81,7 @@ export function useRevokeShareLink(): UseMutationResult<
     onSuccess: (_unused, { publicId, linkId }) => {
       queryClient.setQueryData<ShareLink[]>(
         shareKeys.forTrip(publicId),
-        (existing) =>
-          existing?.map((link) =>
-            link.id === linkId
-              ? { ...link, revokedAt: new Date().toISOString() }
-              : link,
-          ) ?? existing,
+        (existing) => existing?.filter((link) => link.id !== linkId) ?? existing,
       )
     },
   })

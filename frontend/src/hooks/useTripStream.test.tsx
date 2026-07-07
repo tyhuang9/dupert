@@ -188,29 +188,6 @@ describe('useTripStream', () => {
     })
   })
 
-  it('invalidates note queries for note events', async () => {
-    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries')
-    renderHook(() => useTripStream('abc234def567'), { wrapper })
-
-    await waitFor(() => {
-      expect(fetchEventSourceMock).toHaveBeenCalled()
-    })
-
-    act(() => {
-      streamOptions().onmessage({
-        event: 'trip-event',
-        data: JSON.stringify(tripEvent('note.updated', { dayDate: '2026-05-01' })),
-      })
-    })
-
-    expect(invalidateSpy).toHaveBeenCalledWith({
-      queryKey: activityKeys.dayNotes('abc234def567'),
-    })
-    expect(invalidateSpy).toHaveBeenCalledWith({
-      queryKey: activityKeys.dayNote('abc234def567', '2026-05-01'),
-    })
-  })
-
   it('buffers activity invalidation while dragging and flushes afterward', async () => {
     const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries')
     const { rerender } = renderHook(
@@ -266,9 +243,6 @@ describe('useTripStream', () => {
     })
     expect(invalidateSpy).toHaveBeenCalledWith({
       queryKey: activityKeys.list('abc234def567'),
-    })
-    expect(invalidateSpy).toHaveBeenCalledWith({
-      queryKey: activityKeys.dayNotes('abc234def567'),
     })
   })
 })

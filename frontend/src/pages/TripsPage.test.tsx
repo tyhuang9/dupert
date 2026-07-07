@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import MockAdapter from 'axios-mock-adapter'
 import type { PropsWithChildren } from 'react'
@@ -335,6 +335,60 @@ describe('<TripsPage>', () => {
     await waitFor(() => {
       expect(screen.getByTestId('login')).toBeInTheDocument()
     })
+  })
+
+  it('opens account settings from the trips page and saves profile changes', async () => {
+    apiMock.onGet('/trips').reply(200, [])
+    const auth = makeAuth({
+      updateProfile: vi.fn(async (body) => ({
+        id: 1,
+        email: 'a@b.com',
+        displayName: body.displayName,
+        emailVerified: true,
+      })),
+    })
+
+    renderTrips(auth)
+
+    await userEvent.click(await screen.findByRole('button', { name: /account/i }))
+    expect(
+      screen.getByRole('dialog', { name: /account settings/i }),
+    ).toBeInTheDocument()
+
+    const displayNameInput = screen.getByLabelText(/display name/i)
+    await userEvent.clear(displayNameInput)
+    await userEvent.type(displayNameInput, 'Alice Chen')
+    await userEvent.click(screen.getByRole('button', { name: /save changes/i }))
+
+    await waitFor(() => {
+      expect(auth.updateProfile).toHaveBeenCalledWith({ displayName: 'Alice Chen' })
+    })
+    expect(screen.getByText(/account settings saved/i)).toBeInTheDocument()
+  })
+
+  it('requires typing delete before deleting the account and returning to login', async () => {
+    apiMock.onGet('/trips').reply(200, [])
+    const auth = makeAuth()
+
+    renderTrips(auth)
+
+    await userEvent.click(await screen.findByRole('button', { name: /account/i }))
+    await userEvent.click(screen.getByRole('button', { name: /^delete account$/i }))
+
+    const dialog = screen.getByRole('alertdialog', { name: /delete account/i })
+    const confirmButton = within(dialog).getByRole('button', {
+      name: /^delete account$/i,
+    })
+    expect(confirmButton).toBeDisabled()
+
+    await userEvent.type(within(dialog).getByLabelText(/confirmation/i), 'delete')
+    expect(confirmButton).toBeEnabled()
+    await userEvent.click(confirmButton)
+
+    await waitFor(() => {
+      expect(auth.deleteAccount).toHaveBeenCalledTimes(1)
+    })
+    expect(screen.getByTestId('login')).toBeInTheDocument()
   })
 })
 

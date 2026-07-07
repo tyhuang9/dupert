@@ -44,7 +44,6 @@ import {
   ExternalLink,
   Globe,
   Landmark,
-  Mail,
   MapPin,
   Navigation,
   Pencil,
@@ -55,15 +54,11 @@ import {
   Route as TimelineIcon,
   Share2,
   Settings,
-  SlidersHorizontal,
   Star,
   Utensils,
-  UserRound,
   X,
 } from 'lucide-react'
 import { parseApiError } from '../api/errors'
-import { useUser } from '../auth/authStore'
-import { useAuth } from '../auth/useAuth'
 import { useTrip, useUpdateTrip } from '../hooks/useTrips'
 import {
   useActivities,
@@ -106,7 +101,6 @@ import {
   type MapViewportContext,
 } from '../components/TripMap'
 import type { Activity, CreateActivityRequest } from '../types/activity'
-import type { UserSummary } from '../types/auth'
 import type { PlaceSelection } from '../types/place'
 import type { CreateShareLinkRequest, ShareLink } from '../types/share'
 import type { Trip, UpdateTripRequest } from '../types/trip'
@@ -1451,189 +1445,14 @@ function ShareTripModal({
   )
 }
 
-function UserSettingsModal({
-  onClose,
-  user,
-}: {
-  onClose: () => void
-  user: UserSummary
-}) {
-  const auth = useAuth()
-  const [displayName, setDisplayName] = useState(user.displayName)
-  const [marketingEmails, setMarketingEmails] = useState(() =>
-    window.localStorage.getItem('tripplanner.marketingEmails') === 'true',
-  )
-  const [colorMode, setColorMode] = useState<'light' | 'dark' | 'system'>(() => {
-    const stored = window.localStorage.getItem('tripplanner.colorMode')
-    return stored === 'dark' || stored === 'system' ? stored : 'light'
-  })
-  const [saving, setSaving] = useState(false)
-  const [statusMessage, setStatusMessage] = useState<string | null>(null)
-  const [errorMessage, setErrorMessage] = useState<string | null>(null)
-
-  const initials = (displayName || user.email)
-    .split(/\s+|@/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join('')
-
-  const handleSettingsSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    setSaving(true)
-    setErrorMessage(null)
-    try {
-      await auth.updateProfile({ displayName })
-      window.localStorage.setItem('tripplanner.marketingEmails', String(marketingEmails))
-      window.localStorage.setItem('tripplanner.colorMode', colorMode)
-      setStatusMessage('Account settings saved.')
-    } catch (error) {
-      setErrorMessage(parseApiError(error).topMessage)
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  return (
-    <div className={styles.modalBackdrop} role="presentation">
-      <section
-        className={[styles.tripSettingsModal, styles.accountSettingsModal].join(' ')}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="account-settings-title"
-      >
-        <header className={styles.modalHeader}>
-          <h2 id="account-settings-title">Account settings</h2>
-          <button type="button" className={styles.iconOnlyButton} onClick={onClose} aria-label="Close account settings">
-            <X size={18} aria-hidden="true" />
-          </button>
-        </header>
-        <form className={styles.accountSettingsForm} onSubmit={handleSettingsSubmit}>
-          <div className={[styles.modalBody, styles.accountSettingsBody].join(' ')}>
-            {statusMessage && <p className={styles.modalSuccess} role="status">{statusMessage}</p>}
-            {errorMessage && <p className={styles.modalError} role="alert">{errorMessage}</p>}
-
-            <section className={styles.accountSection} aria-labelledby="account-profile-title">
-              <h3 id="account-profile-title">
-                <UserRound size={16} aria-hidden="true" />
-                Profile
-              </h3>
-              <div className={styles.profilePictureRow}>
-                <div className={styles.profileAvatar} aria-hidden="true">
-                  {initials || 'U'}
-                </div>
-                <div>
-                  <p>Profile Picture</p>
-                  <span>JPG, GIF or PNG. Max size of 800K</span>
-                </div>
-              </div>
-              <label className={styles.modalLabel}>
-                Display name
-                <input
-                  className={styles.modalInput}
-                  autoComplete="name"
-                  value={displayName}
-                  onChange={(event) => setDisplayName(event.target.value)}
-                  required
-                />
-              </label>
-            </section>
-
-            <section className={styles.accountSection} aria-labelledby="account-email-title">
-              <h3 id="account-email-title">
-                <Mail size={16} aria-hidden="true" />
-                Email Address
-              </h3>
-              <label className={styles.modalLabel}>
-                Email address
-                <span className={styles.emailInputWrap}>
-                  <input
-                    className={styles.modalInput}
-                    type="email"
-                    autoComplete="email"
-                    value={user.email}
-                    readOnly
-                  />
-                  <button
-                    type="button"
-                    className={styles.inlineTextButton}
-                    onClick={() => setStatusMessage('Email updates are not available yet.')}
-                  >
-                    Update
-                  </button>
-                </span>
-              </label>
-              <p className={styles.fieldHelper}>Used for login and notifications</p>
-            </section>
-
-            <section className={styles.accountSection} aria-labelledby="account-preferences-title">
-              <h3 id="account-preferences-title">
-                <SlidersHorizontal size={16} aria-hidden="true" />
-                Preferences
-              </h3>
-              <div className={styles.preferenceRow}>
-                <div>
-                  <p>Marketing Emails</p>
-                  <span>Receive travel tips and destination guides</span>
-                </div>
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={marketingEmails}
-                  className={[
-                    styles.switchControl,
-                    marketingEmails ? styles.switchControlOn : '',
-                  ].filter(Boolean).join(' ')}
-                  onClick={() => setMarketingEmails((current) => !current)}
-                >
-                  <span />
-                </button>
-              </div>
-              <div className={styles.preferenceRow}>
-                <div>
-                  <p>App Color Mode</p>
-                  <span>Choose your preferred appearance</span>
-                </div>
-                <div className={styles.segmentedControl} role="group" aria-label="App color mode">
-                  {(['light', 'dark', 'system'] as const).map((mode) => (
-                    <button
-                      key={mode}
-                      type="button"
-                      className={colorMode === mode ? styles.segmentedControlActive : ''}
-                      onClick={() => setColorMode(mode)}
-                      aria-pressed={colorMode === mode}
-                    >
-                      {mode[0].toUpperCase() + mode.slice(1)}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </section>
-          </div>
-          <footer className={styles.accountSettingsFooter}>
-            <button type="button" className={styles.secondaryAction} onClick={onClose}>
-              Cancel
-            </button>
-            <button type="submit" className={styles.primaryAction} disabled={saving}>
-              {saving ? 'Saving...' : 'Save Changes'}
-            </button>
-          </footer>
-        </form>
-      </section>
-    </div>
-  )
-}
-
 export function TripWorkspacePage() {
   const { publicId, day } = useParams()
   const navigate = useNavigate()
-  const user = useUser()
   const [expandedActivityId, setExpandedActivityId] = useState<number | null>(null)
   const [placeDraft, setPlaceDraft] = useState<PlaceSelection | null>(null)
   const [placeDraftDayDate, setPlaceDraftDayDate] = useState<string | null | undefined>(undefined)
   const [isTripSettingsOpen, setIsTripSettingsOpen] = useState(false)
   const [isShareTripOpen, setIsShareTripOpen] = useState(false)
-  const [isAccountSettingsOpen, setIsAccountSettingsOpen] = useState(false)
   const [isDraggingActivity, setIsDraggingActivity] = useState(false)
   const [isDraggingActivityOverSidebar, setIsDraggingActivityOverSidebar] = useState(false)
   const [schedulingIdeaActivityId, setSchedulingIdeaActivityId] = useState<number | null>(null)
@@ -3278,18 +3097,6 @@ export function TripWorkspacePage() {
                       </Link>
                     </nav>
                   </div>
-                  {user && (
-                    <div className={styles.topNavActions}>
-                      <button
-                        type="button"
-                        className={styles.secondaryAction}
-                        onClick={() => setIsAccountSettingsOpen(true)}
-                      >
-                        <UserRound size={15} aria-hidden="true" />
-                        Account
-                      </button>
-                    </div>
-                  )}
                 </header>
 
               <section
@@ -3678,12 +3485,6 @@ export function TripWorkspacePage() {
               onClose={() => setIsShareTripOpen(false)}
               publicId={publicId}
               tripName={tripQuery.data.name}
-            />
-          )}
-          {isAccountSettingsOpen && user && (
-            <UserSettingsModal
-              onClose={() => setIsAccountSettingsOpen(false)}
-              user={user}
             />
           )}
         </>

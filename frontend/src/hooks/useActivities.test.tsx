@@ -4,18 +4,16 @@ import MockAdapter from 'axios-mock-adapter'
 import type { PropsWithChildren } from 'react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { apiClient } from '../api/client'
-import type { Activity, DayNote } from '../types/activity'
+import type { Activity } from '../types/activity'
 import {
   activityKeys,
   useActivities,
   useCreateActivity,
-  useDayNote,
   useDeleteActivity,
   useMoveActivity,
   useReorderActivities,
   useReorderIdeas,
   useUpdateActivity,
-  useUpdateDayNote,
 } from './useActivities'
 
 let apiMock: MockAdapter
@@ -38,15 +36,6 @@ const SAMPLE_ACTIVITY: Activity = {
   createdByUserDisplayName: 'Alice',
   updatedByUserDisplayName: 'Alice',
   createdAt: '2026-05-22T16:00:00Z',
-  updatedAt: '2026-05-22T16:00:00Z',
-  version: 0,
-}
-
-const SAMPLE_NOTE: DayNote = {
-  tripId: 42,
-  dayDate: '2026-05-01',
-  note: 'Check reservation email',
-  updatedByUserDisplayName: 'Alice',
   updatedAt: '2026-05-22T16:00:00Z',
   version: 0,
 }
@@ -370,29 +359,4 @@ describe('useActivities', () => {
     expect(queryClient.getQueryData(activityKeys.list('abc234def567'))).toEqual(existingActivities)
   })
 
-  it('fetches and updates a selected day note', async () => {
-    apiMock.onGet('/trips/abc234def567/notes/2026-05-01').reply(200, SAMPLE_NOTE)
-    apiMock.onPut('/trips/abc234def567/notes/2026-05-01').reply(200, {
-      ...SAMPLE_NOTE,
-      note: 'Updated',
-    })
-
-    const note = renderHook(() => useDayNote('abc234def567', '2026-05-01'), { wrapper })
-
-    await waitFor(() => {
-      expect(note.result.current.data).toEqual(SAMPLE_NOTE)
-    })
-
-    const update = renderHook(() => useUpdateDayNote(), { wrapper })
-    await act(async () => {
-      await update.result.current.mutateAsync({
-        publicId: 'abc234def567',
-        dayDate: '2026-05-01',
-        body: { note: 'Updated' },
-      })
-    })
-
-    expect(queryClient.getQueryData(activityKeys.dayNote('abc234def567', '2026-05-01')))
-      .toMatchObject({ note: 'Updated' })
-  })
 })

@@ -55,16 +55,3 @@ export interface MoveActivityRequest {
   dayDate: string | null
   orderIndex: number
 }
-
-export interface DayNote {
-  tripId: number
-  dayDate: string
-  note: string
-  updatedByUserDisplayName: string | null
-  updatedAt: string
-  version: number
-}
-
-export interface UpdateDayNoteRequest {
-  note: string
-}
