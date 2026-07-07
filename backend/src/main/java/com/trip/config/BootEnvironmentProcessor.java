@@ -181,6 +181,12 @@ public class BootEnvironmentProcessor implements EnvironmentPostProcessor {
         if (raw == null || raw.isBlank()) {
             return;
         }
+        // Docker --env-file keeps shell quotes as literal characters. Normalize DATABASE_URL
+        // the same way as file-loaded dotenv values so quoted local env files still deploy.
+        raw = parseValue(raw).strip();
+        if (raw.isBlank()) {
+            return;
+        }
         if (raw.startsWith("jdbc:")) {
             // Already JDBC-flavored — trust the user.
             Map<String, Object> props = new HashMap<>();
