@@ -126,4 +126,18 @@ describe('TripWorkspacePage layout scroll contract', () => {
 
     expect(tripMapCss).not.toMatch(/min-height:\s*(?:24|30)rem/)
   })
+
+  it('keeps the selected-place detail photo area tall and near-square', () => {
+    const cardBlock = cssBlocks(workspaceCss, '.placeDetailCard')[0] ?? ''
+    const heroBlock = cssBlocks(workspaceCss, '.placeHero')[0] ?? ''
+    const bodyBlock = cssBlocks(workspaceCss, '.placeDetailBody')[0] ?? ''
+
+    expect(cardBlock).toMatch(/max-height:\s*min\(36rem,\s*84dvh\)/)
+    expect(cardBlock).toMatch(/grid-template-rows:\s*auto minmax\(0,\s*1fr\)/)
+    expect(heroBlock).toMatch(/aspect-ratio:\s*1\.08 \/ 1/)
+    expect(heroBlock).toMatch(/min-height:\s*16rem/)
+    expect(heroBlock).toMatch(/max-height:\s*min\(22rem,\s*48dvh\)/)
+    expect(bodyBlock).toMatch(/min-height:\s*0/)
+    expect(bodyBlock).toMatch(/overflow-y:\s*auto/)
+  })
 })

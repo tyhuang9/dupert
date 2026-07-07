@@ -120,12 +120,46 @@ describe('google maps route adapter', () => {
   it('requests backend driving routes and returns the route', async () => {
     apiMock.onPost('/maps/routes/driving').reply(200, ROUTE)
 
-    await expect(getDrivingDirections(COORDINATES)).resolves.toEqual(ROUTE)
+    const activityShapedCoordinates = COORDINATES.map((coordinate, index) => ({
+      ...coordinate,
+      id: index + 1,
+      title: `Stop ${index + 1}`,
+    }))
+
+    await expect(getDrivingDirections(activityShapedCoordinates)).resolves.toEqual(ROUTE)
 
     expect(apiMock.history.post[0].url).toBe('/maps/routes/driving')
     expect(JSON.parse(String(apiMock.history.post[0].data))).toEqual({
       coordinates: COORDINATES,
     })
+  })
+
+  it('filters invalid route coordinates before requesting backend routes', async () => {
+    apiMock.onPost('/maps/routes/driving').reply(200, ROUTE)
+
+    await expect(getDrivingDirections([
+      { lat: Number.NaN, lng: 139.7 },
+      { lat: 35.6586, lng: 139.7454 },
+      { lat: 91, lng: 139.75 },
+      { lat: 35.6654, lng: 139.7707 },
+      { lat: 35.6762, lng: 181 },
+    ])).resolves.toEqual(ROUTE)
+
+    expect(JSON.parse(String(apiMock.history.post[0].data))).toEqual({
+      coordinates: [
+        { lat: 35.6586, lng: 139.7454 },
+        { lat: 35.6654, lng: 139.7707 },
+      ],
+    })
+  })
+
+  it('does not request a route when fewer than two valid coordinates remain', async () => {
+    await expect(getDrivingDirections([
+      { lat: Number.NaN, lng: 139.7 },
+      { lat: 35.6586, lng: 139.7454 },
+    ])).resolves.toBeNull()
+
+    expect(apiMock.history.post).toHaveLength(0)
   })
 
   it('rejects failed backend route requests', async () => {

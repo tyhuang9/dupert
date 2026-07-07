@@ -12,6 +12,19 @@ export interface AppRoute {
   legs: Array<{ distance: number; duration: number }>
 }
 
+const MAX_ROUTE_COORDINATES = 25
+
+function isValidRouteCoordinate({ lat, lng }: LatLng): boolean {
+  return (
+    Number.isFinite(lat) &&
+    Number.isFinite(lng) &&
+    lat >= -90 &&
+    lat <= 90 &&
+    lng >= -180 &&
+    lng <= 180
+  )
+}
+
 export function normalizeDirectionsResult(
   result: {
     routes?: Array<{
@@ -73,11 +86,15 @@ export async function getDrivingDirections(
   coordinates: LatLng[],
   signal?: AbortSignal,
 ): Promise<AppRoute | null> {
-  if (coordinates.length < 2) return null
+  const routeCoordinates = coordinates
+    .filter(isValidRouteCoordinate)
+    .slice(0, MAX_ROUTE_COORDINATES)
+    .map(({ lat, lng }) => ({ lat, lng }))
+  if (routeCoordinates.length < 2) return null
 
   const response = await apiClient.post<AppRoute | null>(
     '/maps/routes/driving',
-    { coordinates },
+    { coordinates: routeCoordinates },
     { signal },
   )
   return response.data

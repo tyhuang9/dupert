@@ -98,6 +98,7 @@
 .secondaryAction:focus-visible,
 .primaryAction:focus-visible,
 .addActivityButton:focus-visible,
+.exportDayButton:focus-visible,
 .shareLink:focus-visible,
 .sidebarAction:focus-visible,
 .pinControl button:focus-visible,
@@ -805,6 +806,38 @@
   box-shadow: var(--shadow-sm);
 }
 
+.exportDayButton {
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-surface-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: var(--font-size-xs);
+  font-weight: 800;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.exportDayButton:hover {
+  border-color: var(--color-primary);
+  background: var(--color-primary-softer);
+  color: var(--color-primary-text);
+}
+
+.exportDayButton:disabled {
+  border-color: var(--color-surface-border);
+  background: var(--color-surface-2);
+  color: var(--color-text-subtle);
+  cursor: not-allowed;
+  opacity: 0.78;
+}
+
 .secondaryLink,
 .secondaryAction,
 .shareLink,
@@ -871,6 +904,16 @@
   gap: var(--space-3);
   flex-wrap: wrap;
   justify-content: flex-end;
+}
+
+.activityDragOverlay {
+  width: min(24rem, 78vw);
+  pointer-events: none;
+}
+
+.activityDragOverlay article {
+  cursor: grabbing;
+  opacity: 0.98;
 }
 
 .avatarStack {
@@ -1239,8 +1282,9 @@
   bottom: var(--space-4);
   z-index: 7;
   width: min(24rem, calc(100% - var(--space-8)));
-  max-height: min(24rem, 68dvh);
+  max-height: min(36rem, 84dvh);
   display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
   overflow: hidden;
   border: 1px solid rgba(194, 198, 214, 0.72);
   border-radius: var(--radius-md);
@@ -1255,7 +1299,9 @@
 
 .placeHero {
   position: relative;
-  height: 7.5rem;
+  min-height: 16rem;
+  max-height: min(22rem, 48dvh);
+  aspect-ratio: 1.08 / 1;
   overflow: hidden;
   background: var(--color-surface-2);
 }
@@ -1309,6 +1355,7 @@
 }
 
 .placeDetailBody {
+  min-height: 0;
   display: grid;
   gap: var(--space-2);
   padding: var(--space-3);
@@ -1983,7 +2030,7 @@
     left: var(--space-3);
     bottom: var(--space-3);
     width: min(24rem, calc(100% - var(--space-6)));
-    max-height: 60dvh;
+    max-height: 76dvh;
   }
 
   .placeDetailCardRaised {
@@ -1991,7 +2038,8 @@
   }
 
   .placeHero {
-    height: 5.75rem;
+    min-height: 13rem;
+    max-height: min(18rem, 42dvh);
   }
 
   .timelineActivityButton {

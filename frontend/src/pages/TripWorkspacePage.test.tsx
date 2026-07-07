@@ -39,6 +39,10 @@ const dndMockState = vi.hoisted(() => ({
     active: { id: string }
     delta: { x: number; y: number }
   }) => void),
+  onDragOver: null as null | ((event: {
+    active: { id: string }
+    over: { id: string } | null
+  }) => void),
   onDragStart: null as null | ((event: {
     active: { id: string }
     activatorEvent: Event
@@ -50,6 +54,7 @@ vi.mock('@dnd-kit/core', () => ({
     children,
     onDragEnd,
     onDragMove,
+    onDragOver,
     onDragStart,
   }: {
     children: ReactNode
@@ -61,6 +66,10 @@ vi.mock('@dnd-kit/core', () => ({
       active: { id: string }
       delta: { x: number; y: number }
     }) => void
+    onDragOver?: (event: {
+      active: { id: string }
+      over: { id: string } | null
+    }) => void
     onDragStart?: (event: {
       active: { id: string }
       activatorEvent: Event
@@ -68,9 +77,13 @@ vi.mock('@dnd-kit/core', () => ({
   }) => {
     dndMockState.onDragEnd = onDragEnd ?? null
     dndMockState.onDragMove = onDragMove ?? null
+    dndMockState.onDragOver = onDragOver ?? null
     dndMockState.onDragStart = onDragStart ?? null
     return <>{children}</>
   },
+  DragOverlay: ({ children }: { children: ReactNode }) => (
+    <div data-testid="drag-overlay">{children}</div>
+  ),
   KeyboardSensor: vi.fn(),
   PointerSensor: vi.fn(),
   closestCenter: vi.fn(() => []),
@@ -494,6 +507,19 @@ function triggerDragMove(activeId: string, delta: { x: number; y: number }) {
   })
 }
 
+function triggerDragOver(activeId: string, overId: string | null) {
+  if (!dndMockState.onDragOver) {
+    throw new Error('DndContext onDragOver handler was not registered')
+  }
+
+  act(() => {
+    dndMockState.onDragOver?.({
+      active: { id: activeId },
+      over: overId === null ? null : { id: overId },
+    })
+  })
+}
+
 function domRect({
   bottom,
   left,
@@ -591,6 +617,7 @@ beforeEach(() => {
   googlePlacesMockState.imageUrlFromGooglePhotoName.mockResolvedValue(null)
   dndMockState.onDragEnd = null
   dndMockState.onDragMove = null
+  dndMockState.onDragOver = null
   dndMockState.onDragStart = null
 })
 
@@ -724,6 +751,40 @@ describe('<TripWorkspacePage>', () => {
       expect(document.activeElement).toHaveAttribute('id', 'activity-10')
     })
     expect(HTMLElement.prototype.scrollIntoView).toHaveBeenCalled()
+  })
+
+  it('uses the last valid drop target when an activity drop ends with no current target', async () => {
+    const dayTwoActivity = {
+      ...SAMPLE_ACTIVITY,
+      id: 22,
+      dayDate: '2026-05-02',
+      title: 'Tokyo Tower',
+      notes: 'Sunset slot',
+      orderIndex: 0,
+    }
+    mockWorkspace([SAMPLE_ACTIVITY, dayTwoActivity])
+    apiMock.onPost('/activities/10/move?publicId=abc234def567').reply((config) => {
+      expect(JSON.parse(config.data as string)).toEqual({
+        dayDate: '2026-05-02',
+        orderIndex: 1,
+      })
+      return [200, {
+        ...SAMPLE_ACTIVITY,
+        dayDate: '2026-05-02',
+        orderIndex: 1,
+      }]
+    })
+
+    renderWorkspace('/trips/abc234def567/d/2026-05-01')
+
+    expect(await screen.findByRole('heading', { level: 2, name: /friday, may 1/i })).toBeInTheDocument()
+
+    triggerDragStart(activityDragId(10))
+    triggerDragOver(activityDragId(10), sidebarDayDropId('2026-05-02'))
+    triggerDragEnd(activityDragId(10), null)
+
+    expect(await screen.findByRole('heading', { level: 2, name: /saturday, may 2/i })).toBeInTheDocument()
+    expect(screen.getByRole('article', { name: /expand tsukiji sushi/i })).toBeInTheDocument()
   })
 
   it('jumps to Ideas after dragging a scheduled activity to ideas', async () => {
@@ -886,6 +947,7 @@ describe('<TripWorkspacePage>', () => {
     }))
 
     triggerDragStart(activityDragId(10), 96, 120)
+    expect(within(screen.getByTestId('drag-overlay')).getByText('Tsukiji sushi')).toBeInTheDocument()
     triggerDragMove(activityDragId(10), { x: -10, y: 0 })
 
     expect(sidebar.className).not.toMatch(/dayPanelDragExpanded/)
@@ -893,6 +955,56 @@ describe('<TripWorkspacePage>', () => {
     triggerDragMove(activityDragId(10), { x: -20, y: 0 })
 
     expect(sidebar.className).toMatch(/dayPanelDragExpanded/)
+  })
+
+  it('exports the selected mapped day stops to Google Maps in itinerary order', async () => {
+    const breakfast = {
+      ...SAMPLE_ACTIVITY,
+      id: 11,
+      title: 'Breakfast',
+      placeId: 'google.breakfast',
+      lat: 35.6586,
+      lng: 139.7454,
+      orderIndex: 0,
+    }
+    const unmappedStop = {
+      ...SAMPLE_ACTIVITY,
+      id: 12,
+      title: 'Unmapped note',
+      orderIndex: 1,
+    }
+    const lunch = {
+      ...SAMPLE_ACTIVITY,
+      id: 13,
+      title: 'Lunch',
+      placeId: 'google.lunch',
+      lat: 35.6654,
+      lng: 139.7707,
+      orderIndex: 2,
+    }
+    const otherDayStop = {
+      ...SAMPLE_ACTIVITY,
+      id: 14,
+      dayDate: '2026-05-02',
+      title: 'Other day',
+      lat: 35.6762,
+      lng: 139.6503,
+      orderIndex: 0,
+    }
+    mockWorkspace([breakfast, unmappedStop, lunch, otherDayStop])
+
+    renderWorkspace('/trips/abc234def567/d/2026-05-01')
+
+    const exportLink = await screen.findByRole('link', { name: /export day/i })
+    const url = new URL(exportLink.getAttribute('href') ?? '')
+
+    expect(url.origin + url.pathname).toBe('https://www.google.com/maps/dir/')
+    expect(url.searchParams.get('api')).toBe('1')
+    expect(url.searchParams.get('travelmode')).toBe('driving')
+    expect(url.searchParams.get('origin')).toBe('35.6586,139.7454')
+    expect(url.searchParams.get('destination')).toBe('35.6654,139.7707')
+    expect(url.searchParams.get('waypoints')).toBeNull()
+    expect(exportLink).toHaveAttribute('target', '_blank')
   })
 
   it('passes only selected-day activities to the map', async () => {

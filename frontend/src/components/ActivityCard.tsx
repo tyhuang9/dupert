@@ -29,7 +29,9 @@ interface ActivityCardProps {
   dragActivatorRef?: (node: HTMLElement | null) => void
   dragAttributes?: DraggableAttributes
   dragListeners?: DraggableSyntheticListeners
+  domId?: string
   expanded?: boolean
+  presentation?: boolean
   readOnly?: boolean
   active?: boolean
   onActiveChange?: (activityId: number | null) => void
@@ -144,7 +146,9 @@ export function ActivityCard({
   dragActivatorRef,
   dragAttributes,
   dragListeners,
+  domId,
   expanded = false,
+  presentation = false,
   readOnly = false,
   onActiveChange,
   onDelete,
@@ -156,7 +160,7 @@ export function ActivityCard({
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const timeDisplay = getTimeDisplay(activity)
   const categoryLabel = getCategoryLabel(activity.category)
-  const canDrag = !readOnly && !busy && !dragDisabled && !expanded
+  const canDrag = !presentation && !readOnly && !busy && !dragDisabled && !expanded
   const cardClassName = [
     styles.card,
     canDrag ? styles.cardDraggable : '',
@@ -168,12 +172,14 @@ export function ActivityCard({
     setDeleteDialogOpen(true)
   }
   const handleBlurCapture = (event: FocusEvent<HTMLElement>) => {
+    if (presentation) return
     const nextTarget = event.relatedTarget
     if (!nextTarget || !event.currentTarget.contains(nextTarget as Node)) {
       onActiveChange?.(null)
     }
   }
   const toggleCard = () => {
+    if (presentation) return
     onActiveChange?.(activity.id)
     onToggleExpand(activity)
   }
@@ -210,16 +216,17 @@ export function ActivityCard({
   return (
     <article
       ref={canDrag ? dragActivatorRef : undefined}
-      id={`activity-${activity.id}`}
+      id={domId ?? `activity-${activity.id}`}
       className={cardClassName}
       {...(canDrag ? dragAttributes : undefined)}
-      tabIndex={0}
-      onClick={handleClick}
-      onKeyDown={handleKeyDown}
-      onPointerDown={handlePointerDown}
-      onMouseEnter={() => onActiveChange?.(activity.id)}
-      onFocusCapture={() => onActiveChange?.(activity.id)}
-      onBlurCapture={handleBlurCapture}
+      tabIndex={presentation ? -1 : 0}
+      aria-hidden={presentation ? true : undefined}
+      onClick={presentation ? undefined : handleClick}
+      onKeyDown={presentation ? undefined : handleKeyDown}
+      onPointerDown={presentation ? undefined : handlePointerDown}
+      onMouseEnter={presentation ? undefined : () => onActiveChange?.(activity.id)}
+      onFocusCapture={presentation ? undefined : () => onActiveChange?.(activity.id)}
+      onBlurCapture={presentation ? undefined : handleBlurCapture}
       aria-expanded={expanded}
       aria-label={`${expanded ? 'Collapse' : 'Expand'} ${activity.title}`}
       data-active={active ? 'true' : undefined}

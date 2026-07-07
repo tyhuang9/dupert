@@ -196,6 +196,8 @@ trip-planner/
 | `ALLOWED_ORIGINS` | backend | Exact frontend origins allowed by CORS, comma-separated (no `*`) |
 | `APP_PUBLIC_FRONTEND_URL` | backend | Public frontend origin used in password reset and email verification links |
 | `APP_TRUST_PROXY` | backend | Set `true` only behind a trusted platform proxy such as Render so rate limits use the real client IP |
+| `APP_COOKIES_SECURE` | backend | Set `true` in production so refresh and guest cookies are HTTPS-only |
+| `SECURE_HSTS_ENABLED` | backend | Set `true` in production so the backend emits `Strict-Transport-Security` |
 | `SIGNUP_ENABLED` | backend | Enables public registration. In prod, keep `true` only after Brevo email is configured |
 | `BREVO_API_KEY` | backend | Brevo Transactional Email API key |
 | `APP_EMAIL_FROM_EMAIL` | backend | Verified sender email address for auth email |
@@ -208,6 +210,32 @@ trip-planner/
 | `NVD_API_KEY` | backend/CI | Optional but strongly recommended key for reliable OWASP Dependency-Check NVD updates |
 
 Values containing shell metacharacters (`&`, `;`, `$`, spaces) **must** be wrapped in single quotes in `backend/.env`, otherwise `source backend/.env` will silently truncate them.
+
+## Render backend deployment
+
+Set these backend environment variables on Render for production:
+
+```bash
+SPRING_PROFILES_ACTIVE=prod
+APP_TRUST_PROXY=true
+ALLOWED_ORIGINS=https://<frontend-origin>
+APP_COOKIES_SECURE=true
+SECURE_HSTS_ENABLED=true
+APP_PUBLIC_FRONTEND_URL=https://<frontend-origin>
+SIGNUP_ENABLED=false
+```
+
+`SPRING_PROFILES_ACTIVE=prod` loads `application-prod.yml`, which sets secure cookies and HSTS. Keep `APP_COOKIES_SECURE=true` and `SECURE_HSTS_ENABLED=true` explicit on Render as a deployment guard against missing or overridden profile config.
+
+`APP_TRUST_PROXY=true` is required on Render because the backend is behind Render's proxy and rate limiting must use the trusted forwarded client IP. `ALLOWED_ORIGINS` must be the exact frontend browser origin with no wildcard and no trailing slash. `APP_PUBLIC_FRONTEND_URL` must be the same frontend origin used for auth email and reset links.
+
+If production signup is enabled, set `SIGNUP_ENABLED=true` only after also configuring:
+
+```bash
+BREVO_API_KEY=<brevo-transactional-api-key>
+APP_EMAIL_FROM_EMAIL=no-reply@your-verified-domain.example
+APP_EMAIL_FROM_NAME=TripPlanner
+```
 
 ## Brevo email setup
 
@@ -237,7 +265,7 @@ Keep `SIGNUP_ENABLED=false` in production until the Brevo API key, sender, and p
 - Trip URLs are identifiers, not access grants. Every `/api/trips/**` request goes through the backend access guard and requires either a member JWT or a valid guest-session cookie.
 - Access tokens stay in memory; refresh tokens and guest-session tokens are opaque `HttpOnly` cookies.
 - Production-like backend starts require `app.cookies.secure=true` and `secure.hsts.enabled=true`; the `prod` profile sets both.
-- Render should run with `SPRING_PROFILES_ACTIVE=prod`, `APP_TRUST_PROXY=true`, an exact `ALLOWED_ORIGINS` value, and `APP_PUBLIC_FRONTEND_URL` set to the real frontend origin.
+- Render should run with `SPRING_PROFILES_ACTIVE=prod`, `APP_TRUST_PROXY=true`, `APP_COOKIES_SECURE=true`, `SECURE_HSTS_ENABLED=true`, an exact `ALLOWED_ORIGINS` value, and `APP_PUBLIC_FRONTEND_URL` set to the real frontend origin.
 - Public actuator exposure is limited to `/actuator/health` and `/actuator/health/**`; `/actuator/info` is not publicly exposed.
 - Production registration creates an unverified user, sends one Brevo verification email, and withholds auth tokens until verification. The local profile creates verified users immediately and sends no email.
 - Public auth/share endpoints are rate limited in memory. This is fine for a small deployment, but limits reset on backend restart and are weaker against distributed abuse.

@@ -3,8 +3,14 @@ package com.trip.config;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.util.Map;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.DefaultApplicationArguments;
+import org.springframework.boot.context.properties.bind.Binder;
+import org.springframework.boot.context.properties.source.ConfigurationPropertySources;
+import org.springframework.core.env.StandardEnvironment;
+import org.springframework.core.env.SystemEnvironmentPropertySource;
 import org.springframework.mock.env.MockEnvironment;
 
 class SecurityDeploymentValidatorTest {
@@ -55,6 +61,33 @@ class SecurityDeploymentValidatorTest {
         assertThatThrownBy(() -> validator.run(new DefaultApplicationArguments()))
             .isInstanceOf(IllegalStateException.class)
             .hasMessageContaining("app.trust-proxy=true");
+    }
+
+    @Test
+    void renderTransportEnvironmentVariablesBindAndSatisfyValidator() {
+        StandardEnvironment env = new StandardEnvironment();
+        env.getPropertySources().replace(
+            StandardEnvironment.SYSTEM_ENVIRONMENT_PROPERTY_SOURCE_NAME,
+            new SystemEnvironmentPropertySource(
+                StandardEnvironment.SYSTEM_ENVIRONMENT_PROPERTY_SOURCE_NAME,
+                Map.of(
+                    "SPRING_PROFILES_ACTIVE", "prod",
+                    "APP_COOKIES_SECURE", "true",
+                    "SECURE_HSTS_ENABLED", "true",
+                    "APP_TRUST_PROXY", "true"
+                )));
+        ConfigurationPropertySources.attach(env);
+        AppProperties app = Binder.get(env).bind("app", AppProperties.class).orElseGet(AppProperties::new);
+        SecureProperties secure = Binder.get(env).bind("secure", SecureProperties.class)
+            .orElseGet(SecureProperties::new);
+        app.setFrontendOrigin("https://tripplanner.example");
+        app.setSignupEnabled(false);
+        SecurityDeploymentValidator validator = new SecurityDeploymentValidator(app, secure, env);
+
+        assertThat(app.getCookies().isSecure()).isTrue();
+        assertThat(app.isTrustProxy()).isTrue();
+        assertThat(secure.getHsts().isEnabled()).isTrue();
+        validator.run(new DefaultApplicationArguments());
     }
 
     @Test

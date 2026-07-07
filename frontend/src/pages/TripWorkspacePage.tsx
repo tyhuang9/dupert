@@ -2,6 +2,7 @@ import axios from 'axios'
 import {
   closestCenter,
   DndContext,
+  DragOverlay,
   KeyboardSensor,
   PointerSensor,
   pointerWithin,
@@ -12,7 +13,9 @@ import {
   type CollisionDetection,
   type DragEndEvent,
   type DragMoveEvent,
+  type DragOverEvent,
   type DragStartEvent,
+  type UniqueIdentifier,
 } from '@dnd-kit/core'
 import {
   SortableContext,
@@ -79,6 +82,7 @@ import {
 } from '../hooks/useShareLinks'
 import { usePageTitle } from '../utils/usePageTitle'
 import styles from './TripWorkspacePage.module.css'
+import { ActivityCard } from '../components/ActivityCard'
 import { ActivityForm } from '../components/ActivityForm'
 import { ActivityList } from '../components/ActivityList'
 import { MapSearchResultsShelf } from '../components/MapSearchResultsShelf'
@@ -112,6 +116,8 @@ import {
   ideasDropId,
   listTripDays,
   parseActivityDragId,
+  parseDayDropId,
+  parseIdeasDropId,
   parseSidebarDayDropId,
   parseSidebarIdeasDropId,
   shouldApplySortableTransform,
@@ -150,6 +156,11 @@ function pluralize(count: number, singular: string, plural = `${singular}s`): st
 const MAP_SEARCH_PAGE_SIZE = 10
 const MAP_SEARCH_THUMBNAIL_HEIGHT = 240
 const MAP_SEARCH_THUMBNAIL_WIDTH = 320
+const GOOGLE_MAPS_DIRECTIONS_URL = 'https://www.google.com/maps/dir/'
+const GOOGLE_MAPS_MAX_WAYPOINTS = 9
+const GOOGLE_MAPS_MAX_DIRECTIONS_URL_LENGTH = 2048
+
+type MappedActivity = Activity & { lat: number; lng: number }
 
 function parseDateKey(dayDate: string): Date {
   const [year, month, day] = dayDate.split('-').map(Number)
@@ -504,7 +515,9 @@ function TimelineDayGroup({
   )
 }
 
-function hasFiniteCoordinates(activity: Pick<Activity, 'lat' | 'lng'>): boolean {
+function hasFiniteCoordinates<T extends Pick<Activity, 'lat' | 'lng'>>(
+  activity: T,
+): activity is T & { lat: number; lng: number } {
   return Number.isFinite(activity.lat) && Number.isFinite(activity.lng)
 }
 
@@ -568,6 +581,89 @@ function directionsUrlForPlace(place: PlaceSelection): string | null {
     return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(`${place.lat},${place.lng}`)}`
   }
   return place.googleMapsUri ?? null
+}
+
+interface DayGoogleMapsExport {
+  disabledReason: string | null
+  exportedStopCount: number
+  totalMappedStopCount: number
+  truncated: boolean
+  url: string | null
+}
+
+function googleMapsCoordinateValue(activity: Pick<MappedActivity, 'lat' | 'lng'>): string {
+  return `${activity.lat},${activity.lng}`
+}
+
+function createDayGoogleMapsDirectionsUrl(
+  origin: MappedActivity | null,
+  destination: MappedActivity,
+  waypoints: MappedActivity[],
+): string {
+  const url = new URL(GOOGLE_MAPS_DIRECTIONS_URL)
+  url.searchParams.set('api', '1')
+  url.searchParams.set('travelmode', 'driving')
+  if (origin) {
+    url.searchParams.set('origin', googleMapsCoordinateValue(origin))
+  }
+  url.searchParams.set('destination', googleMapsCoordinateValue(destination))
+  if (waypoints.length > 0) {
+    url.searchParams.set('waypoints', waypoints.map(googleMapsCoordinateValue).join('|'))
+  }
+  return url.toString()
+}
+
+function buildSelectedDayGoogleMapsExport(activities: Activity[]): DayGoogleMapsExport {
+  const mappedStops = activities.filter(hasFiniteCoordinates)
+  const totalMappedStopCount = mappedStops.length
+  if (totalMappedStopCount === 0) {
+    return {
+      disabledReason: 'Add at least one mapped stop to export this day.',
+      exportedStopCount: 0,
+      totalMappedStopCount,
+      truncated: false,
+      url: null,
+    }
+  }
+
+  if (totalMappedStopCount === 1) {
+    return {
+      disabledReason: null,
+      exportedStopCount: 1,
+      totalMappedStopCount,
+      truncated: false,
+      url: createDayGoogleMapsDirectionsUrl(null, mappedStops[0], []),
+    }
+  }
+
+  const origin = mappedStops[0]
+  const destination = mappedStops[mappedStops.length - 1]
+  let waypoints = mappedStops.slice(1, -1).slice(0, GOOGLE_MAPS_MAX_WAYPOINTS)
+  let url = createDayGoogleMapsDirectionsUrl(origin, destination, waypoints)
+
+  while (url.length > GOOGLE_MAPS_MAX_DIRECTIONS_URL_LENGTH && waypoints.length > 0) {
+    waypoints = waypoints.slice(0, -1)
+    url = createDayGoogleMapsDirectionsUrl(origin, destination, waypoints)
+  }
+
+  if (url.length > GOOGLE_MAPS_MAX_DIRECTIONS_URL_LENGTH) {
+    return {
+      disabledReason: 'This day has too many mapped stops for a Google Maps directions URL.',
+      exportedStopCount: 0,
+      totalMappedStopCount,
+      truncated: false,
+      url: null,
+    }
+  }
+
+  const exportedStopCount = 2 + waypoints.length
+  return {
+    disabledReason: null,
+    exportedStopCount,
+    totalMappedStopCount,
+    truncated: exportedStopCount < totalMappedStopCount,
+    url,
+  }
 }
 
 function googleMapsUrlForPlace(place: PlaceSelection): string | null {
@@ -1455,6 +1551,7 @@ export function TripWorkspacePage() {
   const [isShareTripOpen, setIsShareTripOpen] = useState(false)
   const [isDraggingActivity, setIsDraggingActivity] = useState(false)
   const [isDraggingActivityOverSidebar, setIsDraggingActivityOverSidebar] = useState(false)
+  const [dragOverlayActivityId, setDragOverlayActivityId] = useState<number | null>(null)
   const [schedulingIdeaActivityId, setSchedulingIdeaActivityId] = useState<number | null>(null)
   const [workspaceMode, setWorkspaceMode] = useState<WorkspaceMode>('days')
   const [sidebarPinned, setSidebarPinned] = useState(false)
@@ -1485,6 +1582,7 @@ export function TripWorkspacePage() {
   const dragStartPointerRef = useRef<PointerCoordinates | null>(null)
   const dragStartActivityCardRectRef = useRef<DragRect | null>(null)
   const isDraggingActivityOverSidebarRef = useRef(false)
+  const lastActivityDropOverIdRef = useRef<UniqueIdentifier | null>(null)
   const mapPlaceCardTimingRef = useRef<{
     clickedAtIso: string
     clickedAtMs: number
@@ -1532,9 +1630,23 @@ export function TripWorkspacePage() {
   const resetDraggingActivityState = useCallback(() => {
     dragStartPointerRef.current = null
     dragStartActivityCardRectRef.current = null
+    lastActivityDropOverIdRef.current = null
     setIsDraggingActivity(false)
+    setDragOverlayActivityId(null)
     updateDraggingActivityOverSidebar(false)
   }, [updateDraggingActivityOverSidebar])
+  const rememberActivityDropTarget = useCallback((overId: UniqueIdentifier | null | undefined) => {
+    if (
+      overId &&
+      (
+        parseActivityDragId(overId) !== null ||
+        parseDayDropId(overId) !== null ||
+        parseIdeasDropId(overId)
+      )
+    ) {
+      lastActivityDropOverIdRef.current = overId
+    }
+  }, [])
   const workspaceCollisionDetection = useCallback<CollisionDetection>((args) => {
     const pointerCollisions = pointerWithin(args)
     const isDraggingActivity = parseActivityDragId(args.active.id) !== null
@@ -1549,7 +1661,10 @@ export function TripWorkspacePage() {
     )
     if (pointerOverSidebar || isDraggingActivityOverSidebarRef.current) {
       const sidebarCollisions = pointerCollisions.filter(isSidebarDropCollision)
-      if (pointerOverSidebar) return sidebarCollisions
+      if (pointerOverSidebar) {
+        if (sidebarCollisions.length > 0) return sidebarCollisions
+        return closestCenter(args).filter(isSidebarDropCollision)
+      }
       if (sidebarCollisions.length > 0) return sidebarCollisions
       const nonSidebarCollisions = pointerCollisions.filter(
         (collision) => !isSidebarDropCollision(collision),
@@ -1576,6 +1691,13 @@ export function TripWorkspacePage() {
   }, [day, navigate, publicId, tripQuery.data])
 
   const allActivities = useMemo(() => activitiesQuery.data ?? [], [activitiesQuery.data])
+  const dragOverlayActivity = useMemo(
+    () =>
+      dragOverlayActivityId === null
+        ? null
+        : allActivities.find((activity) => activity.id === dragOverlayActivityId) ?? null,
+    [allActivities, dragOverlayActivityId],
+  )
   const scheduledActivities = useMemo(
     () => allActivities.filter((activity) => activity.dayDate != null),
     [allActivities],
@@ -1668,6 +1790,10 @@ export function TripWorkspacePage() {
   const selectedDayMappedCount = dayActivities.filter(
     hasFiniteCoordinates,
   ).length
+  const selectedDayMapsExport = useMemo(
+    () => buildSelectedDayGoogleMapsExport(dayActivities),
+    [dayActivities],
+  )
   const collaboratorNames = useMemo(
     () => collectCollaboratorNames(allActivities),
     [allActivities],
@@ -2768,15 +2894,16 @@ export function TripWorkspacePage() {
 
   const handleDragEnd = (event: DragEndEvent) => {
     if (!publicId) return
+    const effectiveOverId = event.over?.id ?? lastActivityDropOverIdRef.current
     const operation = workspaceMode === 'timeline'
       ? getTimelineDragOperation({
           activeId: event.active.id,
-          overId: event.over?.id,
+          overId: effectiveOverId,
           allActivities,
         })
       : getActivityDragOperation({
           activeId: event.active.id,
-          overId: event.over?.id,
+          overId: effectiveOverId,
           selectedDayActivities: dayActivities,
           allActivities,
         })
@@ -2832,7 +2959,14 @@ export function TripWorkspacePage() {
       : null
     dragStartActivityCardRectRef.current = activityCard ? elementDragRect(activityCard) : null
     setIsDraggingActivity(draggingActivity)
+    setDragOverlayActivityId(activityId)
+    lastActivityDropOverIdRef.current = null
     updateDraggingActivityOverSidebar(false)
+  }
+
+  const handleWorkspaceDragOver = (event: DragOverEvent) => {
+    if (parseActivityDragId(event.active.id) === null) return
+    rememberActivityDropTarget(event.over?.id)
   }
 
   const handleWorkspaceDragMove = (event: DragMoveEvent) => {
@@ -2943,6 +3077,7 @@ export function TripWorkspacePage() {
             onDragCancel={handleWorkspaceDragCancel}
             onDragEnd={handleWorkspaceDragEnd}
             onDragMove={handleWorkspaceDragMove}
+            onDragOver={handleWorkspaceDragOver}
             onDragStart={handleWorkspaceDragStart}
           >
             <section
@@ -3137,6 +3272,34 @@ export function TripWorkspacePage() {
                         </span>
                       ))}
                     </div>
+                    {workspaceMode === 'days' && (
+                      selectedDayMapsExport.url ? (
+                        <a
+                          className={styles.exportDayButton}
+                          href={selectedDayMapsExport.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          title={
+                            selectedDayMapsExport.truncated
+                              ? `Opens ${selectedDayMapsExport.exportedStopCount} of ${selectedDayMapsExport.totalMappedStopCount} mapped stops in Google Maps`
+                              : 'Open this day in Google Maps'
+                          }
+                        >
+                          <ExternalLink size={15} aria-hidden="true" />
+                          Export Day
+                        </a>
+                      ) : (
+                        <button
+                          type="button"
+                          className={styles.exportDayButton}
+                          disabled
+                          title={selectedDayMapsExport.disabledReason ?? undefined}
+                        >
+                          <ExternalLink size={15} aria-hidden="true" />
+                          Export Day
+                        </button>
+                      )
+                    )}
                     {canEditTrip && workspaceMode !== 'timeline' && (
                       <button
                         type="button"
@@ -3469,6 +3632,22 @@ export function TripWorkspacePage() {
                 />
               </aside>
             </section>
+            <DragOverlay dropAnimation={null}>
+              {dragOverlayActivity ? (
+                <div className={styles.activityDragOverlay}>
+                  <ActivityCard
+                    activity={dragOverlayActivity}
+                    active
+                    domId={`activity-drag-overlay-${dragOverlayActivity.id}`}
+                    presentation
+                    readOnly
+                    onDelete={() => undefined}
+                    onSubmitEdit={() => undefined}
+                    onToggleExpand={() => undefined}
+                  />
+                </div>
+              ) : null}
+            </DragOverlay>
           </DndContext>
           {isTripSettingsOpen && (
             <TripSettingsModal

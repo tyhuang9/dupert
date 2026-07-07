@@ -8,7 +8,11 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
@@ -21,10 +25,12 @@ import com.trip.config.AppProperties;
 @Component
 @Profile("!test")
 public class HttpGoogleMapsClient implements GoogleMapsClient {
+    private static final Logger log = LoggerFactory.getLogger(HttpGoogleMapsClient.class);
     private static final String PLACES_BASE_URL = "https://places.googleapis.com/v1";
     private static final String GEOCODING_URL = "https://maps.googleapis.com/maps/api/geocode/json";
     private static final String ROUTES_COMPUTE_URL = "https://routes.googleapis.com/directions/v2:computeRoutes";
     private static final Duration GOOGLE_HTTP_TIMEOUT = Duration.ofSeconds(8);
+    private static final int MAX_UPSTREAM_DIAGNOSTIC_CHARS = 300;
 
     private final AppProperties appProperties;
     private final ObjectMapper objectMapper;
@@ -116,16 +122,23 @@ public class HttpGoogleMapsClient implements GoogleMapsClient {
             if (status >= 200 && status < 300) {
                 return objectMapper.readTree(response.body());
             }
+            String diagnostic = upstreamDiagnostic(response.body());
+            if (diagnostic.isBlank()) {
+                log.warn("{} returned HTTP {}", context, status);
+            } else {
+                log.warn("{} returned HTTP {}: {}", context, status, diagnostic);
+            }
+            String failureMessage = upstreamFailureMessage(context, status, diagnostic);
             if (status == 404) {
-                throw GoogleMapsException.notFound(context + " returned 404");
+                throw GoogleMapsException.notFound(failureMessage);
             }
             if (status == 429) {
-                throw GoogleMapsException.rateLimited(context + " returned 429");
+                throw GoogleMapsException.rateLimited(failureMessage);
             }
             if (status == 400) {
-                throw GoogleMapsException.badRequest(context + " returned 400");
+                throw GoogleMapsException.badRequest(failureMessage);
             }
-            throw GoogleMapsException.unavailable(context + " returned HTTP " + status);
+            throw GoogleMapsException.unavailable(failureMessage);
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
             throw GoogleMapsException.unavailable(context + " request was interrupted");
@@ -134,6 +147,52 @@ public class HttpGoogleMapsClient implements GoogleMapsClient {
         } catch (IOException ex) {
             throw GoogleMapsException.unavailable(context + " request failed: " + ex.getClass().getSimpleName());
         }
+    }
+
+    private String upstreamFailureMessage(String context, int status, String diagnostic) {
+        if (diagnostic.isBlank()) {
+            return context + " returned HTTP " + status;
+        }
+        return context + " returned HTTP " + status + ": " + diagnostic;
+    }
+
+    private String upstreamDiagnostic(String body) {
+        if (body == null || body.isBlank()) {
+            return "";
+        }
+
+        try {
+            JsonNode root = objectMapper.readTree(body);
+            List<String> parts = new ArrayList<>();
+            JsonNode error = root.path("error");
+            addTextPart(parts, error.path("status"));
+            addTextPart(parts, error.path("message"));
+            if (parts.isEmpty()) {
+                addTextPart(parts, root.path("status"));
+                addTextPart(parts, root.path("error_message"));
+            }
+            return truncateDiagnostic(String.join(": ", parts));
+        } catch (JsonProcessingException ex) {
+            return "unparseable upstream error body";
+        }
+    }
+
+    private static void addTextPart(List<String> parts, JsonNode node) {
+        if (!node.isTextual()) {
+            return;
+        }
+        String value = node.asText().strip();
+        if (!value.isEmpty()) {
+            parts.add(value);
+        }
+    }
+
+    private static String truncateDiagnostic(String value) {
+        String normalized = value.strip().replaceAll("\\s+", " ");
+        if (normalized.length() <= MAX_UPSTREAM_DIAGNOSTIC_CHARS) {
+            return normalized;
+        }
+        return normalized.substring(0, MAX_UPSTREAM_DIAGNOSTIC_CHARS - 3) + "...";
     }
 
     private String apiKey() {
