@@ -24,15 +24,37 @@ jobs:
           java-version: '21'
           cache: gradle
 
-      - name: Check NVD key
+      - name: Validate NVD key
+        id: nvd-key
         shell: bash
         env:
           NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
         run: |
           if [ -z "$NVD_API_KEY" ]; then
-            echo "::error title=NVD_API_KEY missing::Set the NVD_API_KEY repository secret before refreshing Dependency-Check data."
-            exit 1
+            echo "::warning title=NVD_API_KEY missing::Dependency-Check will refresh NVD data without an API key. Add a valid repository secret for faster, more reliable updates."
+            echo "valid=false" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
+
+          headers="$(mktemp)"
+          status="$(curl --retry 2 --retry-delay 5 --connect-timeout 15 --max-time 60 -sS -o /dev/null -D "$headers" -w "%{http_code}" -H "apiKey: $NVD_API_KEY" "https://services.nvd.nist.gov/rest/json/cves/2.0?cveId=CVE-2021-44228" || true)"
+
+          if [[ "$status" =~ ^[0-9]+$ ]] && [ "$status" -ge 200 ] && [ "$status" -lt 300 ]; then
+            echo "valid=true" >> "$GITHUB_OUTPUT"
+            rm -f "$headers"
+            exit 0
+          fi
+
+          if grep -qi '^message: Invalid apiKey\.' "$headers"; then
+            echo "::warning title=NVD_API_KEY invalid::NVD rejected the repository secret. Dependency-Check will refresh without the bad key; replace the secret for faster, more reliable updates."
+            echo "valid=false" >> "$GITHUB_OUTPUT"
+            rm -f "$headers"
+            exit 0
+          fi
+
+          echo "::warning title=NVD key validation inconclusive::NVD key validation returned HTTP $status; continuing with the configured key so Dependency-Check can report the update result."
+          echo "valid=true" >> "$GITHUB_OUTPUT"
+          rm -f "$headers"
 
       - name: Restore dependency-check data
         uses: actions/cache@v5
@@ -44,10 +66,17 @@ jobs:
 
       - name: Update dependency-check data
         working-directory: backend
+        shell: bash
         env:
           NVD_API_KEY: ${{ secrets.NVD_API_KEY }}
+          NVD_API_KEY_VALID: ${{ steps.nvd-key.outputs.valid }}
           DEPENDENCY_CHECK_AUTO_UPDATE: 'true'
-        run: ./gradlew dependencyCheckUpdate
+        run: |
+          if [ "$NVD_API_KEY_VALID" = "true" ]; then
+            ./gradlew dependencyCheckUpdate
+          else
+            NVD_API_KEY= ./gradlew dependencyCheckUpdate
+          fi
 
       - name: Verify dependency-check data
         shell: bash

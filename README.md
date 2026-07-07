@@ -116,7 +116,7 @@ Before pushing a feature, run:
 (cd frontend && npm audit --omit=dev)
 ```
 
-With `NVD_API_KEY` set, also run:
+For the fastest local Dependency-Check updates, set a valid `NVD_API_KEY` and also run:
 
 ```bash
 (cd backend && ./gradlew dependencyCheckUpdate)
@@ -133,9 +133,9 @@ On pushes to `main`, pull requests, and manual dispatches CI runs:
 - backend OWASP Dependency-Check against the cached vulnerability database, with HTML/JSON reports uploaded as artifacts
 - frontend `npm ci`, lint, tests, production build, and production dependency audit
 
-The CI workflow does not require app runtime secrets. Backend tests use the test profile and do not require a Neon URL, Google Maps key, or local `.env`. Dependency-Check scans do not call NVD during push or pull request CI; they restore `~/.gradle/dependency-check-data` from the latest successful data refresh. If that cache is missing, CI fails with a message to run the Dependency-Check Data workflow.
+The CI workflow does not require app runtime secrets. Backend tests use the test profile and do not require a Neon URL, Google Maps key, or local `.env`. Dependency-Check scans do not call NVD during push or pull request CI; they restore `~/.gradle/dependency-check-data` from the latest successful data refresh. If that cache is missing, CI warns and skips the scan for that run.
 
-The Dependency-Check Data workflow runs daily and can be dispatched manually. It requires the repository secret `NVD_API_KEY`, runs `./gradlew dependencyCheckUpdate`, and saves the refreshed vulnerability database cache only after a successful update.
+The Dependency-Check Data workflow runs daily and can be dispatched manually. It uses the repository secret `NVD_API_KEY` when it is valid, falls back to an unauthenticated NVD update when the secret is missing or rejected by NVD, and saves the refreshed vulnerability database cache only after a successful update. Keep a valid `NVD_API_KEY` secret configured for faster and more reliable refreshes.
 
 ## Project layout
 
