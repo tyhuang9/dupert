@@ -75,7 +75,16 @@ This sources `backend/.env` for the Spring Boot backend, defaults the backend to
 
 Open http://localhost:3000 in your browser. Vite proxies `/api/**` to the backend, so the SPA can call `/api/...` without CORS gymnastics during development.
 
-Local auth testing seeds `alice@test.local`, `bob@test.local`, `charlie@test.local`, and `admin@test.local` with password `password`. The local profile also enables `/api/dev/**` login/user helpers and bypasses email delivery. See [docs/development-testing.md](docs/development-testing.md).
+Local auth testing seeds these users with password `password`:
+
+| Email | Password | Name |
+|---|---|---|
+| `alice@test.local` | `password` | Alice Chen |
+| `bob@test.local` | `password` | Bob Martinez |
+| `charlie@test.local` | `password` | Charlie Patel |
+| `admin@test.local` | `password` | Admin User |
+
+The local profile also enables `/api/dev/**` login/user helpers and bypasses email delivery. See [docs/development-testing.md](docs/development-testing.md).
 
 If you prefer the direct script instead of npm:
 
