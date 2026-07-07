@@ -102,12 +102,9 @@ public class ShareLinkService {
     public void revoke(String publicId, Long userId, Long linkId) {
         ResolvedTrip resolved = tripAccessGuard.resolveForUserAtLeast(publicId, userId, TripRole.EDITOR);
         ShareLink link = findLinkOnTrip(linkId, resolved.trip().getId());
-        if (link.getRevokedAt() == null) {
-            link.revoke(OffsetDateTime.now());
-            shareLinkRepository.save(link);
-            tripEventPublisher.publishAndDisconnectAfterCommit(
-                resolved.trip().getId(), TripEvent.shareLinksChanged(publicId));
-        }
+        shareLinkRepository.delete(link);
+        tripEventPublisher.publishAndDisconnectAfterCommit(
+            resolved.trip().getId(), TripEvent.shareLinksChanged(publicId));
     }
 
     @Transactional

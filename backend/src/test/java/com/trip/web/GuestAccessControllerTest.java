@@ -7,7 +7,6 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -29,14 +28,12 @@ import org.springframework.test.web.servlet.MockMvc;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.trip.domain.Activity;
 import com.trip.domain.ActivityCategory;
-import com.trip.domain.DayNote;
 import com.trip.domain.GuestSession;
 import com.trip.domain.ShareLink;
 import com.trip.domain.Trip;
 import com.trip.domain.TripMember;
 import com.trip.domain.TripRole;
 import com.trip.repo.ActivityRepository;
-import com.trip.repo.DayNoteRepository;
 import com.trip.repo.GuestSessionRepository;
 import com.trip.repo.PasswordResetTokenRepository;
 import com.trip.repo.RefreshTokenRepository;
@@ -89,9 +86,6 @@ class GuestAccessControllerTest {
 
     @MockitoBean
     ActivityRepository activityRepository;
-
-    @MockitoBean
-    DayNoteRepository dayNoteRepository;
 
     @MockitoBean
     GuestSessionRepository guestSessionRepository;
@@ -211,29 +205,6 @@ class GuestAccessControllerTest {
         assertThat(saved.getValue().getCreatedByUserId()).isNull();
         assertThat(saved.getValue().getUpdatedByUserId()).isNull();
         assertThat(saved.getValue().getCreatedByGuestSessionId()).isEqualTo(GUEST_ID);
-        assertThat(saved.getValue().getUpdatedByGuestSessionId()).isEqualTo(GUEST_ID);
-    }
-
-    @Test
-    void editorGuestCanUpdateDayNoteWithGuestAttribution() throws Exception {
-        shareLink = link(TripRole.EDITOR);
-        when(shareLinkRepository.findById(SHARE_LINK_ID)).thenReturn(Optional.of(shareLink));
-        when(dayNoteRepository.findById_TripIdAndId_DayDate(TRIP_PK, DAY_ONE))
-            .thenReturn(Optional.empty());
-        when(dayNoteRepository.save(any(DayNote.class))).thenAnswer(invocation -> invocation.getArgument(0));
-
-        mvc.perform(put("/api/trips/" + TRIP_PUBLIC_ID + "/notes/" + DAY_ONE)
-                .cookie(guestCookie())
-                .header(GuestAuthenticationFilter.GUEST_WRITE_HEADER, "1")
-                .contentType("application/json")
-                .content(objectMapper.writeValueAsString(Map.of("note", "Guest note"))))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.note").value("Guest note"))
-            .andExpect(jsonPath("$.updatedByUserDisplayName").value("Guest Alice"));
-
-        ArgumentCaptor<DayNote> saved = ArgumentCaptor.forClass(DayNote.class);
-        verify(dayNoteRepository).save(saved.capture());
-        assertThat(saved.getValue().getUpdatedByUserId()).isNull();
         assertThat(saved.getValue().getUpdatedByGuestSessionId()).isEqualTo(GUEST_ID);
     }
 

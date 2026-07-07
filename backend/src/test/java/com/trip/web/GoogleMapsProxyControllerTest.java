@@ -32,7 +32,6 @@ import org.springframework.test.web.servlet.MockMvc;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.trip.repo.ActivityRepository;
-import com.trip.repo.DayNoteRepository;
 import com.trip.repo.EmailVerificationTokenRepository;
 import com.trip.repo.GoogleApiCacheRepository;
 import com.trip.repo.GuestSessionRepository;
@@ -89,9 +88,6 @@ class GoogleMapsProxyControllerTest {
 
     @MockitoBean
     ActivityRepository activityRepository;
-
-    @MockitoBean
-    DayNoteRepository dayNoteRepository;
 
     @MockitoBean
     GuestSessionRepository guestSessionRepository;

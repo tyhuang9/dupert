@@ -12,7 +12,6 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -382,37 +381,18 @@ public class AuthController {
     /**
      * Hard-deletes the calling user's account.
      *
-     * <p><b>Schema-driven semantics.</b> {@code trips.owner_id REFERENCES users(id) ON
-     * DELETE CASCADE} (V1__init.sql) — owned trips and their child rows (members,
-     * activities, day_notes, share_links, guest_sessions, refresh_tokens) all cascade
-     * away with the user. We don't need to refuse the delete or transfer ownership.
-     *
-     * <p>Refresh tokens are revoked <em>before</em> the delete so a concurrent
-     * {@code POST /refresh} can't slip a fresh access token through during the brief
-     * deletion window. The {@code @Transactional} wraps both writes so they commit (or
-     * roll back) atomically.
+     * <p>The service preserves owned trips that still have another registered member by
+     * transferring ownership, and deletes owned trips that would otherwise become
+     * orphaned. Refresh tokens are revoked before the user row is deleted so a
+     * concurrent {@code POST /refresh} cannot mint a fresh access token during deletion.
      */
     @DeleteMapping("/me")
-    @Transactional
     public ResponseEntity<?> deleteMe(Authentication authentication, HttpServletResponse response) {
         Long userId = principalUserId(authentication);
         if (userId == null) {
             return unauthenticated();
         }
-        Optional<User> maybeUser = userRepository.findById(userId);
-        if (maybeUser.isEmpty()) {
-            // Already gone — clear the cookie anyway and return 204 (idempotent semantics
-            // for "delete this account": a second call after a successful first call
-            // should not look like a hard failure). Also revoke any tokens that may have
-            // survived a partial state — defense in depth, no-op when no rows exist.
-            refreshTokenService.revokeAllForUser(userId);
-            refreshCookie.clearOnResponse(response);
-            return ResponseEntity.noContent().build();
-        }
-        // Revoke first so a concurrent /refresh racing against the DELETE can't mint a
-        // fresh access token after the user row is gone.
-        refreshTokenService.revokeAllForUser(userId);
-        userRepository.delete(maybeUser.get());
+        accountService.deleteAccount(userId);
         refreshCookie.clearOnResponse(response);
         return ResponseEntity.noContent().build();
     }

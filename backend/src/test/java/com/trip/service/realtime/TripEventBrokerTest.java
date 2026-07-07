@@ -25,7 +25,7 @@ class TripEventBrokerTest {
     void publishWithoutSubscribersIsNoOp() {
         TripEventBroker broker = new TripEventBroker();
 
-        broker.publish(42L, TripEvent.noteUpdated("abc23def45gh", LocalDate.of(2026, 5, 1)));
+        broker.publish(42L, TripEvent.activityUpdated("abc23def45gh", 10L, LocalDate.of(2026, 5, 1)));
 
         assertThat(broker.subscriberCountForTest(42L)).isZero();
     }

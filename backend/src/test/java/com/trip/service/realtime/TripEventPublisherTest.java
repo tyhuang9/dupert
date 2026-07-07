@@ -24,7 +24,7 @@ class TripEventPublisherTest {
     void publishesImmediatelyOutsideTransaction() {
         TripEventBroker broker = mock(TripEventBroker.class);
         TripEventPublisher publisher = new TripEventPublisher(broker);
-        TripEvent event = TripEvent.noteUpdated("abc23def45gh", LocalDate.of(2026, 5, 1));
+        TripEvent event = TripEvent.activityUpdated("abc23def45gh", 10L, LocalDate.of(2026, 5, 1));
 
         publisher.publishAfterCommit(42L, event);
 
@@ -35,7 +35,7 @@ class TripEventPublisherTest {
     void defersPublishUntilAfterCommit() {
         TripEventBroker broker = mock(TripEventBroker.class);
         TripEventPublisher publisher = new TripEventPublisher(broker);
-        TripEvent event = TripEvent.noteUpdated("abc23def45gh", LocalDate.of(2026, 5, 1));
+        TripEvent event = TripEvent.activityUpdated("abc23def45gh", 10L, LocalDate.of(2026, 5, 1));
 
         TransactionSynchronizationManager.initSynchronization();
         publisher.publishAfterCommit(42L, event);

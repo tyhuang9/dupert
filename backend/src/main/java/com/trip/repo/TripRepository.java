@@ -22,5 +22,7 @@ public interface TripRepository extends JpaRepository<Trip, Long> {
 
     Optional<Trip> findByPublicId(String publicId);
 
+    List<Trip> findAllByOwnerId(Long ownerId);
+
     List<Trip> findAllByIdInOrderByCreatedAtDesc(Collection<Long> ids);
 }

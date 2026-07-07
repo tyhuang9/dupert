@@ -34,10 +34,6 @@ public record TripEvent(
         return new TripEvent("day.reordered", publicId, null, dayDate, Instant.now());
     }
 
-    public static TripEvent noteUpdated(String publicId, LocalDate dayDate) {
-        return new TripEvent("note.updated", publicId, null, dayDate, Instant.now());
-    }
-
     public static TripEvent shareLinksChanged(String publicId) {
         return new TripEvent("share-links.changed", publicId, null, null, Instant.now());
     }

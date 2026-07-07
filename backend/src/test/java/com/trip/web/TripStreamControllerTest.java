@@ -23,7 +23,6 @@ import com.trip.domain.Trip;
 import com.trip.domain.TripMember;
 import com.trip.domain.TripRole;
 import com.trip.repo.ActivityRepository;
-import com.trip.repo.DayNoteRepository;
 import com.trip.repo.GuestSessionRepository;
 import com.trip.repo.PasswordResetTokenRepository;
 import com.trip.repo.RefreshTokenRepository;
@@ -68,9 +67,6 @@ class TripStreamControllerTest {
 
     @MockitoBean
     ActivityRepository activityRepository;
-
-    @MockitoBean
-    DayNoteRepository dayNoteRepository;
 
     @MockitoBean
     GuestSessionRepository guestSessionRepository;

@@ -39,7 +39,6 @@ import com.trip.domain.Trip;
 import com.trip.domain.TripMember;
 import com.trip.domain.TripRole;
 import com.trip.repo.ActivityRepository;
-import com.trip.repo.DayNoteRepository;
 import com.trip.repo.GuestSessionRepository;
 import com.trip.repo.PasswordResetTokenRepository;
 import com.trip.repo.RefreshTokenRepository;
@@ -92,9 +91,6 @@ class ShareLinkControllerTest {
 
     @MockitoBean
     ActivityRepository activityRepository;
-
-    @MockitoBean
-    DayNoteRepository dayNoteRepository;
 
     @MockitoBean
     GuestSessionRepository guestSessionRepository;
@@ -285,7 +281,7 @@ class ShareLinkControllerTest {
     }
 
     @Test
-    void revokeMarksLinkRevoked() throws Exception {
+    void revokeDeletesLink() throws Exception {
         ShareLink shareLink = link(501L, TRIP_PK, "hash", TripRole.EDITOR, false, ALICE_ID, null);
         when(shareLinkRepository.findById(501L)).thenReturn(Optional.of(shareLink));
 
@@ -293,8 +289,9 @@ class ShareLinkControllerTest {
                 .header("Authorization", bearerFor(ALICE_ID)))
             .andExpect(status().isNoContent());
 
-        assertThat(shareLink.getRevokedAt()).isNotNull();
-        verify(shareLinkRepository).save(shareLink);
+        assertThat(shareLink.getRevokedAt()).isNull();
+        verify(shareLinkRepository).delete(shareLink);
+        verify(shareLinkRepository, never()).save(shareLink);
         verify(tripEventPublisher).publishAndDisconnectAfterCommit(eq(TRIP_PK), argThat(event ->
             event.type().equals("share-links.changed")
                 && event.activityId() == null
@@ -313,6 +310,7 @@ class ShareLinkControllerTest {
 
         assertThat(foreign.getRevokedAt()).isNull();
         verify(shareLinkRepository, never()).save(foreign);
+        verify(shareLinkRepository, never()).delete(foreign);
     }
 
     @Test

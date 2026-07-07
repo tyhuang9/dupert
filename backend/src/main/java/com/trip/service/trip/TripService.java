@@ -144,8 +144,8 @@ public class TripService {
         ResolvedTrip resolved =
             tripAccessGuard.resolveForUserAtLeast(publicId, userId, TripRole.OWNER);
         // V1__init.sql declares ON DELETE CASCADE for trips → trip_members, share_links,
-        // guest_sessions (via share_links), activities, day_notes — the dependent rows
-        // disappear with the parent, no explicit fanout needed.
+        // guest_sessions (via share_links), and activities — the dependent rows disappear
+        // with the parent, no explicit fanout needed.
         tripRepository.delete(resolved.trip());
     }
 

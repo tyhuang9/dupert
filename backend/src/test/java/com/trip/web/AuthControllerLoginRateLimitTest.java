@@ -28,7 +28,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.trip.domain.RefreshToken;
 import com.trip.domain.User;
 import com.trip.repo.ActivityRepository;
-import com.trip.repo.DayNoteRepository;
 import com.trip.repo.GuestSessionRepository;
 import com.trip.repo.PasswordResetTokenRepository;
 import com.trip.repo.ShareLinkRepository;
@@ -92,9 +91,6 @@ class AuthControllerLoginRateLimitTest {
 
     @MockitoBean
     ActivityRepository activityRepository;
-
-    @MockitoBean
-    DayNoteRepository dayNoteRepository;
 
     @MockitoBean
     GuestSessionRepository guestSessionRepository;

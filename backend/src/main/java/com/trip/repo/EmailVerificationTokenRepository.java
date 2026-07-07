@@ -29,4 +29,13 @@ public interface EmailVerificationTokenRepository extends JpaRepository<EmailVer
     @Query("UPDATE EmailVerificationToken evt SET evt.revokedAt = :now "
         + "WHERE evt.userId = :userId AND evt.consumedAt IS NULL AND evt.revokedAt IS NULL")
     int revokeActiveForUser(@Param("userId") Long userId, @Param("now") OffsetDateTime now);
+
+    @Modifying
+    @Query("""
+        DELETE FROM EmailVerificationToken evt
+        WHERE evt.expiresAt < :cutoff
+           OR evt.consumedAt < :cutoff
+           OR evt.revokedAt < :cutoff
+        """)
+    int deleteInactiveBefore(@Param("cutoff") OffsetDateTime cutoff);
 }

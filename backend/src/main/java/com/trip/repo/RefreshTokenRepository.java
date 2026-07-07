@@ -33,10 +33,18 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long
 
     /**
      * Bulk-revoke every still-active refresh token for a user. Used by "logout everywhere"
-     * and the soon-to-be-added DELETE /auth/me flow.
+     * and account deletion.
      */
     @Modifying
     @Query("UPDATE RefreshToken rt SET rt.revokedAt = :now "
         + "WHERE rt.userId = :userId AND rt.revokedAt IS NULL")
     int revokeAllForUser(@Param("userId") Long userId, @Param("now") OffsetDateTime now);
+
+    @Modifying
+    @Query("""
+        DELETE FROM RefreshToken rt
+        WHERE rt.expiresAt < :cutoff
+           OR rt.revokedAt < :cutoff
+        """)
+    int deleteInactiveBefore(@Param("cutoff") OffsetDateTime cutoff);
 }

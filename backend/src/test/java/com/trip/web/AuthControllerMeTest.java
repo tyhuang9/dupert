@@ -16,6 +16,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -36,7 +37,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.trip.domain.RefreshToken;
 import com.trip.domain.User;
 import com.trip.repo.ActivityRepository;
-import com.trip.repo.DayNoteRepository;
 import com.trip.repo.GuestSessionRepository;
 import com.trip.repo.PasswordResetTokenRepository;
 import com.trip.repo.ShareLinkRepository;
@@ -96,9 +96,6 @@ class AuthControllerMeTest {
     ActivityRepository activityRepository;
 
     @MockitoBean
-    DayNoteRepository dayNoteRepository;
-
-    @MockitoBean
     GuestSessionRepository guestSessionRepository;
 
     @MockitoBean
@@ -121,6 +118,7 @@ class AuthControllerMeTest {
     void getMeWithValidBearerReturns200WithUserSummary() throws Exception {
         User user = userWith(42L, "alice@example.com", "Alice");
         when(userRepository.findById(42L)).thenReturn(Optional.of(user));
+        when(tripRepository.findAllByOwnerId(42L)).thenReturn(List.of());
         String token = realJwtService.issueAccessToken(42L);
 
         mvc.perform(get("/api/auth/me").header("Authorization", "Bearer " + token))

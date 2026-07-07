@@ -1,12 +1,20 @@
 package com.trip.service.auth;
 
+import java.time.OffsetDateTime;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.trip.domain.Trip;
+import com.trip.domain.TripMember;
+import com.trip.domain.TripRole;
 import com.trip.domain.User;
+import com.trip.repo.TripMemberRepository;
+import com.trip.repo.TripRepository;
 import com.trip.repo.UserRepository;
 import com.trip.service.auth.password.BreachedPasswordChecker;
 import com.trip.web.auth.DisplayNameSanitizer;
@@ -20,15 +28,21 @@ public class AccountService {
     private final PasswordEncoder passwordEncoder;
     private final RefreshTokenService refreshTokenService;
     private final BreachedPasswordChecker breachedPasswordChecker;
+    private final TripRepository tripRepository;
+    private final TripMemberRepository tripMemberRepository;
 
     public AccountService(UserRepository userRepository,
                           PasswordEncoder passwordEncoder,
                           RefreshTokenService refreshTokenService,
-                          BreachedPasswordChecker breachedPasswordChecker) {
+                          BreachedPasswordChecker breachedPasswordChecker,
+                          TripRepository tripRepository,
+                          TripMemberRepository tripMemberRepository) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.refreshTokenService = refreshTokenService;
         this.breachedPasswordChecker = breachedPasswordChecker;
+        this.tripRepository = tripRepository;
+        this.tripMemberRepository = tripMemberRepository;
     }
 
     @Transactional
@@ -64,7 +78,52 @@ public class AccountService {
         return true;
     }
 
+    @Transactional
+    public void deleteAccount(Long userId) {
+        refreshTokenService.revokeAllForUser(userId);
+        Optional<User> maybeUser = userRepository.findById(userId);
+        if (maybeUser.isEmpty()) {
+            return;
+        }
+
+        for (Trip ownedTrip : tripRepository.findAllByOwnerId(userId)) {
+            List<TripMember> remainingMembers = tripMemberRepository
+                .findAllByIdTripIdOrderByCreatedAtAsc(ownedTrip.getId())
+                .stream()
+                .filter(member -> !member.getId().getUserId().equals(userId))
+                .toList();
+
+            if (remainingMembers.isEmpty()) {
+                tripRepository.delete(ownedTrip);
+                continue;
+            }
+
+            TripMember nextOwner = chooseTransferOwner(remainingMembers);
+            ownedTrip.setOwnerId(nextOwner.getId().getUserId());
+            tripRepository.save(ownedTrip);
+            if (nextOwner.getRole() != TripRole.OWNER) {
+                nextOwner.setRole(TripRole.OWNER);
+                tripMemberRepository.save(nextOwner);
+            }
+        }
+
+        userRepository.delete(maybeUser.get());
+    }
+
     private static UserSummary summary(User user) {
         return UserSummary.from(user);
+    }
+
+    private static TripMember chooseTransferOwner(List<TripMember> remainingMembers) {
+        return remainingMembers.stream()
+            .sorted(Comparator
+                .comparingInt((TripMember member) -> member.getRole().rank())
+                .reversed()
+                .thenComparing(member -> {
+                    OffsetDateTime createdAt = member.getCreatedAt();
+                    return createdAt == null ? OffsetDateTime.MAX : createdAt;
+                }))
+            .findFirst()
+            .orElseThrow();
     }
 }
