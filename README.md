@@ -15,7 +15,7 @@ Multiple viewers see each other's edits live (under a second) without manual ref
 
 **Frontend** — Vite, React 19, TypeScript, React Router, TanStack Query, Zustand, Axios, `@microsoft/fetch-event-source` (SSE), `@vis.gl/react-google-maps`, `@dnd-kit`, `date-fns`. Plain CSS Modules.
 
-**External services** — [Google Maps Platform](https://developers.google.com/maps) (browser map rendering plus backend-proxied Places, geocoding, photos, and routes); [Neon](https://neon.tech) (managed Postgres).
+**External services** — [Google Maps Platform](https://developers.google.com/maps) (browser map rendering plus backend-proxied Places, geocoding, photos, and routes); [Neon](https://neon.tech) (managed Postgres); [Brevo](https://www.brevo.com/) (transactional auth email in production).
 
 **Realtime** — Server-Sent Events (`/api/trips/{id}/stream`); events carry pointers, not payloads, so subscribers always refetch through the authenticated API.
 
@@ -42,7 +42,10 @@ cp frontend/.env.example frontend/.env
 #   JWT_SECRET            (generate: openssl rand -hex 32)
 #   LOG_EMAIL_PEPPER      (generate: openssl rand -hex 16)
 #   ALLOWED_ORIGINS       (exact frontend origin, e.g. http://localhost:3000)
+#   APP_PUBLIC_FRONTEND_URL (same public frontend origin used in email links)
+#   SPRING_PROFILES_ACTIVE=local for local development
 #   GOOGLE_MAPS_API_KEY   (backend key for Places, Geocoding, Routes, and photos)
+#   BREVO_API_KEY / APP_EMAIL_FROM_EMAIL / APP_EMAIL_FROM_NAME for production email
 #   NVD_API_KEY           (optional, strongly recommended before Dependency-Check)
 # Edit frontend/.env and fill in real values for:
 #   VITE_GOOGLE_MAPS_API_KEY (browser key for Maps JavaScript rendering only)
@@ -67,9 +70,11 @@ Start both the backend and frontend from the repo root:
 npm run dev
 ```
 
-This sources `backend/.env` for the Spring Boot backend, lets Vite load `frontend/.env`, starts the backend on http://localhost:8000, starts the frontend on http://localhost:3000, and stops both processes when you press `Ctrl+C`.
+This sources `backend/.env` for the Spring Boot backend, defaults the backend to `SPRING_PROFILES_ACTIVE=local`, lets Vite load `frontend/.env`, starts the backend on http://localhost:8000, starts the frontend on http://localhost:3000, and stops both processes when you press `Ctrl+C`.
 
 Open http://localhost:3000 in your browser. Vite proxies `/api/**` to the backend, so the SPA can call `/api/...` without CORS gymnastics during development.
+
+Local auth testing seeds `alice@test.local`, `bob@test.local`, `charlie@test.local`, and `admin@test.local` with password `password`. The local profile also enables `/api/dev/**` login/user helpers and bypasses email delivery. See [docs/development-testing.md](docs/development-testing.md).
 
 If you prefer the direct script instead of npm:
 
@@ -167,24 +172,57 @@ trip-planner/
 | Variable | Used by | Description |
 |---|---|---|
 | `DATABASE_URL` | backend | Neon (or any Postgres) connection string |
+| `SPRING_PROFILES_ACTIVE` | backend | Use `local` for local development and `prod` on Render |
 | `JWT_SECRET` | backend | 32 random bytes (hex) for signing access tokens |
 | `LOG_EMAIL_PEPPER` | backend | 16 random bytes (hex) for hashing emails in logs |
-| `ALLOWED_ORIGINS` | backend | Exact frontend origins allowed by CORS, comma-separated (e.g. `http://localhost:3000`) |
-| `APP_DEV_PASSWORD_RESET_SECRET` | backend | Local-only secret required by `/api/auth/dev/reset-password`; leave unset outside dev |
+| `ALLOWED_ORIGINS` | backend | Exact frontend origins allowed by CORS, comma-separated (no `*`) |
+| `APP_PUBLIC_FRONTEND_URL` | backend | Public frontend origin used in password reset and email verification links |
+| `APP_TRUST_PROXY` | backend | Set `true` only behind a trusted platform proxy such as Render so rate limits use the real client IP |
+| `SIGNUP_ENABLED` | backend | Enables public registration. In prod, keep `true` only after Brevo email is configured |
+| `BREVO_API_KEY` | backend | Brevo Transactional Email API key |
+| `APP_EMAIL_FROM_EMAIL` | backend | Verified sender email address for auth email |
+| `APP_EMAIL_FROM_NAME` | backend | Display name for auth email sender |
 | `GOOGLE_MAPS_API_KEY` | backend | Server-side Google Maps key used by backend Places autocomplete, text/nearby search, place details, photo media, geocoding, and route calculations |
 | `VITE_GOOGLE_MAPS_API_KEY` | frontend | Public Google Maps browser key for Maps JavaScript rendering only; restrict by HTTP referrer to localhost and production origins |
 | `VITE_APP_ACCESS_PASSWORD` | frontend | Optional lightweight app-wall password; bundled into the browser, so treat it as a soft gate only |
 | `VITE_GOOGLE_MAPS_MAP_ID` | frontend | Optional Google Maps vector map id for cloud styling |
-| `VITE_DEV_PASSWORD_RESET_SECRET` | frontend | Dev-only value sent by the login-page reset helper; match `APP_DEV_PASSWORD_RESET_SECRET` locally |
 | `NVD_API_KEY` | backend/CI | Optional but strongly recommended key for reliable OWASP Dependency-Check NVD updates |
 
 Values containing shell metacharacters (`&`, `;`, `$`, spaces) **must** be wrapped in single quotes in `backend/.env`, otherwise `source backend/.env` will silently truncate them.
+
+## Brevo email setup
+
+Production signup and password-reset email use Brevo transactional email. Local development and tests use a no-op sender, so you do not need Brevo for `SPRING_PROFILES_ACTIVE=local`.
+
+Before enabling public signup in production:
+
+1. In Brevo, verify the sending domain or sender address you want to use for TripPlanner auth email.
+2. Create a Brevo Transactional Email API key.
+3. Set these backend environment variables on Render:
+
+```bash
+SPRING_PROFILES_ACTIVE=prod
+APP_PUBLIC_FRONTEND_URL=https://your-frontend.example
+BREVO_API_KEY=<brevo-transactional-api-key>
+APP_EMAIL_FROM_EMAIL=no-reply@your-verified-domain.example
+APP_EMAIL_FROM_NAME=TripPlanner
+SIGNUP_ENABLED=true
+```
+
+`APP_EMAIL_FROM_EMAIL` must be a sender Brevo allows for the account. `APP_PUBLIC_FRONTEND_URL` must be the exact browser origin where `/verify-email` and `/reset-password` are served; the backend uses it to build email links.
+
+Keep `SIGNUP_ENABLED=false` in production until the Brevo API key, sender, and public frontend URL are configured. With signup enabled outside `local` and `test`, the backend fails startup if any required email setting is missing.
 
 ## Security notes
 
 - Trip URLs are identifiers, not access grants. Every `/api/trips/**` request goes through the backend access guard and requires either a member JWT or a valid guest-session cookie.
 - Access tokens stay in memory; refresh tokens and guest-session tokens are opaque `HttpOnly` cookies.
 - Production-like backend starts require `app.cookies.secure=true` and `secure.hsts.enabled=true`; the `prod` profile sets both.
+- Render should run with `SPRING_PROFILES_ACTIVE=prod`, `APP_TRUST_PROXY=true`, an exact `ALLOWED_ORIGINS` value, and `APP_PUBLIC_FRONTEND_URL` set to the real frontend origin.
+- Public actuator exposure is limited to `/actuator/health` and `/actuator/health/**`; `/actuator/info` is not publicly exposed.
+- Production registration creates an unverified user, sends one Brevo verification email, and withholds auth tokens until verification. The local profile creates verified users immediately and sends no email.
+- Public auth/share endpoints are rate limited in memory. This is fine for a small deployment, but limits reset on backend restart and are weaker against distributed abuse.
+- `/api/dev/**` endpoints are registered only under `SPRING_PROFILES_ACTIVE=local` and operate only on `@test.local` accounts.
 - Share links store only a SHA-256 hash of the raw token and can be revoked by the trip owner.
 - Anonymous guest writes require the guest cookie plus the `X-TripPlanner-Guest-Write: 1` header, and guest/share endpoints are rate limited.
 - SSE events on `/api/trips/{publicId}/stream` contain only pointers such as event type, trip id, activity id, or day date; clients refetch the real data through authenticated API calls.
