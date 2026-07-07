@@ -111,7 +111,7 @@ export type MapSearchPlace = Pick<
   | 'featureType'
   | 'lat'
   | 'lng'
-  | 'mapboxId'
+  | 'placeId'
   | 'placeCategory'
   | 'placeName'
   | 'photoUrl'
@@ -289,7 +289,7 @@ function searchPlaceToDisplayStop(place: MapSearchPlace, index: number): Display
 
   const label = place.placeName || place.title || place.address || 'Search result'
   return {
-    id: `search-${place.mapboxId ?? index}-${place.lng},${place.lat}`,
+    id: `search-${place.placeId ?? index}-${place.lng},${place.lat}`,
     label,
     lat: place.lat,
     lng: place.lng,
@@ -550,7 +550,7 @@ function TripMapContent({
   const selectedSearchDisplayStop = useMemo(
     () =>
       selectedSearchResultId
-        ? searchDisplayStops.find((stop) => stop.place?.mapboxId === selectedSearchResultId) ?? null
+        ? searchDisplayStops.find((stop) => stop.place?.placeId === selectedSearchResultId) ?? null
         : null,
     [searchDisplayStops, selectedSearchResultId],
   )
@@ -895,7 +895,7 @@ function TripMapContent({
               key={stop.id}
               onClick={
                 stop.source === 'search' && stop.place
-                  ? stop.place.mapboxId === selectedSearchResultId && onSearchResultRemove
+                  ? stop.place.placeId === selectedSearchResultId && onSearchResultRemove
                     ? () => onSearchResultRemove(stop.place as MapSearchPlace)
                     : () => onSearchResultSelect?.(stop.place as MapSearchPlace)
                   : stop.source === 'preview'
@@ -910,7 +910,7 @@ function TripMapContent({
                   ? 5
                   : stop.source === 'preview' ||
                       (stop.source === 'search' &&
-                        stop.place?.mapboxId === highlightedSearchResultId)
+                        stop.place?.placeId === highlightedSearchResultId)
                   ? 4
                   : stop.source === 'search'
                     ? 3
@@ -956,22 +956,22 @@ function TripMapContent({
                   className={[
                     styles.marker,
                     styles.searchMarker,
-                    stop.place.mapboxId === highlightedSearchResultId
+                    stop.place.placeId === highlightedSearchResultId
                       ? styles.searchMarkerActive
                       : '',
                   ].filter(Boolean).join(' ')}
                   aria-label={
-                    stop.place.mapboxId === selectedSearchResultId && onSearchResultRemove
+                    stop.place.placeId === selectedSearchResultId && onSearchResultRemove
                       ? `Remove map marker for ${stop.title}`
                       : `Show place details for ${stop.title}`
                   }
                   title={stop.title}
                   onMouseEnter={() =>
-                    onSearchResultHoverChange?.(stop.place?.mapboxId ?? stop.id)
+                    onSearchResultHoverChange?.(stop.place?.placeId ?? stop.id)
                   }
                   onMouseLeave={() => onSearchResultHoverChange?.(null)}
                   onFocus={() =>
-                    onSearchResultHoverChange?.(stop.place?.mapboxId ?? stop.id)
+                    onSearchResultHoverChange?.(stop.place?.placeId ?? stop.id)
                   }
                   onBlur={() => onSearchResultHoverChange?.(null)}
                 >

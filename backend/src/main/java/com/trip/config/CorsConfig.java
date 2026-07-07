@@ -15,7 +15,7 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 /**
- * Exact-origin CORS allowlist. The list comes from the {@code APP_FRONTEND_ORIGIN}
+ * Exact-origin CORS allowlist. The list comes from the {@code ALLOWED_ORIGINS}
  * environment variable (comma-separated); no wildcards, no runtime reflection of the
  * {@code Origin} header. If the env var is unset we fall back to an empty allowlist —
  * preflights from any origin will be rejected, which fails safely.

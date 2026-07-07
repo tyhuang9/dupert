@@ -112,7 +112,7 @@ public class ActivityService {
         activity.setNotes(request.notes());
         activity.setStartTime(request.startTime());
         activity.setEndTime(request.endTime());
-        activity.setMapboxId(request.mapboxId());
+        activity.setPlaceId(request.placeId());
         activity.setPlaceName(request.placeName());
         activity.setAddress(request.address());
         activity.setLat(request.lat());
@@ -210,8 +210,8 @@ public class ActivityService {
         if (providedFields.contains("endTime")) {
             activity.setEndTime(request.endTime());
         }
-        if (providedFields.contains("mapboxId")) {
-            activity.setMapboxId(request.mapboxId());
+        if (providedFields.contains("placeId")) {
+            activity.setPlaceId(request.placeId());
         }
         if (providedFields.contains("placeName")) {
             activity.setPlaceName(request.placeName());
@@ -252,8 +252,8 @@ public class ActivityService {
         if (request.endTime() != null) {
             fields.add("endTime");
         }
-        if (request.mapboxId() != null) {
-            fields.add("mapboxId");
+        if (request.placeId() != null) {
+            fields.add("placeId");
         }
         if (request.placeName() != null) {
             fields.add("placeName");

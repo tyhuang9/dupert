@@ -25,7 +25,7 @@ Multiple viewers see each other's edits live (under a second) without manual ref
 - **Node 20+** and **npm**.
 - A **Neon** project (free tier is fine). Grab the dev-branch connection string from the Neon dashboard.
 - A **Google Maps Platform** browser API key for the Maps JavaScript API. Restrict this key by HTTP referrer to `http://localhost:3000/*` for local development and to your production origins later.
-- A **Google Maps Platform** server API key for backend Places API (New), Geocoding API, and Routes API requests. Restrict this key for server-side use only.
+- A **Google Maps Platform** backend API key for Places API (New), Geocoding API, and Routes API requests. Restrict this key for backend use only.
 
 No Docker, no local Postgres install, no global Gradle.
 
@@ -34,17 +34,20 @@ No Docker, no local Postgres install, no global Gradle.
 ```bash
 git clone <this repo>
 cd trip-planner
-cp .env.example .env
-# Edit .env and fill in real values for:
+cp backend/.env.example backend/.env
+cp frontend/.env.example frontend/.env
+# Edit backend/.env and fill in real values for:
 #   DATABASE_URL          (Neon connection string — wrap in single quotes if it
 #                          contains '&', e.g. '...?sslmode=require&channel_binding=require')
 #   JWT_SECRET            (generate: openssl rand -hex 32)
 #   LOG_EMAIL_PEPPER      (generate: openssl rand -hex 16)
-#   GOOGLE_MAPS_SERVER_API_KEY (backend server key for Places, Geocoding, Routes, and photos)
-#   VITE_GOOGLE_MAPS_BROWSER_KEY (browser key for Maps JavaScript rendering only)
+#   ALLOWED_ORIGINS       (exact frontend origin, e.g. http://localhost:3000)
+#   GOOGLE_MAPS_API_KEY   (backend key for Places, Geocoding, Routes, and photos)
+#   NVD_API_KEY           (optional, strongly recommended before Dependency-Check)
+# Edit frontend/.env and fill in real values for:
+#   VITE_GOOGLE_MAPS_API_KEY (browser key for Maps JavaScript rendering only)
 #   VITE_APP_ACCESS_PASSWORD (optional soft frontend wall password)
 #   VITE_GOOGLE_MAPS_MAP_ID   (optional Google Maps vector map id)
-#   NVD_API_KEY           (optional, strongly recommended before Dependency-Check)
 ```
 
 Install frontend dependencies:
@@ -64,7 +67,7 @@ Start both the backend and frontend from the repo root:
 npm run dev
 ```
 
-This sources `.env`, starts the Spring Boot backend on http://localhost:8000, starts the Vite frontend on http://localhost:3000, and stops both processes when you press `Ctrl+C`.
+This sources `backend/.env` for the Spring Boot backend, lets Vite load `frontend/.env`, starts the backend on http://localhost:8000, starts the frontend on http://localhost:3000, and stops both processes when you press `Ctrl+C`.
 
 Open http://localhost:3000 in your browser. Vite proxies `/api/**` to the backend, so the SPA can call `/api/...` without CORS gymnastics during development.
 
@@ -154,7 +157,8 @@ trip-planner/
 │       ├── pages/   Top-level routes
 │       ├── components/  UI building blocks
 │       └── hooks/   Trip data, SSE stream, …
-├── .env.example     Local config template — copy to .env
+│   └── .env.example Frontend config template — copy to frontend/.env
+├── backend/.env.example Backend config template — copy to backend/.env
 └── README.md
 ```
 
@@ -165,16 +169,16 @@ trip-planner/
 | `DATABASE_URL` | backend | Neon (or any Postgres) connection string |
 | `JWT_SECRET` | backend | 32 random bytes (hex) for signing access tokens |
 | `LOG_EMAIL_PEPPER` | backend | 16 random bytes (hex) for hashing emails in logs |
-| `APP_FRONTEND_ORIGIN` | backend | Exact origin allowed by CORS (e.g. `http://localhost:3000`) |
+| `ALLOWED_ORIGINS` | backend | Exact frontend origins allowed by CORS, comma-separated (e.g. `http://localhost:3000`) |
 | `APP_DEV_PASSWORD_RESET_SECRET` | backend | Local-only secret required by `/api/auth/dev/reset-password`; leave unset outside dev |
-| `GOOGLE_MAPS_SERVER_API_KEY` | backend | Server-side Google Maps key used by backend Places autocomplete, text/nearby search, place details, photo media, geocoding, and route calculations |
-| `VITE_GOOGLE_MAPS_BROWSER_KEY` | frontend | Public Google Maps browser key for Maps JavaScript rendering only; restrict by HTTP referrer to localhost and production origins |
+| `GOOGLE_MAPS_API_KEY` | backend | Server-side Google Maps key used by backend Places autocomplete, text/nearby search, place details, photo media, geocoding, and route calculations |
+| `VITE_GOOGLE_MAPS_API_KEY` | frontend | Public Google Maps browser key for Maps JavaScript rendering only; restrict by HTTP referrer to localhost and production origins |
 | `VITE_APP_ACCESS_PASSWORD` | frontend | Optional lightweight app-wall password; bundled into the browser, so treat it as a soft gate only |
 | `VITE_GOOGLE_MAPS_MAP_ID` | frontend | Optional Google Maps vector map id for cloud styling |
 | `VITE_DEV_PASSWORD_RESET_SECRET` | frontend | Dev-only value sent by the login-page reset helper; match `APP_DEV_PASSWORD_RESET_SECRET` locally |
 | `NVD_API_KEY` | backend/CI | Optional but strongly recommended key for reliable OWASP Dependency-Check NVD updates |
 
-Values containing shell metacharacters (`&`, `;`, `$`, spaces) **must** be wrapped in single quotes in `.env`, otherwise `source .env` will silently truncate them.
+Values containing shell metacharacters (`&`, `;`, `$`, spaces) **must** be wrapped in single quotes in `backend/.env`, otherwise `source backend/.env` will silently truncate them.
 
 ## Security notes
 
@@ -184,6 +188,6 @@ Values containing shell metacharacters (`&`, `;`, `$`, spaces) **must** be wrapp
 - Share links store only a SHA-256 hash of the raw token and can be revoked by the trip owner.
 - Anonymous guest writes require the guest cookie plus the `X-TripPlanner-Guest-Write: 1` header, and guest/share endpoints are rate limited.
 - SSE events on `/api/trips/{publicId}/stream` contain only pointers such as event type, trip id, activity id, or day date; clients refetch the real data through authenticated API calls.
-- The browser key is only for Maps JavaScript rendering and should be HTTP-referrer restricted. Expensive or cacheable Google web-service calls run through authenticated backend endpoints using `GOOGLE_MAPS_SERVER_API_KEY`; do not expose that server key to the frontend.
+- The browser key is only for Maps JavaScript rendering and should be HTTP-referrer restricted. Expensive or cacheable Google web-service calls run through authenticated backend endpoints using `GOOGLE_MAPS_API_KEY`; do not expose the backend key to the frontend.
 - `VITE_APP_ACCESS_PASSWORD` is a lightweight first-screen wall only. Because Vite embeds `VITE_*` values in the browser bundle, it is not a replacement for backend access control.
-- Keep `.env` local-only. Commit changes to `.env.example` when configuration requirements change.
+- Keep `backend/.env` and `frontend/.env` local-only. Commit changes to the matching `.env.example` file when configuration requirements change.

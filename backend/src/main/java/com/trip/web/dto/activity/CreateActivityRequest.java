@@ -24,7 +24,7 @@ import jakarta.validation.constraints.Size;
  * - Coordinates, if provided, must be valid lat/lng ranges (validated in the DB).
  *
  * <p>{@code orderIndex} is omitted here; the service computes it as max + 1 for the day.
- * {@code mapboxId}, {@code placeName}, {@code address}, {@code lat}, {@code lng} are typically
+ * {@code placeId}, {@code placeName}, {@code address}, {@code lat}, {@code lng} are typically
  * populated by the frontend from an external place search result, but the service allows null.
  */
 public record CreateActivityRequest(
@@ -41,7 +41,7 @@ public record CreateActivityRequest(
     LocalTime startTime,
     LocalTime endTime,
 
-    String mapboxId,
+    String placeId,
     String placeName,
     String address,
 

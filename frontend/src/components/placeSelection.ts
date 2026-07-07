@@ -35,7 +35,7 @@ export function googlePlaceToPlaceSelection(place: GooglePlaceSelection): PlaceS
     category: categoryForPlace(place),
     currentOpeningHours: place.currentOpeningHours,
     title,
-    mapboxId: place.id,
+    placeId: place.id,
     placeName: place.displayName,
     address: place.formattedAddress,
     coordinatesLabel:

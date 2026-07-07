@@ -277,7 +277,7 @@ class ActivityControllerTest {
         activity.setNotes("Counter seat");
         activity.setStartTime(LocalTime.of(9, 0));
         activity.setEndTime(LocalTime.of(10, 0));
-        activity.setMapboxId("google.tsukiji");
+        activity.setPlaceId("google.tsukiji");
         activity.setPlaceName("Tsukiji Outer Market");
         activity.setAddress("Tsukiji, Chuo City, Tokyo");
         activity.setLat(35.6654);
@@ -293,7 +293,7 @@ class ActivityControllerTest {
                       "notes": null,
                       "startTime": null,
                       "endTime": null,
-                      "mapboxId": null,
+                      "placeId": null,
                       "placeName": null,
                       "address": null,
                       "lat": null,
@@ -305,7 +305,7 @@ class ActivityControllerTest {
         org.assertj.core.api.Assertions.assertThat(activity.getNotes()).isNull();
         org.assertj.core.api.Assertions.assertThat(activity.getStartTime()).isNull();
         org.assertj.core.api.Assertions.assertThat(activity.getEndTime()).isNull();
-        org.assertj.core.api.Assertions.assertThat(activity.getMapboxId()).isNull();
+        org.assertj.core.api.Assertions.assertThat(activity.getPlaceId()).isNull();
         org.assertj.core.api.Assertions.assertThat(activity.getPlaceName()).isNull();
         org.assertj.core.api.Assertions.assertThat(activity.getAddress()).isNull();
         org.assertj.core.api.Assertions.assertThat(activity.getLat()).isNull();

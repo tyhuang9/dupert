@@ -19,7 +19,7 @@ function isMismatchedLocalDevOrigin(): boolean {
 }
 
 export function googleMapsBrowserApiKey(): string {
-  return (import.meta.env.VITE_GOOGLE_MAPS_BROWSER_KEY as string | undefined)?.trim() ?? ''
+  return (import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string | undefined)?.trim() ?? ''
 }
 
 export function googleMapsMapId(): string | undefined {
@@ -38,11 +38,11 @@ export function googleMapsAccessTroubleshooting(): string {
 }
 
 export function googlePlacesAccessTroubleshooting(): string {
-  return 'Check backend logs, GOOGLE_MAPS_SERVER_API_KEY, Places API (New), and server key restrictions.'
+  return 'Check backend logs, GOOGLE_MAPS_API_KEY, Places API (New), and backend key restrictions.'
 }
 
 export function googleRoutesAccessTroubleshooting(): string {
-  return 'Check backend logs, GOOGLE_MAPS_SERVER_API_KEY, Routes API, and server key restrictions.'
+  return 'Check backend logs, GOOGLE_MAPS_API_KEY, Routes API, and backend key restrictions.'
 }
 
 function sentence(value: string): string {

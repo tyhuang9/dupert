@@ -26,7 +26,7 @@ function activity(id: number, dayDate: string | null, orderIndex: number): Activ
     endTime: null,
     title: `Activity ${id}`,
     notes: null,
-    mapboxId: null,
+    placeId: null,
     placeName: null,
     address: null,
     lat: null,

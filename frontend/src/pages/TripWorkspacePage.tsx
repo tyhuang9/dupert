@@ -517,7 +517,7 @@ function hasFiniteCoordinates(activity: Pick<Activity, 'lat' | 'lng'>): boolean 
 function hasSelectedMapLocation(place: PlaceSelection | null | undefined): place is PlaceSelection {
   return Boolean(
     place &&
-    ((typeof place.mapboxId === 'string' && place.mapboxId.trim()) ||
+    ((typeof place.placeId === 'string' && place.placeId.trim()) ||
       (Number.isFinite(place.lat) && Number.isFinite(place.lng))),
   )
 }
@@ -544,7 +544,7 @@ function activityUpdateWithPlace(
   return {
     ...basePayload,
     title: basePayload.title.trim() || activity.title,
-    mapboxId: place.mapboxId ?? null,
+    placeId: place.placeId ?? null,
     placeName: place.placeName ?? null,
     address: place.address ?? null,
     lat: place.lat ?? null,
@@ -596,7 +596,7 @@ function formatPlaceRating(place: PlaceSelection): string | null {
 }
 
 function placeStableId(place: PlaceSelection): string {
-  return place.mapboxId ?? `${placeDisplayName(place)}-${place.lat ?? 'lat'}-${place.lng ?? 'lng'}`
+  return place.placeId ?? `${placeDisplayName(place)}-${place.lat ?? 'lat'}-${place.lng ?? 'lng'}`
 }
 
 function activityToPlaceSelection(activity: Activity): PlaceSelection | null {
@@ -607,7 +607,7 @@ function activityToPlaceSelection(activity: Activity): PlaceSelection | null {
     notes: activity.notes,
     startTime: activity.startTime,
     endTime: activity.endTime,
-    mapboxId: activity.mapboxId,
+    placeId: activity.placeId,
     placeName: activity.placeName || activity.title,
     address: activity.address,
     lat: activity.lat,
@@ -646,7 +646,7 @@ function loadingPlaceDetailsSelection(
       ? `${location.lat.toFixed(5)}, ${location.lng.toFixed(5)}`
       : null,
     isLoadingDetails: true,
-    mapboxId: placeId,
+    placeId: placeId,
     lat: location?.lat ?? null,
     lng: location?.lng ?? null,
   }
@@ -665,7 +665,7 @@ function mergeActivityPlaceSelection(
     startTime: activity.startTime,
     endTime: activity.endTime,
     title: details.title || fallback.title || activity.title,
-    mapboxId: details.mapboxId ?? fallback.mapboxId ?? activity.mapboxId,
+    placeId: details.placeId ?? fallback.placeId ?? activity.placeId,
     placeName: details.placeName ?? fallback.placeName ?? activity.placeName,
     address: details.address ?? fallback.address ?? activity.address,
     photoName: details.photoName ?? fallback.photoName ?? null,
@@ -680,7 +680,7 @@ function mergePlaceSelection(base: PlaceSelection, details: PlaceSelection): Pla
     ...base,
     ...details,
     title: details.title || base.title,
-    mapboxId: details.mapboxId ?? base.mapboxId,
+    placeId: details.placeId ?? base.placeId,
     placeName: details.placeName ?? base.placeName,
     address: details.address ?? base.address,
     photoName: details.photoName ?? base.photoName ?? null,
@@ -1990,7 +1990,7 @@ export function TripWorkspacePage() {
       (selectedMapClickedPlace !== null && selectedMapClickedActivityId === null)
     )
   const highlightedMapSearchResultId =
-    hoveredMapSearchResultId ?? selectedMapSearchResult?.mapboxId ?? null
+    hoveredMapSearchResultId ?? selectedMapSearchResult?.placeId ?? null
   const visibleMapSearchResults = useMemo(() => {
     if (hiddenMapSearchResultIds.size === 0) return mapSearchResults
     return mapSearchResults.filter((place) => !hiddenMapSearchResultIds.has(placeStableId(place)))
@@ -2019,7 +2019,7 @@ export function TripWorkspacePage() {
         hasPhoto: Boolean(mapDetailPlace.photoUrl),
         hasRating: typeof mapDetailPlace.rating === 'number',
         placeId: timing.placeId,
-        renderedPlaceId: mapDetailPlace.mapboxId ?? null,
+        renderedPlaceId: mapDetailPlace.placeId ?? null,
         requestId: timing.requestId,
         traceId: timing.traceId,
       })
@@ -2289,12 +2289,12 @@ export function TripWorkspacePage() {
     setMapSearchPreview(null)
     setPendingMapPlace(null)
 
-    if (!activity.mapboxId) return
+    if (!activity.placeId) return
 
     setIsMapSearchSubmitting(true)
     try {
       const details = googlePlaceToPlaceSelection(
-        await fetchGooglePlaceById({ includePhoto: true, placeId: activity.mapboxId }),
+        await fetchGooglePlaceById({ includePhoto: true, placeId: activity.placeId }),
       )
       if (mapSearchRequestIdRef.current !== requestId) return
       setSelectedMapClickedPlace(mergeActivityPlaceSelection(activity, fallbackPlace, details))
@@ -2754,7 +2754,7 @@ export function TripWorkspacePage() {
     mapPlaceCardTimingRef.current = {
       clickedAtIso: new Date().toISOString(),
       clickedAtMs,
-      placeId: place.mapboxId ?? null,
+      placeId: place.placeId ?? null,
       renderedSignatures: new Set<string>(),
       requestId,
       traceId,
@@ -2772,12 +2772,12 @@ export function TripWorkspacePage() {
       setPendingMapPlace(null)
     }
 
-    if (!place.mapboxId) return
+    if (!place.placeId) return
 
     setIsMapSearchSubmitting(true)
     try {
       const details = googlePlaceToPlaceSelection(
-        await fetchGooglePlaceById({ includePhoto: true, placeId: place.mapboxId, traceId }),
+        await fetchGooglePlaceById({ includePhoto: true, placeId: place.placeId, traceId }),
       )
       if (mapSearchRequestIdRef.current !== requestId) return
       const hydratedPlace = mergePlaceSelection(place, details)
@@ -3077,7 +3077,7 @@ export function TripWorkspacePage() {
     ? [
         'create',
         placeDraftDayDate === null ? 'ideas' : placeDraftDayDate ?? selectedDay ?? 'none',
-        placeDraft.mapboxId ?? '',
+        placeDraft.placeId ?? '',
         placeDraft.lng ?? '',
         placeDraft.lat ?? '',
         placeDraft.title ?? placeDraft.placeName ?? '',
@@ -3646,7 +3646,7 @@ export function TripWorkspacePage() {
                   onMapStyleChange={setMapStyle}
                   previewPlace={mapPreviewPlace}
                   searchResults={visibleMapSearchResults}
-                  selectedSearchResultId={selectedMapSearchResult?.mapboxId ?? null}
+                  selectedSearchResultId={selectedMapSearchResult?.placeId ?? null}
                   highlightedSearchResultId={highlightedMapSearchResultId}
                   focusedActivityId={focusedActivityId}
                   focusedActivityKey={activityFocusKey}

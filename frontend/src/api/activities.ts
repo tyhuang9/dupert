@@ -19,7 +19,7 @@ type NullableActivityField =
   | 'startTime'
   | 'endTime'
   | 'notes'
-  | 'mapboxId'
+  | 'placeId'
   | 'placeName'
   | 'address'
   | 'lat'
@@ -37,7 +37,7 @@ function normalizeActivity(activity: ActivityApiResponse): Activity {
     startTime: activity.startTime ?? null,
     endTime: activity.endTime ?? null,
     notes: activity.notes ?? null,
-    mapboxId: activity.mapboxId ?? null,
+    placeId: activity.placeId ?? null,
     placeName: activity.placeName ?? null,
     address: activity.address ?? null,
     lat: activity.lat ?? null,

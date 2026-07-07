@@ -31,7 +31,7 @@ public record UpdateActivityRequest(
     LocalTime startTime,
     LocalTime endTime,
 
-    String mapboxId,
+    String placeId,
     String placeName,
     String address,
 

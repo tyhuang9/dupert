@@ -116,7 +116,7 @@ function editInitialValues(activity: Activity): CreateActivityRequest {
     notes: activity.notes,
     startTime: activity.startTime,
     endTime: activity.endTime,
-    mapboxId: activity.mapboxId,
+    placeId: activity.placeId,
     placeName: activity.placeName,
     address: activity.address,
     lat: activity.lat,
@@ -128,7 +128,7 @@ function editFormKey(activity: Activity): string {
   return [
     'activity-edit',
     activity.id,
-    activity.mapboxId ?? '',
+    activity.placeId ?? '',
     activity.placeName ?? '',
     activity.address ?? '',
     activity.lat ?? '',

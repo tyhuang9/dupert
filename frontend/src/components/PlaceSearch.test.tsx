@@ -144,7 +144,7 @@ describe('<PlaceSearch>', () => {
         featureType: 'tourist_attraction',
         lat: 35.6586,
         lng: 139.7454,
-        mapboxId: 'google.tokyo-tower',
+        placeId: 'google.tokyo-tower',
         placeCategory: 'Tourist attraction',
         placeName: 'Tokyo Tower',
         title: 'Tokyo Tower',
@@ -267,7 +267,7 @@ describe('<PlaceSearch>', () => {
   })
 
   it('keeps autocomplete available without requiring the browser Maps key', () => {
-    vi.stubEnv('VITE_GOOGLE_MAPS_BROWSER_KEY', '')
+    vi.stubEnv('VITE_GOOGLE_MAPS_API_KEY', '')
 
     render(<PlaceSearch onPlaceSelect={vi.fn()} />)
 

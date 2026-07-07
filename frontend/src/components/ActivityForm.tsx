@@ -56,7 +56,7 @@ function formStateFromInitialValues(initialValues: Partial<CreateActivityRequest
     endTime: initialValues?.endTime ?? '',
     lat: initialValues?.lat ?? null,
     lng: initialValues?.lng ?? null,
-    mapboxId: initialValues?.mapboxId ?? null,
+    placeId: initialValues?.placeId ?? null,
     notes: initialValues?.notes ?? '',
     placeName: initialValues?.placeName ?? '',
     startTime: initialValues?.startTime ?? '',
@@ -106,7 +106,7 @@ export function ActivityForm({
   const [endTime, setEndTime] = useState(initialFormState.endTime ?? '')
   const [placeName, setPlaceName] = useState(initialFormState.placeName ?? '')
   const [address, setAddress] = useState(initialFormState.address ?? '')
-  const [mapboxId, setMapboxId] = useState<string | null>(initialFormState.mapboxId ?? null)
+  const [placeId, setPlaceId] = useState<string | null>(initialFormState.placeId ?? null)
   const [lat, setLat] = useState<number | null>(initialFormState.lat ?? null)
   const [lng, setLng] = useState<number | null>(initialFormState.lng ?? null)
   const [categoryMenuOpen, setCategoryMenuOpen] = useState(false)
@@ -120,7 +120,7 @@ export function ActivityForm({
     setEndTime('')
     setPlaceName('')
     setAddress('')
-    setMapboxId(null)
+    setPlaceId(null)
     setLat(null)
     setLng(null)
     setCategoryMenuOpen(false)
@@ -134,13 +134,13 @@ export function ActivityForm({
       notes: emptyToNull(notes),
       startTime: emptyToNull(startTime),
       endTime: emptyToNull(endTime),
-      mapboxId,
+      placeId,
       placeName: emptyToNull(placeName),
       address: emptyToNull(address),
       lat,
       lng,
     }),
-    [address, category, endTime, lat, lng, mapboxId, notes, placeName, startTime, title],
+    [address, category, endTime, lat, lng, placeId, notes, placeName, startTime, title],
   )
   const currentPayloadSignature = useMemo(
     () => JSON.stringify(currentPayload),

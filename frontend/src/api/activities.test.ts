@@ -25,7 +25,7 @@ const SAMPLE_ACTIVITY: Activity = {
   endTime: null,
   title: 'Tsukiji sushi',
   notes: 'Counter seat',
-  mapboxId: null,
+  placeId: null,
   placeName: null,
   address: null,
   lat: null,

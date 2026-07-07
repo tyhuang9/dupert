@@ -46,8 +46,8 @@ public class Activity {
     @Column(name = "notes", length = 5000)
     private String notes;
 
-    @Column(name = "mapbox_id", length = 200)
-    private String mapboxId;
+    @Column(name = "place_id", length = 200)
+    private String placeId;
 
     @Column(name = "place_name", length = 300)
     private String placeName;
@@ -153,12 +153,12 @@ public class Activity {
         this.notes = notes;
     }
 
-    public String getMapboxId() {
-        return mapboxId;
+    public String getPlaceId() {
+        return placeId;
     }
 
-    public void setMapboxId(String mapboxId) {
-        this.mapboxId = mapboxId;
+    public void setPlaceId(String placeId) {
+        this.placeId = placeId;
     }
 
     public String getPlaceName() {

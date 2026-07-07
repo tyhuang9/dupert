@@ -15,8 +15,8 @@ import org.springframework.mock.env.MockEnvironment;
 
 /**
  * Unit tests for the dotenv-loading concern of {@link BootEnvironmentProcessor}. The processor
- * reads <code>${user.dir}/.env</code> first, then <code>${user.dir}/../.env</code>; we drive that
- * by pointing <code>user.dir</code> at JUnit's {@link TempDir} per test and restoring it after.
+ * reads <code>${user.dir}/.env</code>; we drive that by pointing <code>user.dir</code> at
+ * JUnit's {@link TempDir} per test and restoring it after.
  */
 class BootEnvironmentProcessorDotenvTest {
 
@@ -115,8 +115,6 @@ class BootEnvironmentProcessorDotenvTest {
 
     @Test
     void noOpWhenNoDotenvExists(@TempDir Path tmp) throws Exception {
-        // tmp has no .env, and tmp/.. (the system temp root) almost certainly doesn't either —
-        // but to be defensive we work inside a nested empty dir whose parent is also empty.
         Path inner = Files.createDirectory(tmp.resolve("inner"));
         System.setProperty("user.dir", inner.toString());
         MockEnvironment env = new MockEnvironment();
@@ -125,6 +123,19 @@ class BootEnvironmentProcessorDotenvTest {
         processor.postProcessEnvironment(env, null);
 
         assertThat(env.getPropertySources().size()).isEqualTo(sourceCountBefore);
+    }
+
+    @Test
+    void doesNotLoadDotenvFromParentDirectory(@TempDir Path tmp) throws Exception {
+        writeEnv(tmp, "FOO=parent");
+        Path inner = Files.createDirectory(tmp.resolve("backend"));
+        System.setProperty("user.dir", inner.toString());
+        MockEnvironment env = new MockEnvironment();
+
+        processor.postProcessEnvironment(env, null);
+
+        assertThat(env.getProperty("FOO")).isNull();
+        assertThat(env.getPropertySources().contains("dotenvFile")).isFalse();
     }
 
     @Test

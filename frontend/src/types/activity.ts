@@ -8,7 +8,7 @@ export interface Activity {
   endTime: string | null
   title: string
   notes: string | null
-  mapboxId: string | null
+  placeId: string | null
   placeName: string | null
   address: string | null
   lat: number | null
@@ -27,7 +27,7 @@ export interface CreateActivityRequest {
   notes?: string | null
   startTime?: string | null
   endTime?: string | null
-  mapboxId?: string | null
+  placeId?: string | null
   placeName?: string | null
   address?: string | null
   lat?: number | null
@@ -40,7 +40,7 @@ export interface UpdateActivityRequest {
   notes?: string | null
   startTime?: string | null
   endTime?: string | null
-  mapboxId?: string | null
+  placeId?: string | null
   placeName?: string | null
   address?: string | null
   lat?: number | null

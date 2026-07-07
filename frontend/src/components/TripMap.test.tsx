@@ -116,7 +116,7 @@ const ACTIVITIES: Activity[] = [
     endTime: null,
     title: 'Tokyo Tower',
     notes: null,
-    mapboxId: 'google.tokyo-tower',
+    placeId: 'google.tokyo-tower',
     placeName: 'Tokyo Tower',
     address: null,
     lat: 35.6586,
@@ -136,7 +136,7 @@ const ACTIVITIES: Activity[] = [
     endTime: null,
     title: 'Tsukiji Market',
     notes: null,
-    mapboxId: 'google.tsukiji',
+    placeId: 'google.tsukiji',
     placeName: 'Tsukiji Market',
     address: null,
     lat: 35.6654,
@@ -209,7 +209,7 @@ function installGoogleOverlayMock() {
 const directionsMock = vi.mocked(getDrivingDirections)
 
 beforeEach(() => {
-  vi.stubEnv('VITE_GOOGLE_MAPS_BROWSER_KEY', 'gmaps.test')
+  vi.stubEnv('VITE_GOOGLE_MAPS_API_KEY', 'gmaps.test')
   Object.defineProperty(window, 'requestAnimationFrame', {
     configurable: true,
     value: (callback: FrameRequestCallback) => {
@@ -309,7 +309,7 @@ describe('<TripMap>', () => {
 
     expect(await screen.findByText(/route unavailable/i)).toBeInTheDocument()
     expect(screen.getByText(/google routes request reached the backend/i)).toBeInTheDocument()
-    expect(screen.getByText(/google_maps_server_api_key/i)).toBeInTheDocument()
+    expect(screen.getByText(/google_maps_api_key/i)).toBeInTheDocument()
   })
 
   it('does not request directions with fewer than two mapped activities', () => {
@@ -736,7 +736,7 @@ describe('<TripMap>', () => {
           featureType: 'restaurant',
           lat: 36.2,
           lng: 140.2,
-          mapboxId: 'google.ramen-street',
+          placeId: 'google.ramen-street',
           placeCategory: 'Restaurant',
           placeName: 'Ramen Street',
           title: 'Ramen Street',
@@ -759,7 +759,7 @@ describe('<TripMap>', () => {
     await userEvent.click(marker)
 
     expect(onSearchResultSelect).toHaveBeenCalledWith(expect.objectContaining({
-      mapboxId: 'google.ramen-street',
+      placeId: 'google.ramen-street',
       placeName: 'Ramen Street',
     }))
     await waitFor(() => {
@@ -785,7 +785,7 @@ describe('<TripMap>', () => {
           featureType: 'restaurant',
           lat: 36.2,
           lng: 140.2,
-          mapboxId: 'google.ramen-street',
+          placeId: 'google.ramen-street',
           placeCategory: 'Restaurant',
           placeName: 'Ramen Street',
           title: 'Ramen Street',
@@ -802,7 +802,7 @@ describe('<TripMap>', () => {
     await userEvent.click(marker)
 
     expect(onSearchResultRemove).toHaveBeenCalledWith(expect.objectContaining({
-      mapboxId: 'google.ramen-street',
+      placeId: 'google.ramen-street',
       placeName: 'Ramen Street',
     }))
     expect(onSearchResultSelect).not.toHaveBeenCalled()
@@ -934,7 +934,7 @@ describe('<TripMap>', () => {
   })
 
   it('shows a useful missing-key fallback', () => {
-    vi.stubEnv('VITE_GOOGLE_MAPS_BROWSER_KEY', '')
+    vi.stubEnv('VITE_GOOGLE_MAPS_API_KEY', '')
 
     render(<TripMap activities={ACTIVITIES} fallbackActivities={[]} destination="Tokyo" />)
 

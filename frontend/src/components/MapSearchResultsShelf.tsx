@@ -23,7 +23,7 @@ function placeCategoryLabel(place: PlaceSelection): string {
 }
 
 function placeStableId(place: PlaceSelection): string {
-  return place.mapboxId ?? `${placeDisplayName(place)}-${place.lat ?? 'lat'}-${place.lng ?? 'lng'}`
+  return place.placeId ?? `${placeDisplayName(place)}-${place.lat ?? 'lat'}-${place.lng ?? 'lng'}`
 }
 
 function formatRating(place: PlaceSelection): string | null {
@@ -216,7 +216,7 @@ export function MapSearchResultsShelf({
         >
           {places.map((place) => {
             const placeId = placeStableId(place)
-            const selected = selectedPlaceId === placeId || selectedPlaceId === place.mapboxId
+            const selected = selectedPlaceId === placeId || selectedPlaceId === place.placeId
             const rating = formatRating(place)
             const price = formatPriceLevel(place.priceLevel)
             const status = formatStatus(place)
@@ -227,9 +227,9 @@ export function MapSearchResultsShelf({
                 className={[styles.card, selected ? styles.cardSelected : ''].filter(Boolean).join(' ')}
                 aria-pressed={selected}
                 onClick={() => onSelect(place)}
-                onMouseEnter={() => onHoverChange(place.mapboxId ?? placeId)}
+                onMouseEnter={() => onHoverChange(place.placeId ?? placeId)}
                 onMouseLeave={() => onHoverChange(null)}
-                onFocus={() => onHoverChange(place.mapboxId ?? placeId)}
+                onFocus={() => onHoverChange(place.placeId ?? placeId)}
                 onBlur={() => onHoverChange(null)}
               >
                 <PlaceThumbnail place={place} />

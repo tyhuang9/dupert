@@ -24,9 +24,9 @@ import org.springframework.core.env.MapPropertySource;
  * Two concerns, in order:
  *
  * <ol>
- *   <li><b>Dotenv loader</b> (dev-only). Reads a project-local <code>.env</code> file so
+ *   <li><b>Dotenv loader</b> (dev-only). Reads the backend-local <code>.env</code> file so
  *       <code>./gradlew bootRun</code> works without first doing
- *       <code>set -a &amp;&amp; source ../.env &amp;&amp; set +a</code>. Loaded values are added as
+ *       <code>set -a &amp;&amp; source .env &amp;&amp; set +a</code>. Loaded values are added as
  *       the LOWEST-priority {@code PropertySource}, so OS env vars, JVM <code>-D</code> args, and
  *       profile-specific YAML always win. Skipped entirely when any active profile contains
  *       <code>"prod"</code> — defense in depth so a stray <code>.env</code> can't influence a
@@ -133,10 +133,6 @@ public class BootEnvironmentProcessor implements EnvironmentPostProcessor {
         Path here = Paths.get(cwd, ".env");
         if (Files.isRegularFile(here)) {
             return here;
-        }
-        Path parent = Paths.get(cwd, "..", ".env").normalize();
-        if (Files.isRegularFile(parent)) {
-            return parent;
         }
         return null;
     }

@@ -2,11 +2,18 @@
 set -Eeuo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-ENV_FILE="$ROOT_DIR/.env"
+BACKEND_ENV_FILE="$ROOT_DIR/backend/.env"
+FRONTEND_ENV_FILE="$ROOT_DIR/frontend/.env"
 
-if [[ ! -f "$ENV_FILE" ]]; then
-  echo "Missing $ENV_FILE"
-  echo "Copy .env.example to .env and fill in the local development values first."
+if [[ ! -f "$BACKEND_ENV_FILE" ]]; then
+  echo "Missing $BACKEND_ENV_FILE"
+  echo "Copy backend/.env.example to backend/.env and fill in the backend values first."
+  exit 1
+fi
+
+if [[ ! -f "$FRONTEND_ENV_FILE" ]]; then
+  echo "Missing $FRONTEND_ENV_FILE"
+  echo "Copy frontend/.env.example to frontend/.env and fill in the frontend values first."
   exit 1
 fi
 
@@ -31,16 +38,15 @@ cleanup() {
 
 trap cleanup EXIT INT TERM
 
-set -a
-set +u
-# shellcheck disable=SC1090
-source "$ENV_FILE"
-set -u
-set +a
-
 echo "Starting backend on http://localhost:8000"
 (
   cd "$ROOT_DIR/backend"
+  set -a
+  set +u
+  # shellcheck disable=SC1090
+  source "$BACKEND_ENV_FILE"
+  set -u
+  set +a
   ./gradlew bootRun
 ) &
 backend_pid=$!

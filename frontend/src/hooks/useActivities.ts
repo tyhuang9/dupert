@@ -158,7 +158,7 @@ export function useCreateActivity(): UseMutationResult<
         endTime: body.endTime ?? null,
         title: body.title,
         notes: body.notes ?? null,
-        mapboxId: body.mapboxId ?? null,
+        placeId: body.placeId ?? null,
         placeName: body.placeName ?? null,
         address: body.address ?? null,
         lat: body.lat ?? null,
@@ -232,9 +232,9 @@ export function useUpdateActivity(): UseMutationResult<
                       endTime: Object.prototype.hasOwnProperty.call(body, 'endTime')
                         ? body.endTime ?? null
                         : activity.endTime,
-                      mapboxId: Object.prototype.hasOwnProperty.call(body, 'mapboxId')
-                        ? body.mapboxId ?? null
-                        : activity.mapboxId,
+                      placeId: Object.prototype.hasOwnProperty.call(body, 'placeId')
+                        ? body.placeId ?? null
+                        : activity.placeId,
                       placeName: Object.prototype.hasOwnProperty.call(body, 'placeName')
                         ? body.placeName ?? null
                         : activity.placeName,
