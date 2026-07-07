@@ -73,12 +73,25 @@ const COASTAL_TRIP: Trip = {
 
 function makeAuth(overrides: Partial<AuthContextValue> = {}): AuthContextValue {
   return {
-    user: { id: 1, email: 'a@b.com', displayName: 'A' },
+    user: { id: 1, email: 'a@b.com', displayName: 'A', emailVerified: true },
     isAuthenticated: true,
     isInitializing: false,
-    login: vi.fn(async () => ({ id: 1, email: 'a@b.com', displayName: 'A' })),
-    register: vi.fn(async () => ({ id: 1, email: 'a@b.com', displayName: 'A' })),
-    updateProfile: vi.fn(async () => ({ id: 1, email: 'a@b.com', displayName: 'A' })),
+    login: vi.fn(async () => ({
+      id: 1,
+      email: 'a@b.com',
+      displayName: 'A',
+      emailVerified: true,
+    })),
+    register: vi.fn(async () => ({
+      status: 'verification_required' as const,
+      email: 'a@b.com',
+    })),
+    updateProfile: vi.fn(async () => ({
+      id: 1,
+      email: 'a@b.com',
+      displayName: 'A',
+      emailVerified: true,
+    })),
     changePassword: vi.fn(async () => {}),
     requestPasswordReset: vi.fn(async () => {}),
     logout: vi.fn(async () => {}),

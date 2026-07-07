@@ -27,7 +27,10 @@ export const apiClient = axios.create({
 const PUBLIC_PATHS = new Set<string>([
   '/auth/login',
   '/auth/register',
-  '/auth/dev/reset-password',
+  '/auth/password-reset/request',
+  '/auth/password-reset/confirm',
+  '/auth/email/verify',
+  '/auth/email/resend',
   '/auth/refresh',
 ])
 

@@ -10,6 +10,7 @@ export interface UserSummary {
   id: number
   email: string
   displayName: string
+  emailVerified: boolean
 }
 
 /**
@@ -28,6 +29,11 @@ export interface RegisterRequest {
   email: string
   password: string
   displayName: string
+}
+
+export interface RegisterResponse {
+  status: 'verification_required' | 'verified'
+  email: string
 }
 
 export interface LoginRequest {
@@ -53,7 +59,10 @@ export interface PasswordResetConfirmRequest {
   password: string
 }
 
-export interface DevPasswordResetRequest {
+export interface EmailVerificationRequest {
+  token: string
+}
+
+export interface EmailVerificationResendRequest {
   email: string
-  password: string
 }

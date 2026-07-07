@@ -1,6 +1,7 @@
 import { BrowserRouter, Link, Navigate, Route, Routes } from 'react-router-dom'
 import './App.css'
 import AcceptInvitePage from './pages/AcceptInvitePage'
+import EmailVerificationPage from './pages/EmailVerificationPage'
 import GuestOnboardingPage from './pages/GuestOnboardingPage'
 import LoginPage from './pages/LoginPage'
 import MembersPage from './pages/MembersPage'
@@ -54,6 +55,7 @@ export default function App() {
         {/* Public routes — auth pages and share-accept landing flows */}
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
+        <Route path="/verify-email" element={<EmailVerificationPage />} />
         <Route path="/reset-password" element={<PasswordResetPage />} />
         <Route path="/share/:token" element={<AcceptInvitePage />} />
         <Route path="/share/:token/guest" element={<GuestOnboardingPage />} />

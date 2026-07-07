@@ -6,7 +6,12 @@ import {
   useIsAuthenticated,
 } from './authStore'
 
-const sampleUser = { id: 1, email: 'a@b.com', displayName: 'A' }
+const sampleUser = {
+  id: 1,
+  email: 'a@b.com',
+  displayName: 'A',
+  emailVerified: true,
+}
 
 describe('authStore', () => {
   beforeEach(() => {

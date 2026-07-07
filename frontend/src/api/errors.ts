@@ -36,14 +36,17 @@ interface BackendErrorBody {
 
 const TOP_MESSAGE_BY_CODE: Record<string, string | null> = {
   invalid_credentials: 'Email or password is incorrect.',
+  email_unverified: 'Check your email to verify your account before signing in.',
   rate_limited: 'Too many attempts. Try again in a few minutes.',
   email_taken: null,
+  signup_disabled: 'Signup is temporarily closed.',
   invalid_display_name: null,
   validation_failed: 'Please fix the highlighted fields and try again.',
   malformed_request: 'Something went wrong. Please try again.',
   unauthenticated: 'Your session expired. Please sign in again.',
   forbidden: 'The server blocked this request. Refresh the page and try again.',
   conflict: 'That action conflicts with existing data.',
+  invalid_verification_token: 'This verification link is invalid or expired.',
   invalid_date_range: 'Choose a valid date range.',
 }
 

@@ -2,11 +2,13 @@ import { apiClient } from './client'
 import type {
   AuthResponse,
   ChangePasswordRequest,
-  DevPasswordResetRequest,
+  EmailVerificationRequest,
+  EmailVerificationResendRequest,
   LoginRequest,
   PasswordResetConfirmRequest,
   PasswordResetRequest,
   RegisterRequest,
+  RegisterResponse,
   UpdateProfileRequest,
   UserSummary,
 } from '../types/auth'
@@ -26,21 +28,14 @@ import type {
  * shared dedupe singleton.
  */
 
-export async function register(body: RegisterRequest): Promise<AuthResponse> {
-  const { data } = await apiClient.post<AuthResponse>('/auth/register', body)
+export async function register(body: RegisterRequest): Promise<RegisterResponse> {
+  const { data } = await apiClient.post<RegisterResponse>('/auth/register', body)
   return data
 }
 
 export async function login(body: LoginRequest): Promise<AuthResponse> {
   const { data } = await apiClient.post<AuthResponse>('/auth/login', body)
   return data
-}
-
-export async function resetDevPassword(body: DevPasswordResetRequest): Promise<void> {
-  const secret = import.meta.env.VITE_DEV_PASSWORD_RESET_SECRET
-  await apiClient.post('/auth/dev/reset-password', body, secret
-    ? { headers: { 'X-TripPlanner-Dev-Reset': secret } }
-    : undefined)
 }
 
 export async function logout(): Promise<void> {
@@ -67,6 +62,16 @@ export async function requestPasswordReset(body: PasswordResetRequest): Promise<
 
 export async function confirmPasswordReset(body: PasswordResetConfirmRequest): Promise<void> {
   await apiClient.post('/auth/password-reset/confirm', body)
+}
+
+export async function verifyEmail(body: EmailVerificationRequest): Promise<void> {
+  await apiClient.post('/auth/email/verify', body)
+}
+
+export async function resendEmailVerification(
+  body: EmailVerificationResendRequest,
+): Promise<void> {
+  await apiClient.post('/auth/email/resend', body)
 }
 
 export async function deleteMe(): Promise<void> {

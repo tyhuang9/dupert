@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { AxiosError, AxiosHeaders } from 'axios'
@@ -12,9 +12,22 @@ function makeAuth(overrides: Partial<AuthContextValue> = {}): AuthContextValue {
     user: null,
     isAuthenticated: false,
     isInitializing: false,
-    login: vi.fn(async () => ({ id: 1, email: 'a@b.com', displayName: 'A' })),
-    register: vi.fn(async () => ({ id: 1, email: 'a@b.com', displayName: 'A' })),
-    updateProfile: vi.fn(async () => ({ id: 1, email: 'a@b.com', displayName: 'A' })),
+    login: vi.fn(async () => ({
+      id: 1,
+      email: 'a@b.com',
+      displayName: 'A',
+      emailVerified: true,
+    })),
+    register: vi.fn(async () => ({
+      status: 'verification_required' as const,
+      email: 'a@b.com',
+    })),
+    updateProfile: vi.fn(async () => ({
+      id: 1,
+      email: 'a@b.com',
+      displayName: 'A',
+      emailVerified: true,
+    })),
     changePassword: vi.fn(async () => {}),
     requestPasswordReset: vi.fn(async () => {}),
     logout: vi.fn(async () => {}),
@@ -116,8 +129,13 @@ describe('<RegisterPage>', () => {
     expect(ctx.register).not.toHaveBeenCalled()
   })
 
-  it('submits a valid form and navigates to /trips', async () => {
-    const ctx = makeAuth()
+  it('submits a valid form and shows the check-email state', async () => {
+    const ctx = makeAuth({
+      register: vi.fn(async () => ({
+        status: 'verification_required' as const,
+        email: 'me@example.com',
+      })),
+    })
     renderRegister(ctx)
 
     const user = userEvent.setup()
@@ -131,9 +149,13 @@ describe('<RegisterPage>', () => {
       password: 'super-secret-1234',
       displayName: 'Me',
     })
-    await waitFor(() => {
-      expect(screen.getByTestId('post-register')).toBeInTheDocument()
-    })
+    expect(
+      await screen.findByRole('heading', { name: /check your email/i }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent(
+      /verification link to me@example.com/i,
+    )
+    expect(screen.queryByTestId('post-register')).not.toBeInTheDocument()
   })
 
   it('shows a field error on email when the server returns email_taken', async () => {

@@ -1,10 +1,11 @@
 import { useId, useMemo, useRef, useState, type FormEvent } from 'react'
-import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, Navigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth'
 import { useIsAuthenticated } from '../auth/authStore'
 import { parseApiError, type ParsedApiError } from '../api/errors'
 import { safeReturnPath } from '../auth/safeReturnPath'
 import { usePageTitle } from '../utils/usePageTitle'
+import type { RegisterResponse } from '../types/auth'
 import styles from './AuthForm.module.css'
 
 /** Mirrors the spec's "basic something@something.something" expectation. */
@@ -57,7 +58,6 @@ export function RegisterPage() {
   usePageTitle('Create account – TripPlanner')
 
   const auth = useAuth()
-  const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const { isInitializing } = auth
   const isAuthenticated = useIsAuthenticated()
@@ -76,6 +76,8 @@ export function RegisterPage() {
   const [submitAttempted, setSubmitAttempted] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [errorInfo, setErrorInfo] = useState<ParsedApiError | null>(null)
+  const [registrationResult, setRegistrationResult] =
+    useState<RegisterResponse | null>(null)
   // Server-supplied field errors take precedence over client ones for the
   // fields they cover; merged at render time.
   const [serverFieldErrors, setServerFieldErrors] = useState<
@@ -127,6 +129,7 @@ export function RegisterPage() {
     setSubmitAttempted(true)
     setErrorInfo(null)
     setServerFieldErrors({})
+    setRegistrationResult(null)
 
     // Client validation: still let the user submit even if the form looks
     // invalid client-side — the spec says "let the server confirm". We just
@@ -151,8 +154,9 @@ export function RegisterPage() {
 
     setIsSubmitting(true)
     try {
-      await auth.register({ email, password, displayName })
-      navigate(returnTo, { replace: true })
+      const result = await auth.register({ email, password, displayName })
+      setRegistrationResult(result)
+      setIsSubmitting(false)
     } catch (err) {
       const parsed = parseApiError(err)
       setErrorInfo(parsed)
@@ -173,6 +177,32 @@ export function RegisterPage() {
   const isWarning = errorInfo?.severity === 'warning'
   const bannerClass = isWarning ? styles.bannerWarning : styles.banner
   const bannerIcon = '!'
+
+  if (registrationResult) {
+    const verificationRequired = registrationResult.status === 'verification_required'
+    return (
+      <main id="main" className={styles.shell}>
+        <div className={styles.card}>
+          <h1 className={styles.title}>
+            {verificationRequired ? 'Check your email' : 'Account created'}
+          </h1>
+          <p className={styles.subtitle}>
+            {verificationRequired
+              ? 'Verify your email before signing in to TripPlanner.'
+              : 'Your local account is ready.'}
+          </p>
+          <div className={styles.bannerSuccess} role="status">
+            {verificationRequired
+              ? `We sent a verification link to ${registrationResult.email}.`
+              : `${registrationResult.email} can now sign in.`}
+          </div>
+          <p className={styles.altLink}>
+            <Link to={loginHref}>Back to sign in</Link>
+          </p>
+        </div>
+      </main>
+    )
+  }
 
   return (
     <main id="main" className={styles.shell}>

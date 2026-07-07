@@ -151,15 +151,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const register = useCallback(
     async (body: RegisterRequest) => {
-      const res = await authApi.register(body)
-      setSession({
-        accessToken: res.accessToken,
-        expiresInSeconds: res.expiresInSeconds,
-        user: res.user,
-      })
-      return res.user
+      return authApi.register(body)
     },
-    [setSession],
+    [],
   )
 
   const logout = useCallback(async () => {

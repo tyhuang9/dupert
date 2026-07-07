@@ -12,9 +12,22 @@ function makeAuth(overrides: Partial<AuthContextValue> = {}): AuthContextValue {
     user: null,
     isAuthenticated: false,
     isInitializing: false,
-    login: vi.fn(async () => ({ id: 1, email: 'a@b.com', displayName: 'A' })),
-    register: vi.fn(async () => ({ id: 1, email: 'a@b.com', displayName: 'A' })),
-    updateProfile: vi.fn(async () => ({ id: 1, email: 'a@b.com', displayName: 'A' })),
+    login: vi.fn(async () => ({
+      id: 1,
+      email: 'a@b.com',
+      displayName: 'A',
+      emailVerified: true,
+    })),
+    register: vi.fn(async () => ({
+      status: 'verification_required' as const,
+      email: 'a@b.com',
+    })),
+    updateProfile: vi.fn(async () => ({
+      id: 1,
+      email: 'a@b.com',
+      displayName: 'A',
+      emailVerified: true,
+    })),
     changePassword: vi.fn(async () => {}),
     requestPasswordReset: vi.fn(async () => {}),
     logout: vi.fn(async () => {}),
@@ -126,6 +139,23 @@ describe('<LoginPage>', () => {
     expect(banner).toHaveTextContent(/email or password is incorrect/i)
   })
 
+  it('shows the email_unverified banner on an unverified account', async () => {
+    const ctx = makeAuth({
+      login: vi.fn(async () => {
+        throw makeAxiosError(403, { error: 'email_unverified' })
+      }),
+    })
+    renderLogin(ctx)
+
+    const user = userEvent.setup()
+    await user.type(screen.getByLabelText('Email'), 'me@example.com')
+    await user.type(screen.getByLabelText('Password'), 'super-secret-1')
+    await user.click(screen.getByRole('button', { name: /sign in/i }))
+
+    const banner = await screen.findByRole('alert')
+    expect(banner).toHaveTextContent(/verify your account before signing in/i)
+  })
+
   it('renders per-field errors from a 400 validation response', async () => {
     const ctx = makeAuth({
       login: vi.fn(async () => {
@@ -155,14 +185,39 @@ describe('<LoginPage>', () => {
     useAuthStore.getState().setSession({
       accessToken: 'live-tok',
       expiresInSeconds: 900,
-      user: { id: 1, email: 'a@b.com', displayName: 'A' },
+      user: { id: 1, email: 'a@b.com', displayName: 'A', emailVerified: true },
     })
     renderLogin(
       makeAuth({
         isAuthenticated: true,
-        user: { id: 1, email: 'a@b.com', displayName: 'A' },
+        user: {
+          id: 1,
+          email: 'a@b.com',
+          displayName: 'A',
+          emailVerified: true,
+        },
       }),
     )
     expect(screen.getByTestId('post-login')).toBeInTheDocument()
+  })
+
+  it('switches forgot password to a reset-only view seeded with the sign-in email', async () => {
+    const ctx = makeAuth()
+    renderLogin(ctx)
+
+    const user = userEvent.setup()
+    await user.type(screen.getByLabelText('Email'), 'me@example.com')
+    await user.click(screen.getByRole('button', { name: /forgot password/i }))
+
+    expect(
+      screen.getByRole('heading', { name: /reset password/i }),
+    ).toBeInTheDocument()
+    expect(screen.queryByLabelText('Password')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^sign in$/i })).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Email')).toHaveValue('me@example.com')
+
+    await user.click(screen.getByRole('button', { name: /back to sign in/i }))
+    expect(screen.getByRole('heading', { name: /sign in/i })).toBeInTheDocument()
+    expect(screen.getByLabelText('Password')).toBeInTheDocument()
   })
 })

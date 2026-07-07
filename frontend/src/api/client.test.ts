@@ -14,7 +14,12 @@ import { useAuthStore } from '../auth/authStore'
 let apiMock: MockAdapter
 let refreshMock: MockAdapter
 
-const SAMPLE_USER = { id: 7, email: 'q@r.com', displayName: 'Q' }
+const SAMPLE_USER = {
+  id: 7,
+  email: 'q@r.com',
+  displayName: 'Q',
+  emailVerified: true,
+}
 const REFRESH_LOCK_STORAGE_KEY = 'tripplanner:auth-refresh-lock'
 let originalLocksDescriptor: PropertyDescriptor | undefined
 
@@ -88,16 +93,15 @@ describe('apiClient request interceptor', () => {
     const { data } = await apiClient.post('/auth/login', { email: 'x', password: 'y' })
     expect(data.auth).toBeNull()
 
-    apiMock.onPost('/auth/dev/reset-password').reply((cfg) => {
+    apiMock.onPost('/auth/email/verify').reply((cfg) => {
       const auth = cfg.headers?.['Authorization'] ?? cfg.headers?.['authorization']
       return [204, { auth: auth ?? null }]
     })
 
-    const reset = await apiClient.post('/auth/dev/reset-password', {
-      email: 'x@example.com',
-      password: 'new-password-123',
+    const verification = await apiClient.post('/auth/email/verify', {
+      token: 'verification-token',
     })
-    expect(reset.data.auth).toBeNull()
+    expect(verification.data.auth).toBeNull()
   })
 
   it('does NOT treat suffix matches like /admin/audit-auth/login as public (regression)', async () => {

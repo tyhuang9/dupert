@@ -69,7 +69,12 @@ describe('useTripStream', () => {
     useAuthStore.getState().setSession({
       accessToken: 'live-token',
       expiresInSeconds: 900,
-      user: { id: 1, email: 'alice@example.com', displayName: 'Alice' },
+      user: {
+        id: 1,
+        email: 'alice@example.com',
+        displayName: 'Alice',
+        emailVerified: true,
+      },
     })
 
     renderHook(() => useTripStream('abc234def567'), { wrapper })
@@ -86,19 +91,34 @@ describe('useTripStream', () => {
     useAuthStore.getState().setSession({
       accessToken: 'stale-token',
       expiresInSeconds: 1,
-      user: { id: 1, email: 'alice@example.com', displayName: 'Alice' },
+      user: {
+        id: 1,
+        email: 'alice@example.com',
+        displayName: 'Alice',
+        emailVerified: true,
+      },
     })
     refreshSessionMock.mockImplementation(async () => {
       useAuthStore.getState().setSession({
         accessToken: 'fresh-token',
         expiresInSeconds: 900,
-        user: { id: 1, email: 'alice@example.com', displayName: 'Alice' },
+        user: {
+          id: 1,
+          email: 'alice@example.com',
+          displayName: 'Alice',
+          emailVerified: true,
+        },
       })
       return {
         accessToken: 'fresh-token',
         expiresInSeconds: 900,
         tokenType: 'Bearer',
-        user: { id: 1, email: 'alice@example.com', displayName: 'Alice' },
+        user: {
+          id: 1,
+          email: 'alice@example.com',
+          displayName: 'Alice',
+          emailVerified: true,
+        },
       }
     })
 

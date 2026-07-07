@@ -8,7 +8,12 @@ import { useAuth } from './useAuth'
 import { useAuthStore } from './authStore'
 import { __resetRefreshSingletonForTests } from '../api/client'
 
-const SAMPLE_USER = { id: 11, email: 'm@n.com', displayName: 'M' }
+const SAMPLE_USER = {
+  id: 11,
+  email: 'm@n.com',
+  displayName: 'M',
+  emailVerified: true,
+}
 
 let refreshMock: MockAdapter
 

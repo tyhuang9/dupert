@@ -7,6 +7,8 @@ import { safeReturnPath } from '../auth/safeReturnPath'
 import { usePageTitle } from '../utils/usePageTitle'
 import styles from './AuthForm.module.css'
 
+type LoginMode = 'signIn' | 'passwordReset'
+
 export function LoginPage() {
   usePageTitle('Sign in – TripPlanner')
 
@@ -24,7 +26,7 @@ export function LoginPage() {
   const [errorInfo, setErrorInfo] = useState<ParsedApiError | null>(null)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [showResetForm, setShowResetForm] = useState(false)
+  const [mode, setMode] = useState<LoginMode>('signIn')
   const [resetEmail, setResetEmail] = useState('')
   const [resetMessage, setResetMessage] = useState<string | null>(null)
   const [resetError, setResetError] = useState<string | null>(null)
@@ -35,6 +37,7 @@ export function LoginPage() {
 
   const emailId = useId()
   const passwordId = useId()
+  const resetEmailId = useId()
   const emailErrorId = `${emailId}-error`
   const passwordErrorId = `${passwordId}-error`
 
@@ -77,7 +80,7 @@ export function LoginPage() {
     setResetError(null)
     setResetMessage(null)
     try {
-      await auth.requestPasswordReset({ email: resetEmail || email })
+      await auth.requestPasswordReset({ email: resetEmail })
       setResetMessage('If that account exists, a reset email is on the way.')
     } catch (err) {
       setResetError(parseApiError(err).topMessage)
@@ -90,14 +93,21 @@ export function LoginPage() {
   const isWarning = errorInfo?.severity === 'warning'
   const bannerClass = isWarning ? styles.bannerWarning : styles.banner
   const bannerIcon = '!'
+  const isPasswordResetMode = mode === 'passwordReset'
 
   return (
     <main id="main" className={styles.shell}>
       <div className={styles.card}>
-        <h1 className={styles.title}>Sign in</h1>
-        <p className={styles.subtitle}>Welcome back to TripPlanner.</p>
+        <h1 className={styles.title}>
+          {isPasswordResetMode ? 'Reset password' : 'Sign in'}
+        </h1>
+        <p className={styles.subtitle}>
+          {isPasswordResetMode
+            ? 'Enter your email and we will send a reset link.'
+            : 'Welcome back to TripPlanner.'}
+        </p>
 
-        {topMessage ? (
+        {!isPasswordResetMode && topMessage ? (
           <div className={bannerClass} role="alert">
             <span className={styles.bannerIcon} aria-hidden="true">
               {bannerIcon}
@@ -105,12 +115,12 @@ export function LoginPage() {
             <span>{topMessage}</span>
           </div>
         ) : null}
-        {resetMessage ? (
+        {isPasswordResetMode && resetMessage ? (
           <div className={styles.bannerSuccess} role="status">
             {resetMessage}
           </div>
         ) : null}
-        {resetError ? (
+        {isPasswordResetMode && resetError ? (
           <div className={styles.banner} role="alert">
             <span className={styles.bannerIcon} aria-hidden="true">
               {bannerIcon}
@@ -119,90 +129,12 @@ export function LoginPage() {
           </div>
         ) : null}
 
-        <form className={styles.form} onSubmit={onSubmit} noValidate>
-          <div className={styles.field}>
-            <label className={styles.label} htmlFor={emailId}>
-              Email
-            </label>
-            <input
-              id={emailId}
-              ref={emailRef}
-              className={styles.input}
-              type="email"
-              autoComplete="username"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              disabled={isSubmitting}
-              aria-invalid={fieldErrors.email ? true : undefined}
-              aria-describedby={emailErrorId}
-            />
-            <span
-              id={emailErrorId}
-              className={styles.fieldError}
-              aria-live="polite"
-              aria-atomic="true"
-            >
-              {fieldErrors.email ?? ''}
-            </span>
-          </div>
-
-          <div className={styles.field}>
-            <label className={styles.label} htmlFor={passwordId}>
-              Password
-            </label>
-            <input
-              id={passwordId}
-              ref={passwordRef}
-              className={styles.input}
-              type="password"
-              autoComplete="current-password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              disabled={isSubmitting}
-              aria-invalid={fieldErrors.password ? true : undefined}
-              aria-describedby={passwordErrorId}
-            />
-            <span
-              id={passwordErrorId}
-              className={styles.fieldError}
-              aria-live="polite"
-              aria-atomic="true"
-            >
-              {fieldErrors.password ?? ''}
-            </span>
-          </div>
-
-          <button
-            className={styles.submit}
-            type="submit"
-            disabled={isSubmitting}
-          >
-            {isSubmitting && (
-              <span className={styles.spinner} aria-hidden="true" />
-            )}
-            {isSubmitting ? 'Signing in…' : 'Sign in'}
-          </button>
-          <button
-            type="button"
-            className={styles.textButton}
-            onClick={() => {
-              setShowResetForm((current) => !current)
-              setResetEmail(email)
-              setResetError(null)
-              setResetMessage(null)
-            }}
-          >
-            Forgot password?
-          </button>
-        </form>
-
-        {showResetForm && (
-          <form className={styles.resetForm} onSubmit={onResetSubmit} noValidate>
+        {isPasswordResetMode ? (
+          <form className={styles.form} onSubmit={onResetSubmit} noValidate>
             <label className={styles.field}>
-              <span className={styles.label}>Password reset email</span>
+              <span className={styles.label}>Email</span>
               <input
+                id={resetEmailId}
                 className={styles.input}
                 type="email"
                 autoComplete="email"
@@ -215,16 +147,110 @@ export function LoginPage() {
             <button
               className={styles.submit}
               type="submit"
-              disabled={isResetSubmitting || !(resetEmail || email).trim()}
+              disabled={isResetSubmitting || !resetEmail.trim()}
             >
               {isResetSubmitting ? 'Sending…' : 'Send reset email'}
+            </button>
+            <button
+              type="button"
+              className={styles.textButton}
+              onClick={() => {
+                setMode('signIn')
+                setResetError(null)
+                setResetMessage(null)
+              }}
+            >
+              Back to sign in
+            </button>
+          </form>
+        ) : (
+          <form className={styles.form} onSubmit={onSubmit} noValidate>
+            <div className={styles.field}>
+              <label className={styles.label} htmlFor={emailId}>
+                Email
+              </label>
+              <input
+                id={emailId}
+                ref={emailRef}
+                className={styles.input}
+                type="email"
+                autoComplete="username"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                disabled={isSubmitting}
+                aria-invalid={fieldErrors.email ? true : undefined}
+                aria-describedby={emailErrorId}
+              />
+              <span
+                id={emailErrorId}
+                className={styles.fieldError}
+                aria-live="polite"
+                aria-atomic="true"
+              >
+                {fieldErrors.email ?? ''}
+              </span>
+            </div>
+
+            <div className={styles.field}>
+              <label className={styles.label} htmlFor={passwordId}>
+                Password
+              </label>
+              <input
+                id={passwordId}
+                ref={passwordRef}
+                className={styles.input}
+                type="password"
+                autoComplete="current-password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                disabled={isSubmitting}
+                aria-invalid={fieldErrors.password ? true : undefined}
+                aria-describedby={passwordErrorId}
+              />
+              <span
+                id={passwordErrorId}
+                className={styles.fieldError}
+                aria-live="polite"
+                aria-atomic="true"
+              >
+                {fieldErrors.password ?? ''}
+              </span>
+            </div>
+
+            <button
+              className={styles.submit}
+              type="submit"
+              disabled={isSubmitting}
+            >
+              {isSubmitting && (
+                <span className={styles.spinner} aria-hidden="true" />
+              )}
+              {isSubmitting ? 'Signing in…' : 'Sign in'}
+            </button>
+            <button
+              type="button"
+              className={styles.textButton}
+              onClick={() => {
+                setMode('passwordReset')
+                setResetEmail(email)
+                setErrorInfo(null)
+                setFieldErrors({})
+                setResetError(null)
+                setResetMessage(null)
+              }}
+            >
+              Forgot password?
             </button>
           </form>
         )}
 
-        <p className={styles.altLink}>
-          Don&apos;t have an account? <Link to={registerHref}>Create account</Link>
-        </p>
+        {!isPasswordResetMode ? (
+          <p className={styles.altLink}>
+            Don&apos;t have an account? <Link to={registerHref}>Create account</Link>
+          </p>
+        ) : null}
       </div>
     </main>
   )

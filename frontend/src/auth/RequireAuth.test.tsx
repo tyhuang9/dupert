@@ -9,9 +9,22 @@ function makeAuth(overrides: Partial<AuthContextValue> = {}): AuthContextValue {
     user: null,
     isAuthenticated: false,
     isInitializing: false,
-    login: async () => ({ id: 1, email: 'a@b.com', displayName: 'A' }),
-    register: async () => ({ id: 1, email: 'a@b.com', displayName: 'A' }),
-    updateProfile: async () => ({ id: 1, email: 'a@b.com', displayName: 'A' }),
+    login: async () => ({
+      id: 1,
+      email: 'a@b.com',
+      displayName: 'A',
+      emailVerified: true,
+    }),
+    register: async () => ({
+      status: 'verification_required',
+      email: 'a@b.com',
+    }),
+    updateProfile: async () => ({
+      id: 1,
+      email: 'a@b.com',
+      displayName: 'A',
+      emailVerified: true,
+    }),
     changePassword: async () => {},
     requestPasswordReset: async () => {},
     logout: async () => {},
@@ -71,7 +84,7 @@ describe('<RequireAuth>', () => {
       makeAuth({
         isInitializing: false,
         isAuthenticated: true,
-        user: { id: 1, email: 'a@b.com', displayName: 'A' },
+        user: { id: 1, email: 'a@b.com', displayName: 'A', emailVerified: true },
       }),
     )
     expect(screen.getByTestId('protected')).toBeInTheDocument()
