@@ -32,10 +32,9 @@ beforeEach(() => {
   __resetRefreshSingletonForTests()
   useAuthStore.getState().clearSession()
   // The provider's silent-refresh path goes through `refreshSession()`,
-  // which uses a bare `axios.post('/api/auth/refresh', ...)` (NOT the
-  // shared `apiClient`) so it bypasses the response interceptor. Mount
-  // the mock on the same global axios — same approach `client.test.ts`
-  // takes for the interceptor's own refresh.
+  // which uses a fresh axios instance instead of the shared `apiClient` so it
+  // bypasses the response interceptor. Mount the mock on the same global axios,
+  // the same approach `client.test.ts` takes for the interceptor's refresh.
   refreshMock = new MockAdapter(axios)
 })
 

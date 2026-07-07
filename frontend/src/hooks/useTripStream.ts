@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import { EventStreamContentType, fetchEventSource } from '@microsoft/fetch-event-source'
 import { useQueryClient } from '@tanstack/react-query'
 import { useAuthStore, useAccessToken } from '../auth/authStore'
+import { buildApiUrl } from '../api/baseUrl'
 import { refreshSession } from '../api/client'
 import { shareKeys } from './useShareLinks'
 import { activityKeys } from './useActivities'
@@ -77,31 +78,34 @@ export function useTripStream(
       }
 
       const token = useAuthStore.getState().getAccessToken()
-      await fetchEventSource(`/api/trips/${encodeURIComponent(streamPublicId)}/stream`, {
-        credentials: 'include',
-        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-        openWhenHidden: true,
-        signal: controller.signal,
-        onopen: async (response) => {
-          assertStreamResponse(response)
+      await fetchEventSource(
+        buildApiUrl(`/trips/${encodeURIComponent(streamPublicId)}/stream`),
+        {
+          credentials: 'include',
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+          openWhenHidden: true,
+          signal: controller.signal,
+          onopen: async (response) => {
+            assertStreamResponse(response)
+          },
+          onerror: (error) => {
+            if (error instanceof FatalTripStreamError) {
+              throw error
+            }
+            return STREAM_RETRY_DELAY_MS
+          },
+          onmessage: (message) => {
+            if (message.event === 'connected') return
+            const event = parseTripStreamEvent(message.data)
+            if (!event || event.publicId !== streamPublicId) return
+            if (bufferActivityEventsRef.current && isActivityEvent(event)) {
+              bufferedEventsRef.current.push(event)
+              return
+            }
+            invalidateForEvent(queryClient, streamPublicId, event)
+          },
         },
-        onerror: (error) => {
-          if (error instanceof FatalTripStreamError) {
-            throw error
-          }
-          return STREAM_RETRY_DELAY_MS
-        },
-        onmessage: (message) => {
-          if (message.event === 'connected') return
-          const event = parseTripStreamEvent(message.data)
-          if (!event || event.publicId !== streamPublicId) return
-          if (bufferActivityEventsRef.current && isActivityEvent(event)) {
-            bufferedEventsRef.current.push(event)
-            return
-          }
-          invalidateForEvent(queryClient, streamPublicId, event)
-        },
-      })
+      )
     }
 
     void connect().catch(() => {

@@ -5,11 +5,10 @@ import { __resetRefreshSingletonForTests, apiClient, refreshSession } from './cl
 import { useAuthStore } from '../auth/authStore'
 
 /**
- * The interceptor calls `axios.post('/api/auth/refresh', ...)` directly
- * (a fresh axios instance, not `apiClient`) to keep the refresh path
- * out of its own retry loop. So we mount TWO adapters: one on
- * `apiClient` for the original requests, and one on the global `axios`
- * default for the refresh call.
+ * The interceptor calls the refresh endpoint with a fresh axios instance
+ * instead of `apiClient` to keep the refresh path out of its own retry loop.
+ * So we mount TWO adapters: one on `apiClient` for the original requests,
+ * and one on the global `axios` default for the refresh call.
  */
 let apiMock: MockAdapter
 let refreshMock: MockAdapter
@@ -58,6 +57,10 @@ afterEach(() => {
 })
 
 describe('apiClient request interceptor', () => {
+  it('defaults to the same-origin API base URL', () => {
+    expect(apiClient.defaults.baseURL).toBe('/api')
+  })
+
   it('sends cookies with apiClient requests', () => {
     expect(apiClient.defaults.withCredentials).toBe(true)
   })

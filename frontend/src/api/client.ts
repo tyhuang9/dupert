@@ -3,14 +3,16 @@ import axios, {
   type AxiosResponse,
   type InternalAxiosRequestConfig,
 } from 'axios'
+import { backendApiBaseUrl, buildApiUrl } from './baseUrl'
 import { useAuthStore } from '../auth/authStore'
 import type { AuthResponse } from '../types/auth'
 
 /**
  * Single shared axios instance for every backend call.
  *
- * - `baseURL: '/api'` — Vite proxies `/api/*` to `localhost:8000` in dev;
- *   in prod the SPA and backend share an origin so the same path works.
+ * - `baseURL` defaults to `/api` so Vite can proxy requests locally. When
+ *   `VITE_BACKEND_API_URL` is set, it is treated as the backend base URL and
+ *   the shared URL helper appends `/api`.
  * - `withCredentials: true` — required so the browser sends the
  *   `refresh_token` HttpOnly cookie on `/auth/refresh` and `/auth/logout`.
  *
@@ -19,7 +21,7 @@ import type { AuthResponse } from '../types/auth'
  * 401s so we never fire more than one refresh.
  */
 export const apiClient = axios.create({
-  baseURL: '/api',
+  baseURL: backendApiBaseUrl,
   withCredentials: true,
 })
 
@@ -241,8 +243,8 @@ function refreshWithCrossTabLock(): Promise<AuthResponse> {
  * On success, writes the new session into the auth store; on failure
  * clears the store and rethrows.
  *
- * IMPORTANT: this is the ONLY function in the frontend that should hit
- * `/api/auth/refresh`. Both the response interceptor (on 401) and the
+ * IMPORTANT: this is the ONLY function in the frontend that should hit the
+ * refresh endpoint. Both the response interceptor (on 401) and the
  * `AuthProvider` mount probe go through here so refresh is funneled
  * through a single code path with a single dedupe singleton.
  *
@@ -253,7 +255,7 @@ function refreshWithCrossTabLock(): Promise<AuthResponse> {
 async function performRefresh(): Promise<AuthResponse> {
   try {
     const response = await axios.post<AuthResponse>(
-      '/api/auth/refresh',
+      buildApiUrl('/auth/refresh'),
       undefined,
       { withCredentials: true },
     )

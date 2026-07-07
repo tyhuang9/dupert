@@ -49,6 +49,7 @@ cp frontend/.env.example frontend/.env
 #   NVD_API_KEY           (optional, strongly recommended before Dependency-Check)
 # Edit frontend/.env and fill in real values for:
 #   VITE_GOOGLE_MAPS_API_KEY (browser key for Maps JavaScript rendering only)
+#   VITE_BACKEND_API_URL     (optional backend base URL; leave empty for /api)
 #   VITE_APP_ACCESS_PASSWORD (optional soft frontend wall password)
 #   VITE_GOOGLE_MAPS_MAP_ID   (optional Google Maps vector map id)
 ```
@@ -89,6 +90,14 @@ export JAVA_HOME="<path-to-your-jdk-21>"
 ```
 
 Flyway will run the V1 migration against your Neon database on first boot.
+
+## Frontend/backend connection
+
+The frontend client defaults to the same-origin API root `/api`. In local development, Vite maps `/api` to `http://localhost:8000`; in production, route `/api` to the backend at the hosting or proxy layer.
+
+`VITE_BACKEND_API_URL` is only needed when the browser must call a separate backend origin directly. Set it to the backend base URL only, such as `https://backend.example.com`; the frontend appends `/api` when building requests. Also set backend `ALLOWED_ORIGINS` to the exact frontend browser origin.
+
+`ALLOWED_ORIGINS` controls browser CORS. `APP_PUBLIC_FRONTEND_URL` is separate: the backend uses it to build email verification and password-reset links.
 
 ## Other commands
 
@@ -184,6 +193,7 @@ trip-planner/
 | `APP_EMAIL_FROM_NAME` | backend | Display name for auth email sender |
 | `GOOGLE_MAPS_API_KEY` | backend | Server-side Google Maps key used by backend Places autocomplete, text/nearby search, place details, photo media, geocoding, and route calculations |
 | `VITE_GOOGLE_MAPS_API_KEY` | frontend | Public Google Maps browser key for Maps JavaScript rendering only; restrict by HTTP referrer to localhost and production origins |
+| `VITE_BACKEND_API_URL` | frontend | Optional backend base URL. Leave empty for same-origin/Vite proxying through `/api`; use an absolute URL such as `https://backend.example.com` for split deployments. The frontend appends `/api` |
 | `VITE_APP_ACCESS_PASSWORD` | frontend | Optional lightweight app-wall password; bundled into the browser, so treat it as a soft gate only |
 | `VITE_GOOGLE_MAPS_MAP_ID` | frontend | Optional Google Maps vector map id for cloud styling |
 | `NVD_API_KEY` | backend/CI | Optional but strongly recommended key for reliable OWASP Dependency-Check NVD updates |

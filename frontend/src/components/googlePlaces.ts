@@ -1,4 +1,5 @@
 import { apiClient } from '../api/client'
+import { buildApiUrl } from '../api/baseUrl'
 import {
   logPlaceDetailsTiming,
   placeDetailsElapsedMs,
@@ -379,11 +380,7 @@ function assertOk(response: Response, context: string): void {
 }
 
 function backendFetchUrl(url: string, params?: Record<string, string | boolean | undefined>): string {
-  const backendUrl = new URL(`/api${url}`, window.location.origin)
-  for (const [key, value] of Object.entries(params ?? {})) {
-    if (value !== undefined) backendUrl.searchParams.set(key, String(value))
-  }
-  return `${backendUrl.pathname}${backendUrl.search}`
+  return buildApiUrl(url, params)
 }
 
 async function getBackendJson<T>(
