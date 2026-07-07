@@ -1,0 +1,14 @@
+spring:
+  jpa:
+    properties:
+      hibernate:
+        format_sql: true
+
+secure:
+  hsts:
+    enabled: false
+
+logging:
+  level:
+    com.trip: DEBUG
+    org.hibernate.SQL: WARN

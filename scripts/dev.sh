@@ -45,6 +45,7 @@ echo "Starting backend on http://localhost:8000"
   set +u
   # shellcheck disable=SC1090
   source "$BACKEND_ENV_FILE"
+  export SPRING_PROFILES_ACTIVE="${SPRING_PROFILES_ACTIVE:-local}"
   set -u
   set +a
   ./gradlew bootRun
