@@ -142,6 +142,7 @@ vi.mock('../components/TripMap', () => ({
     routeActivities = activities,
     searchResults = [],
     selectedSearchResultId,
+    showDestinationFallback = true,
   }: {
     activeActivityId?: number | null
     activities: Array<{ id: number; title: string }>
@@ -170,6 +171,7 @@ vi.mock('../components/TripMap', () => ({
     routeActivities?: Array<{ id: number; title: string }>
     searchResults?: Array<Record<string, unknown>>
     selectedSearchResultId?: string | null
+    showDestinationFallback?: boolean
   }) => (
     <div id="trip-map-focus-target" data-testid="trip-map" tabIndex={-1}>
       <div data-testid="active-map-activity">{activeActivityId ?? 'none'}</div>
@@ -280,6 +282,7 @@ vi.mock('../components/TripMap', () => ({
           <span key={activity.id}>{activity.title}</span>
         ))}
       </div>
+      <div data-testid="destination-fallback">{String(showDestinationFallback)}</div>
       <div data-testid="search-map-results">
         {searchResults.map((place) => (
           <span key={String(place.placeId)}>{String(place.placeName ?? place.title)}</span>
@@ -1160,6 +1163,7 @@ describe('<TripWorkspacePage>', () => {
     const routeMapActivities = within(screen.getByTestId('route-map-activities'))
     expect(selectedMapActivities.getByText('Tsukiji sushi')).toBeInTheDocument()
     expect(selectedMapActivities.getByText('Tokyo Tower')).toBeInTheDocument()
+    expect(screen.getByTestId('destination-fallback')).toHaveTextContent('false')
     expect(routeMapActivities.queryByText('Tsukiji sushi')).not.toBeInTheDocument()
     expect(routeMapActivities.queryByText('Tokyo Tower')).not.toBeInTheDocument()
     expect(screen.queryByLabelText(/full trip map summary/i)).not.toBeInTheDocument()

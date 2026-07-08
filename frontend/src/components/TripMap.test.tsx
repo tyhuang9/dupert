@@ -853,6 +853,21 @@ describe('<TripMap>', () => {
     })
   })
 
+  it('does not geocode the destination when destination fallback is disabled', () => {
+    render(
+      <TripMap
+        activities={[]}
+        fallbackActivities={[]}
+        destination="Tokyo, Japan"
+        showDestinationFallback={false}
+      />,
+    )
+
+    expect(geocodeMock.geocodeDestination).not.toHaveBeenCalled()
+    expect(screen.queryByText('Finding trip destination...')).not.toBeInTheDocument()
+    expect(screen.queryByRole('img', { name: /destination:/i })).not.toBeInTheDocument()
+  })
+
   it('previews a selected place on the map before it is saved', async () => {
     render(
       <TripMap

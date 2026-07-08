@@ -3690,6 +3690,7 @@ export function TripWorkspacePage() {
                   routeActivities={routesEnabled && workspaceMode === 'days' ? dayActivities : []}
                   activeActivityId={visibleActiveActivityId}
                   destination={tripQuery.data.destination}
+                  showDestinationFallback={workspaceMode !== 'timeline'}
                   mapStyle={mapStyle}
                   previewPlace={mapPreviewPlace}
                   coordinatePreviewPlace={coordinateMapMarker}

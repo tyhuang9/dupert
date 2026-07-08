@@ -43,6 +43,7 @@ interface TripMapProps {
   fallbackActivities?: Activity[]
   routeActivities?: Activity[]
   destination: string | null
+  showDestinationFallback?: boolean
   mapStyle?: MapStyleId
   previewPlace?: MapPreviewPlace | null
   coordinatePreviewPlace?: MapPreviewPlace | null
@@ -508,6 +509,7 @@ function TripMapContent({
   focusedActivityKey = 0,
   viewportFitKey,
   destination,
+  showDestinationFallback = true,
   mapStyle = 'roadmap',
   previewPlace = null,
   coordinatePreviewPlace = null,
@@ -573,7 +575,9 @@ function TripMapContent({
     [activityMarkerColors, activityMarkerMode, selectedMappedActivities],
   )
   const destinationKey =
-    selectedMappedActivities.length === 0 && fallbackMappedActivities.length === 0
+    showDestinationFallback &&
+    selectedMappedActivities.length === 0 &&
+    fallbackMappedActivities.length === 0
       ? destination?.trim() ?? ''
       : ''
   const destinationCoordinate =
