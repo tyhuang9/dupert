@@ -45,7 +45,6 @@ import com.trip.repo.TripRepository;
 import com.trip.repo.UserRepository;
 import com.trip.service.realtime.TripEventPublisher;
 import com.trip.service.auth.JwtService;
-import com.trip.service.auth.password.BreachedPasswordChecker;
 import com.trip.service.trip.ReflectionIds;
 
 @SpringBootTest
@@ -92,9 +91,6 @@ class ActivityControllerTest {
 
     @MockitoBean
     ShareLinkRepository shareLinkRepository;
-
-    @MockitoBean
-    BreachedPasswordChecker breachedPasswordChecker;
 
     @MockitoBean
     TripEventPublisher tripEventPublisher;

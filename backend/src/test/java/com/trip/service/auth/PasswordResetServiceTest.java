@@ -31,7 +31,6 @@ import com.trip.domain.User;
 import com.trip.repo.PasswordResetTokenRepository;
 import com.trip.repo.UserRepository;
 import com.trip.service.auth.AuthEmailSender.PasswordResetEmail;
-import com.trip.service.auth.password.BreachedPasswordChecker;
 import com.trip.web.exception.ValidationException;
 
 @ExtendWith(MockitoExtension.class)
@@ -52,9 +51,6 @@ class PasswordResetServiceTest {
     RefreshTokenService refreshTokenService;
 
     @Mock
-    BreachedPasswordChecker breachedPasswordChecker;
-
-    @Mock
     AuthEmailSender emailSender;
 
     PasswordResetService service;
@@ -66,7 +62,6 @@ class PasswordResetServiceTest {
             userRepository,
             passwordEncoder,
             refreshTokenService,
-            breachedPasswordChecker,
             emailSender,
             new SecureRandom(new byte[] { 1, 2, 3, 4 }));
     }
@@ -171,26 +166,6 @@ class PasswordResetServiceTest {
         verify(userRepository, never()).findById(any());
         verify(userRepository, never()).save(any());
         verify(refreshTokenService, never()).revokeAllForUser(any());
-        assertThat(resetToken.getConsumedAt()).isNull();
-    }
-
-    @Test
-    void confirmResetRejectsBreachedPasswordWithoutConsumingToken() {
-        PasswordResetToken resetToken = new PasswordResetToken(
-            42L, sha256Hex(RAW_TOKEN), OffsetDateTime.now().plusMinutes(30));
-        User user = userWith(42L, "alice@example.com", "Alice");
-        when(passwordResetTokenRepository.findByTokenHashForUpdate(sha256Hex(RAW_TOKEN)))
-            .thenReturn(Optional.of(resetToken));
-        when(userRepository.findById(42L)).thenReturn(Optional.of(user));
-        when(breachedPasswordChecker.isBreached("new-password-123")).thenReturn(true);
-
-        assertThatThrownBy(() -> service.confirmReset(RAW_TOKEN, "new-password-123"))
-            .isInstanceOfSatisfying(ValidationException.class,
-                ex -> assertThat(ex.slug()).isEqualTo("password_breached"));
-
-        verify(userRepository, never()).save(any());
-        verify(refreshTokenService, never()).revokeAllForUser(any());
-        verify(passwordResetTokenRepository, never()).save(resetToken);
         assertThat(resetToken.getConsumedAt()).isNull();
     }
 

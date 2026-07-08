@@ -37,7 +37,6 @@ import com.trip.repo.UserRepository;
 import com.trip.service.auth.JwtService;
 import com.trip.service.auth.RefreshTokenService;
 import com.trip.service.auth.RefreshTokenService.IssuedRefreshToken;
-import com.trip.service.auth.password.BreachedPasswordChecker;
 import com.trip.web.dto.LoginRequest;
 
 /**
@@ -78,9 +77,6 @@ class AuthControllerLoginRateLimitTest {
     @MockitoBean
     PasswordEncoder passwordEncoder;
 
-    @MockitoBean
-    BreachedPasswordChecker breachedPasswordChecker;
-
     // TripAccessGuard component-scans the trip repos; the test profile excludes JPA
     // auto-config, so we mock them like the auth repos above.
     @MockitoBean
@@ -106,7 +102,6 @@ class AuthControllerLoginRateLimitTest {
         when(passwordEncoder.encode(anyString())).thenReturn("hashed");
         when(jwtService.issueAccessToken(any())).thenReturn("jwt-access-token");
         when(jwtService.getAccessTokenTtlSeconds()).thenReturn(900L);
-        when(breachedPasswordChecker.isBreached(anyString())).thenReturn(false);
     }
 
     @Test

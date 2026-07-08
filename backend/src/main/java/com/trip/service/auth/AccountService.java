@@ -16,7 +16,6 @@ import com.trip.domain.User;
 import com.trip.repo.TripMemberRepository;
 import com.trip.repo.TripRepository;
 import com.trip.repo.UserRepository;
-import com.trip.service.auth.password.BreachedPasswordChecker;
 import com.trip.web.auth.DisplayNameSanitizer;
 import com.trip.web.dto.UserSummary;
 import com.trip.web.exception.ValidationException;
@@ -27,20 +26,17 @@ public class AccountService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final RefreshTokenService refreshTokenService;
-    private final BreachedPasswordChecker breachedPasswordChecker;
     private final TripRepository tripRepository;
     private final TripMemberRepository tripMemberRepository;
 
     public AccountService(UserRepository userRepository,
                           PasswordEncoder passwordEncoder,
                           RefreshTokenService refreshTokenService,
-                          BreachedPasswordChecker breachedPasswordChecker,
                           TripRepository tripRepository,
                           TripMemberRepository tripMemberRepository) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.refreshTokenService = refreshTokenService;
-        this.breachedPasswordChecker = breachedPasswordChecker;
         this.tripRepository = tripRepository;
         this.tripMemberRepository = tripMemberRepository;
     }
@@ -68,9 +64,6 @@ public class AccountService {
         User user = maybeUser.get();
         if (!passwordEncoder.matches(currentPassword, user.getPasswordHash())) {
             throw new ValidationException("invalid_current_password", "currentPassword is incorrect");
-        }
-        if (breachedPasswordChecker.isBreached(newPassword)) {
-            throw new ValidationException("password_breached", "password appears in breach corpus");
         }
         user.setPasswordHash(passwordEncoder.encode(newPassword));
         userRepository.save(user);

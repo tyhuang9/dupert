@@ -4,8 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -64,13 +64,14 @@ class EmailVerificationServiceTest {
     }
 
     @Test
-    void sendInitialVerificationStoresOnlyHashAndSendsRawTokenToSender() {
+    void queueInitialVerificationStoresOnlyHashAndSendsRawTokenToSender() {
         User user = userWith(42L, "alice@example.com", "Alice");
+        when(userRepository.findById(42L)).thenReturn(Optional.of(user));
         when(tokenRepository.findByTokenHash(anyString())).thenReturn(Optional.empty());
         when(tokenRepository.save(any(EmailVerificationToken.class)))
             .thenAnswer(invocation -> invocation.getArgument(0));
 
-        service.sendInitialVerification(user);
+        service.queueInitialVerification(42L);
 
         ArgumentCaptor<EmailVerificationToken> tokenCaptor =
             ArgumentCaptor.forClass(EmailVerificationToken.class);
@@ -92,8 +93,9 @@ class EmailVerificationServiceTest {
     }
 
     @Test
-    void sendInitialVerificationRevokesTokenAndPropagatesDeliveryFailure() {
+    void queueInitialVerificationRevokesTokenAndKeepsDeliveryFailureInternal() {
         User user = userWith(42L, "alice@example.com", "Alice");
+        when(userRepository.findById(42L)).thenReturn(Optional.of(user));
         when(tokenRepository.findByTokenHash(anyString())).thenReturn(Optional.empty());
         when(tokenRepository.save(any(EmailVerificationToken.class)))
             .thenAnswer(invocation -> invocation.getArgument(0));
@@ -102,8 +104,7 @@ class EmailVerificationServiceTest {
             .when(emailSender)
             .sendEmailVerification(any());
 
-        assertThatThrownBy(() -> service.sendInitialVerification(user))
-            .isInstanceOf(AuthEmailDeliveryException.class);
+        service.queueInitialVerification(42L);
 
         ArgumentCaptor<EmailVerificationToken> tokenCaptor =
             ArgumentCaptor.forClass(EmailVerificationToken.class);
@@ -112,6 +113,16 @@ class EmailVerificationServiceTest {
         assertThat(revoked.getRevokedAt()).isEqualTo(NOW);
         assertThat(revoked.isUsableAt(NOW)).isFalse();
         verify(tokenRepository).revokeActiveForUser(42L, NOW);
+    }
+
+    @Test
+    void queueInitialVerificationSkipsMissingUser() {
+        when(userRepository.findById(42L)).thenReturn(Optional.empty());
+
+        service.queueInitialVerification(42L);
+
+        verify(tokenRepository, never()).save(any());
+        verify(emailSender, never()).sendEmailVerification(any());
     }
 
     @Test

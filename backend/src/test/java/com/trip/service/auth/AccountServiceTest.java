@@ -23,7 +23,6 @@ import com.trip.domain.User;
 import com.trip.repo.TripMemberRepository;
 import com.trip.repo.TripRepository;
 import com.trip.repo.UserRepository;
-import com.trip.service.auth.password.BreachedPasswordChecker;
 import com.trip.service.trip.ReflectionIds;
 
 @ExtendWith(MockitoExtension.class)
@@ -39,9 +38,6 @@ class AccountServiceTest {
     RefreshTokenService refreshTokenService;
 
     @Mock
-    BreachedPasswordChecker breachedPasswordChecker;
-
-    @Mock
     TripRepository tripRepository;
 
     @Mock
@@ -55,7 +51,6 @@ class AccountServiceTest {
             userRepository,
             passwordEncoder,
             refreshTokenService,
-            breachedPasswordChecker,
             tripRepository,
             tripMemberRepository);
     }

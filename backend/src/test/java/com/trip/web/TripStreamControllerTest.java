@@ -31,7 +31,6 @@ import com.trip.repo.TripMemberRepository;
 import com.trip.repo.TripRepository;
 import com.trip.repo.UserRepository;
 import com.trip.service.auth.JwtService;
-import com.trip.service.auth.password.BreachedPasswordChecker;
 import com.trip.service.realtime.TripEventBroker;
 import com.trip.service.trip.ReflectionIds;
 
@@ -76,9 +75,6 @@ class TripStreamControllerTest {
 
     @MockitoBean
     ShareLinkRepository shareLinkRepository;
-
-    @MockitoBean
-    BreachedPasswordChecker breachedPasswordChecker;
 
     @BeforeEach
     void wireDefaults() {

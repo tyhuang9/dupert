@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.time.OffsetDateTime;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -22,12 +23,11 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.trip.domain.User;
 import com.trip.repo.UserRepository;
+import com.trip.service.auth.EmailVerificationOperations;
 import com.trip.service.auth.JwtService;
-import com.trip.service.auth.password.BreachedPasswordChecker;
 import com.trip.web.dto.LoginRequest;
 import com.trip.web.dto.RegisterRequest;
 
@@ -68,12 +68,8 @@ class AuthFlowIntegrationTest {
     @Autowired
     JwtService jwtService;
 
-    /**
-     * Mocked so the integration test never actually contacts HIBP. The real fail-open
-     * path is covered by unit tests; here we just want a green register flow.
-     */
     @MockitoBean
-    BreachedPasswordChecker breachedPasswordChecker;
+    EmailVerificationOperations emailVerificationService;
 
     private String testEmail;
 
@@ -86,27 +82,21 @@ class AuthFlowIntegrationTest {
     }
 
     @Test
-    void registerThenLoginIssuesAJwtThatVerifies() throws Exception {
+    void registerThenVerifiedLoginIssuesAJwtThatVerifies() throws Exception {
         testEmail = "auth-it-" + UUID.randomUUID() + "@example.com";
 
-        // 1. Register
-        MvcResult registerResult = mvc.perform(post("/api/auth/register")
+        // 1. Register. Non-local profiles create a pending user and require email
+        // verification before tokens are issued.
+        mvc.perform(post("/api/auth/register")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(
                     new RegisterRequest(testEmail, "password1234", "Integration Test"))))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.accessToken").exists())
-            .andExpect(jsonPath("$.user.email").value(testEmail))
-            .andReturn();
+            .andExpect(status().isAccepted())
+            .andExpect(jsonPath("$.status").value("verification_required"))
+            .andExpect(jsonPath("$.email").value(testEmail));
 
-        JsonNode registerBody = objectMapper.readTree(
-            registerResult.getResponse().getContentAsString());
-        long registeredUserId = registerBody.get("user").get("id").asLong();
-        String registerToken = registerBody.get("accessToken").asText();
-
-        // The register-issued token should verify and decode to the new user id.
-        Optional<Long> registerUid = jwtService.verifyAccessToken(registerToken);
-        assertThat(registerUid).contains(registeredUserId);
+        User registered = markRegisteredUserVerified("Integration Test");
+        long registeredUserId = registered.getId();
 
         // 2. Login with the same credentials
         MvcResult loginResult = mvc.perform(post("/api/auth/login")
@@ -140,17 +130,26 @@ class AuthFlowIntegrationTest {
     void fullSessionLifecycleAcrossRefreshAndLogout() throws Exception {
         testEmail = "auth-it-" + UUID.randomUUID() + "@example.com";
 
-        // 1. Register and capture the refresh cookie.
-        MvcResult registered = mvc.perform(post("/api/auth/register")
+        // 1. Register, mark verified, then login and capture the refresh cookie.
+        mvc.perform(post("/api/auth/register")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(
                     new RegisterRequest(testEmail, "password1234", "Lifecycle Test"))))
+            .andExpect(status().isAccepted())
+            .andExpect(jsonPath("$.status").value("verification_required"));
+        markRegisteredUserVerified("Lifecycle Test");
+
+        MvcResult loggedIn = mvc.perform(post("/api/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(
+                    new LoginRequest(testEmail, "password1234"))))
             .andExpect(status().isOk())
             .andReturn();
-        Cookie registerCookie = registered.getResponse().getCookie("refresh_token");
+
+        Cookie registerCookie = loggedIn.getResponse().getCookie("refresh_token");
         assertThat(registerCookie).isNotNull();
         String firstAccessToken = objectMapper.readTree(
-            registered.getResponse().getContentAsString()).get("accessToken").asText();
+            loggedIn.getResponse().getContentAsString()).get("accessToken").asText();
 
         // 2. /me with the bearer.
         mvc.perform(get("/api/auth/me").header("Authorization", "Bearer " + firstAccessToken))
@@ -194,5 +193,12 @@ class AuthFlowIntegrationTest {
                 .header("Authorization", "Bearer " + secondAccessToken))
             .andExpect(status().isNoContent());
         assertThat(userRepository.findByEmailIgnoreCase(testEmail)).isEmpty();
+    }
+
+    private User markRegisteredUserVerified(String expectedDisplayName) {
+        User user = userRepository.findByEmailIgnoreCase(testEmail).orElseThrow();
+        assertThat(user.getDisplayName()).isEqualTo(expectedDisplayName);
+        user.markEmailVerified(OffsetDateTime.now());
+        return userRepository.save(user);
     }
 }
