@@ -373,14 +373,9 @@ export function RegisterPage() {
             disabled={isSubmitting}
           >
             {isSubmitting && (
-              <>
-                <span className={styles.spinner} aria-hidden="true" />
-                <span className={styles.spinnerFallback} aria-hidden="true">
-                  Loading…
-                </span>
-              </>
+              <span className={styles.spinner} aria-hidden="true" />
             )}
-            {isSubmitting ? 'Creating account…' : 'Create account'}
+            {isSubmitting ? 'Creating account...' : 'Create account'}
           </button>
         </form>
 

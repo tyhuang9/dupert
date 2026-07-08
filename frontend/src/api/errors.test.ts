@@ -58,14 +58,6 @@ describe('parseApiError', () => {
     expect(result.topMessage).toMatch(/Too many attempts/)
   })
 
-  it('maps email_unavailable (503) before the generic server-error fallback', () => {
-    const result = parseApiError(
-      makeAxiosError(503, { error: 'email_unavailable' }),
-    )
-    expect(result.topMessage).toMatch(/could not send that email/i)
-    expect(result.code).toBe('email_unavailable')
-  })
-
   it('maps forbidden (403) to a blocked-request banner', () => {
     const result = parseApiError(makeAxiosError(403, { error: 'forbidden' }))
     expect(result.topMessage).toMatch(/server blocked/i)
@@ -102,15 +94,6 @@ describe('parseApiError', () => {
       }),
     )
     expect(result.fieldErrors.displayName).toBe('must not be blank')
-  })
-
-  it('maps password_breached (400) to a field error on password with no banner', () => {
-    const result = parseApiError(
-      makeAxiosError(400, { error: 'password_breached' }),
-    )
-    expect(result.topMessage).toBeNull()
-    expect(result.fieldErrors.password).toMatch(/known data breach/i)
-    expect(result.severity).toBe('error')
   })
 
   it('maps invalid_display_name (400) to a displayName field error', () => {

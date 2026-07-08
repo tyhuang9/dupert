@@ -7,8 +7,7 @@ import axios, { type AxiosError } from 'axios'
  *   { error: string, message: string, correlationId: string, fieldErrors: [{field, message}]? }
  *
  * AuthController also returns flat `{ "error": "<slug>" }` bodies for some 4xx codes
- * (`invalid_credentials`, `email_taken`, `invalid_display_name`, `password_breached`,
- * `unauthenticated`).
+ * (`invalid_credentials`, `email_taken`, `invalid_display_name`, `unauthenticated`).
  *
  * `parseApiError` normalizes both into a single shape suitable for forms:
  *   - `topMessage`  — a short banner string (or null when only field errors apply).
@@ -38,7 +37,6 @@ interface BackendErrorBody {
 const TOP_MESSAGE_BY_CODE: Record<string, string | null> = {
   invalid_credentials: 'Email or password is incorrect.',
   email_unverified: 'Check your email to verify your account before signing in.',
-  email_unavailable: 'We could not send that email right now. Try again soon.',
   rate_limited: 'Too many attempts. Try again in a few minutes.',
   email_taken: null,
   signup_disabled: 'Signup is temporarily closed.',
@@ -158,20 +156,6 @@ export function parseApiError(err: unknown): ParsedApiError {
         fieldErrors: {
           ...fieldErrors,
           displayName: 'Please choose a different display name.',
-        },
-        code,
-        severity: 'error',
-      }
-    }
-    if (code === 'password_breached') {
-      // Same shape as `email_taken`: targeted field error, no top banner,
-      // so the form doesn't double up a generic message above the field.
-      return {
-        topMessage: null,
-        fieldErrors: {
-          ...fieldErrors,
-          password:
-            'This password appears in a known data breach. Please choose a different one.',
         },
         code,
         severity: 'error',
