@@ -100,7 +100,7 @@ describe('TripWorkspacePage layout scroll contract', () => {
     expect(dayGroupBlock).not.toMatch(/box-shadow:/)
     expect(dayGroupBlock).not.toMatch(/background:/)
     expect(activityButtonBlock).toMatch(/grid-template-columns:\s*44px minmax\(0,\s*1fr\) auto/)
-    expect(activityButtonBlock).toMatch(/min-height:\s*56px/)
+    expect(activityButtonBlock).toMatch(/min-height:\s*62px/)
     expect(activityButtonBlock).toMatch(/border:\s*0/)
     expect(activityButtonBlock).toMatch(/background:\s*transparent/)
     expect(activityButtonBlock).not.toMatch(/box-shadow:/)
@@ -164,15 +164,15 @@ describe('TripWorkspacePage layout scroll contract', () => {
     const actionsBlock = cssBlocks(workspaceCss, '.placeDetailActions')[0] ?? ''
     const primaryActionBlock = cssBlocks(workspaceCss, '.placeDetailActions .primaryAction')[0] ?? ''
 
-    expect(cardBlock).toMatch(/width:\s*min\(20rem,\s*calc\(100% - var\(--space-8\)\)\)/)
+    expect(cardBlock).toMatch(/width:\s*min\(22rem,\s*calc\(100% - var\(--space-8\)\)\)/)
     expect(cardBlock).toMatch(/max-height:\s*min\(28rem,\s*80dvh\)/)
     expect(cardBlock).toMatch(/grid-template-rows:\s*auto minmax\(0,\s*1fr\)/)
     expect(raisedBlock).toMatch(
       /bottom:\s*calc\(var\(--map-search-results-height\) \+ var\(--space-10\)\)/,
     )
     expect(heroBlock).toMatch(/aspect-ratio:\s*16 \/ 9/)
-    expect(heroBlock).toMatch(/min-height:\s*8\.5rem/)
-    expect(heroBlock).toMatch(/max-height:\s*min\(10rem,\s*30dvh\)/)
+    expect(heroBlock).toMatch(/min-height:\s*9\.25rem/)
+    expect(heroBlock).toMatch(/max-height:\s*min\(11rem,\s*30dvh\)/)
     expect(bodyBlock).toMatch(/min-height:\s*0/)
     expect(bodyBlock).toMatch(/overflow-y:\s*auto/)
     expect(bodyBlock).toMatch(/scrollbar-width:\s*none/)
