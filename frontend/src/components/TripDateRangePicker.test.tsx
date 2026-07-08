@@ -72,6 +72,26 @@ describe('<TripDateRangePicker>', () => {
     expect(onChange).toHaveBeenCalledWith({ endDate: '2026-05-03' })
   })
 
+  it('updates the end date when reopening an existing range from the trigger', async () => {
+    const onChange = vi.fn()
+
+    render(
+      <TripDateRangePicker
+        startDate="2026-05-01"
+        endDate="2026-05-03"
+        onChange={onChange}
+      />,
+    )
+    mockFieldRect()
+
+    await userEvent.click(screen.getByRole('button', { name: /trip dates/i }))
+    await userEvent.click(screen.getByRole('button', {
+      name: /choose tuesday, may 5, 2026/i,
+    }))
+
+    expect(onChange).toHaveBeenCalledWith({ endDate: '2026-05-05' })
+  })
+
   it('closes the portaled calendar on Escape', async () => {
     const onChange = vi.fn()
 

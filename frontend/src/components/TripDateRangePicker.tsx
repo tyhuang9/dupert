@@ -228,7 +228,7 @@ export function TripDateRangePicker({
     }
   }, [isOpen, updatePanelPosition])
 
-  function openPicker(part: DateRangePart = startDate && !endDate ? 'end' : 'start') {
+  function openPicker(part: DateRangePart = startDate ? 'end' : 'start') {
     if (disabled) return
     setVisibleMonth(rangePickerInitialMonth(startDate, endDate))
     setActivePart(part)
@@ -396,7 +396,7 @@ export function TripDateRangePicker({
       <button
         type="button"
         className={styles.dateRangeTrigger}
-        onClick={() => openPicker(startDate && !endDate ? 'end' : 'start')}
+        onClick={() => openPicker()}
         disabled={disabled}
         aria-haspopup="dialog"
         aria-expanded={isOpen}
