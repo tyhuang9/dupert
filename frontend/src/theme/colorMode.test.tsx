@@ -1,12 +1,13 @@
 import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { ColorModeProvider, useColorMode } from './ColorModeProvider'
+import { ColorModeProvider } from './ColorModeProvider'
 import {
   COLOR_MODE_STORAGE_KEY,
   applyColorMode,
   readStoredColorMode,
 } from './colorMode'
+import { useColorMode } from './useColorMode'
 
 type MatchMediaListener = (event: MediaQueryListEvent) => void
 

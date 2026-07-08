@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { Mail, SlidersHorizontal, Trash2, UserRound, X } from 'lucide-react'
 import { parseApiError } from '../api/errors'
 import { useAuth } from '../auth/useAuth'
-import { useColorMode } from '../theme/ColorModeProvider'
+import { useColorMode } from '../theme/useColorMode'
 import type { UserSummary } from '../types/auth'
 import styles from './AccountSettingsDialog.module.css'
 

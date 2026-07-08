@@ -1,7 +1,5 @@
 import {
-  createContext,
   useCallback,
-  useContext,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -17,14 +15,7 @@ import {
   type ColorMode,
   type ResolvedColorMode,
 } from './colorMode'
-
-interface ColorModeContextValue {
-  colorMode: ColorMode
-  resolvedColorMode: ResolvedColorMode
-  setColorMode: (colorMode: ColorMode) => void
-}
-
-const ColorModeContext = createContext<ColorModeContextValue | null>(null)
+import { ColorModeContext } from './ColorModeContext'
 
 const useIsomorphicLayoutEffect =
   typeof window === 'undefined' ? useEffect : useLayoutEffect
@@ -78,12 +69,4 @@ export function ColorModeProvider({ children }: { children: ReactNode }) {
       {children}
     </ColorModeContext.Provider>
   )
-}
-
-export function useColorMode(): ColorModeContextValue {
-  const value = useContext(ColorModeContext)
-  if (!value) {
-    throw new Error('useColorMode must be used within ColorModeProvider')
-  }
-  return value
 }
