@@ -729,7 +729,17 @@ function TripMapContent({
     () => baseDisplayStops.map((stop) => `${stop.source}:${stop.lng},${stop.lat}`).join(';'),
     [baseDisplayStops],
   )
-  const effectiveViewportFitKey = viewportFitKey ?? baseDisplayKey
+  const viewportFitSignature = useMemo(
+    () =>
+      baseDisplayStops
+        .map((stop) => `${stop.source}:${stop.lat.toFixed(6)},${stop.lng.toFixed(6)}`)
+        .sort()
+        .join(';'),
+    [baseDisplayStops],
+  )
+  const effectiveViewportFitKey = viewportFitKey
+    ? `${viewportFitKey}:${viewportFitSignature}`
+    : viewportFitSignature
   const previewDisplayKey = previewDisplayStop
     ? `${previewDisplayStop.source}:${previewDisplayStop.lng},${previewDisplayStop.lat}`
     : ''

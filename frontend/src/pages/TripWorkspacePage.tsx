@@ -1746,14 +1746,21 @@ export function TripWorkspacePage() {
   )
 
   useEffect(() => {
-    if (!publicId || !tripQuery.data || !day) return
-    if (!dayInRange(day, tripQuery.data.startDate, tripQuery.data.endDate)) {
-      const nextDay = nearestTripDay(day, tripQuery.data.startDate, tripQuery.data.endDate)
+    if (!publicId || !tripQuery.data) return
+    if (!day) {
       navigate(
-        `/trips/${encodeURIComponent(publicId)}/d/${encodeURIComponent(nextDay)}`,
+        `/trips/${encodeURIComponent(publicId)}/d/${encodeURIComponent(tripQuery.data.startDate)}`,
         { replace: true },
       )
+      return
     }
+    if (dayInRange(day, tripQuery.data.startDate, tripQuery.data.endDate)) return
+
+    const nextDay = nearestTripDay(day, tripQuery.data.startDate, tripQuery.data.endDate)
+    navigate(
+      `/trips/${encodeURIComponent(publicId)}/d/${encodeURIComponent(nextDay)}`,
+      { replace: true },
+    )
   }, [day, navigate, publicId, tripQuery.data])
 
   const allActivities = useMemo(() => activitiesQuery.data ?? [], [activitiesQuery.data])

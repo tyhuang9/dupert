@@ -545,6 +545,41 @@ describe('<TripMap>', () => {
     expect(mapControlMock.moveCamera).not.toHaveBeenCalled()
   })
 
+  it('refits the viewport when mapped coordinates arrive under the same fit key', async () => {
+    const { rerender } = render(
+      <TripMap
+        activities={[]}
+        fallbackActivities={[]}
+        destination="Tokyo"
+        viewportFitKey="days:2026-05-01:Tokyo"
+      />,
+    )
+
+    expect(mapControlMock.fitBounds).not.toHaveBeenCalled()
+    expect(mapControlMock.moveCamera).not.toHaveBeenCalled()
+
+    rerender(
+      <TripMap
+        activities={ACTIVITIES}
+        fallbackActivities={[]}
+        destination="Tokyo"
+        viewportFitKey="days:2026-05-01:Tokyo"
+      />,
+    )
+
+    await waitFor(() => {
+      expect(mapControlMock.fitBounds).toHaveBeenCalledWith(
+        {
+          east: 139.7707,
+          north: 35.6654,
+          south: 35.6586,
+          west: 139.7454,
+        },
+        64,
+      )
+    })
+  })
+
   it('can render mapped stops without requesting a route', () => {
     render(
       <TripMap

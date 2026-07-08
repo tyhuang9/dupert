@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event'
 import MockAdapter from 'axios-mock-adapter'
 import type { PropsWithChildren, ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { apiClient } from '../api/client'
 import type { Activity } from '../types/activity'
 import type { Trip } from '../types/trip'
@@ -461,9 +461,15 @@ function mockWorkspace(
 }
 
 function renderWorkspace(path: string) {
+  function LocationProbe() {
+    const location = useLocation()
+    return <div data-testid="current-location">{location.pathname}</div>
+  }
+
   return render(
     <Providers>
       <MemoryRouter initialEntries={[path]}>
+        <LocationProbe />
         <Routes>
           <Route path="/trips/:publicId" element={<TripWorkspacePage />} />
           <Route path="/trips/:publicId/d/:day" element={<TripWorkspacePage />} />
@@ -639,6 +645,9 @@ describe('<TripWorkspacePage>', () => {
     renderWorkspace('/trips/abc234def567')
 
     expect(await screen.findByRole('heading', { level: 1, name: /tokyo 2026/i })).toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.getByTestId('current-location')).toHaveTextContent('/trips/abc234def567/d/2026-05-01')
+    })
     expect(screen.getByRole('heading', { level: 2, name: /friday, may 1/i })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /tripplanner/i })).toHaveAttribute('href', '/trips')
     expect(screen.getByRole('link', { name: /^tokyo 2026$/i })).toHaveAttribute('aria-current', 'page')
