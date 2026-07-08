@@ -6,13 +6,15 @@
  * dashboard density, and a single accessible primary blue.
  */
 
-:root {
+:root,
+:root[data-theme='light'] {
   color-scheme: light;
 
   --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --font-mono: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
 
   --color-bg: #f9f9ff;
+  --color-bg-gradient-top: rgba(255, 255, 255, 0.76);
   --color-bg-strong: #e1e2ec;
   --color-shell: #f2f3fd;
   --color-surface: #ffffff;
@@ -20,6 +22,9 @@
   --color-surface-3: #e6e7f2;
   --color-surface-border: #c2c6d6;
   --color-border-strong: #727785;
+  --color-floating-surface: rgba(255, 255, 255, 0.96);
+  --color-floating-surface-soft: rgba(255, 255, 255, 0.86);
+  --color-surface-fade: rgba(255, 255, 255, 0);
 
   --color-text: #0f172a;
   --color-text-muted: #475569;
@@ -97,6 +102,56 @@
   --sans: var(--font-sans);
   --heading: var(--font-sans);
   --mono: var(--font-mono);
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --color-bg: #090f1d;
+  --color-bg-gradient-top: rgba(30, 41, 59, 0.46);
+  --color-bg-strong: #020617;
+  --color-shell: #0f172a;
+  --color-surface: #111827;
+  --color-surface-2: #1e293b;
+  --color-surface-3: #283449;
+  --color-surface-border: #3b4a61;
+  --color-border-strong: #8290a7;
+  --color-floating-surface: rgba(17, 24, 39, 0.94);
+  --color-floating-surface-soft: rgba(30, 41, 59, 0.88);
+  --color-surface-fade: rgba(17, 24, 39, 0);
+
+  --color-text: #eef4ff;
+  --color-text-muted: #b8c4d7;
+  --color-text-subtle: #92a1b8;
+  --color-text-inverse: #08111f;
+
+  --color-primary: #7db2ff;
+  --color-primary-fg: #071429;
+  --color-primary-text: #9cc3ff;
+  --color-primary-hover: #a9ccff;
+  --color-primary-active: #c5dcff;
+  --color-primary-soft: rgba(125, 178, 255, 0.22);
+  --color-primary-softer: rgba(125, 178, 255, 0.13);
+
+  --color-danger: #f87171;
+  --color-danger-fg: #fecaca;
+  --color-danger-bg: rgba(127, 29, 29, 0.42);
+  --color-warning: #fbbf24;
+  --color-warning-fg: #fde68a;
+  --color-warning-bg: rgba(120, 53, 15, 0.42);
+  --color-success: #34d399;
+  --color-success-fg: #a7f3d0;
+  --color-success-bg: rgba(6, 78, 59, 0.44);
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.28);
+  --shadow-md:
+    0 12px 28px rgba(0, 0, 0, 0.36),
+    0 2px 8px rgba(0, 0, 0, 0.24);
+  --shadow-lg:
+    0 22px 56px rgba(0, 0, 0, 0.42),
+    0 4px 14px rgba(0, 0, 0, 0.28);
+
+  --focus-ring-color: #93c5fd;
 }
 
 @media (prefers-reduced-motion: reduce) {

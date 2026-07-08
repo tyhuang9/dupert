@@ -116,7 +116,7 @@
   max-width: calc(100% - var(--space-6));
   border: 1px solid var(--color-surface-border);
   border-radius: var(--radius-md);
-  background: rgba(255, 255, 255, 0.95);
+  background: var(--color-floating-surface);
   box-shadow: var(--shadow-md);
   font-size: var(--font-size-xs);
   font-weight: 800;
@@ -179,7 +179,7 @@
   height: 44px;
   display: inline-grid;
   place-items: center;
-  border: 1px solid #bfdbfe;
+  border: 1px solid color-mix(in srgb, var(--color-primary) 28%, var(--color-surface-border));
   border-radius: var(--radius-md);
   background: var(--color-primary-soft);
   color: var(--color-primary-active);
@@ -212,7 +212,7 @@
   padding: var(--space-3);
   border: 1px dashed var(--color-border-strong);
   border-radius: var(--radius-md);
-  background: rgba(255, 255, 255, 0.95);
+  background: var(--color-floating-surface);
   color: var(--color-text-muted);
   box-shadow: var(--shadow-md);
   font-size: var(--font-size-xs);

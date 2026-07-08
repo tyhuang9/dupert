@@ -8,6 +8,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { apiClient } from '../api/client'
 import { AuthContext, type AuthContextValue } from '../auth/authContextValue'
 import type { GooglePlaceSearchOptions, GooglePlaceSelection } from '../components/googlePlaces'
+import { ColorModeProvider } from '../theme/ColorModeProvider'
 import type { Trip } from '../types/trip'
 import { selectTripVisualKey } from '../utils/tripVisuals'
 import { NewTripPage } from './NewTripPage'
@@ -108,7 +109,9 @@ function Providers({
   return (
     <QueryClientProvider client={queryClient}>
       <AuthContext.Provider value={auth}>
-        {children}
+        <ColorModeProvider>
+          {children}
+        </ColorModeProvider>
       </AuthContext.Provider>
     </QueryClientProvider>
   )
@@ -180,6 +183,7 @@ async function selectMayTripDates(startDay: number, endDay: number) {
 
 beforeEach(() => {
   vi.stubEnv('VITE_GOOGLE_MAPS_API_KEY', 'gmaps.test')
+  window.localStorage.clear()
   searchBoxState.props = null
   apiMock = new MockAdapter(apiClient)
   queryClient = new QueryClient({

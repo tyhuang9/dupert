@@ -19,7 +19,7 @@
 .card:hover,
 .card:focus-within,
 .card:focus-visible {
-  border-color: #bfdbfe;
+  border-color: color-mix(in srgb, var(--color-primary) 28%, var(--color-surface-border));
   box-shadow: var(--shadow-sm);
 }
 

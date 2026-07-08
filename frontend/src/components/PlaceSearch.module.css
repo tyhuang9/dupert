@@ -7,9 +7,9 @@
 .context {
   margin: 0;
   padding: var(--space-2) var(--space-3);
-  border: 1px solid #bfdbfe;
+  border: 1px solid var(--color-primary-soft);
   border-radius: var(--radius-md);
-  background: rgba(255, 255, 255, 0.94);
+  background: var(--color-floating-surface);
   color: var(--color-primary-text);
   font-size: var(--font-size-xs);
   font-weight: 800;
@@ -35,9 +35,10 @@
   min-height: 44px !important;
   padding-left: var(--space-4) !important;
   padding-right: var(--autocomplete-input-padding-right) !important;
-  border: 1px solid rgba(194, 198, 214, 0.72) !important;
+  border: 1px solid var(--color-surface-border) !important;
   border-radius: var(--radius-pill) !important;
-  background: rgba(255, 255, 255, 0.98) !important;
+  background: var(--color-floating-surface) !important;
+  color: var(--color-text) !important;
   box-shadow: var(--shadow-md) !important;
   font-size: var(--font-size-sm) !important;
   line-height: 44px !important;

@@ -479,7 +479,7 @@
 .deleteButton:hover,
 .deleteButton:focus-visible {
   background: var(--color-danger-bg);
-  border-color: #fecaca;
+  border-color: color-mix(in srgb, var(--color-danger) 18%, var(--color-danger-bg));
 }
 
 @media (max-width: 640px) {
