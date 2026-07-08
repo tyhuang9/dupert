@@ -51,15 +51,21 @@ export function EmailVerificationPage() {
 
   return (
     <main id="main" className={styles.shell}>
-      <div className={styles.card}>
+      <div className={`${styles.card} ${styles.resultCard}`}>
         <h1 className={styles.title}>
           {state === 'verified' ? 'Email verified' : 'Verify email'}
         </h1>
         <p className={styles.subtitle}>
-          {state === 'verifying' ? 'Checking your verification link.' : 'TripPlanner account verification.'}
+          {state === 'verifying'
+            ? 'Checking your verification link.'
+            : 'TripPlanner account verification.'}
         </p>
         <div
-          className={state === 'error' ? styles.banner : styles.bannerSuccess}
+          className={
+            state === 'error'
+              ? styles.banner
+              : `${styles.bannerSuccess} ${styles.centeredNotice}`
+          }
           role={state === 'error' ? 'alert' : 'status'}
         >
           {message}

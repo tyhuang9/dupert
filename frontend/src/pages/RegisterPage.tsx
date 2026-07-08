@@ -206,7 +206,7 @@ export function RegisterPage() {
     const verificationRequired = registrationResult.status === 'verification_required'
     return (
       <main id="main" className={styles.shell}>
-        <div className={styles.card}>
+        <div className={`${styles.card} ${styles.resultCard}`}>
           <h1 className={styles.title}>
             {verificationRequired ? 'Check your email' : 'Account created'}
           </h1>
@@ -215,13 +215,19 @@ export function RegisterPage() {
               ? 'Verify your email before signing in to TripPlanner.'
               : 'Your local account is ready.'}
           </p>
-          <div className={styles.bannerSuccess} role="status">
+          <div
+            className={`${styles.bannerSuccess} ${styles.centeredNotice}`}
+            role="status"
+          >
             {verificationRequired
               ? `We sent a verification link to ${registrationResult.email}.`
               : `${registrationResult.email} can now sign in.`}
           </div>
           {verificationRequired && resendMessage ? (
-            <div className={styles.bannerSuccess} role="status">
+            <div
+              className={`${styles.bannerSuccess} ${styles.centeredNotice}`}
+              role="status"
+            >
               {resendMessage}
             </div>
           ) : null}

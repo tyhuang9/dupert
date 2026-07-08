@@ -26,6 +26,10 @@
   box-shadow: var(--shadow-md);
 }
 
+.resultCard {
+  text-align: center;
+}
+
 .title {
   margin: 0 0 var(--space-1);
   font-size: var(--font-size-lg);
@@ -84,6 +88,10 @@
   color: var(--color-success-fg);
   font-size: var(--font-size-sm);
   line-height: var(--line-height-base);
+}
+
+.centeredNotice {
+  text-align: center;
 }
 
 .form {

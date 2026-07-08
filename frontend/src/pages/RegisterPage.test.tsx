@@ -6,6 +6,7 @@ import { AxiosError, AxiosHeaders } from 'axios'
 import { RegisterPage } from './RegisterPage'
 import { AuthContext, type AuthContextValue } from '../auth/authContextValue'
 import { useAuthStore } from '../auth/authStore'
+import styles from './AuthForm.module.css'
 
 function makeAuth(overrides: Partial<AuthContextValue> = {}): AuthContextValue {
   return {
@@ -184,7 +185,9 @@ describe('<RegisterPage>', () => {
       email: 'me@example.com',
     })
     expect(await screen.findAllByRole('status')).toHaveLength(2)
-    expect(screen.getByText(/verification email is on the way/i)).toBeInTheDocument()
+    const resendNotice = screen.getByText(/verification email is on the way/i)
+    expect(resendNotice).toBeInTheDocument()
+    expect(resendNotice).toHaveClass(styles.centeredNotice)
   })
 
   it('shows email_unavailable when the backend cannot send verification mail', async () => {
