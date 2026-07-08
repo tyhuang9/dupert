@@ -172,13 +172,13 @@ const DEFAULT_CAMERA: MapCamera = {
 }
 
 const ROUTE_STYLE = {
-  strokeColor: '#2563eb',
+  strokeColor: '#3F5F53',
   strokeOpacity: 0.78,
   strokeWeight: 4,
 } as const
 
 const ACTIVE_ROUTE_STYLE = {
-  strokeColor: '#1d4ed8',
+  strokeColor: '#4D7265',
   strokeOpacity: 0.95,
   strokeWeight: 6,
 } as const

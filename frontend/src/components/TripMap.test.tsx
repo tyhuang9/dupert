@@ -638,10 +638,10 @@ describe('<TripMap>', () => {
           unscheduledActivity,
         ]}
         activityMarkerColors={{
-          10: '#2563eb',
-          11: '#2563eb',
-          20: '#059669',
-          21: '#059669',
+          10: '#3F5F53',
+          11: '#3F5F53',
+          20: '#6E8193',
+          21: '#6E8193',
         }}
         activityMarkerMode="timeline-days"
         fallbackActivities={[]}
@@ -660,8 +660,8 @@ describe('<TripMap>', () => {
     expect(dayOneSecond).toHaveTextContent('2')
     expect(dayTwoFirst).toHaveTextContent('1')
     expect(dayTwoSecond).toHaveTextContent('2')
-    expect(dayOneFirst.getAttribute('style')).toContain('--marker-accent: #2563eb')
-    expect(dayTwoFirst.getAttribute('style')).toContain('--marker-accent: #059669')
+    expect(dayOneFirst.getAttribute('style')).toContain('--marker-accent: #3F5F53')
+    expect(dayTwoFirst.getAttribute('style')).toContain('--marker-accent: #6E8193')
   })
 
   it('applies selected map style while keeping native map controls hidden', () => {
