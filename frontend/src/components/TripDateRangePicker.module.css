@@ -113,10 +113,9 @@
   box-sizing: border-box;
   display: grid;
   gap: var(--space-4);
-  max-height: calc(100dvh - 1.5rem);
-  overflow: auto;
+  overflow: visible;
   overscroll-behavior: contain;
-  padding: var(--space-4);
+  padding: var(--space-4) var(--space-5) var(--space-5);
   border: 1px solid var(--date-picker-border);
   border-radius: var(--radius-md);
   background: var(--date-picker-bg);
@@ -185,31 +184,49 @@
   box-shadow: 0 0 0 1px var(--date-picker-blue);
 }
 
-.datePickerCalendarHeader {
-  display: flex;
-  justify-content: flex-end;
-  gap: var(--space-2);
+.datePickerCalendarArea {
+  position: relative;
+  min-width: 0;
+  padding-inline: var(--space-6);
 }
 
 .dateNavButton {
-  width: 2.25rem;
-  height: 2.25rem;
+  position: absolute;
+  top: 50%;
+  z-index: 3;
+  width: 3rem;
+  height: 3rem;
   display: inline-grid;
   place-items: center;
-  border: 1px solid transparent;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--date-picker-text);
+  border: 1px solid rgba(0, 0, 0, 0.18);
+  border-radius: var(--radius-pill);
+  background: #34363a;
+  color: var(--date-picker-blue);
+  box-shadow: 0 2px 7px rgba(0, 0, 0, 0.28);
+  transform: translateY(-50%);
 }
 
 .dateNavButton:hover {
   background: rgba(255, 255, 255, 0.08);
 }
 
+.dateNavButtonPrevious {
+  left: -1.5rem;
+}
+
+.dateNavButtonNext {
+  right: -1.5rem;
+}
+
 .datePickerMonths {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-6);
+}
+
+.datePickerMonths[data-month-count='1'] {
+  grid-template-columns: minmax(0, 22rem);
+  justify-content: center;
 }
 
 .calendarMonth {
@@ -266,32 +283,63 @@
   color: var(--date-picker-text);
   font-size: var(--font-size-sm);
   font-weight: 800;
+  isolation: isolate;
 }
 
-.calendarDateButton:hover {
-  border-color: var(--date-picker-border);
+.calendarDateButton::before {
+  content: '';
+  position: absolute;
+  z-index: 0;
+  top: 50%;
+  right: 0;
+  left: 0;
+  height: 2.5rem;
+  background: transparent;
+  transform: translateY(-50%);
+}
+
+.calendarDateNumber {
+  position: relative;
+  z-index: 1;
+  width: 2.5rem;
+  height: 2.5rem;
+  display: inline-grid;
+  place-items: center;
   border-radius: var(--radius-pill);
+  border: 2px solid transparent;
 }
 
-.calendarDateInRange {
+.calendarDateButton:hover .calendarDateNumber {
+  border-color: var(--date-picker-border);
+}
+
+.calendarDateInRange::before,
+.calendarDateStart::before,
+.calendarDateEnd::before {
   background: var(--date-picker-range);
 }
 
-.calendarDateStart,
-.calendarDateEnd,
-.calendarDateSingle {
-  border-radius: var(--radius-pill);
+.calendarDateStart::before {
+  left: 50%;
 }
 
-.calendarDateStart,
-.calendarDateSingle {
+.calendarDateEnd::before {
+  right: 50%;
+}
+
+.calendarDateSingle::before {
+  background: transparent;
+}
+
+.calendarDateStart .calendarDateNumber,
+.calendarDateSingle .calendarDateNumber {
   background: var(--date-picker-blue);
   color: #202124;
 }
 
-.calendarDateEnd {
-  border-color: var(--date-picker-muted);
-  background: var(--date-picker-range);
+.calendarDateEnd .calendarDateNumber {
+  border-color: var(--date-picker-blue);
+  background: var(--date-picker-bg);
   color: var(--date-picker-text);
 }
 
@@ -320,8 +368,7 @@
 @media (max-width: 52rem) {
   .dateRangeSummary,
   .datePickerTopbar,
-  .datePickerSelection,
-  .datePickerMonths {
+  .datePickerSelection {
     grid-template-columns: 1fr;
   }
 
@@ -331,5 +378,17 @@
 
   .dateFieldControl {
     min-width: 0;
+  }
+
+  .datePickerCalendarArea {
+    padding-inline: var(--space-4);
+  }
+
+  .dateNavButtonPrevious {
+    left: -0.75rem;
+  }
+
+  .dateNavButtonNext {
+    right: -0.75rem;
   }
 }

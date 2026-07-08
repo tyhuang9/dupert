@@ -41,11 +41,14 @@ describe('<TripDateRangePicker>', () => {
     const dialog = screen.getByRole('dialog', { name: /trip dates/i })
     expect(screen.getByTestId('settings-popup')).not.toContainElement(dialog)
     expect(document.body).toContainElement(dialog)
+    expect(dialog).toContainElement(screen.getByRole('button', { name: /previous month/i }))
+    expect(dialog).toContainElement(screen.getByRole('button', { name: /next month/i }))
+    expect(dialog.style.maxHeight).toBe('')
     expect(dialog).toHaveStyle({
       left: '40px',
       position: 'fixed',
       top: '152px',
-      width: '576px',
+      width: '760px',
     })
   })
 

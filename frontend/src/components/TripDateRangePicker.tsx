@@ -156,7 +156,7 @@ export function TripDateRangePicker({
   const [visibleMonth, setVisibleMonth] = useState(() =>
     rangePickerInitialMonth(startDate, endDate),
   )
-  const secondVisibleMonth = shiftMonthKey(visibleMonth, 1)
+  const [visibleMonthCount, setVisibleMonthCount] = useState(2)
   const errorIds = [
     startDateError ? startErrorId : '',
     endDateError ? endErrorId : '',
@@ -171,22 +171,24 @@ export function TripDateRangePicker({
     const viewportPadding = 12
     const gap = 8
     const maxWidth = Math.max(0, window.innerWidth - viewportPadding * 2)
-    const width = Math.min(Math.max(rect.width, 576), maxWidth)
+    const compact = maxWidth < 680 || window.innerHeight < 640
+    const preferredWidth = compact ? 380 : 760
+    const estimatedHeight = compact ? 504 : 590
+    const width = Math.min(Math.max(rect.width, preferredWidth), maxWidth)
+    setVisibleMonthCount(compact ? 1 : 2)
     const left = Math.min(
       Math.max(viewportPadding, rect.left),
       Math.max(viewportPadding, window.innerWidth - width - viewportPadding),
     )
     const spaceBelow = window.innerHeight - rect.bottom - gap - viewportPadding
     const spaceAbove = rect.top - gap - viewportPadding
-    const opensAbove = spaceBelow < 320 && spaceAbove > spaceBelow
-    const maxHeight = Math.max(260, opensAbove ? spaceAbove : spaceBelow)
+    const opensAbove = spaceBelow < estimatedHeight && spaceAbove > spaceBelow
     const top = opensAbove
-      ? Math.max(viewportPadding, rect.top - gap - maxHeight)
+      ? Math.max(viewportPadding, rect.top - gap - estimatedHeight)
       : rect.bottom + gap
 
     setPanelStyle({
       left,
-      maxHeight,
       position: 'fixed',
       top,
       width,
@@ -263,7 +265,7 @@ export function TripDateRangePicker({
 
   function renderMonth(monthKey: string, monthLabel: string) {
     return (
-      <section className={styles.calendarMonth} aria-label={monthLabel}>
+      <section key={monthKey} className={styles.calendarMonth} aria-label={monthLabel}>
         <h3>{formatMonth(monthKey)}</h3>
         <div className={styles.calendarWeekdays} aria-hidden="true">
           {WEEKDAY_LABELS.map((weekday, index) => (
@@ -286,7 +288,7 @@ export function TripDateRangePicker({
                 aria-label={`Choose ${fullDate}`}
                 aria-pressed={cell.dateKey === startDate || cell.dateKey === endDate}
               >
-                {cell.dayNumber}
+                <span className={styles.calendarDateNumber}>{cell.dayNumber}</span>
               </button>
             )
           })}
@@ -345,28 +347,33 @@ export function TripDateRangePicker({
         </div>
       </div>
 
-      <div className={styles.datePickerCalendarHeader}>
+      <div className={styles.datePickerCalendarArea}>
         <button
           type="button"
-          className={styles.dateNavButton}
+          className={[styles.dateNavButton, styles.dateNavButtonPrevious].join(' ')}
           onClick={() => setVisibleMonth((current) => shiftMonthKey(current, -1))}
           aria-label="Previous month"
         >
           <ChevronLeft size={18} aria-hidden="true" />
         </button>
+
+        <div className={styles.datePickerMonths} data-month-count={visibleMonthCount}>
+          {Array.from({ length: visibleMonthCount }, (_, index) =>
+            renderMonth(
+              shiftMonthKey(visibleMonth, index),
+              index === 0 ? 'Start month' : 'End month',
+            ),
+          )}
+        </div>
+
         <button
           type="button"
-          className={styles.dateNavButton}
+          className={[styles.dateNavButton, styles.dateNavButtonNext].join(' ')}
           onClick={() => setVisibleMonth((current) => shiftMonthKey(current, 1))}
           aria-label="Next month"
         >
           <ChevronRight size={18} aria-hidden="true" />
         </button>
-      </div>
-
-      <div className={styles.datePickerMonths}>
-        {renderMonth(visibleMonth, 'Start month')}
-        {renderMonth(secondVisibleMonth, 'End month')}
       </div>
 
       <div className={styles.datePickerFooter}>
