@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest'
 const currentDir = dirname(fileURLToPath(import.meta.url))
 const workspaceCss = readFileSync(join(currentDir, 'TripWorkspacePage.module.css'), 'utf8')
 const tripMapCss = readFileSync(join(currentDir, '../components/TripMap.module.css'), 'utf8')
+const activityFormCss = readFileSync(join(currentDir, '../components/ActivityForm.module.css'), 'utf8')
 
 function cssBlocks(css: string, selector: string) {
   const escapedSelector = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -127,17 +128,34 @@ describe('TripWorkspacePage layout scroll contract', () => {
     expect(tripMapCss).not.toMatch(/min-height:\s*(?:24|30)rem/)
   })
 
-  it('keeps the selected-place detail photo area tall and near-square', () => {
+  it('keeps the selected-place detail card compact above search results', () => {
     const cardBlock = cssBlocks(workspaceCss, '.placeDetailCard')[0] ?? ''
+    const raisedBlock = cssBlocks(workspaceCss, '.placeDetailCardRaised')[0] ?? ''
     const heroBlock = cssBlocks(workspaceCss, '.placeHero')[0] ?? ''
     const bodyBlock = cssBlocks(workspaceCss, '.placeDetailBody')[0] ?? ''
+    const bodyScrollbarBlock = cssBlocks(workspaceCss, '.placeDetailBody::-webkit-scrollbar')[0] ?? ''
+    const actionsBlock = cssBlocks(workspaceCss, '.placeDetailActions')[0] ?? ''
 
-    expect(cardBlock).toMatch(/max-height:\s*min\(36rem,\s*84dvh\)/)
+    expect(cardBlock).toMatch(/width:\s*min\(20rem,\s*calc\(100% - var\(--space-8\)\)\)/)
+    expect(cardBlock).toMatch(/max-height:\s*min\(28rem,\s*80dvh\)/)
     expect(cardBlock).toMatch(/grid-template-rows:\s*auto minmax\(0,\s*1fr\)/)
-    expect(heroBlock).toMatch(/aspect-ratio:\s*1\.08 \/ 1/)
-    expect(heroBlock).toMatch(/min-height:\s*16rem/)
-    expect(heroBlock).toMatch(/max-height:\s*min\(22rem,\s*48dvh\)/)
+    expect(raisedBlock).toMatch(
+      /bottom:\s*calc\(var\(--map-search-results-height\) \+ var\(--space-10\)\)/,
+    )
+    expect(heroBlock).toMatch(/aspect-ratio:\s*16 \/ 9/)
+    expect(heroBlock).toMatch(/min-height:\s*8\.5rem/)
+    expect(heroBlock).toMatch(/max-height:\s*min\(10rem,\s*30dvh\)/)
     expect(bodyBlock).toMatch(/min-height:\s*0/)
     expect(bodyBlock).toMatch(/overflow-y:\s*auto/)
+    expect(bodyBlock).toMatch(/scrollbar-width:\s*none/)
+    expect(bodyScrollbarBlock).toMatch(/display:\s*none/)
+    expect(actionsBlock).toMatch(/flex-wrap:\s*nowrap/)
+  })
+
+  it('keeps compact editable fields on token-based surfaces in dark mode', () => {
+    expect(activityFormCss).not.toContain('#f3f5fb')
+    expect(activityFormCss).toMatch(
+      /\.compactInput:hover,\s*\.compactInput:focus-visible,\s*\.compactTextarea:hover,\s*\.compactTextarea:focus-visible\s*\{[^}]*background:\s*var\(--color-surface-2\)/s,
+    )
   })
 })

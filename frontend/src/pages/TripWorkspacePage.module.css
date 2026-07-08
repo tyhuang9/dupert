@@ -1375,8 +1375,8 @@
   left: var(--space-4);
   bottom: var(--space-4);
   z-index: 7;
-  width: min(24rem, calc(100% - var(--space-8)));
-  max-height: min(36rem, 84dvh);
+  width: min(20rem, calc(100% - var(--space-8)));
+  max-height: min(28rem, 80dvh);
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   overflow: hidden;
@@ -1388,14 +1388,14 @@
 }
 
 .placeDetailCardRaised {
-  bottom: calc(var(--map-search-results-height) + var(--space-6));
+  bottom: calc(var(--map-search-results-height) + var(--space-10));
 }
 
 .placeHero {
   position: relative;
-  min-height: 16rem;
-  max-height: min(22rem, 48dvh);
-  aspect-ratio: 1.08 / 1;
+  min-height: 8.5rem;
+  max-height: min(10rem, 30dvh);
+  aspect-ratio: 16 / 9;
   overflow: hidden;
   background: var(--color-surface-2);
 }
@@ -1454,6 +1454,11 @@
   gap: var(--space-2);
   padding: var(--space-3);
   overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.placeDetailBody::-webkit-scrollbar {
+  display: none;
 }
 
 .placeDetailHeader {
@@ -1563,12 +1568,20 @@
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+}
+
+.placeDetailActions .primaryAction {
+  min-width: 0;
+  flex: 1 1 auto;
+  padding: 0 var(--space-3);
+  white-space: nowrap;
 }
 
 .placeUtilityAction {
   width: 34px;
   height: 34px;
+  flex: 0 0 34px;
   display: inline-grid;
   place-items: center;
   border: 1px solid var(--color-surface-border);
@@ -1586,6 +1599,7 @@
 .placeMapsAction {
   width: 34px;
   height: 34px;
+  flex: 0 0 34px;
   display: inline-grid;
   place-items: center;
   padding: 0;
@@ -2399,17 +2413,17 @@
   .placeDetailCard {
     left: var(--space-3);
     bottom: var(--space-3);
-    width: min(24rem, calc(100% - var(--space-6)));
+    width: min(20rem, calc(100% - var(--space-6)));
     max-height: 76dvh;
   }
 
   .placeDetailCardRaised {
-    bottom: calc(var(--map-search-results-height) + var(--space-5));
+    bottom: calc(var(--map-search-results-height) + var(--space-8));
   }
 
   .placeHero {
-    min-height: 13rem;
-    max-height: min(18rem, 42dvh);
+    min-height: 8rem;
+    max-height: min(9.5rem, 30dvh);
   }
 
   .timelineActivityButton {

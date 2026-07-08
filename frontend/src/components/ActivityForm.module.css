@@ -239,7 +239,7 @@
 .compactInput:focus-visible,
 .compactTextarea:hover,
 .compactTextarea:focus-visible {
-  background: #f3f5fb;
+  background: var(--color-surface-2);
 }
 
 .timeControl {
