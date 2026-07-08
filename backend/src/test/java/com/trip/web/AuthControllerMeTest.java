@@ -46,7 +46,6 @@ import com.trip.repo.UserRepository;
 import com.trip.service.auth.JwtService;
 import com.trip.service.auth.RefreshTokenService;
 import com.trip.service.auth.RefreshTokenService.IssuedRefreshToken;
-import com.trip.service.auth.password.BreachedPasswordChecker;
 import com.trip.web.auth.RefreshCookie;
 
 /**
@@ -81,9 +80,6 @@ class AuthControllerMeTest {
     @MockitoBean
     PasswordEncoder passwordEncoder;
 
-    @MockitoBean
-    BreachedPasswordChecker breachedPasswordChecker;
-
     // TripAccessGuard (@Service) component-scans and pulls in the trip repos; the
     // test profile excludes JPA auto-config so we mock them like the auth repos above.
     @MockitoBean
@@ -107,7 +103,6 @@ class AuthControllerMeTest {
     @BeforeEach
     void wireDefaults() {
         when(passwordEncoder.encode(anyString())).thenReturn("hashed");
-        when(breachedPasswordChecker.isBreached(anyString())).thenReturn(false);
     }
 
     // ------------------------------------------------------------------
@@ -230,28 +225,6 @@ class AuthControllerMeTest {
                     "newPassword", "new-password-123"))))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.error").value("invalid_current_password"));
-
-        verify(userRepository, never()).save(any(User.class));
-        verify(refreshTokenService, never()).revokeAllForUser(any());
-    }
-
-    @Test
-    void changePasswordRejectsBreachedNewPassword() throws Exception {
-        User user = userWith(42L, "alice@example.com", "Alice");
-        user.setPasswordHash("old-hash");
-        when(userRepository.findById(42L)).thenReturn(Optional.of(user));
-        when(passwordEncoder.matches("old-password", "old-hash")).thenReturn(true);
-        when(breachedPasswordChecker.isBreached("new-password-123")).thenReturn(true);
-        String token = realJwtService.issueAccessToken(42L);
-
-        mvc.perform(post("/api/auth/me/password")
-                .header("Authorization", "Bearer " + token)
-                .contentType("application/json")
-                .content(objectMapper.writeValueAsString(Map.of(
-                    "currentPassword", "old-password",
-                    "newPassword", "new-password-123"))))
-            .andExpect(status().isBadRequest())
-            .andExpect(jsonPath("$.error").value("password_breached"));
 
         verify(userRepository, never()).save(any(User.class));
         verify(refreshTokenService, never()).revokeAllForUser(any());

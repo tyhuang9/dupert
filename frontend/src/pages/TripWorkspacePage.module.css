@@ -15,14 +15,15 @@
 
 .topNav {
   flex: 0 0 auto;
-  min-height: 58px;
+  min-height: 62px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-4);
-  padding: 0 var(--space-4);
+  padding: 0 var(--space-5);
   border-bottom: 1px solid var(--color-surface-border);
-  background: rgba(249, 249, 255, 0.98);
+  background: var(--color-floating-surface-soft);
+  backdrop-filter: blur(18px);
   z-index: 20;
 }
 
@@ -45,7 +46,7 @@
   gap: var(--space-2);
   color: var(--color-text);
   font-size: var(--font-size-base);
-  font-weight: 800;
+  font-weight: 700;
   text-decoration: none;
   white-space: nowrap;
 }
@@ -58,7 +59,7 @@
   border-radius: var(--radius-md);
   background: var(--color-primary);
   color: var(--color-primary-fg);
-  box-shadow: 0 8px 18px rgba(37, 99, 235, 0.18);
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--color-primary) 22%, transparent);
 }
 
 .topNavLinks {
@@ -75,7 +76,7 @@
   border-radius: 0;
   color: var(--color-text-muted);
   font-size: var(--font-size-xs);
-  font-weight: 700;
+  font-weight: 600;
   text-decoration: none;
 }
 
@@ -87,7 +88,7 @@
 .topNavLinks a[aria-current='page'] {
   max-width: min(18rem, 34vw);
   background: transparent;
-  box-shadow: inset 0 -2px 0 var(--color-primary);
+  box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--color-primary) 72%, transparent);
   color: var(--color-primary-text);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -127,7 +128,7 @@
   background: var(--color-primary);
   color: var(--color-primary-fg);
   font-size: 11px;
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .workspaceShell {
@@ -169,11 +170,11 @@
   height: 100%;
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  gap: var(--space-3);
   padding: var(--space-3) 0;
   overflow: hidden;
   border-right: 1px solid var(--color-surface-border);
-  background: var(--color-shell);
+  background: color-mix(in srgb, var(--color-shell) 92%, var(--color-surface));
   box-shadow: none;
   transition:
     width var(--transition-slow),
@@ -192,7 +193,7 @@
 .dayPanelCollapsedAfterTabClick.dayPanelScheduleExpanded:hover,
 .dayPanelCollapsedAfterTabClick.dayPanelScheduleExpanded:focus-within {
   width: var(--sidebar-expanded-width);
-  box-shadow: var(--shadow-lg);
+  box-shadow: var(--shadow-soft);
 }
 
 .dayPanelCollapsedAfterTabClick,
@@ -232,10 +233,10 @@
   width: 40px;
   height: 40px;
   border-radius: var(--radius-md);
-  background: var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary) 90%, var(--color-bg));
   color: var(--color-primary-fg);
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .eyebrow,
@@ -244,7 +245,7 @@
   margin: 0;
   color: var(--color-text-subtle);
   font-size: 11px;
-  font-weight: 800;
+  font-weight: 700;
   line-height: 1.2;
   text-transform: uppercase;
 }
@@ -253,7 +254,7 @@
   margin: var(--space-1) 0 0;
   color: var(--color-text);
   font-size: var(--font-size-lg);
-  font-weight: 800;
+  font-weight: 700;
   line-height: var(--line-height-tight);
   overflow-wrap: anywhere;
 }
@@ -275,9 +276,9 @@
   min-width: 0;
   display: grid;
   gap: var(--space-1);
-  padding: var(--space-2);
+  padding: var(--space-3);
   border: 1px solid var(--color-surface-border);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
   background: var(--color-surface);
 }
 
@@ -285,6 +286,7 @@
   color: var(--color-text);
   font-size: var(--font-size-sm);
   font-variant-numeric: tabular-nums;
+  font-weight: 700;
   line-height: 1.1;
 }
 
@@ -306,18 +308,18 @@
   gap: 0;
   padding: 0;
   border: 0;
-  border-radius: 0;
+  border-radius: var(--radius-md);
   background: transparent;
   color: var(--color-text-muted);
   font: inherit;
   font-size: var(--font-size-xs);
-  font-weight: 800;
+  font-weight: 700;
   overflow: hidden;
 }
 
 .pinControl button:hover,
 .pinControl button[aria-pressed='true'] {
-  background: var(--color-surface-2);
+  background: var(--color-primary-softer);
   color: var(--color-primary-text);
 }
 
@@ -334,28 +336,29 @@
   gap: 0;
   padding: 0;
   border: 0;
-  border-radius: 0;
+  border-radius: var(--radius-md);
   background: transparent;
   color: var(--color-text-muted);
   font: inherit;
   font-size: var(--font-size-xs);
-  font-weight: 700;
+  font-weight: 600;
   text-align: left;
   overflow: hidden;
 }
 
 .railNav button:hover {
-  background: var(--color-surface-2);
+  background: var(--color-primary-softer);
   color: var(--color-primary-text);
 }
 
 .railNav button[aria-pressed='true'] {
   background: var(--color-primary-soft);
   color: var(--color-primary-text);
+  box-shadow: inset 3px 0 0 color-mix(in srgb, var(--color-primary) 70%, transparent);
 }
 
 .railNavDropTarget {
-  box-shadow: inset 3px 0 0 rgba(37, 99, 235, 0.22);
+  box-shadow: inset 3px 0 0 color-mix(in srgb, var(--color-primary) 30%, transparent);
 }
 
 .railNavDropTargetOver {
@@ -372,7 +375,7 @@
   padding: 0;
   color: var(--color-text-muted);
   font-size: var(--font-size-xs);
-  font-weight: 700;
+  font-weight: 600;
   overflow: hidden;
 }
 
@@ -408,9 +411,9 @@
 .calendarCard {
   display: grid;
   gap: var(--space-2);
-  padding: var(--space-2);
+  padding: var(--space-3);
   border: 1px solid var(--color-surface-border);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
   background: var(--color-surface);
   box-shadow: var(--shadow-sm);
 }
@@ -422,7 +425,7 @@
   gap: var(--space-2);
   margin-bottom: var(--space-2);
   padding: var(--space-2);
-  border: 1px solid #bfdbfe;
+  border: 1px solid color-mix(in srgb, var(--color-primary) 28%, var(--color-surface-border));
   border-radius: var(--radius-md);
   background: var(--color-primary-soft);
   color: var(--color-primary-text);
@@ -437,7 +440,7 @@
 }
 
 .schedulePickerNotice strong {
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .schedulePickerNotice button {
@@ -454,7 +457,7 @@
 
 .schedulePickerNotice button:hover,
 .schedulePickerNotice button:focus-visible {
-  border-color: #bfdbfe;
+  border-color: color-mix(in srgb, var(--color-primary) 28%, var(--color-surface-border));
   background: var(--color-surface);
 }
 
@@ -478,7 +481,7 @@
   margin: 0;
   color: var(--color-text);
   font-size: var(--font-size-sm);
-  font-weight: 800;
+  font-weight: 700;
   line-height: 1.25;
 }
 
@@ -519,7 +522,7 @@
   gap: var(--space-1);
   color: var(--color-text-subtle);
   font-size: var(--font-size-xs);
-  font-weight: 800;
+  font-weight: 700;
   text-align: center;
 }
 
@@ -541,7 +544,7 @@
   color: var(--color-text);
   font: inherit;
   font-size: var(--font-size-xs);
-  font-weight: 800;
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
   transition:
     background-color var(--transition-base),
@@ -551,15 +554,15 @@
 
 .calendarDay:hover:not(:disabled),
 .calendarDayOver {
-  border-color: #bfdbfe;
+  border-color: color-mix(in srgb, var(--color-primary) 28%, var(--color-surface-border));
   background: var(--color-primary-softer);
   color: var(--color-primary-text);
 }
 
 .calendarDayDropTarget {
-  border-color: #dbeafe;
+  border-color: color-mix(in srgb, var(--color-primary) 22%, var(--color-surface-border));
   background: color-mix(in srgb, var(--color-primary-softer) 54%, transparent);
-  box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.08);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-primary) 10%, transparent);
 }
 
 .calendarDayDragTarget,
@@ -571,7 +574,7 @@
   border-color: var(--color-primary);
   box-shadow:
     inset 0 0 0 1px var(--color-primary),
-    0 0 0 2px rgba(37, 99, 235, 0.12);
+    0 0 0 2px color-mix(in srgb, var(--color-primary) 14%, transparent);
 }
 
 .calendarDaySelected,
@@ -621,14 +624,14 @@
 }
 
 .dayTarget {
-  min-height: 42px;
+  min-height: 46px;
   display: grid;
   grid-template-columns: 38px minmax(0, 1fr);
   align-items: center;
   gap: 0 var(--space-2);
   padding: var(--space-2) var(--space-3);
   border: 1px solid transparent;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
   background: transparent;
   color: var(--color-text-muted);
   font: inherit;
@@ -651,7 +654,7 @@
 }
 
 .dayTargetSelected {
-  border-color: #bfdbfe;
+  border-color: color-mix(in srgb, var(--color-primary) 28%, var(--color-surface-border));
   background: var(--color-primary-soft);
   color: var(--color-primary-active);
 }
@@ -660,14 +663,14 @@
   grid-row: span 2;
   color: var(--color-primary-text);
   font-size: var(--font-size-xs);
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .dayTargetDate {
   min-width: 0;
   color: inherit;
   font-size: var(--font-size-xs);
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .dayTargetCount {
@@ -683,7 +686,7 @@
   gap: var(--space-2);
   color: var(--color-text-muted);
   font-size: var(--font-size-xs);
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .dateInput {
@@ -718,7 +721,7 @@
   margin: 0;
   color: var(--color-text);
   font-size: var(--font-size-sm);
-  font-weight: 800;
+  font-weight: 700;
   line-height: 1.25;
 }
 
@@ -757,7 +760,7 @@
 .shareLink,
 .sidebarAction,
 .addActivityButton {
-  min-height: 36px;
+  min-height: 40px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -766,7 +769,7 @@
   border-radius: var(--radius-md);
   font: inherit;
   font-size: var(--font-size-xs);
-  font-weight: 800;
+  font-weight: 700;
   text-decoration: none;
   transition:
     background-color var(--transition-base),
@@ -797,6 +800,7 @@
   border: 1px solid var(--color-primary);
   background: var(--color-primary);
   color: var(--color-primary-fg);
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--color-primary) 18%, transparent);
 }
 
 .primaryAction:hover,
@@ -829,7 +833,7 @@
   background: var(--color-surface);
   color: var(--color-text);
   font-size: var(--font-size-xs);
-  font-weight: 800;
+  font-weight: 700;
   text-decoration: none;
   white-space: nowrap;
   cursor: pointer;
@@ -862,7 +866,8 @@
 .secondaryAction:hover,
 .shareLink:hover,
 .sidebarAction:hover {
-  border-color: var(--color-primary);
+  border-color: color-mix(in srgb, var(--color-primary) 34%, var(--color-surface-border));
+  background: var(--color-primary-softer);
   color: var(--color-primary-text);
 }
 
@@ -883,23 +888,23 @@
   flex-direction: column;
   overflow: hidden;
   border-right: 1px solid var(--color-surface-border);
-  background: #f7f9fb;
+  background: var(--color-bg);
 }
 
 .timelineHeader {
   flex: 0 0 auto;
-  min-height: 76px;
+  min-height: 80px;
   align-items: center;
-  padding: var(--space-3) var(--space-5);
+  padding: var(--space-4) var(--space-6);
   border-bottom: 1px solid var(--color-surface-border);
-  background: #f9f9ff;
+  background: var(--color-shell);
 }
 
 .panelTitle {
   margin: var(--space-1) 0 0;
   color: var(--color-text);
   font-size: 20px;
-  font-weight: 800;
+  font-weight: 700;
   line-height: 1.25;
 }
 
@@ -945,41 +950,26 @@
   min-height: 0;
   display: grid;
   align-content: start;
-  gap: var(--space-3);
+  gap: var(--space-4);
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
-  scrollbar-color: color-mix(in srgb, var(--color-surface-border) 66%, var(--color-surface)) transparent;
-  scrollbar-gutter: stable;
-  scrollbar-width: thin;
-  padding: var(--space-4);
+  scrollbar-width: none;
+  padding: var(--space-5);
 }
 
 .timelineScroll::-webkit-scrollbar {
-  width: 6px;
-}
-
-.timelineScroll::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.timelineScroll::-webkit-scrollbar-thumb {
-  border-radius: var(--radius-pill);
-  background: color-mix(in srgb, var(--color-surface-border) 66%, var(--color-surface));
-}
-
-.timelineScroll::-webkit-scrollbar-thumb:hover {
-  background: var(--color-border-strong);
+  display: none;
 }
 
 .composer {
   display: grid;
   gap: var(--space-3);
-  padding: var(--space-4);
+  padding: var(--space-5);
   border: 1px solid var(--color-surface-border);
   border-radius: var(--radius-lg);
   background: var(--color-surface);
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow-soft);
 }
 
 .ideasLane {
@@ -993,7 +983,7 @@
 .ideasLaneDropTarget {
   border-radius: var(--radius-md);
   background: color-mix(in srgb, var(--color-primary-softer) 24%, transparent);
-  box-shadow: inset 3px 0 0 rgba(37, 99, 235, 0.18);
+  box-shadow: inset 3px 0 0 color-mix(in srgb, var(--color-primary) 20%, transparent);
 }
 
 .ideasLaneOver {
@@ -1004,7 +994,7 @@
 .inlineAlert {
   margin: 0;
   padding: var(--space-3);
-  border: 1px solid #fecaca;
+  border: 1px solid color-mix(in srgb, var(--color-danger) 18%, var(--color-danger-bg));
   border-radius: var(--radius-md);
   background: var(--color-danger-bg);
   color: var(--color-danger-fg);
@@ -1089,7 +1079,7 @@
   margin: 0;
   color: var(--color-text);
   font-size: var(--font-size-lg);
-  font-weight: 800;
+  font-weight: 700;
   line-height: 1.25;
 }
 
@@ -1102,7 +1092,7 @@
 
 .timelineDayHeader span,
 .timelineActivityTime {
-  font-weight: 800;
+  font-weight: 700;
   white-space: nowrap;
 }
 
@@ -1137,12 +1127,12 @@
 
 .timelineActivityButton {
   width: 100%;
-  min-height: 56px;
+  min-height: 62px;
   display: grid;
   grid-template-columns: 44px minmax(0, 1fr) auto;
   align-items: center;
   gap: var(--space-2);
-  padding: var(--space-1) var(--space-2);
+  padding: var(--space-2) var(--space-3);
   border: 0;
   border-radius: var(--radius-md);
   background: transparent;
@@ -1175,8 +1165,8 @@
 }
 
 .timelineActivityIcon {
-  width: 36px;
-  height: 36px;
+  width: 38px;
+  height: 38px;
   display: inline-grid;
   place-items: center;
   border-radius: var(--radius-md);
@@ -1206,14 +1196,14 @@
 }
 
 .timelineActivityTime {
-  min-height: 28px;
+  min-height: 30px;
   display: inline-grid;
   place-items: center;
   justify-self: end;
   padding: 0 var(--space-2);
   border: 1px solid var(--color-surface-border);
   border-radius: var(--radius-pill);
-  background: var(--color-surface);
+  background: var(--color-surface-2);
   color: var(--color-text-muted);
   font-size: var(--font-size-xs);
 }
@@ -1254,8 +1244,11 @@
   min-height: 0;
   overflow: hidden;
   background: var(--color-surface-3);
-  --map-search-results-height: 9.75rem;
-  --map-route-summary-width: 15.75rem;
+  --map-search-results-height: 11.25rem;
+  --map-search-results-gap: var(--space-5);
+  --map-route-controls-width: 15.25rem;
+  --map-route-summary-width: 12rem;
+  --map-search-max-width: 34rem;
 }
 
 .mapOverlayStack {
@@ -1263,7 +1256,13 @@
   top: var(--space-4);
   left: var(--space-4);
   z-index: 8;
-  width: min(58rem, calc(100% - var(--space-8)));
+  width: min(
+    var(--map-search-max-width),
+    calc(
+      100% - var(--space-8) - var(--map-route-controls-width) -
+      var(--map-route-summary-width) - var(--space-4)
+    )
+  );
   display: grid;
   gap: var(--space-2);
   justify-items: start;
@@ -1276,12 +1275,12 @@
 
 .mapChrome {
   position: relative;
-  width: min(var(--map-route-summary-width), calc(100vw - var(--space-8)));
+  width: auto;
   max-width: 100%;
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
-  justify-content: flex-start;
+  justify-content: flex-end;
   pointer-events: auto;
 }
 
@@ -1291,8 +1290,10 @@
   right: var(--space-4);
   z-index: 9;
   max-width: calc(100% - var(--space-8));
-  display: flex;
-  justify-content: flex-end;
+  display: grid;
+  justify-items: end;
+  align-content: start;
+  gap: var(--space-2);
   pointer-events: none;
 }
 
@@ -1302,17 +1303,18 @@
 
 .routeToggle {
   position: relative;
-  min-height: 40px;
+  min-height: 42px;
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
   padding: 0 var(--space-3);
   border: 1px solid var(--color-surface-border);
-  border-radius: var(--radius-sm);
-  background: var(--color-surface);
+  border-radius: var(--radius-md);
+  background: var(--color-floating-surface);
   color: var(--color-text);
   font-size: var(--font-size-xs);
-  font-weight: 800;
+  font-weight: 700;
+  box-shadow: var(--shadow-sm);
   white-space: nowrap;
 }
 
@@ -1352,16 +1354,18 @@
 }
 
 .mapSearchOverlay {
-  flex: 1 1 30rem;
-  min-width: min(30rem, 100%);
+  min-width: 0;
+  width: 100%;
+}
+
+.mapSearchOverlay > * {
+  width: 100%;
 }
 
 .mapSearchAndStyle {
+  width: min(var(--map-search-max-width), 100%);
   max-width: 100%;
-  display: flex;
-  align-items: flex-start;
-  flex-wrap: wrap;
-  gap: var(--space-2);
+  display: block;
   pointer-events: auto;
 }
 
@@ -1370,27 +1374,27 @@
   left: var(--space-4);
   bottom: var(--space-4);
   z-index: 7;
-  width: min(24rem, calc(100% - var(--space-8)));
-  max-height: min(36rem, 84dvh);
+  width: min(18.75rem, calc(100% - var(--space-8)));
+  max-height: min(28rem, 80dvh);
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   overflow: hidden;
-  border: 1px solid rgba(194, 198, 214, 0.72);
-  border-radius: var(--radius-md);
-  background: rgba(255, 255, 255, 0.96);
-  box-shadow: var(--shadow-md);
+  border: 1px solid var(--color-surface-border);
+  border-radius: var(--radius-xl);
+  background: var(--color-floating-surface);
+  box-shadow: var(--shadow-soft);
   pointer-events: auto;
 }
 
 .placeDetailCardRaised {
-  bottom: calc(var(--map-search-results-height) + var(--space-6));
+  bottom: calc(var(--map-search-results-height) + var(--map-search-results-gap));
 }
 
 .placeHero {
   position: relative;
-  min-height: 16rem;
-  max-height: min(22rem, 48dvh);
-  aspect-ratio: 1.08 / 1;
+  min-height: 9.25rem;
+  max-height: min(11rem, 30dvh);
+  aspect-ratio: 16 / 9;
   overflow: hidden;
   background: var(--color-surface-2);
 }
@@ -1399,9 +1403,9 @@
   display: inline-grid;
   place-items: center;
   overflow: hidden;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-lg);
   background:
-    linear-gradient(135deg, rgba(37, 99, 235, 0.08), rgba(15, 118, 110, 0.1)),
+    linear-gradient(135deg, var(--color-primary-softer), color-mix(in srgb, var(--accent-secondary) 13%, transparent)),
     var(--color-surface-2);
   color: var(--color-primary-text);
 }
@@ -1428,14 +1432,14 @@
   display: inline-grid;
   place-items: center;
   border: 1px solid rgba(255, 255, 255, 0.55);
-  border-radius: var(--radius-sm);
-  background: rgba(15, 23, 42, 0.82);
+  border-radius: var(--radius-md);
+  background: rgba(36, 38, 40, 0.72);
   color: #ffffff;
   cursor: pointer;
 }
 
 .placeDetailClose:hover {
-  background: rgba(15, 23, 42, 0.94);
+  background: rgba(36, 38, 40, 0.88);
 }
 
 .placeDetailClose:focus-visible {
@@ -1449,9 +1453,15 @@
   gap: var(--space-2);
   padding: var(--space-3);
   overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.placeDetailBody::-webkit-scrollbar {
+  display: none;
 }
 
 .placeDetailHeader {
+  min-width: 0;
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -1462,19 +1472,23 @@
   margin: 0;
   min-width: 0;
   color: var(--color-text);
-  font-size: var(--font-size-sm);
-  font-weight: 800;
+  font-size: var(--font-size-base);
+  font-weight: 700;
   line-height: 1.25;
+  overflow-wrap: anywhere;
 }
 
 .placeAddress {
   margin: 0;
-  display: inline-flex;
-  align-items: flex-start;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
   gap: var(--space-1);
   color: var(--color-text-muted);
   font-size: var(--font-size-xs);
   line-height: 1.35;
+  overflow-wrap: anywhere;
 }
 
 .placeRating {
@@ -1496,8 +1510,8 @@
 
 .placeHours {
   margin: 0;
-  padding: var(--space-2);
-  border-radius: var(--radius-sm);
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
   background: var(--color-surface-2);
   color: var(--color-text-muted);
   font-size: var(--font-size-xs);
@@ -1512,7 +1526,7 @@
 .placeLoadingLine {
   height: 0.75rem;
   border-radius: var(--radius-sm);
-  background: linear-gradient(90deg, rgba(148, 163, 184, 0.24), rgba(59, 130, 246, 0.16), rgba(148, 163, 184, 0.24));
+  background: linear-gradient(90deg, var(--color-primary-softer), var(--color-surface-2), var(--color-primary-softer));
   background-size: 200% 100%;
   animation: placeLoadingPulse 1.2s ease-in-out infinite;
 }
@@ -1540,7 +1554,7 @@
 .placeDetailLink {
   color: var(--color-primary-text);
   font-size: var(--font-size-xs);
-  font-weight: 800;
+  font-weight: 700;
   text-decoration: none;
 }
 
@@ -1558,16 +1572,24 @@
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+}
+
+.placeDetailActions .primaryAction {
+  min-width: 8rem;
+  flex: 0 1 auto;
+  padding: 0 var(--space-4);
+  white-space: nowrap;
 }
 
 .placeUtilityAction {
   width: 34px;
   height: 34px;
+  flex: 0 0 34px;
   display: inline-grid;
   place-items: center;
   border: 1px solid var(--color-surface-border);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   background: var(--color-surface);
   color: var(--color-text-muted);
   text-decoration: none;
@@ -1581,11 +1603,12 @@
 .placeMapsAction {
   width: 34px;
   height: 34px;
+  flex: 0 0 34px;
   display: inline-grid;
   place-items: center;
   padding: 0;
   border: 1px solid var(--color-surface-border);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   background: var(--color-surface);
   color: var(--color-text-muted);
   text-decoration: none;
@@ -1607,7 +1630,7 @@
 
 .mapStyleControl {
   position: relative;
-  flex: 0 1 auto;
+  min-width: 0;
 }
 
 .mapStyleStrip {
@@ -1617,10 +1640,10 @@
   gap: var(--space-1);
   padding: 6px;
   overflow: hidden;
-  border: 1px solid rgba(194, 198, 214, 0.72);
-  border-radius: var(--radius-md);
-  background: rgba(255, 255, 255, 0.96);
-  box-shadow: var(--shadow-md);
+  border: 1px solid var(--color-surface-border);
+  border-radius: var(--radius-xl);
+  background: var(--color-floating-surface);
+  box-shadow: var(--shadow-soft);
   scrollbar-width: none;
   transition: max-width var(--transition-base);
 }
@@ -1664,11 +1687,11 @@
 .mapStyleOption:hover,
 .mapStyleTile[data-active='true'],
 .mapStyleOption[data-active='true'] {
-  color: #1f7a8c;
+  color: var(--color-primary-text);
 }
 
 .mapStyleMoreButton {
-  color: #3c4043;
+  color: var(--color-text-muted);
 }
 
 .mapStyleOption:disabled {
@@ -1688,31 +1711,31 @@
   place-items: center;
   overflow: hidden;
   border: 2px solid transparent;
-  border-radius: 8px;
-  background: #eff3f4;
-  color: #2f3135;
-  box-shadow: inset 0 0 0 1px rgba(17, 24, 39, 0.08);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-2);
+  color: var(--color-text);
+  box-shadow: inset 0 0 0 1px var(--color-surface-border);
 }
 
 .mapStyleTile[data-active='true'] .mapStyleThumbnail,
 .mapStyleOption[data-active='true'] .mapStyleThumbnail {
-  border-color: #1f7a8c;
+  border-color: var(--color-primary);
 }
 
 .mapStyleThumbnail[data-style='roadmap'] {
   background:
     linear-gradient(90deg, transparent 0 40%, #ffffff 40% 60%, transparent 60%),
-    linear-gradient(45deg, transparent 0 46%, #94a3b8 46% 54%, transparent 54%),
-    linear-gradient(135deg, transparent 0 48%, #93c5fd 48% 56%, transparent 56%),
-    linear-gradient(0deg, #d9f2e4 0 30%, #f6f7f1 30% 72%, #c7ecd6 72%);
+    linear-gradient(45deg, transparent 0 46%, #b9c2bb 46% 54%, transparent 54%),
+    linear-gradient(135deg, transparent 0 48%, var(--accent-secondary) 48% 56%, transparent 56%),
+    linear-gradient(0deg, #e4eee6 0 30%, var(--color-bg) 30% 72%, #d9e9dc 72%);
 }
 
 .mapStyleThumbnail[data-style='satellite'],
 .mapStyleThumbnail[data-style='hybrid'] {
   background:
     radial-gradient(circle at 28% 24%, rgba(205, 220, 150, 0.75) 0 13%, transparent 14%),
-    radial-gradient(circle at 78% 72%, rgba(71, 85, 105, 0.9) 0 18%, transparent 19%),
-    linear-gradient(135deg, #475569 0 16%, #768b55 16% 36%, #334155 36% 52%, #7a8b5a 52% 74%, #253349 74%);
+    radial-gradient(circle at 78% 72%, rgba(74, 85, 88, 0.9) 0 18%, transparent 19%),
+    linear-gradient(135deg, #4a5558 0 16%, #768b55 16% 36%, #303a3d 36% 52%, #7a8b5a 52% 74%, #2f4b40 74%);
 }
 
 .mapStyleThumbnail[data-style='hybrid']::after {
@@ -1743,7 +1766,7 @@
   background:
     radial-gradient(circle at 26% 72%, #ffffff 0 7%, transparent 8%),
     radial-gradient(circle at 72% 30%, #ffffff 0 7%, transparent 8%),
-    linear-gradient(45deg, transparent 0 44%, #2563eb 44% 54%, transparent 54%),
+    linear-gradient(45deg, transparent 0 44%, var(--color-primary) 44% 54%, transparent 54%),
     linear-gradient(135deg, transparent 0 45%, #16a34a 45% 54%, transparent 54%),
     linear-gradient(0deg, #edf7ff 0 44%, #f8fafc 44% 66%, #e8f5e9 66%);
 }
@@ -1782,15 +1805,15 @@
 
 .mapStyleThumbnail[data-style='travel-time'] {
   background:
-    conic-gradient(from 0deg, #1d4ed8 0 25%, transparent 25% 100%),
+    conic-gradient(from 0deg, var(--color-primary) 0 25%, transparent 25% 100%),
     radial-gradient(circle, #ffffff 0 45%, transparent 46%),
     linear-gradient(0deg, #eff6ff 0 100%);
 }
 
 .mapStyleThumbnail[data-style='measure'] {
   background:
-    repeating-linear-gradient(90deg, #475569 0 2px, transparent 2px 10px),
-    linear-gradient(0deg, #f8fafc 0 100%);
+    repeating-linear-gradient(90deg, var(--color-text-muted) 0 2px, transparent 2px 10px),
+    linear-gradient(0deg, var(--color-bg-secondary) 0 100%);
 }
 
 .mapStyleThumbnail[data-style='more'] {
@@ -1806,10 +1829,10 @@
   max-height: min(34rem, calc(100dvh - 9rem));
   overflow-y: auto;
   padding: var(--space-3);
-  border: 1px solid rgba(194, 198, 214, 0.72);
-  border-radius: var(--radius-md);
-  background: rgba(255, 255, 255, 0.98);
-  box-shadow: var(--shadow-lg);
+  border: 1px solid var(--color-surface-border);
+  border-radius: var(--radius-xl);
+  background: var(--color-floating-surface);
+  box-shadow: var(--shadow-soft);
 }
 
 .mapStyleMenuHeader {
@@ -1822,9 +1845,9 @@
 
 .mapStyleMenuHeader h3 {
   margin: 0;
-  color: #2f3135;
+  color: var(--color-text);
   font-size: var(--font-size-base);
-  font-weight: 700;
+  font-weight: 600;
   line-height: 1.2;
 }
 
@@ -1837,8 +1860,8 @@
 }
 
 .mapStyleCloseButton:hover {
-  background: #f1f3f4;
-  color: #202124;
+  background: var(--color-primary-softer);
+  color: var(--color-primary-text);
 }
 
 .mapStyleOptionGrid {
@@ -1850,7 +1873,7 @@
 .mapStyleMenuDivider {
   height: 1px;
   margin: var(--space-3) calc(var(--space-3) * -1);
-  background: rgba(218, 220, 224, 0.9);
+  background: var(--color-surface-border);
 }
 
 .mapStyleMenuSection {
@@ -1860,9 +1883,9 @@
 
 .mapStyleMenuSection h4 {
   margin: 0;
-  color: #2f3135;
+  color: var(--color-text);
   font-size: var(--font-size-sm);
-  font-weight: 700;
+  font-weight: 600;
   line-height: 1.2;
 }
 
@@ -1883,7 +1906,7 @@
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  color: #3c4043;
+  color: var(--color-text-muted);
   font-size: var(--font-size-sm);
   font-weight: 600;
 }
@@ -1897,14 +1920,14 @@
   height: 16px;
   display: inline-grid;
   place-items: center;
-  border: 2px solid #5f6368;
+  border: 2px solid var(--color-border-strong);
   border-radius: 2px;
   color: #fff;
 }
 
 .mapStyleCheckboxRow[data-active='true'] .mapStyleCheckbox {
-  border-color: #1a73e8;
-  background: #1a73e8;
+  border-color: var(--color-primary);
+  background: var(--color-primary);
 }
 
 .sectionHeader span {
@@ -1920,7 +1943,7 @@
   display: grid;
   place-items: center;
   padding: var(--space-5);
-  background: rgba(15, 23, 42, 0.42);
+  background: color-mix(in srgb, var(--color-text) 34%, transparent);
 }
 
 .tripSettingsModal {
@@ -1951,7 +1974,7 @@
   margin: 0;
   color: var(--color-text);
   font-size: var(--font-size-lg);
-  font-weight: 800;
+  font-weight: 700;
   line-height: 1.2;
 }
 
@@ -2006,7 +2029,7 @@
   gap: var(--space-2);
   color: var(--color-text);
   font-size: var(--font-size-sm);
-  font-weight: 900;
+  font-weight: 700;
 }
 
 .shareLinkForm {
@@ -2021,7 +2044,7 @@
   gap: var(--space-2);
   color: var(--color-text);
   font-size: var(--font-size-xs);
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .checkboxLine input {
@@ -2120,7 +2143,7 @@
   gap: var(--space-2);
   color: var(--color-text-muted);
   font-size: var(--font-size-xs);
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .modalInput {
@@ -2157,7 +2180,7 @@
 .durationDates {
   color: var(--color-text-muted);
   font-size: var(--font-size-xs);
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .durationPreviewHeader strong {
@@ -2198,13 +2221,13 @@
 }
 
 .warningText {
-  border: 1px solid #fde68a;
-  background: #fffbeb;
-  color: #92400e;
+  border: 1px solid color-mix(in srgb, var(--color-warning) 20%, var(--color-warning-bg));
+  background: var(--color-warning-bg);
+  color: var(--color-warning-fg);
 }
 
 .modalError {
-  border: 1px solid #fecaca;
+  border: 1px solid color-mix(in srgb, var(--color-danger) 18%, var(--color-danger-bg));
   background: var(--color-danger-bg);
   color: var(--color-danger-fg);
 }
@@ -2212,12 +2235,12 @@
 .modalSuccess {
   margin: 0;
   padding: var(--space-3);
-  border: 1px solid #bbf7d0;
+  border: 1px solid color-mix(in srgb, var(--color-success) 20%, var(--color-success-bg));
   border-radius: var(--radius-md);
-  background: #f0fdf4;
-  color: #166534;
+  background: var(--color-success-bg);
+  color: var(--color-success-fg);
   font-size: var(--font-size-xs);
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .modalActions {
@@ -2353,6 +2376,28 @@
   }
 }
 
+@media (max-width: 1180px) {
+  .mapOverlayStack {
+    top: calc(var(--space-4) + 58px);
+    width: min(var(--map-search-max-width), calc(100% - var(--space-8)));
+  }
+
+  .placeDetailCard {
+    top: calc(var(--space-4) + 118px);
+    bottom: var(--space-4);
+    width: min(18.75rem, calc(100% - var(--space-8)));
+    max-height: none;
+  }
+
+  .placeDetailCardRaised {
+    bottom: var(--space-4);
+  }
+
+  .placeHero {
+    display: none;
+  }
+}
+
 @media (max-width: 520px) {
   .railStats,
   .dayTargets {
@@ -2364,12 +2409,12 @@
   }
 
   .mapChrome {
-    width: min(var(--map-route-summary-width), calc(100vw - var(--space-6)));
-    display: grid;
+    max-width: calc(100vw - var(--space-6));
+    flex-wrap: wrap;
   }
 
   .mapOverlayStack {
-    top: var(--space-3);
+    top: calc(var(--space-3) + 106px);
     left: var(--space-3);
     width: min(30rem, calc(100% - var(--space-6)));
   }
@@ -2378,14 +2423,6 @@
     top: var(--space-3);
     right: var(--space-3);
     max-width: calc(100% - var(--space-6));
-  }
-
-  .mapSearchAndStyle {
-    flex-wrap: wrap;
-  }
-
-  .mapSearchOverlay {
-    flex-basis: 100%;
   }
 
   .mapStyleStrip {
@@ -2402,17 +2439,13 @@
   .placeDetailCard {
     left: var(--space-3);
     bottom: var(--space-3);
-    width: min(24rem, calc(100% - var(--space-6)));
-    max-height: 76dvh;
+    top: calc(var(--space-3) + 164px);
+    width: min(18.5rem, calc(100% - var(--space-6)));
+    max-height: none;
   }
 
   .placeDetailCardRaised {
-    bottom: calc(var(--map-search-results-height) + var(--space-5));
-  }
-
-  .placeHero {
-    min-height: 13rem;
-    max-height: min(18rem, 42dvh);
+    bottom: var(--space-3);
   }
 
   .timelineActivityButton {

@@ -30,7 +30,6 @@ import com.trip.repo.UserRepository;
 import com.trip.service.auth.JwtService;
 import com.trip.service.auth.PasswordResetService;
 import com.trip.service.auth.RefreshTokenService;
-import com.trip.service.auth.password.BreachedPasswordChecker;
 import com.trip.web.dto.PasswordResetRequest;
 
 /**
@@ -66,9 +65,6 @@ class AuthControllerPasswordResetRateLimitTest {
 
     @MockitoBean
     PasswordEncoder passwordEncoder;
-
-    @MockitoBean
-    BreachedPasswordChecker breachedPasswordChecker;
 
     @MockitoBean
     TripRepository tripRepository;

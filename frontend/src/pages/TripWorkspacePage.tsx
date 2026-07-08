@@ -91,11 +91,9 @@ import { PlaceSearch } from '../components/PlaceSearch'
 import { TripDateRangePicker } from '../components/TripDateRangePicker'
 import {
   fetchGooglePlaceById,
-  fetchGooglePlaceNearLocation,
   fetchGooglePlaceTextSearch,
   googlePlaceCategoryTypeForQuery,
   imageUrlFromGooglePhotoName,
-  type GooglePlaceNearbySearchOptions,
   type GooglePlaceTextSearchOptions,
 } from '../components/googlePlaces'
 import { googlePlaceToPlaceSelection } from '../components/placeSelection'
@@ -1629,6 +1627,7 @@ export function TripWorkspacePage() {
   const [mapSearchValue, setMapSearchValue] = useState('')
   const [mapSearchFocusKey, setMapSearchFocusKey] = useState(0)
   const [mapSearchPreview, setMapSearchPreview] = useState<PlaceSelection | null>(null)
+  const [coordinateMapMarker, setCoordinateMapMarker] = useState<PlaceSelection | null>(null)
   const [mapSearchResults, setMapSearchResults] = useState<PlaceSelection[]>([])
   const [hiddenMapSearchResultIds, setHiddenMapSearchResultIds] = useState<Set<string>>(
     () => new Set(),
@@ -1643,6 +1642,7 @@ export function TripWorkspacePage() {
   const [isMapSearchSubmitting, setIsMapSearchSubmitting] = useState(false)
   const [isMapSearchLoadingMore, setIsMapSearchLoadingMore] = useState(false)
   const mapSearchRequestIdRef = useRef(0)
+  const mapPlaceDetailsRequestIdRef = useRef(0)
   const mapSearchPhotoHydrationKeysRef = useRef<Set<string>>(new Set())
   const sidebarPanelRef = useRef<HTMLElement | null>(null)
   const dragStartPointerRef = useRef<PointerCoordinates | null>(null)
@@ -1964,17 +1964,6 @@ export function TripWorkspacePage() {
     },
     [mapCenterLat, mapCenterLng, mapViewportRectangle, placeSearchOptions],
   )
-  const buildMapNearbySearchOptions = useCallback(
-    (
-      location: NonNullable<MapPlaceClickEvent['location']>,
-    ): GooglePlaceNearbySearchOptions => ({
-      language: 'en',
-      location,
-      radius: 500,
-      rankPreference: 'DISTANCE',
-    }),
-    [],
-  )
   const concretePlaceDraft = hasSelectedMapLocation(placeDraft) ? placeDraft : null
   const mapPreviewPlace =
     pendingMapPlace ??
@@ -2040,6 +2029,7 @@ export function TripWorkspacePage() {
 
   const clearMapSearchState = () => {
     mapSearchRequestIdRef.current += 1
+    mapPlaceDetailsRequestIdRef.current += 1
     mapSearchPhotoHydrationKeysRef.current.clear()
     setMapSearchValue('')
     setMapSearchResults([])
@@ -2049,6 +2039,7 @@ export function TripWorkspacePage() {
     setSelectedMapSearchResult(null)
     setSelectedMapClickedPlace(null)
     setSelectedMapClickedActivityId(null)
+    setCoordinateMapMarker(null)
     setHoveredMapSearchResultId(null)
     setIsMapSearchSubmitting(false)
     setIsMapSearchLoadingMore(false)
@@ -2062,15 +2053,8 @@ export function TripWorkspacePage() {
     setHiddenMapSearchResultIds(new Set<string>())
     setMapSearchNextPageToken(null)
     setMapSearchQuery(null)
-    setSelectedMapSearchResult(null)
     setMapSearchPreview(null)
     setHoveredMapSearchResultId(null)
-    setPendingMapPlace((current) =>
-      current &&
-      mapSearchResults.some((place) => placeStableId(place) === placeStableId(current))
-        ? null
-        : current,
-    )
     setIsMapSearchSubmitting(false)
     setIsMapSearchLoadingMore(false)
   }
@@ -2291,13 +2275,14 @@ export function TripWorkspacePage() {
     const fallbackPlace = activityToPlaceSelection(activity)
     if (!fallbackPlace) return
 
-    const requestId = mapSearchRequestIdRef.current + 1
-    mapSearchRequestIdRef.current = requestId
+    const requestId = mapPlaceDetailsRequestIdRef.current + 1
+    mapPlaceDetailsRequestIdRef.current = requestId
     setSelectedMapSearchResult(null)
     setSelectedMapClickedPlace(fallbackPlace)
     setSelectedMapClickedActivityId(activity.id)
     setHoveredMapSearchResultId(null)
     setMapSearchPreview(null)
+    setCoordinateMapMarker(null)
     setPendingMapPlace(null)
 
     if (!activity.placeId) return
@@ -2307,14 +2292,14 @@ export function TripWorkspacePage() {
       const details = googlePlaceToPlaceSelection(
         await fetchGooglePlaceById({ includePhoto: true, placeId: activity.placeId }),
       )
-      if (mapSearchRequestIdRef.current !== requestId) return
+      if (mapPlaceDetailsRequestIdRef.current !== requestId) return
       setSelectedMapClickedPlace(mergeActivityPlaceSelection(activity, fallbackPlace, details))
     } catch {
-      if (mapSearchRequestIdRef.current === requestId) {
+      if (mapPlaceDetailsRequestIdRef.current === requestId) {
         setSelectedMapClickedPlace(fallbackPlace)
       }
     } finally {
-      if (mapSearchRequestIdRef.current === requestId) {
+      if (mapPlaceDetailsRequestIdRef.current === requestId) {
         setIsMapSearchSubmitting(false)
       }
     }
@@ -2494,6 +2479,7 @@ export function TripWorkspacePage() {
       endTime: current?.endTime ?? place.endTime,
     }))
     setMapSearchPreview(null)
+    setCoordinateMapMarker(null)
     setSelectedMapSearchResult(null)
     setSelectedMapClickedPlace(null)
     setSelectedMapClickedActivityId(null)
@@ -2508,6 +2494,7 @@ export function TripWorkspacePage() {
     }
 
     setMapSearchPreview(null)
+    setCoordinateMapMarker(null)
     setSelectedMapSearchResult(null)
     setSelectedMapClickedPlace(null)
     setSelectedMapClickedActivityId(null)
@@ -2522,6 +2509,7 @@ export function TripWorkspacePage() {
     }
 
     mapSearchRequestIdRef.current += 1
+    mapPlaceDetailsRequestIdRef.current += 1
     setMapSearchResults([])
     setMapSearchNextPageToken(null)
     setMapSearchQuery(null)
@@ -2530,6 +2518,7 @@ export function TripWorkspacePage() {
     setSelectedMapClickedActivityId(null)
     setHoveredMapSearchResultId(null)
     setMapSearchPreview(null)
+    setCoordinateMapMarker(null)
     setPendingMapPlace(null)
     setActiveActivityId(null)
     setHoveredActivityId(null)
@@ -2623,12 +2612,9 @@ export function TripWorkspacePage() {
       setHiddenMapSearchResultIds(new Set<string>())
       setMapSearchNextPageToken(page.nextPageToken)
       setMapSearchQuery(trimmedQuery)
-      setSelectedMapSearchResult(null)
-      setSelectedMapClickedPlace(null)
-      setSelectedMapClickedActivityId(null)
       setHoveredMapSearchResultId(null)
       setMapSearchPreview(null)
-      setPendingMapPlace(null)
+      setCoordinateMapMarker(null)
       hydrateMapSearchResultPhotos(places, requestId)
     } finally {
       if (mapSearchRequestIdRef.current === requestId) {
@@ -2671,12 +2657,20 @@ export function TripWorkspacePage() {
     traceId,
   }: MapPlaceClickEvent) => {
     const normalizedPlaceId = placeId?.trim() || null
-    const fallbackPlace = clickedLocationToPlaceSelection(location)
-    const loadingPlace = loadingPlaceDetailsSelection(normalizedPlaceId, location)
-    if (!normalizedPlaceId && !loadingPlace && !fallbackPlace) return
+    if (!normalizedPlaceId) {
+      const markerPlace = clickedLocationToPlaceSelection(location)
+      if (!markerPlace) return
+      setCoordinateMapMarker(markerPlace)
+      setMapSearchPreview(null)
+      setHoveredMapSearchResultId(null)
+      return
+    }
 
-    const requestId = mapSearchRequestIdRef.current + 1
-    mapSearchRequestIdRef.current = requestId
+    const loadingPlace = loadingPlaceDetailsSelection(normalizedPlaceId, location)
+    if (!loadingPlace) return
+
+    const requestId = mapPlaceDetailsRequestIdRef.current + 1
+    mapPlaceDetailsRequestIdRef.current = requestId
     mapPlaceCardTimingRef.current = {
       clickedAtIso,
       clickedAtMs,
@@ -2696,6 +2690,7 @@ export function TripWorkspacePage() {
     setSelectedMapSearchResult(null)
     setSelectedMapClickedPlace(loadingPlace)
     setSelectedMapClickedActivityId(null)
+    setCoordinateMapMarker(null)
     setHoveredMapSearchResultId(null)
     setMapSearchPreview(null)
     setActiveActivityId(null)
@@ -2703,48 +2698,24 @@ export function TripWorkspacePage() {
     setPendingMapPlace(mapLocationTarget && loadingPlace ? loadingPlace : null)
     setIsMapSearchSubmitting(true)
     try {
-      let googlePlace = normalizedPlaceId
-        ? await fetchGooglePlaceById({
-            includePhoto: true,
-            placeId: normalizedPlaceId,
-            traceId,
-          })
-        : null
-      if (!googlePlace && !normalizedPlaceId && location) {
-        const nearbyPlace = await fetchGooglePlaceNearLocation({
-          includePhoto: false,
-          maxResultCount: 10,
-          options: buildMapNearbySearchOptions(location),
-        })
-        if (mapSearchRequestIdRef.current !== requestId) return
-        if (nearbyPlace?.id) {
-          try {
-            googlePlace = await fetchGooglePlaceById({
-              includePhoto: true,
-              placeId: nearbyPlace.id,
-              traceId,
-            })
-          } catch {
-            googlePlace = nearbyPlace
-          }
-        } else {
-          googlePlace = nearbyPlace
-        }
-      }
-      const place = googlePlace ? googlePlaceToPlaceSelection(googlePlace) : fallbackPlace
-      if (mapSearchRequestIdRef.current !== requestId) return
+      const googlePlace = await fetchGooglePlaceById({
+        includePhoto: true,
+        placeId: normalizedPlaceId,
+        traceId,
+      })
+      const place = googlePlaceToPlaceSelection(googlePlace)
+      if (mapPlaceDetailsRequestIdRef.current !== requestId) return
       if (place) {
         setSelectedMapClickedPlace(place)
         setPendingMapPlace(mapLocationTarget ? place : null)
       }
     } catch {
-      if (mapSearchRequestIdRef.current === requestId) {
-        const failurePlace = normalizedPlaceId ? loadingPlace : fallbackPlace ?? loadingPlace
-        setSelectedMapClickedPlace(failurePlace)
-        setPendingMapPlace(mapLocationTarget && failurePlace ? failurePlace : null)
+      if (mapPlaceDetailsRequestIdRef.current === requestId) {
+        setSelectedMapClickedPlace(loadingPlace)
+        setPendingMapPlace(mapLocationTarget ? loadingPlace : null)
       }
     } finally {
-      if (mapSearchRequestIdRef.current === requestId) {
+      if (mapPlaceDetailsRequestIdRef.current === requestId) {
         setIsMapSearchSubmitting(false)
       }
     }
@@ -2752,8 +2723,8 @@ export function TripWorkspacePage() {
 
   const handleMapSearchResultSelect = async (place: PlaceSelection) => {
     const selectedPlaceId = placeStableId(place)
-    const requestId = mapSearchRequestIdRef.current + 1
-    mapSearchRequestIdRef.current = requestId
+    const requestId = mapPlaceDetailsRequestIdRef.current + 1
+    mapPlaceDetailsRequestIdRef.current = requestId
     setHiddenMapSearchResultIds((current) => {
       if (!current.has(selectedPlaceId)) return current
       const next = new Set(current)
@@ -2773,6 +2744,7 @@ export function TripWorkspacePage() {
     setSelectedMapSearchResult(place)
     setSelectedMapClickedPlace(null)
     setSelectedMapClickedActivityId(null)
+    setCoordinateMapMarker(null)
     setHoveredMapSearchResultId(null)
     setMapSearchPreview(null)
     setActiveActivityId(null)
@@ -2790,7 +2762,7 @@ export function TripWorkspacePage() {
       const details = googlePlaceToPlaceSelection(
         await fetchGooglePlaceById({ includePhoto: true, placeId: place.placeId, traceId }),
       )
-      if (mapSearchRequestIdRef.current !== requestId) return
+      if (mapPlaceDetailsRequestIdRef.current !== requestId) return
       const hydratedPlace = mergePlaceSelection(place, details)
       setSelectedMapSearchResult(hydratedPlace)
       setMapSearchResults((current) =>
@@ -2802,11 +2774,11 @@ export function TripWorkspacePage() {
         setPendingMapPlace(hydratedPlace)
       }
     } catch {
-      if (mapSearchRequestIdRef.current === requestId && mapLocationTarget) {
+      if (mapPlaceDetailsRequestIdRef.current === requestId && mapLocationTarget) {
         setPendingMapPlace(place)
       }
     } finally {
-      if (mapSearchRequestIdRef.current === requestId) {
+      if (mapPlaceDetailsRequestIdRef.current === requestId) {
         setIsMapSearchSubmitting(false)
       }
     }
@@ -2814,7 +2786,13 @@ export function TripWorkspacePage() {
 
   const handleMapSearchResultRemove = (place: PlaceSelection) => {
     const hiddenPlaceId = placeStableId(place)
+    const removesSelectedPlace =
+      (selectedMapSearchResult && placeStableId(selectedMapSearchResult) === hiddenPlaceId) ||
+      (pendingMapPlace && placeStableId(pendingMapPlace) === hiddenPlaceId)
     mapSearchRequestIdRef.current += 1
+    if (removesSelectedPlace) {
+      mapPlaceDetailsRequestIdRef.current += 1
+    }
     setHiddenMapSearchResultIds((current) => {
       const next = new Set(current)
       next.add(hiddenPlaceId)
@@ -2881,8 +2859,10 @@ export function TripWorkspacePage() {
   }
 
   const clearMapSelection = () => {
+    mapPlaceDetailsRequestIdRef.current += 1
     clearPlaceDraft()
     setMapSearchPreview(null)
+    setCoordinateMapMarker(null)
     setSelectedMapSearchResult(null)
     setSelectedMapClickedPlace(null)
     setSelectedMapClickedActivityId(null)
@@ -3393,6 +3373,7 @@ export function TripWorkspacePage() {
                           <div id="activity-composer" className={styles.composer}>
                             <h3 className="sr-only">Create an activity</h3>
                             <ActivityForm
+                              autoFocusTitle
                               key={createFormKey}
                               initialValues={placeDraft ?? undefined}
                               onSubmit={handleCreateActivity}
@@ -3440,6 +3421,7 @@ export function TripWorkspacePage() {
                           <div id="ideas-composer" className={styles.composer}>
                             <h3 className="sr-only">Create an idea</h3>
                             <ActivityForm
+                              autoFocusTitle
                               key={createFormKey}
                               initialValues={placeDraft ?? undefined}
                               onSubmit={handleCreateActivity}
@@ -3484,8 +3466,8 @@ export function TripWorkspacePage() {
                 className={`${styles.panel} ${styles.mapPanel}`}
                 aria-labelledby="map-panel-title"
               >
-                {workspaceMode === 'days' && (
-                  <div className={styles.mapRouteOverlay}>
+                <div className={styles.mapRouteOverlay}>
+                  {workspaceMode === 'days' && (
                     <div className={styles.mapChrome} aria-label="Map route controls">
                       <label className={styles.routeToggle}>
                         <input
@@ -3525,8 +3507,12 @@ export function TripWorkspacePage() {
                         </button>
                       )}
                     </div>
-                  </div>
-                )}
+                  )}
+                  <MapStyleControl
+                    mapStyle={mapStyle}
+                    onMapStyleChange={setMapStyle}
+                  />
+                </div>
                 <div className={styles.mapOverlayStack}>
                   <div className={styles.mapSearchAndStyle}>
                     {canEditTrip && (
@@ -3546,6 +3532,7 @@ export function TripWorkspacePage() {
                           searchOptions={placeSearchOptions}
                           onPlacePreview={(place) => {
                             setMapSearchPreview(place)
+                            setCoordinateMapMarker(null)
                             setSelectedMapClickedPlace(null)
                             setSelectedMapClickedActivityId(null)
                           }}
@@ -3555,10 +3542,6 @@ export function TripWorkspacePage() {
                         />
                       </div>
                     )}
-                    <MapStyleControl
-                      mapStyle={mapStyle}
-                      onMapStyleChange={setMapStyle}
-                    />
                   </div>
                   <h2 id="map-panel-title" className="sr-only">Map</h2>
                 </div>
@@ -3702,6 +3685,7 @@ export function TripWorkspacePage() {
                   destination={tripQuery.data.destination}
                   mapStyle={mapStyle}
                   previewPlace={mapPreviewPlace}
+                  coordinatePreviewPlace={coordinateMapMarker}
                   searchResults={visibleMapSearchResults}
                   selectedSearchResultId={selectedMapSearchResult?.placeId ?? null}
                   highlightedSearchResultId={highlightedMapSearchResultId}
@@ -3711,6 +3695,7 @@ export function TripWorkspacePage() {
                   onActiveActivityChange={handleActiveActivityChange}
                   onMapPlaceClick={handleMapPlaceClick}
                   onPreviewPlaceClear={selectedMapClickedActivityId === null ? clearMapSelection : undefined}
+                  onCoordinatePreviewPlaceClear={() => setCoordinateMapMarker(null)}
                   onSearchResultHoverChange={setHoveredMapSearchResultId}
                   onSearchResultRemove={handleMapSearchResultRemove}
                   onSearchResultSelect={handleMapSearchResultSelect}

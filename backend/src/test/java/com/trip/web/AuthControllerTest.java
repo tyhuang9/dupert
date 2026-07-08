@@ -41,11 +41,9 @@ import com.trip.repo.TripMemberRepository;
 import com.trip.repo.TripRepository;
 import com.trip.repo.UserRepository;
 import com.trip.service.auth.JwtService;
-import com.trip.service.auth.AuthEmailDeliveryException;
 import com.trip.service.auth.EmailVerificationOperations;
 import com.trip.service.auth.RefreshTokenService;
 import com.trip.service.auth.RefreshTokenService.IssuedRefreshToken;
-import com.trip.service.auth.password.BreachedPasswordChecker;
 import com.trip.web.dto.LoginRequest;
 import com.trip.web.dto.RegisterRequest;
 
@@ -94,9 +92,6 @@ class AuthControllerTest {
     PasswordEncoder passwordEncoder;
 
     @MockitoBean
-    BreachedPasswordChecker breachedPasswordChecker;
-
-    @MockitoBean
     EmailVerificationOperations emailVerificationService;
 
     // TripAccessGuard component-scans the trip repos; test profile excludes JPA
@@ -124,14 +119,12 @@ class AuthControllerTest {
         when(passwordEncoder.encode(anyString())).thenReturn("hashed");
         when(jwtService.issueAccessToken(any())).thenReturn("jwt-access-token");
         when(jwtService.getAccessTokenTtlSeconds()).thenReturn(900L);
-        // Default: not breached. Tests that need the breached path override per-test.
-        when(breachedPasswordChecker.isBreached(anyString())).thenReturn(false);
     }
 
     @Test
     void registerHappyPathReturns202VerificationRequiredWithoutTokens() throws Exception {
         when(userRepository.existsByEmailIgnoreCase("alice@example.com")).thenReturn(false);
-        User saved = userWith(42L, "alice@example.com", "Alice");
+        User saved = unverifiedUserWith(42L, "alice@example.com", "Alice");
         when(userRepository.save(any(User.class))).thenReturn(saved);
 
         mvc.perform(post("/api/auth/register")
@@ -143,30 +136,29 @@ class AuthControllerTest {
             .andExpect(jsonPath("$.email").value("alice@example.com"))
             .andExpect(header().doesNotExist("Set-Cookie"));
 
-        verify(emailVerificationService).sendInitialVerification(saved);
+        verify(emailVerificationService).queueInitialVerification(42L);
         verify(refreshTokenService, never()).issueFor(any(User.class));
         verify(jwtService, never()).issueAccessToken(any());
     }
 
     @Test
-    void registerReturns503AndDeletesPendingUserWhenVerificationEmailFails() throws Exception {
+    void registerStillReturns202WhenVerificationEmailQueueFails() throws Exception {
         when(userRepository.existsByEmailIgnoreCase("alice@example.com")).thenReturn(false);
         User saved = unverifiedUserWith(42L, "alice@example.com", "Alice");
         when(userRepository.save(any(User.class))).thenReturn(saved);
-        doThrow(AuthEmailDeliveryException.brevoStatus(
-            "email_verification", 401, "{\"message\":\"sender rejected\"}"))
+        doThrow(new IllegalStateException("queue unavailable"))
             .when(emailVerificationService)
-            .sendInitialVerification(saved);
+            .queueInitialVerification(42L);
 
         mvc.perform(post("/api/auth/register")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(
                     new RegisterRequest("alice@example.com", "password1234", "Alice"))))
-            .andExpect(status().isServiceUnavailable())
-            .andExpect(jsonPath("$.error").value("email_unavailable"))
+            .andExpect(status().isAccepted())
+            .andExpect(jsonPath("$.status").value("verification_required"))
             .andExpect(header().doesNotExist("Set-Cookie"));
 
-        verify(userRepository).delete(saved);
+        verify(userRepository, never()).delete(saved);
         verify(refreshTokenService, never()).issueFor(any(User.class));
         verify(jwtService, never()).issueAccessToken(any());
     }
@@ -208,7 +200,7 @@ class AuthControllerTest {
     @Test
     void registerDisplayNameWithControlCharsIsSanitizedBeforePersist() throws Exception {
         when(userRepository.existsByEmailIgnoreCase("clean@example.com")).thenReturn(false);
-        User saved = userWith(7L, "clean@example.com", "Alice");
+        User saved = unverifiedUserWith(7L, "clean@example.com", "Alice");
         when(userRepository.save(any(User.class))).thenReturn(saved);
 
         mvc.perform(post("/api/auth/register")
@@ -221,41 +213,6 @@ class AuthControllerTest {
         verify(userRepository).save(captor.capture());
         org.assertj.core.api.Assertions.assertThat(captor.getValue().getDisplayName())
             .isEqualTo("Alice");
-    }
-
-    @Test
-    void registerBreachedPasswordReturns400AndPersistsNothing() throws Exception {
-        when(userRepository.existsByEmailIgnoreCase("breached@example.com")).thenReturn(false);
-        when(breachedPasswordChecker.isBreached("password1234")).thenReturn(true);
-
-        mvc.perform(post("/api/auth/register")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(
-                    new RegisterRequest("breached@example.com", "password1234", "Alice"))))
-            .andExpect(status().isBadRequest())
-            .andExpect(jsonPath("$.error").value("password_breached"));
-
-        // No user persisted, no refresh token issued, no JWT minted — the load-bearing
-        // assertion that the breached path is a hard stop before any side effects.
-        verify(userRepository, org.mockito.Mockito.never()).save(any(User.class));
-        verify(refreshTokenService, org.mockito.Mockito.never()).issueFor(any(User.class));
-        verify(jwtService, org.mockito.Mockito.never()).issueAccessToken(any());
-    }
-
-    @Test
-    void registerNotBreachedFollowsHappyPath() throws Exception {
-        when(userRepository.existsByEmailIgnoreCase("ok@example.com")).thenReturn(false);
-        when(breachedPasswordChecker.isBreached("password1234")).thenReturn(false);
-        User saved = userWith(99L, "ok@example.com", "Ok");
-        when(userRepository.save(any(User.class))).thenReturn(saved);
-
-        mvc.perform(post("/api/auth/register")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(
-                    new RegisterRequest("ok@example.com", "password1234", "Ok"))))
-            .andExpect(status().isAccepted())
-            .andExpect(jsonPath("$.status").value("verification_required"))
-            .andExpect(jsonPath("$.email").value("ok@example.com"));
     }
 
     @Test

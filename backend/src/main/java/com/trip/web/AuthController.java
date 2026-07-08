@@ -1,7 +1,6 @@
 package com.trip.web;
 
 import java.time.OffsetDateTime;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 
@@ -30,7 +29,6 @@ import com.trip.config.RateLimitRegistry;
 import com.trip.domain.User;
 import com.trip.repo.UserRepository;
 import com.trip.service.auth.AccountService;
-import com.trip.service.auth.AuthEmailDeliveryException;
 import com.trip.service.auth.AuthTokenService;
 import com.trip.service.auth.EmailNormalizer;
 import com.trip.service.auth.EmailVerificationOperations;
@@ -38,7 +36,6 @@ import com.trip.service.auth.JwtService;
 import com.trip.service.auth.PasswordResetService;
 import com.trip.service.auth.RefreshTokenService;
 import com.trip.service.auth.RefreshTokenService.IssuedRefreshToken;
-import com.trip.service.auth.password.BreachedPasswordChecker;
 import com.trip.web.auth.DisplayNameSanitizer;
 import com.trip.web.auth.RefreshCookie;
 import com.trip.web.dto.ChangePasswordRequest;
@@ -100,7 +97,6 @@ public class AuthController {
     private final RefreshTokenService refreshTokenService;
     private final RefreshCookie refreshCookie;
     private final AuthTokenService authTokenService;
-    private final BreachedPasswordChecker breachedPasswordChecker;
     private final AccountService accountService;
     private final PasswordResetService passwordResetService;
     private final EmailVerificationOperations emailVerificationService;
@@ -115,7 +111,6 @@ public class AuthController {
                           RefreshTokenService refreshTokenService,
                           RefreshCookie refreshCookie,
                           AuthTokenService authTokenService,
-                          BreachedPasswordChecker breachedPasswordChecker,
                           AccountService accountService,
                           PasswordResetService passwordResetService,
                           EmailVerificationOperations emailVerificationService,
@@ -128,7 +123,6 @@ public class AuthController {
         this.refreshTokenService = refreshTokenService;
         this.refreshCookie = refreshCookie;
         this.authTokenService = authTokenService;
-        this.breachedPasswordChecker = breachedPasswordChecker;
         this.accountService = accountService;
         this.passwordResetService = passwordResetService;
         this.emailVerificationService = emailVerificationService;
@@ -159,14 +153,6 @@ public class AuthController {
                 .body(Map.of("error", "email_taken"));
         }
 
-        // HIBP breached-password check. Fail-open by contract: a HIBP outage MUST NOT
-        // block legitimate registrations (length + letter-digit + bcrypt + rate limits
-        // carry the security weight in that window).
-        if (breachedPasswordChecker.isBreached(body.password())) {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(Map.of("error", "password_breached"));
-        }
-
         String passwordHash = passwordEncoder.encode(body.password());
         User user = new User(email, passwordHash, displayName);
         if (localProfile) {
@@ -180,19 +166,10 @@ public class AuthController {
         }
 
         try {
-            emailVerificationService.sendInitialVerification(saved);
-        } catch (AuthEmailDeliveryException e) {
-            userRepository.delete(saved);
-            log.warn(
-                "Registration verification email unavailable userId={} recipientDomain={} provider={} operation={} status={} providerBody={} pendingUserDeleted=true token=<redacted>",
-                saved.getId(),
-                emailDomain(saved.getEmail()),
-                e.provider(),
-                e.operation(),
-                e.statusCode(),
-                e.providerResponseBody());
-            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
-                .body(Map.of("error", "email_unavailable"));
+            emailVerificationService.queueInitialVerification(saved.getId());
+        } catch (RuntimeException e) {
+            log.warn("Initial email verification enqueue failed userId={} exception={} token=<redacted>",
+                saved.getId(), e.getClass().getSimpleName());
         }
         return ResponseEntity.status(HttpStatus.ACCEPTED)
             .body(new RegisterResponse("verification_required", saved.getEmail()));
@@ -475,17 +452,6 @@ public class AuthController {
             return id;
         }
         return null;
-    }
-
-    private static String emailDomain(String email) {
-        if (email == null || email.isBlank()) {
-            return "<missing>";
-        }
-        int at = email.lastIndexOf('@');
-        if (at < 0 || at == email.length() - 1) {
-            return "<invalid>";
-        }
-        return email.substring(at + 1).toLowerCase(Locale.ROOT);
     }
 
 }

@@ -1,9 +1,9 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { TripDateRangePicker } from './TripDateRangePicker'
 
-function mockFieldRect() {
+function mockFieldRect(rect: Partial<DOMRect> = {}) {
   const field = screen.getByText('Trip dates').closest('div')
   if (!(field instanceof HTMLElement)) {
     throw new Error('Date range field was not rendered')
@@ -17,6 +17,7 @@ function mockFieldRect() {
     width: 360,
     x: 40,
     y: 48,
+    ...rect,
     toJSON: () => ({}),
   })
 }
@@ -41,11 +42,51 @@ describe('<TripDateRangePicker>', () => {
     const dialog = screen.getByRole('dialog', { name: /trip dates/i })
     expect(screen.getByTestId('settings-popup')).not.toContainElement(dialog)
     expect(document.body).toContainElement(dialog)
+    expect(dialog).toContainElement(screen.getByRole('button', { name: /previous month/i }))
+    expect(dialog).toContainElement(screen.getByRole('button', { name: /next month/i }))
+    expect(within(dialog).queryByRole('button', { name: /reset/i })).not.toBeInTheDocument()
+    expect(within(dialog).queryByRole('button', { name: /fri, may 1/i })).not.toBeInTheDocument()
     expect(dialog).toHaveStyle({
       left: '40px',
+      maxHeight: '613px',
       position: 'fixed',
-      top: '152px',
-      width: '576px',
+      top: '143px',
+      width: '760px',
+    })
+  })
+
+  it('opens above the field when there is more room above than below', async () => {
+    const onChange = vi.fn()
+
+    render(
+      <TripDateRangePicker
+        startDate="2026-05-01"
+        endDate=""
+        onChange={onChange}
+      />,
+    )
+    mockFieldRect({
+      bottom: 690,
+      height: 70,
+      left: 82,
+      right: 520,
+      top: 620,
+      width: 438,
+      x: 82,
+      y: 620,
+    })
+
+    await userEvent.click(screen.getByRole('button', { name: /trip dates/i }))
+
+    const dialog = screen.getByRole('dialog', { name: /trip dates/i })
+    expect(dialog).toHaveAttribute('data-placement', 'above')
+    expect(dialog.style.top).toBe('')
+    expect(dialog).toHaveStyle({
+      bottom: '147px',
+      left: '82px',
+      maxHeight: '609px',
+      position: 'fixed',
+      width: '760px',
     })
   })
 
@@ -67,6 +108,65 @@ describe('<TripDateRangePicker>', () => {
     }))
 
     expect(onChange).toHaveBeenCalledWith({ endDate: '2026-05-03' })
+  })
+
+  it('starts a new range when reopening an existing range from the trigger', async () => {
+    const onChange = vi.fn()
+
+    render(
+      <TripDateRangePicker
+        startDate="2026-05-01"
+        endDate="2026-05-03"
+        onChange={onChange}
+      />,
+    )
+    mockFieldRect()
+
+    await userEvent.click(screen.getByRole('button', { name: /trip dates/i }))
+    await userEvent.click(screen.getByRole('button', {
+      name: /choose tuesday, may 5, 2026/i,
+    }))
+
+    expect(onChange).toHaveBeenCalledWith({
+      startDate: '2026-05-05',
+      endDate: '',
+    })
+  })
+
+  it('refocuses on the start date after choosing an end date', async () => {
+    const onChange = vi.fn()
+    const { rerender } = render(
+      <TripDateRangePicker
+        startDate="2026-05-01"
+        endDate=""
+        onChange={onChange}
+      />,
+    )
+    mockFieldRect()
+
+    await userEvent.click(screen.getByRole('button', { name: /trip dates/i }))
+    await userEvent.click(screen.getByRole('button', {
+      name: /choose sunday, may 3, 2026/i,
+    }))
+
+    expect(onChange).toHaveBeenLastCalledWith({ endDate: '2026-05-03' })
+
+    rerender(
+      <TripDateRangePicker
+        startDate="2026-05-01"
+        endDate="2026-05-03"
+        onChange={onChange}
+      />,
+    )
+
+    await userEvent.click(screen.getByRole('button', {
+      name: /choose tuesday, may 5, 2026/i,
+    }))
+
+    expect(onChange).toHaveBeenLastCalledWith({
+      startDate: '2026-05-05',
+      endDate: '',
+    })
   })
 
   it('closes the portaled calendar on Escape', async () => {

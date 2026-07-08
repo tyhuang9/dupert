@@ -35,7 +35,7 @@
   display: inline-grid;
   place-items: center;
   border: 0;
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-md);
   background: transparent;
   color: var(--color-text-muted);
   box-shadow: none;
@@ -57,8 +57,8 @@
 
 .searchButton:hover,
 .clearButton:hover {
-  background: var(--color-surface-2);
-  color: var(--color-text);
+  background: var(--color-primary-softer);
+  color: var(--color-primary-text);
 }
 
 .searchButton:focus-visible,
@@ -76,7 +76,7 @@
 .suggestions {
   position: absolute;
   z-index: 30;
-  top: calc(100% + 4px);
+  top: calc(100% + var(--space-2));
   left: 0;
   right: 0;
   max-height: min(18rem, 55vh);
@@ -84,9 +84,9 @@
   padding: var(--space-1);
   overflow: auto;
   border: 1px solid var(--color-surface-border);
-  border-radius: var(--radius-md);
-  background: var(--color-surface);
-  box-shadow: var(--shadow-md);
+  border-radius: var(--radius-lg);
+  background: var(--color-floating-surface);
+  box-shadow: var(--shadow-soft);
   list-style: none;
 }
 
@@ -97,7 +97,7 @@
   min-height: 44px;
   padding: var(--space-2) var(--space-3);
   border: 0;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   background: transparent;
   color: var(--color-text);
   font: inherit;
@@ -118,7 +118,7 @@
 .suggestionPrimary {
   overflow: hidden;
   font-size: var(--font-size-sm);
-  font-weight: 800;
+  font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
 }

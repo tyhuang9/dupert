@@ -89,7 +89,9 @@ export function GooglePlaceAutocomplete({
   const sessionTokenRef = useRef<string | null>(null)
   const requestVersionRef = useRef(0)
   const selectedValueRef = useRef<string | null>(null)
+  const inputFocusedRef = useRef(false)
   const [open, setOpen] = useState(false)
+  const [focused, setFocused] = useState(false)
   const [suggestions, setSuggestions] = useState<PlaceSuggestion[]>([])
   const query = value.trim()
 
@@ -101,6 +103,7 @@ export function GooglePlaceAutocomplete({
         : [],
     [maxSuggestions, query, suggestions],
   )
+  const suggestionsVisible = focused && open && visibleSuggestions.length > 0
 
   const scheduleSelectAll = (input: HTMLInputElement) => {
     const select = () => input.select()
@@ -156,7 +159,7 @@ export function GooglePlaceAutocomplete({
         .then((nextSuggestions) => {
           if (cancelled || requestVersionRef.current !== requestVersion) return
           setSuggestions(nextSuggestions)
-          setOpen(true)
+          setOpen(inputFocusedRef.current)
           onSearchError?.(null)
         })
         .catch((error: unknown) => {
@@ -176,7 +179,7 @@ export function GooglePlaceAutocomplete({
   const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
     selectedValueRef.current = null
     onValueChange(event.target.value)
-    setOpen(true)
+    setOpen(inputFocusedRef.current)
     if (event.target.value.trim().length < MIN_AUTOCOMPLETE_QUERY_LENGTH) {
       setSuggestions([])
       setOpen(false)
@@ -185,12 +188,20 @@ export function GooglePlaceAutocomplete({
   }
 
   const handleFocus = (event: FocusEvent<HTMLInputElement>) => {
+    inputFocusedRef.current = true
+    setFocused(true)
     if (selectOnFocus) {
       scheduleSelectAll(event.currentTarget)
     }
     if (visibleSuggestions.length > 0) {
       setOpen(true)
     }
+  }
+
+  const handleBlur = () => {
+    inputFocusedRef.current = false
+    setFocused(false)
+    setOpen(false)
   }
 
   const submitQuery = () => {
@@ -234,6 +245,8 @@ export function GooglePlaceAutocomplete({
     requestVersionRef.current += 1
     setSuggestions([])
     setOpen(false)
+    inputFocusedRef.current = false
+    setFocused(false)
     inputRef.current?.blur()
     try {
       const selection = await fetchGooglePlaceSelection({
@@ -269,14 +282,14 @@ export function GooglePlaceAutocomplete({
         onChange={handleChange}
         onFocus={handleFocus}
         onKeyDown={handleKeyDown}
-        onBlur={() => window.setTimeout(() => setOpen(false), 120)}
+        onBlur={handleBlur}
         maxLength={maxLength}
         disabled={disabled}
         placeholder={placeholder}
         aria-label={inputLabel}
         aria-autocomplete="list"
-        aria-controls={open && visibleSuggestions.length > 0 ? listboxId : undefined}
-        aria-expanded={open && visibleSuggestions.length > 0}
+        aria-controls={suggestionsVisible ? listboxId : undefined}
+        aria-expanded={suggestionsVisible}
         aria-invalid={ariaInvalid}
         aria-describedby={ariaDescribedBy}
         role="combobox"
@@ -307,7 +320,7 @@ export function GooglePlaceAutocomplete({
           <Search size={16} aria-hidden="true" />
         </button>
       )}
-      {open && visibleSuggestions.length > 0 && (
+      {suggestionsVisible && (
         <ul id={listboxId} className={styles.suggestions} role="listbox">
           {visibleSuggestions.map((suggestion) => {
             const prediction = suggestion.placePrediction

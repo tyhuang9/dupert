@@ -17,6 +17,7 @@ export interface TripDateRangeFields {
 }
 
 type DateRangePart = 'start' | 'end'
+type DatePickerPlacement = 'above' | 'below'
 
 interface CalendarDay {
   dateKey: string | null
@@ -153,10 +154,11 @@ export function TripDateRangePicker({
   const fieldRef = useRef<HTMLDivElement | null>(null)
   const panelRef = useRef<HTMLDivElement | null>(null)
   const [panelStyle, setPanelStyle] = useState<CSSProperties | null>(null)
+  const [panelPlacement, setPanelPlacement] = useState<DatePickerPlacement>('below')
   const [visibleMonth, setVisibleMonth] = useState(() =>
     rangePickerInitialMonth(startDate, endDate),
   )
-  const secondVisibleMonth = shiftMonthKey(visibleMonth, 1)
+  const [visibleMonthCount, setVisibleMonthCount] = useState(2)
   const errorIds = [
     startDateError ? startErrorId : '',
     endDateError ? endErrorId : '',
@@ -169,26 +171,30 @@ export function TripDateRangePicker({
 
     const rect = field.getBoundingClientRect()
     const viewportPadding = 12
-    const gap = 8
+    const gap = -1
     const maxWidth = Math.max(0, window.innerWidth - viewportPadding * 2)
-    const width = Math.min(Math.max(rect.width, 576), maxWidth)
+    const compact = maxWidth < 680 || window.innerHeight < 640
+    const preferredWidth = compact ? 380 : 760
+    const width = Math.min(Math.max(rect.width, preferredWidth), maxWidth)
+    const preferredHeight = compact ? 392 : 384
+    const availableBelow = Math.max(0, window.innerHeight - rect.bottom - viewportPadding - gap)
+    const availableAbove = Math.max(0, rect.top - viewportPadding - gap)
+    const openAbove = availableBelow < preferredHeight && availableAbove > availableBelow
+    const availableHeight = openAbove ? availableAbove : availableBelow
+    const maxHeight = Math.max(260, Math.floor(availableHeight))
+    setVisibleMonthCount(compact ? 1 : 2)
+    setPanelPlacement(openAbove ? 'above' : 'below')
     const left = Math.min(
       Math.max(viewportPadding, rect.left),
       Math.max(viewportPadding, window.innerWidth - width - viewportPadding),
     )
-    const spaceBelow = window.innerHeight - rect.bottom - gap - viewportPadding
-    const spaceAbove = rect.top - gap - viewportPadding
-    const opensAbove = spaceBelow < 320 && spaceAbove > spaceBelow
-    const maxHeight = Math.max(260, opensAbove ? spaceAbove : spaceBelow)
-    const top = opensAbove
-      ? Math.max(viewportPadding, rect.top - gap - maxHeight)
-      : rect.bottom + gap
 
     setPanelStyle({
+      bottom: openAbove ? window.innerHeight - rect.top + gap : undefined,
       left,
       maxHeight,
       position: 'fixed',
-      top,
+      top: openAbove ? undefined : rect.bottom + gap,
       width,
     })
   }, [])
@@ -237,7 +243,7 @@ export function TripDateRangePicker({
     if (activePart === 'start' || !startDate) {
       onChange({
         startDate: dateKey,
-        endDate: endDate && endDate >= dateKey ? endDate : '',
+        endDate: '',
       })
       setActivePart('end')
       return
@@ -248,22 +254,17 @@ export function TripDateRangePicker({
         startDate: dateKey,
         endDate: startDate,
       })
-      setActivePart('end')
+      setActivePart('start')
       return
     }
 
     onChange({ endDate: dateKey })
-  }
-
-  function resetRange() {
-    onChange({ startDate: '', endDate: '' })
     setActivePart('start')
-    setVisibleMonth(getMonthKey(todayDateKey()))
   }
 
   function renderMonth(monthKey: string, monthLabel: string) {
     return (
-      <section className={styles.calendarMonth} aria-label={monthLabel}>
+      <section key={monthKey} className={styles.calendarMonth} aria-label={monthLabel}>
         <h3>{formatMonth(monthKey)}</h3>
         <div className={styles.calendarWeekdays} aria-hidden="true">
           {WEEKDAY_LABELS.map((weekday, index) => (
@@ -286,7 +287,7 @@ export function TripDateRangePicker({
                 aria-label={`Choose ${fullDate}`}
                 aria-pressed={cell.dateKey === startDate || cell.dateKey === endDate}
               >
-                {cell.dayNumber}
+                <span className={styles.calendarDateNumber}>{cell.dayNumber}</span>
               </button>
             )
           })}
@@ -299,74 +300,40 @@ export function TripDateRangePicker({
     <div
       ref={panelRef}
       className={styles.datePickerPanel}
+      data-placement={panelPlacement}
       style={panelStyle ?? undefined}
       role="dialog"
       aria-modal="false"
       aria-labelledby={dateRangeId}
       id={datePickerId}
     >
-      <div className={styles.datePickerTopbar}>
+      <div className={styles.datePickerCalendarArea}>
         <button
           type="button"
-          className={styles.datePickerReset}
-          onClick={resetRange}
-          disabled={disabled || (!startDate && !endDate)}
-        >
-          Reset
-        </button>
-        <div className={styles.datePickerSelection}>
-          <button
-            type="button"
-            className={[
-              styles.dateFieldControl,
-              activePart === 'start' ? styles.dateFieldControlActive : '',
-            ].filter(Boolean).join(' ')}
-            onClick={() => {
-              setActivePart('start')
-              setIsOpen(true)
-            }}
-          >
-            <CalendarDays size={16} aria-hidden="true" />
-            {startDate ? formatCompactDate(startDate) : 'Start date'}
-          </button>
-          <button
-            type="button"
-            className={[
-              styles.dateFieldControl,
-              activePart === 'end' ? styles.dateFieldControlActive : '',
-            ].filter(Boolean).join(' ')}
-            onClick={() => {
-              setActivePart('end')
-              setIsOpen(true)
-            }}
-          >
-            {endDate ? formatCompactDate(endDate) : 'End date'}
-          </button>
-        </div>
-      </div>
-
-      <div className={styles.datePickerCalendarHeader}>
-        <button
-          type="button"
-          className={styles.dateNavButton}
+          className={[styles.dateNavButton, styles.dateNavButtonPrevious].join(' ')}
           onClick={() => setVisibleMonth((current) => shiftMonthKey(current, -1))}
           aria-label="Previous month"
         >
           <ChevronLeft size={18} aria-hidden="true" />
         </button>
+
+        <div className={styles.datePickerMonths} data-month-count={visibleMonthCount}>
+          {Array.from({ length: visibleMonthCount }, (_, index) =>
+            renderMonth(
+              shiftMonthKey(visibleMonth, index),
+              index === 0 ? 'Start month' : 'End month',
+            ),
+          )}
+        </div>
+
         <button
           type="button"
-          className={styles.dateNavButton}
+          className={[styles.dateNavButton, styles.dateNavButtonNext].join(' ')}
           onClick={() => setVisibleMonth((current) => shiftMonthKey(current, 1))}
           aria-label="Next month"
         >
           <ChevronRight size={18} aria-hidden="true" />
         </button>
-      </div>
-
-      <div className={styles.datePickerMonths}>
-        {renderMonth(visibleMonth, 'Start month')}
-        {renderMonth(secondVisibleMonth, 'End month')}
       </div>
 
       <div className={styles.datePickerFooter}>
@@ -389,7 +356,7 @@ export function TripDateRangePicker({
       <button
         type="button"
         className={styles.dateRangeTrigger}
-        onClick={() => openPicker(startDate && !endDate ? 'end' : 'start')}
+        onClick={() => openPicker()}
         disabled={disabled}
         aria-haspopup="dialog"
         aria-expanded={isOpen}

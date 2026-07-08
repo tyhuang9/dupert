@@ -23,7 +23,6 @@ import com.trip.domain.User;
 import com.trip.repo.PasswordResetTokenRepository;
 import com.trip.repo.UserRepository;
 import com.trip.service.auth.AuthEmailSender.PasswordResetEmail;
-import com.trip.service.auth.password.BreachedPasswordChecker;
 import com.trip.web.exception.ValidationException;
 
 @Service
@@ -39,7 +38,6 @@ public class PasswordResetService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final RefreshTokenService refreshTokenService;
-    private final BreachedPasswordChecker breachedPasswordChecker;
     private final AuthEmailSender emailSender;
     private final SecureRandom random;
 
@@ -48,24 +46,21 @@ public class PasswordResetService {
                                 UserRepository userRepository,
                                 PasswordEncoder passwordEncoder,
                                 RefreshTokenService refreshTokenService,
-                                BreachedPasswordChecker breachedPasswordChecker,
                                 AuthEmailSender emailSender) {
         this(passwordResetTokenRepository, userRepository, passwordEncoder, refreshTokenService,
-            breachedPasswordChecker, emailSender, new SecureRandom());
+            emailSender, new SecureRandom());
     }
 
     PasswordResetService(PasswordResetTokenRepository passwordResetTokenRepository,
                          UserRepository userRepository,
                          PasswordEncoder passwordEncoder,
                          RefreshTokenService refreshTokenService,
-                         BreachedPasswordChecker breachedPasswordChecker,
                          AuthEmailSender emailSender,
                          SecureRandom random) {
         this.passwordResetTokenRepository = passwordResetTokenRepository;
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.refreshTokenService = refreshTokenService;
-        this.breachedPasswordChecker = breachedPasswordChecker;
         this.emailSender = emailSender;
         this.random = random;
     }
@@ -133,9 +128,6 @@ public class PasswordResetService {
 
         User user = userRepository.findById(resetToken.getUserId())
             .orElseThrow(PasswordResetService::invalidToken);
-        if (breachedPasswordChecker.isBreached(password)) {
-            throw new ValidationException("password_breached", "password appears in breach corpus");
-        }
 
         user.setPasswordHash(passwordEncoder.encode(password));
         userRepository.save(user);

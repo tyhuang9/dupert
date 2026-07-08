@@ -1,7 +1,10 @@
 .mapShell {
-  --map-pin-red: #d93025;
-  --map-pin-red-active: #b91c1c;
-  --map-pin-red-halo: rgba(217, 48, 37, 0.22);
+  --map-pin-default: var(--color-primary);
+  --map-pin-default-active: var(--color-primary-active);
+  --map-pin-default-halo: color-mix(in srgb, var(--map-pin-default) 24%, transparent);
+  --map-pin-search: var(--accent-secondary);
+  --map-pin-search-active: color-mix(in srgb, var(--map-pin-search) 78%, var(--color-text));
+  --map-pin-search-halo: color-mix(in srgb, var(--map-pin-search) 24%, transparent);
   position: relative;
   min-width: 0;
   width: 100%;
@@ -17,7 +20,7 @@
 }
 
 .marker {
-  --marker-accent: var(--map-pin-red);
+  --marker-accent: var(--map-pin-default);
   appearance: none;
   position: relative;
   display: inline-grid;
@@ -30,7 +33,7 @@
   background: var(--marker-accent);
   color: #ffffff;
   font-size: var(--font-size-xs);
-  font-weight: 900;
+  font-weight: 800;
   line-height: 1;
   box-shadow: var(--shadow-md);
   cursor: pointer;
@@ -57,34 +60,36 @@
 
 .marker:hover,
 .markerActive {
-  background: color-mix(in srgb, var(--marker-accent) 82%, #111827);
+  background: color-mix(in srgb, var(--marker-accent) 82%, var(--color-text));
   box-shadow:
     0 0 0 7px color-mix(in srgb, var(--marker-accent) 24%, transparent),
-    0 12px 24px rgba(15, 23, 42, 0.24);
+    0 12px 24px color-mix(in srgb, var(--color-text) 22%, transparent);
   transform: rotate(-45deg) scale(1.18);
 }
 
 .destinationMarker {
-  background: var(--map-pin-red);
+  background: var(--map-pin-default);
   color: #ffffff;
   cursor: default;
 }
 
 .previewMarker {
-  background: var(--map-pin-red);
+  background: var(--map-pin-default);
   color: #ffffff;
   cursor: default;
 }
 
 .searchMarker {
-  background: var(--map-pin-red);
+  background: var(--map-pin-search);
   color: #ffffff;
 }
 
 .searchMarker:hover,
 .searchMarkerActive {
-  background: var(--map-pin-red-active);
-  box-shadow: 0 0 0 8px var(--map-pin-red-halo), 0 14px 28px rgba(15, 23, 42, 0.28);
+  background: var(--map-pin-search-active);
+  box-shadow:
+    0 0 0 8px var(--map-pin-search-halo),
+    0 14px 28px color-mix(in srgb, var(--color-text) 24%, transparent);
   transform: rotate(-45deg) scale(1.24);
 }
 
@@ -102,10 +107,10 @@
   padding: 0 var(--space-2);
   border: 1px solid var(--color-surface-border);
   border-radius: var(--radius-pill);
-  background: var(--color-surface);
+  background: var(--color-floating-surface);
   color: var(--color-text);
   font-size: var(--font-size-xs);
-  font-weight: 800;
+  font-weight: 700;
   box-shadow: var(--shadow-sm);
   white-space: nowrap;
 }
@@ -115,34 +120,42 @@
   position: absolute;
   max-width: calc(100% - var(--space-6));
   border: 1px solid var(--color-surface-border);
-  border-radius: var(--radius-md);
-  background: rgba(255, 255, 255, 0.95);
-  box-shadow: var(--shadow-md);
+  border-radius: var(--radius-lg);
+  background: var(--color-floating-surface);
+  box-shadow: var(--shadow-soft);
   font-size: var(--font-size-xs);
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .routeSummary {
-  top: calc(var(--space-4) + 48px);
-  right: var(--space-4);
-  width: min(var(--map-route-summary-width, 15.75rem), calc(100% - var(--space-6)));
+  top: var(--space-4);
+  right: calc(var(--space-4) + var(--map-route-controls-width, 15.25rem) + var(--space-2));
+  width: min(var(--map-route-summary-width, 12rem), calc(100% - var(--space-6)));
+  height: 42px;
+  min-height: 42px;
   display: grid;
-  gap: var(--space-1);
+  align-content: center;
+  gap: 0;
   min-width: 0;
-  padding: var(--space-3);
+  padding: 0 var(--space-3);
   color: var(--color-text);
+  line-height: 1.2;
 }
 
 .routeSummary strong {
   color: var(--color-text);
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-xs);
+  line-height: 1.2;
+  white-space: nowrap;
 }
 
 .routeSummaryHeader {
   display: inline-flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--space-1);
   color: var(--color-primary-text);
+  line-height: 1.2;
+  white-space: nowrap;
 }
 
 .mapNotice {
@@ -167,7 +180,7 @@
   gap: var(--space-3);
   padding: var(--space-6);
   background:
-    linear-gradient(135deg, rgba(37, 99, 235, 0.08), rgba(15, 23, 42, 0)),
+    linear-gradient(135deg, var(--color-primary-softer), transparent),
     var(--color-surface-3);
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);
@@ -179,8 +192,8 @@
   height: 44px;
   display: inline-grid;
   place-items: center;
-  border: 1px solid #bfdbfe;
-  border-radius: var(--radius-md);
+  border: 1px solid color-mix(in srgb, var(--color-primary) 28%, var(--color-surface-border));
+  border-radius: var(--radius-lg);
   background: var(--color-primary-soft);
   color: var(--color-primary-active);
 }
@@ -211,10 +224,10 @@
   gap: var(--space-3);
   padding: var(--space-3);
   border: 1px dashed var(--color-border-strong);
-  border-radius: var(--radius-md);
-  background: rgba(255, 255, 255, 0.95);
+  border-radius: var(--radius-lg);
+  background: var(--color-floating-surface);
   color: var(--color-text-muted);
-  box-shadow: var(--shadow-md);
+  box-shadow: var(--shadow-soft);
   font-size: var(--font-size-xs);
 }
 
@@ -237,17 +250,22 @@
     top: 96px;
   }
 
-  .routeSummary,
   .emptyMapCard {
     right: var(--space-3);
     width: min(var(--map-route-summary-width, 15.75rem), calc(100% - var(--space-6)));
     min-width: 0;
   }
+
+  .routeSummary {
+    top: calc(var(--space-3) + 88px);
+    right: var(--space-3);
+    width: min(var(--map-route-summary-width, 12rem), calc(100% - var(--space-6)));
+  }
 }
 
 @media (max-width: 520px) {
   .routeSummary {
-    top: calc(var(--space-3) + 92px);
+    top: calc(var(--space-3) + 132px);
   }
 }
 

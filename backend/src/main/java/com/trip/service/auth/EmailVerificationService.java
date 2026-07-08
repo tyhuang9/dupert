@@ -11,14 +11,20 @@ import java.util.Base64;
 import java.util.HexFormat;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.concurrent.Executor;
+import java.util.concurrent.RejectedExecutionException;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Profile;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionCallback;
+import org.springframework.transaction.support.SimpleTransactionStatus;
+import org.springframework.transaction.support.TransactionOperations;
 
 import com.trip.domain.EmailVerificationToken;
 import com.trip.domain.User;
@@ -46,12 +52,17 @@ public class EmailVerificationService implements EmailVerificationOperations {
     private final AuthEmailSender emailSender;
     private final SecureRandom random;
     private final Clock clock;
+    private final Executor emailVerificationExecutor;
+    private final TransactionOperations transactionOperations;
 
     @Autowired
     public EmailVerificationService(EmailVerificationTokenRepository tokenRepository,
                                     UserRepository userRepository,
-                                    AuthEmailSender emailSender) {
-        this(tokenRepository, userRepository, emailSender, new SecureRandom(), Clock.systemUTC());
+                                    AuthEmailSender emailSender,
+                                    @Qualifier("emailVerificationExecutor") Executor emailVerificationExecutor,
+                                    TransactionOperations transactionOperations) {
+        this(tokenRepository, userRepository, emailSender, new SecureRandom(), Clock.systemUTC(),
+            emailVerificationExecutor, transactionOperations);
     }
 
     EmailVerificationService(EmailVerificationTokenRepository tokenRepository,
@@ -59,16 +70,64 @@ public class EmailVerificationService implements EmailVerificationOperations {
                              AuthEmailSender emailSender,
                              SecureRandom random,
                              Clock clock) {
+        this(tokenRepository, userRepository, emailSender, random, clock, Runnable::run,
+            testTransactionOperations());
+    }
+
+    EmailVerificationService(EmailVerificationTokenRepository tokenRepository,
+                             UserRepository userRepository,
+                             AuthEmailSender emailSender,
+                             SecureRandom random,
+                             Clock clock,
+                             Executor emailVerificationExecutor,
+                             TransactionOperations transactionOperations) {
         this.tokenRepository = tokenRepository;
         this.userRepository = userRepository;
         this.emailSender = emailSender;
         this.random = random;
         this.clock = clock;
+        this.emailVerificationExecutor = emailVerificationExecutor;
+        this.transactionOperations = transactionOperations;
     }
 
-    @Transactional(noRollbackFor = AuthEmailDeliveryException.class)
+    private static TransactionOperations testTransactionOperations() {
+        return new TransactionOperations() {
+            @Override
+            public <T> T execute(TransactionCallback<T> action) {
+                return action.doInTransaction(new SimpleTransactionStatus());
+            }
+        };
+    }
+
     @Override
-    public void sendInitialVerification(User user) {
+    public void queueInitialVerification(long userId) {
+        try {
+            emailVerificationExecutor.execute(() -> sendInitialVerificationAsync(userId));
+        } catch (RejectedExecutionException e) {
+            log.warn("Initial email verification queue rejected userId={} token=<redacted>", userId);
+        }
+    }
+
+    private void sendInitialVerificationAsync(long userId) {
+        try {
+            transactionOperations.execute(status -> {
+                sendInitialVerificationInTransaction(userId);
+                return null;
+            });
+        } catch (RuntimeException e) {
+            log.warn("Initial email verification worker failed userId={} exception={} token=<redacted>",
+                userId, e.getClass().getSimpleName());
+        }
+    }
+
+    private void sendInitialVerificationInTransaction(long userId) {
+        Optional<User> maybeUser = userRepository.findById(userId);
+        if (maybeUser.isEmpty()) {
+            log.info("Initial email verification send skipped userId={} reason=user_not_found", userId);
+            return;
+        }
+
+        User user = maybeUser.get();
         if (user.isEmailVerified()) {
             log.info("Initial email verification send skipped userId={} reason=already_verified",
                 user.getId());
@@ -76,7 +135,7 @@ public class EmailVerificationService implements EmailVerificationOperations {
         }
         log.info("Initial email verification send requested userId={} recipientDomain={}",
             user.getId(), emailDomain(user.getEmail()));
-        createAndSend(user, true);
+        createAndSend(user, false);
     }
 
     @Transactional

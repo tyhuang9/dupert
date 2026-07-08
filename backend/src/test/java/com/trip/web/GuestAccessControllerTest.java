@@ -41,7 +41,6 @@ import com.trip.repo.ShareLinkRepository;
 import com.trip.repo.TripMemberRepository;
 import com.trip.repo.TripRepository;
 import com.trip.repo.UserRepository;
-import com.trip.service.auth.password.BreachedPasswordChecker;
 import com.trip.service.share.ShareTokenService;
 import com.trip.service.trip.ReflectionIds;
 import com.trip.web.auth.GuestAuthenticationFilter;
@@ -95,9 +94,6 @@ class GuestAccessControllerTest {
 
     @MockitoBean
     ShareLinkRepository shareLinkRepository;
-
-    @MockitoBean
-    BreachedPasswordChecker breachedPasswordChecker;
 
     private Trip trip;
     private GuestSession guestSession;

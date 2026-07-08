@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { Mail, SlidersHorizontal, Trash2, UserRound, X } from 'lucide-react'
 import { parseApiError } from '../api/errors'
 import { useAuth } from '../auth/useAuth'
+import { useColorMode } from '../theme/useColorMode'
 import type { UserSummary } from '../types/auth'
 import styles from './AccountSettingsDialog.module.css'
 
@@ -17,14 +18,11 @@ export function AccountSettingsDialog({
   user,
 }: AccountSettingsDialogProps) {
   const auth = useAuth()
+  const { colorMode, setColorMode } = useColorMode()
   const [displayName, setDisplayName] = useState(user.displayName)
   const [marketingEmails, setMarketingEmails] = useState(() =>
     window.localStorage.getItem('tripplanner.marketingEmails') === 'true',
   )
-  const [colorMode, setColorMode] = useState<'light' | 'dark' | 'system'>(() => {
-    const stored = window.localStorage.getItem('tripplanner.colorMode')
-    return stored === 'dark' || stored === 'system' ? stored : 'light'
-  })
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
@@ -48,7 +46,6 @@ export function AccountSettingsDialog({
     try {
       await auth.updateProfile({ displayName })
       window.localStorage.setItem('tripplanner.marketingEmails', String(marketingEmails))
-      window.localStorage.setItem('tripplanner.colorMode', colorMode)
       setStatusMessage('Account settings saved.')
     } catch (error) {
       setErrorMessage(parseApiError(error).topMessage)

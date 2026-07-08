@@ -1,12 +1,12 @@
 const TIMELINE_DAY_COLORS = [
-  '#2563eb',
-  '#059669',
-  '#d97706',
-  '#7c3aed',
-  '#db2777',
-  '#0891b2',
-  '#65a30d',
-  '#dc2626',
+  '#3F5F53',
+  '#6E8193',
+  '#D2A75A',
+  '#6FA97B',
+  '#8A7562',
+  '#789184',
+  '#A68C68',
+  '#C86B6B',
 ]
 
 export function timelineDayColor(dayIndex: number): string {

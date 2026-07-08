@@ -42,9 +42,6 @@ public class AppProperties {
     /** Server-side Google Maps cache configuration. */
     private GoogleMapsCache googleMapsCache = new GoogleMapsCache();
 
-    /** Password-policy knobs (breached-password threshold, etc.). */
-    private Password password = new Password();
-
     /**
      * If {@code true}, trust {@code X-Forwarded-For} for client-IP resolution. Default
      * {@code false}: when the app is exposed directly (no reverse proxy in front), an
@@ -134,39 +131,12 @@ public class AppProperties {
         this.googleMapsCache = googleMapsCache == null ? new GoogleMapsCache() : googleMapsCache;
     }
 
-    public Password getPassword() {
-        return password;
-    }
-
-    public void setPassword(Password password) {
-        this.password = password == null ? new Password() : password;
-    }
-
     public boolean isTrustProxy() {
         return trustProxy;
     }
 
     public void setTrustProxy(boolean trustProxy) {
         this.trustProxy = trustProxy;
-    }
-
-    /**
-     * Password-related knobs.
-     *
-     * <p>{@code breachThreshold} is the minimum HIBP "seen-count" at which we reject a
-     * candidate password. Default {@code 1}: any appearance in the breach corpus is
-     * disqualifying.
-     */
-    public static class Password {
-        private int breachThreshold = 1;
-
-        public int getBreachThreshold() {
-            return breachThreshold;
-        }
-
-        public void setBreachThreshold(int breachThreshold) {
-            this.breachThreshold = breachThreshold;
-        }
     }
 
     /** Transactional auth email provider configuration. */

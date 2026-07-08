@@ -421,6 +421,7 @@ describe('<TripMap>', () => {
       ],
     })
     expect(await screen.findByText('12 min total · 2.4 km')).toBeInTheDocument()
+    expect(screen.queryByText(/mapped stops/i)).not.toBeInTheDocument()
   })
 
   it('shows backend Google diagnostics when route calculation fails', async () => {
@@ -638,10 +639,10 @@ describe('<TripMap>', () => {
           unscheduledActivity,
         ]}
         activityMarkerColors={{
-          10: '#2563eb',
-          11: '#2563eb',
-          20: '#059669',
-          21: '#059669',
+          10: '#3F5F53',
+          11: '#3F5F53',
+          20: '#6E8193',
+          21: '#6E8193',
         }}
         activityMarkerMode="timeline-days"
         fallbackActivities={[]}
@@ -660,8 +661,8 @@ describe('<TripMap>', () => {
     expect(dayOneSecond).toHaveTextContent('2')
     expect(dayTwoFirst).toHaveTextContent('1')
     expect(dayTwoSecond).toHaveTextContent('2')
-    expect(dayOneFirst.getAttribute('style')).toContain('--marker-accent: #2563eb')
-    expect(dayTwoFirst.getAttribute('style')).toContain('--marker-accent: #059669')
+    expect(dayOneFirst.getAttribute('style')).toContain('--marker-accent: #3F5F53')
+    expect(dayTwoFirst.getAttribute('style')).toContain('--marker-accent: #6E8193')
   })
 
   it('applies selected map style while keeping native map controls hidden', () => {
@@ -751,7 +752,7 @@ describe('<TripMap>', () => {
     }))
   })
 
-  it('reports coordinate-only map clicks for nearby place resolution', () => {
+  it('reports coordinate-only map clicks without a place id', () => {
     const onMapPlaceClick = vi.fn()
     const stop = vi.fn()
     render(
@@ -983,6 +984,46 @@ describe('<TripMap>', () => {
     }))
 
     expect(onPreviewPlaceClear).toHaveBeenCalledTimes(1)
+  })
+
+  it('renders and clears a coordinate preview marker independently', async () => {
+    const onPreviewPlaceClear = vi.fn()
+    const onCoordinatePreviewPlaceClear = vi.fn()
+
+    render(
+      <TripMap
+        activities={[]}
+        fallbackActivities={[]}
+        destination={null}
+        previewPlace={{
+          address: 'Kyoto Station, Kyoto',
+          coordinatesLabel: '34.98585, 135.75877',
+          featureType: 'poi',
+          placeName: 'Kyoto Station',
+          placeCategory: 'Transit',
+          lat: 34.98585,
+          lng: 135.75877,
+        }}
+        coordinatePreviewPlace={{
+          coordinatesLabel: '35.70010, 139.80010',
+          placeName: 'Selected location',
+          lat: 35.7001,
+          lng: 139.8001,
+        }}
+        onPreviewPlaceClear={onPreviewPlaceClear}
+        onCoordinatePreviewPlaceClear={onCoordinatePreviewPlaceClear}
+      />,
+    )
+
+    expect(screen.getByRole('button', {
+      name: /remove map marker for kyoto station/i,
+    })).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', {
+      name: /remove map marker for selected location/i,
+    }))
+
+    expect(onCoordinatePreviewPlaceClear).toHaveBeenCalledTimes(1)
+    expect(onPreviewPlaceClear).not.toHaveBeenCalled()
   })
 
   it('ignores preview places without finite coordinates', () => {

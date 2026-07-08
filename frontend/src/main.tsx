@@ -9,17 +9,23 @@ import { AuthProvider } from './auth/AuthContext.tsx'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClient } from './api/queryClient.ts'
 import { GoogleMapsProvider } from './components/GoogleMapsProvider.tsx'
+import { ColorModeProvider } from './theme/ColorModeProvider.tsx'
+import { applyColorMode, readStoredColorMode } from './theme/colorMode.ts'
+
+applyColorMode(readStoredColorMode())
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <AppAccessGate>
-        <AuthProvider>
-          <GoogleMapsProvider>
-            <App />
-          </GoogleMapsProvider>
-        </AuthProvider>
-      </AppAccessGate>
-    </QueryClientProvider>
+    <ColorModeProvider>
+      <QueryClientProvider client={queryClient}>
+        <AppAccessGate>
+          <AuthProvider>
+            <GoogleMapsProvider>
+              <App />
+            </GoogleMapsProvider>
+          </AuthProvider>
+        </AppAccessGate>
+      </QueryClientProvider>
+    </ColorModeProvider>
   </StrictMode>,
 )

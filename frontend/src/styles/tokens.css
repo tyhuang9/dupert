@@ -1,48 +1,75 @@
 /**
  * TripPlanner visual system.
  *
- * This file is the source of truth for the Stitch-aligned rebuild:
- * Inter, operational slate surfaces, 8px rhythm, 8px radius, compact
- * dashboard density, and a single accessible primary blue.
+ * Calm travel-planning tokens. The app keeps the existing --color-* API for
+ * component compatibility while exposing semantic travel tokens underneath.
  */
 
-:root {
+:root,
+:root[data-theme='light'] {
   color-scheme: light;
 
   --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --font-mono: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
 
-  --color-bg: #f9f9ff;
-  --color-bg-strong: #e1e2ec;
-  --color-shell: #f2f3fd;
-  --color-surface: #ffffff;
-  --color-surface-2: #ecedf7;
-  --color-surface-3: #e6e7f2;
-  --color-surface-border: #c2c6d6;
-  --color-border-strong: #727785;
+  --bg-primary: #F6F5F2;
+  --bg-secondary: #FCFBF8;
+  --bg-card: #FFFFFF;
+  --bg-elevated: #FFFFFF;
 
-  --color-text: #0f172a;
-  --color-text-muted: #475569;
-  --color-text-subtle: #64748b;
-  --color-text-inverse: #ffffff;
+  --border-subtle: #EFECE6;
+  --border-default: #E7E3DC;
+  --border-strong: #D8D2C8;
 
-  --color-primary: #3b82f6;
-  --color-primary-fg: #ffffff;
-  --color-primary-text: #2563eb;
-  --color-primary-hover: #2563eb;
-  --color-primary-active: #1d4ed8;
-  --color-primary-soft: #dbeafe;
-  --color-primary-softer: #eff6ff;
+  --text-primary: #242628;
+  --text-secondary: #5F656A;
+  --text-muted: #8A9096;
+  --text-inverse: #F1F2EF;
 
-  --color-danger: #dc2626;
-  --color-danger-fg: #991b1b;
-  --color-danger-bg: #fef2f2;
-  --color-warning: #d97706;
-  --color-warning-fg: #78350f;
-  --color-warning-bg: #fffbeb;
-  --color-success: #059669;
-  --color-success-fg: #047857;
-  --color-success-bg: #ecfdf5;
+  --accent-primary: #3F5F53;
+  --accent-primary-hover: #4D7265;
+  --accent-primary-active: #2F4B40;
+  --accent-secondary: #6E8193;
+
+  --success: #6FA97B;
+  --warning: #D2A75A;
+  --danger: #C86B6B;
+
+  --color-bg: var(--bg-primary);
+  --color-bg-gradient-top: rgba(252, 251, 248, 0.9);
+  --color-bg-strong: var(--border-default);
+  --color-shell: var(--bg-secondary);
+  --color-surface: var(--bg-card);
+  --color-surface-2: var(--bg-secondary);
+  --color-surface-3: #F0EEE9;
+  --color-surface-border: rgba(36, 38, 40, 0.08);
+  --color-border-strong: var(--border-strong);
+  --color-floating-surface: rgba(255, 255, 255, 0.94);
+  --color-floating-surface-soft: rgba(255, 255, 255, 0.84);
+  --color-surface-fade: rgba(246, 245, 242, 0);
+
+  --color-text: var(--text-primary);
+  --color-text-muted: var(--text-secondary);
+  --color-text-subtle: var(--text-muted);
+  --color-text-inverse: var(--text-inverse);
+
+  --color-primary: var(--accent-primary);
+  --color-primary-fg: var(--text-inverse);
+  --color-primary-text: var(--accent-primary);
+  --color-primary-hover: var(--accent-primary-hover);
+  --color-primary-active: var(--accent-primary-active);
+  --color-primary-soft: color-mix(in srgb, var(--accent-primary) 14%, transparent);
+  --color-primary-softer: color-mix(in srgb, var(--accent-primary) 8%, transparent);
+
+  --color-danger: var(--danger);
+  --color-danger-fg: #9E4C4C;
+  --color-danger-bg: color-mix(in srgb, var(--danger) 13%, var(--bg-card));
+  --color-warning: var(--warning);
+  --color-warning-fg: #8B6B28;
+  --color-warning-bg: color-mix(in srgb, var(--warning) 16%, var(--bg-card));
+  --color-success: var(--success);
+  --color-success-fg: #3F7A4D;
+  --color-success-bg: color-mix(in srgb, var(--success) 14%, var(--bg-card));
 
   --space-1: 4px;
   --space-2: 8px;
@@ -63,25 +90,25 @@
   --line-height-tight: 1.2;
   --line-height-base: 1.45;
 
-  --radius-sm: 4px;
-  --radius-md: 8px;
-  --radius-lg: 8px;
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 16px;
   --radius-pill: 999px;
 
-  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
-  --shadow-md:
-    0 10px 24px rgba(15, 23, 42, 0.08),
-    0 2px 6px rgba(15, 23, 42, 0.05);
-  --shadow-lg:
-    0 18px 48px rgba(15, 23, 42, 0.12),
-    0 3px 10px rgba(15, 23, 42, 0.06);
+  --shadow-soft: 0 12px 40px rgba(36, 38, 40, 0.08);
+  --shadow-sm: 0 8px 20px rgba(36, 38, 40, 0.06);
+  --shadow-md: var(--shadow-soft);
+  --shadow-lg: 0 18px 52px rgba(36, 38, 40, 0.12);
 
-  --focus-ring-color: #2563eb;
+  --focus-ring-color: color-mix(in srgb, var(--accent-primary) 34%, transparent);
   --focus-ring-width: 2px;
   --focus-ring-offset: 2px;
 
-  --transition-base: 160ms ease-out;
-  --transition-slow: 240ms ease-out;
+  --transition-fast: 120ms cubic-bezier(.22,.61,.36,1);
+  --transition-med: 180ms cubic-bezier(.22,.61,.36,1);
+  --transition-base: var(--transition-fast);
+  --transition-slow: 220ms cubic-bezier(.22,.61,.36,1);
 
   /* Backward-compatible aliases for older modules during the rebuild. */
   --text: var(--color-text-muted);
@@ -97,6 +124,76 @@
   --sans: var(--font-sans);
   --heading: var(--font-sans);
   --mono: var(--font-mono);
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --bg-primary: #181F21;
+  --bg-secondary: #22282A;
+  --bg-card: #2A3134;
+  --bg-elevated: #31393D;
+
+  --border-subtle: #303A3D;
+  --border-default: #3D4548;
+  --border-strong: #4A5558;
+
+  --text-primary: #F1F2EF;
+  --text-secondary: #C5C9C6;
+  --text-muted: #929895;
+  --text-inverse: #242628;
+
+  --accent-primary: #7DBA9E;
+  --accent-primary-hover: #8BC7AA;
+  --accent-primary-active: #6CA88E;
+  --accent-secondary: #8BA3B6;
+
+  --success: #77C48F;
+  --warning: #E6C06A;
+  --danger: #E07A7A;
+
+  --color-bg: var(--bg-primary);
+  --color-bg-gradient-top: rgba(34, 40, 42, 0.76);
+  --color-bg-strong: #111719;
+  --color-shell: var(--bg-secondary);
+  --color-surface: var(--bg-card);
+  --color-surface-2: var(--bg-elevated);
+  --color-surface-3: #202A2D;
+  --color-surface-border: rgba(255, 255, 255, 0.08);
+  --color-border-strong: var(--border-strong);
+  --color-floating-surface: rgba(42, 49, 52, 0.94);
+  --color-floating-surface-soft: rgba(49, 57, 61, 0.86);
+  --color-surface-fade: rgba(24, 31, 33, 0);
+
+  --color-text: var(--text-primary);
+  --color-text-muted: var(--text-secondary);
+  --color-text-subtle: var(--text-muted);
+  --color-text-inverse: var(--text-inverse);
+
+  --color-primary: var(--accent-primary);
+  --color-primary-fg: var(--text-inverse);
+  --color-primary-text: var(--accent-primary);
+  --color-primary-hover: var(--accent-primary-hover);
+  --color-primary-active: var(--accent-primary-active);
+  --color-primary-soft: color-mix(in srgb, var(--accent-primary) 20%, transparent);
+  --color-primary-softer: color-mix(in srgb, var(--accent-primary) 12%, transparent);
+
+  --color-danger: var(--danger);
+  --color-danger-fg: #FFB0B0;
+  --color-danger-bg: color-mix(in srgb, var(--danger) 16%, var(--bg-card));
+  --color-warning: var(--warning);
+  --color-warning-fg: #F1D78C;
+  --color-warning-bg: color-mix(in srgb, var(--warning) 16%, var(--bg-card));
+  --color-success: var(--success);
+  --color-success-fg: #A6E5B6;
+  --color-success-bg: color-mix(in srgb, var(--success) 16%, var(--bg-card));
+
+  --shadow-soft: 0 16px 48px rgba(0, 0, 0, 0.28);
+  --shadow-sm: 0 10px 24px rgba(0, 0, 0, 0.22);
+  --shadow-md: var(--shadow-soft);
+  --shadow-lg: 0 22px 58px rgba(0, 0, 0, 0.36);
+
+  --focus-ring-color: color-mix(in srgb, var(--accent-primary) 42%, transparent);
 }
 
 @media (prefers-reduced-motion: reduce) {

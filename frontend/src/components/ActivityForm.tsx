@@ -32,6 +32,7 @@ const categoryLabels: Record<ActivityCategory, string> = {
 }
 
 interface ActivityFormProps {
+  autoFocusTitle?: boolean
   initialValues?: Partial<CreateActivityRequest>
   onSubmit: (payload: CreateActivityRequest) => Promise<void> | void
   onCancel?: () => void
@@ -82,6 +83,7 @@ function ActivityCategoryIcon({ category }: { category: ActivityCategory }) {
 }
 
 export function ActivityForm({
+  autoFocusTitle = false,
   autosave = false,
   initialValues,
   onSubmit,
@@ -261,6 +263,7 @@ export function ActivityForm({
             <label className={styles.label} htmlFor={titleId}>
               <span className="sr-only">Activity name</span>
               <input
+                autoFocus={autoFocusTitle}
                 id={titleId}
                 className={`${styles.input} ${styles.compactInput}`}
                 value={title}
@@ -357,6 +360,7 @@ export function ActivityForm({
         <label className={styles.label}>
           Title
           <input
+            autoFocus={autoFocusTitle}
             className={styles.input}
             value={title}
             onChange={(event) => setTitle(event.target.value)}

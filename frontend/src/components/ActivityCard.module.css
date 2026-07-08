@@ -2,13 +2,14 @@
   position: relative;
   min-width: 0;
   display: grid;
-  gap: var(--space-1);
-  padding: 7px var(--space-2);
+  gap: var(--space-2);
+  padding: 14px var(--space-3);
   border: 1px solid var(--color-surface-border);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
   background: var(--color-surface);
   box-shadow: none;
   cursor: pointer;
+  overflow: hidden;
   transition:
     border-color var(--transition-base),
     background-color var(--transition-base),
@@ -19,7 +20,8 @@
 .card:hover,
 .card:focus-within,
 .card:focus-visible {
-  border-color: #bfdbfe;
+  border-color: color-mix(in srgb, var(--color-primary) 28%, var(--color-surface-border));
+  background: color-mix(in srgb, var(--color-surface) 86%, var(--color-primary-softer));
   box-shadow: var(--shadow-sm);
 }
 
@@ -41,37 +43,40 @@
 }
 
 .cardActive {
-  border-color: #93c5fd;
+  border-color: color-mix(in srgb, var(--color-primary) 42%, var(--color-surface-border));
   background:
-    linear-gradient(90deg, rgba(37, 99, 235, 0.08), rgba(37, 99, 235, 0)),
+    linear-gradient(90deg, var(--color-primary-softer), transparent),
     var(--color-surface);
 }
 
 .cardExpanded {
   border-color: var(--color-primary);
-  box-shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.12);
+  background: color-mix(in srgb, var(--color-surface) 92%, var(--color-primary-softer));
+  box-shadow: var(--shadow-soft);
   cursor: default;
+  animation: cardExpandIn 160ms ease-out;
 }
 
 .cardCollapsed .summary {
+  animation: summarySettle 120ms ease-out;
   user-select: none;
 }
 
 .summary {
   min-width: 0;
   display: grid;
-  grid-template-columns: 30px minmax(0, 1fr);
+  grid-template-columns: 36px minmax(0, 1fr);
   align-items: center;
   gap: var(--space-2);
 }
 
 .categoryBlock {
-  width: 28px;
-  height: 28px;
+  width: 34px;
+  height: 34px;
   display: inline-grid;
   place-items: center;
   border: 1px solid var(--color-surface-border);
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-md);
   background: var(--color-primary-softer);
   color: var(--color-primary-text);
   font-size: 10px;
@@ -95,13 +100,13 @@
 }
 
 .categoryBlock[data-category='ACTIVITY'] {
-  background: var(--color-success-bg);
+  background: color-mix(in srgb, var(--color-success) 14%, var(--color-surface));
   color: var(--color-success-fg);
 }
 
 .categoryBlock[data-category='TRANSPORT'] {
-  background: var(--color-primary);
-  color: var(--color-primary-fg);
+  background: color-mix(in srgb, var(--accent-secondary) 18%, var(--color-surface));
+  color: var(--accent-secondary);
 }
 
 .categoryBlock[data-category='LODGING'] {
@@ -126,7 +131,7 @@
   margin: 0;
   color: var(--color-text);
   font-size: 13px;
-  font-weight: 800;
+  font-weight: 700;
   line-height: var(--line-height-tight);
   overflow-wrap: anywhere;
 }
@@ -148,15 +153,15 @@
 }
 
 .cardQuickAction {
-  min-height: 24px;
+  min-height: 28px;
   padding: 0 var(--space-2);
   border: 1px solid var(--color-surface-border);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-md);
   background: var(--color-surface-2);
   color: var(--color-primary-text);
   font: inherit;
   font-size: 11px;
-  font-weight: 800;
+  font-weight: 700;
   cursor: pointer;
 }
 
@@ -185,16 +190,50 @@
   min-width: 0;
   display: grid;
   gap: var(--space-1);
+  transform-origin: top;
+  animation: editorPanelIn 160ms ease-out;
+}
+
+@keyframes cardExpandIn {
+  from {
+    transform: translateY(-2px);
+  }
+
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes editorPanelIn {
+  from {
+    opacity: 0.72;
+    transform: translateY(-4px) scaleY(0.985);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scaleY(1);
+  }
+}
+
+@keyframes summarySettle {
+  from {
+    opacity: 0.82;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
 
 @media (max-width: 560px) {
   .summary {
-    grid-template-columns: 30px minmax(0, 1fr);
+    grid-template-columns: 34px minmax(0, 1fr);
   }
 
   .categoryBlock {
-    width: 28px;
-    height: 28px;
+    width: 32px;
+    height: 32px;
   }
 
   .summaryHeader {

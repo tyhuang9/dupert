@@ -1,17 +1,17 @@
 .shelf {
   position: absolute;
-  right: calc(var(--space-4) + 3.5rem);
+  right: var(--space-4);
   bottom: var(--space-4);
   left: var(--space-4);
   z-index: 6;
   display: grid;
-  gap: var(--space-2);
-  padding: var(--space-3);
+  gap: var(--space-3);
+  padding: var(--space-4);
   overflow: hidden;
-  border: 1px solid rgba(194, 198, 214, 0.72);
-  border-radius: var(--radius-md);
-  background: rgba(255, 255, 255, 0.92);
-  box-shadow: var(--shadow-md);
+  border: 1px solid var(--color-surface-border);
+  border-radius: var(--radius-xl);
+  background: var(--color-floating-surface);
+  box-shadow: var(--shadow-soft);
   backdrop-filter: blur(12px);
 }
 
@@ -22,7 +22,7 @@
   gap: var(--space-3);
   color: var(--color-text-muted);
   font-size: var(--font-size-xs);
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .header span {
@@ -48,8 +48,8 @@
   place-items: center;
   padding: 0;
   border: 1px solid var(--color-surface-border);
-  border-radius: var(--radius-sm);
-  background: rgba(255, 255, 255, 0.82);
+  border-radius: var(--radius-md);
+  background: var(--color-floating-surface-soft);
   color: var(--color-text-muted);
   cursor: pointer;
 }
@@ -99,12 +99,12 @@
 
 .edgeFadeLeft {
   left: 0;
-  background: linear-gradient(90deg, rgba(255, 255, 255, 0.96), rgba(255, 255, 255, 0));
+  background: linear-gradient(90deg, var(--color-floating-surface), var(--color-surface-fade));
 }
 
 .edgeFadeRight {
   right: 0;
-  background: linear-gradient(270deg, rgba(255, 255, 255, 0.96), rgba(255, 255, 255, 0));
+  background: linear-gradient(270deg, var(--color-floating-surface), var(--color-surface-fade));
 }
 
 .navButton {
@@ -116,9 +116,9 @@
   display: inline-grid;
   place-items: center;
   padding: 0;
-  border: 1px solid rgba(194, 198, 214, 0.76);
+  border: 1px solid var(--color-surface-border);
   border-radius: var(--radius-pill);
-  background: rgba(255, 255, 255, 0.94);
+  background: var(--color-floating-surface);
   color: var(--color-text-muted);
   box-shadow: var(--shadow-sm);
   cursor: pointer;
@@ -151,10 +151,10 @@
   align-items: center;
   gap: var(--space-3);
   min-height: 96px;
-  padding: var(--space-2);
+  padding: var(--space-3);
   border: 1px solid var(--color-surface-border);
-  border-radius: var(--radius-md);
-  background: rgba(255, 255, 255, 0.94);
+  border-radius: var(--radius-lg);
+  background: var(--color-floating-surface);
   color: inherit;
   font: inherit;
   text-align: left;
@@ -165,8 +165,8 @@
 
 .card:hover,
 .cardSelected {
-  border-color: rgba(37, 99, 235, 0.45);
-  background: var(--color-surface-2);
+  border-color: color-mix(in srgb, var(--color-primary) 40%, var(--color-surface-border));
+  background: color-mix(in srgb, var(--color-surface) 84%, var(--color-primary-softer));
 }
 
 .cardSelected {
@@ -184,9 +184,9 @@
   display: inline-grid;
   place-items: center;
   overflow: hidden;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-lg);
   background:
-    linear-gradient(135deg, rgba(37, 99, 235, 0.08), rgba(15, 118, 110, 0.1)),
+    linear-gradient(135deg, var(--color-primary-softer), color-mix(in srgb, var(--accent-secondary) 12%, transparent)),
     var(--color-surface-2);
   color: var(--color-primary-text);
 }
@@ -207,7 +207,7 @@
 .cardBody strong {
   color: var(--color-text);
   font-size: var(--font-size-xs);
-  font-weight: 900;
+  font-weight: 700;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -230,11 +230,11 @@
 }
 
 .metadata .open {
-  color: #15803d;
+  color: var(--color-success-fg);
 }
 
 .metadata .closed {
-  color: #b91c1c;
+  color: var(--color-danger-fg);
 }
 
 .metadata .muted {
@@ -246,9 +246,9 @@
   display: inline-flex;
   align-items: center;
   gap: 3px;
-  color: #92400e;
+  color: var(--color-warning-fg);
   font-size: 11px;
-  font-weight: 900;
+  font-weight: 700;
   white-space: nowrap;
 }
 
@@ -263,7 +263,7 @@
   border-radius: var(--radius-sm);
   color: var(--color-text-muted);
   font-size: var(--font-size-xs);
-  font-weight: 800;
+  font-weight: 700;
   scroll-snap-align: start;
 }
 

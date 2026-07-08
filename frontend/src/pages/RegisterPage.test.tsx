@@ -160,6 +160,38 @@ describe('<RegisterPage>', () => {
     expect(screen.queryByTestId('post-register')).not.toBeInTheDocument()
   })
 
+  it('uses Creating account as the only pending submit label', async () => {
+    let finishRegistration:
+      | ((result: { status: 'verification_required'; email: string }) => void)
+      | undefined
+    const registerMock = vi.fn(
+      () =>
+        new Promise<{ status: 'verification_required'; email: string }>((resolve) => {
+          finishRegistration = resolve
+        }),
+    )
+    const ctx = makeAuth({ register: registerMock })
+    renderRegister(ctx)
+
+    const user = userEvent.setup()
+    await user.type(screen.getByLabelText(/email/i), 'me@example.com')
+    await user.type(screen.getByLabelText(/^password$/i), 'super-secret-1234')
+    await user.type(screen.getByLabelText(/display name/i), 'Me')
+    await user.click(screen.getByRole('button', { name: /create account/i }))
+
+    const button = screen.getByRole('button', { name: /creating account/i })
+    expect(button).toHaveTextContent(/^Creating account\.\.\.$/)
+    expect(button).not.toHaveTextContent(/loading/i)
+
+    finishRegistration?.({
+      status: 'verification_required',
+      email: 'me@example.com',
+    })
+    expect(
+      await screen.findByRole('heading', { name: /check your email/i }),
+    ).toBeInTheDocument()
+  })
+
   it('can resend verification from the check-email state', async () => {
     const ctx = makeAuth({
       register: vi.fn(async () => ({
@@ -190,25 +222,6 @@ describe('<RegisterPage>', () => {
     expect(resendNotice).toHaveClass(styles.centeredNotice)
   })
 
-  it('shows email_unavailable when the backend cannot send verification mail', async () => {
-    const ctx = makeAuth({
-      register: vi.fn(async () => {
-        throw makeAxiosError(503, { error: 'email_unavailable' })
-      }),
-    })
-    renderRegister(ctx)
-
-    const user = userEvent.setup()
-    await user.type(screen.getByLabelText(/email/i), 'me@example.com')
-    await user.type(screen.getByLabelText(/^password$/i), 'super-secret-1234')
-    await user.type(screen.getByLabelText(/display name/i), 'Me')
-    await user.click(screen.getByRole('button', { name: /create account/i }))
-
-    const banner = await screen.findByRole('alert')
-    expect(banner).toHaveTextContent(/could not send that email/i)
-    expect(screen.queryByRole('heading', { name: /check your email/i })).not.toBeInTheDocument()
-  })
-
   it('shows a field error on email when the server returns email_taken', async () => {
     const ctx = makeAuth({
       register: vi.fn(async () => {
@@ -226,30 +239,6 @@ describe('<RegisterPage>', () => {
     expect(
       await screen.findByText(/account with this email already exists/i),
     ).toBeInTheDocument()
-  })
-
-  it('shows a field error on password when the server returns password_breached', async () => {
-    const registerMock = vi.fn(async () => {
-      throw makeAxiosError(400, { error: 'password_breached' })
-    })
-    const ctx = makeAuth({ register: registerMock })
-    renderRegister(ctx)
-
-    const user = userEvent.setup()
-    await user.type(screen.getByLabelText(/email/i), 'me@example.com')
-    await user.type(screen.getByLabelText(/^password$/i), 'super-secret-1234')
-    await user.type(screen.getByLabelText(/display name/i), 'Me')
-    await user.click(screen.getByRole('button', { name: /create account/i }))
-
-    expect(
-      await screen.findByText(
-        /this password appears in a known data breach/i,
-      ),
-    ).toBeInTheDocument()
-    expect(registerMock).toHaveBeenCalledTimes(1)
-    expect(screen.queryByTestId('post-register')).not.toBeInTheDocument()
-    // No banner — targeted field error only.
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
   it('caps display name input at 50 characters via maxLength', () => {
