@@ -3373,6 +3373,7 @@ export function TripWorkspacePage() {
                           <div id="activity-composer" className={styles.composer}>
                             <h3 className="sr-only">Create an activity</h3>
                             <ActivityForm
+                              autoFocusTitle
                               key={createFormKey}
                               initialValues={placeDraft ?? undefined}
                               onSubmit={handleCreateActivity}
@@ -3420,6 +3421,7 @@ export function TripWorkspacePage() {
                           <div id="ideas-composer" className={styles.composer}>
                             <h3 className="sr-only">Create an idea</h3>
                             <ActivityForm
+                              autoFocusTitle
                               key={createFormKey}
                               initialValues={placeDraft ?? undefined}
                               onSubmit={handleCreateActivity}

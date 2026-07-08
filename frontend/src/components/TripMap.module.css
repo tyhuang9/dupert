@@ -1,7 +1,10 @@
 .mapShell {
-  --map-pin-red: #C86B6B;
-  --map-pin-red-active: #A95A5A;
-  --map-pin-red-halo: color-mix(in srgb, var(--map-pin-red) 24%, transparent);
+  --map-pin-default: var(--color-primary);
+  --map-pin-default-active: var(--color-primary-active);
+  --map-pin-default-halo: color-mix(in srgb, var(--map-pin-default) 24%, transparent);
+  --map-pin-search: var(--accent-secondary);
+  --map-pin-search-active: color-mix(in srgb, var(--map-pin-search) 78%, var(--color-text));
+  --map-pin-search-halo: color-mix(in srgb, var(--map-pin-search) 24%, transparent);
   position: relative;
   min-width: 0;
   width: 100%;
@@ -17,7 +20,7 @@
 }
 
 .marker {
-  --marker-accent: var(--map-pin-red);
+  --marker-accent: var(--map-pin-default);
   appearance: none;
   position: relative;
   display: inline-grid;
@@ -65,27 +68,27 @@
 }
 
 .destinationMarker {
-  background: var(--map-pin-red);
+  background: var(--map-pin-default);
   color: #ffffff;
   cursor: default;
 }
 
 .previewMarker {
-  background: var(--map-pin-red);
+  background: var(--map-pin-default);
   color: #ffffff;
   cursor: default;
 }
 
 .searchMarker {
-  background: var(--map-pin-red);
+  background: var(--map-pin-search);
   color: #ffffff;
 }
 
 .searchMarker:hover,
 .searchMarkerActive {
-  background: var(--map-pin-red-active);
+  background: var(--map-pin-search-active);
   box-shadow:
-    0 0 0 8px var(--map-pin-red-halo),
+    0 0 0 8px var(--map-pin-search-halo),
     0 14px 28px color-mix(in srgb, var(--color-text) 24%, transparent);
   transform: rotate(-45deg) scale(1.24);
 }
@@ -126,12 +129,15 @@
 
 .routeSummary {
   top: var(--space-4);
-  right: calc(var(--space-4) + var(--map-route-controls-width, 18.5rem) + var(--space-2));
-  width: min(var(--map-route-summary-width, 13rem), calc(100% - var(--space-6)));
+  right: calc(var(--space-4) + var(--map-route-controls-width, 15.25rem) + var(--space-2));
+  width: min(var(--map-route-summary-width, 12rem), calc(100% - var(--space-6)));
+  height: 42px;
+  min-height: 42px;
   display: grid;
-  gap: 2px;
+  align-content: center;
+  gap: 0;
   min-width: 0;
-  padding: var(--space-2) var(--space-3);
+  padding: 0 var(--space-3);
   color: var(--color-text);
   line-height: 1.2;
 }
@@ -140,6 +146,7 @@
   color: var(--color-text);
   font-size: var(--font-size-xs);
   line-height: 1.2;
+  white-space: nowrap;
 }
 
 .routeSummaryHeader {
@@ -148,6 +155,7 @@
   gap: var(--space-1);
   color: var(--color-primary-text);
   line-height: 1.2;
+  white-space: nowrap;
 }
 
 .mapNotice {
@@ -251,7 +259,7 @@
   .routeSummary {
     top: calc(var(--space-3) + 88px);
     right: var(--space-3);
-    width: min(var(--map-route-summary-width, 13rem), calc(100% - var(--space-6)));
+    width: min(var(--map-route-summary-width, 12rem), calc(100% - var(--space-6)));
   }
 }
 

@@ -17,6 +17,7 @@ export interface TripDateRangeFields {
 }
 
 type DateRangePart = 'start' | 'end'
+type DatePickerPlacement = 'above' | 'below'
 
 interface CalendarDay {
   dateKey: string | null
@@ -153,6 +154,7 @@ export function TripDateRangePicker({
   const fieldRef = useRef<HTMLDivElement | null>(null)
   const panelRef = useRef<HTMLDivElement | null>(null)
   const [panelStyle, setPanelStyle] = useState<CSSProperties | null>(null)
+  const [panelPlacement, setPanelPlacement] = useState<DatePickerPlacement>('below')
   const [visibleMonth, setVisibleMonth] = useState(() =>
     rangePickerInitialMonth(startDate, endDate),
   )
@@ -174,16 +176,25 @@ export function TripDateRangePicker({
     const compact = maxWidth < 680 || window.innerHeight < 640
     const preferredWidth = compact ? 380 : 760
     const width = Math.min(Math.max(rect.width, preferredWidth), maxWidth)
+    const preferredHeight = compact ? 392 : 384
+    const availableBelow = Math.max(0, window.innerHeight - rect.bottom - viewportPadding - gap)
+    const availableAbove = Math.max(0, rect.top - viewportPadding - gap)
+    const openAbove = availableBelow < preferredHeight && availableAbove > availableBelow
+    const availableHeight = openAbove ? availableAbove : availableBelow
+    const maxHeight = Math.max(260, Math.floor(availableHeight))
     setVisibleMonthCount(compact ? 1 : 2)
+    setPanelPlacement(openAbove ? 'above' : 'below')
     const left = Math.min(
       Math.max(viewportPadding, rect.left),
       Math.max(viewportPadding, window.innerWidth - width - viewportPadding),
     )
 
     setPanelStyle({
+      bottom: openAbove ? window.innerHeight - rect.top + gap : undefined,
       left,
+      maxHeight,
       position: 'fixed',
-      top: rect.bottom + gap,
+      top: openAbove ? undefined : rect.bottom + gap,
       width,
     })
   }, [])
@@ -289,6 +300,7 @@ export function TripDateRangePicker({
     <div
       ref={panelRef}
       className={styles.datePickerPanel}
+      data-placement={panelPlacement}
       style={panelStyle ?? undefined}
       role="dialog"
       aria-modal="false"

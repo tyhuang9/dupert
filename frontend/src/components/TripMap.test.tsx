@@ -421,6 +421,7 @@ describe('<TripMap>', () => {
       ],
     })
     expect(await screen.findByText('12 min total · 2.4 km')).toBeInTheDocument()
+    expect(screen.queryByText(/mapped stops/i)).not.toBeInTheDocument()
   })
 
   it('shows backend Google diagnostics when route calculation fails', async () => {

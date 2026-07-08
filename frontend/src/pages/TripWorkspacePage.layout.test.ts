@@ -54,27 +54,18 @@ describe('TripWorkspacePage layout scroll contract', () => {
     expect(cssBlocks(workspaceCss, '.timelineScroll').join('\n')).toMatch(/overflow-y:\s*auto/)
     expect(cssBlocks(workspaceCss, '.timelineScroll').join('\n')).toMatch(/overflow-x:\s*hidden/)
     expect(cssBlocks(workspaceCss, '.timelineScroll').join('\n')).toMatch(
-      /scrollbar-gutter:\s*stable/,
-    )
-    expect(cssBlocks(workspaceCss, '.timelineScroll').join('\n')).toMatch(
-      /scrollbar-width:\s*thin/,
+      /scrollbar-width:\s*none/,
     )
     expect(cssBlocks(workspaceCss, '.timelineScroll').join('\n')).not.toMatch(/overflow:\s*auto/)
   })
 
-  it('keeps immersive scrollbar styling scoped to the activity timeline', () => {
+  it('keeps the activity timeline scrollable without a visible scrollbar', () => {
     expect(cssBlocks(workspaceCss, '.timelineScroll::-webkit-scrollbar').join('\n')).toMatch(
-      /width:\s*6px/,
+      /display:\s*none/,
     )
-    expect(cssBlocks(workspaceCss, '.timelineScroll::-webkit-scrollbar-track').join('\n')).toMatch(
-      /background:\s*transparent/,
-    )
-    expect(cssBlocks(workspaceCss, '.timelineScroll::-webkit-scrollbar-thumb').join('\n')).toMatch(
-      /background:\s*color-mix/,
-    )
-    expect(
-      cssBlocks(workspaceCss, '.timelineScroll::-webkit-scrollbar-thumb:hover').join('\n'),
-    ).toMatch(/background:\s*var\(--color-border-strong\)/)
+    expect(cssBlocks(workspaceCss, '.timelineScroll::-webkit-scrollbar-track').join('\n')).toBe('')
+    expect(cssBlocks(workspaceCss, '.timelineScroll::-webkit-scrollbar-thumb').join('\n')).toBe('')
+    expect(cssBlocks(workspaceCss, '.timelineScroll::-webkit-scrollbar-thumb:hover').join('\n')).toBe('')
 
     for (const selector of [
       '.shell',
@@ -145,6 +136,10 @@ describe('TripWorkspacePage layout scroll contract', () => {
     expect(panelBlock).toMatch(
       /--date-picker-grid-height:\s*calc\(var\(--date-picker-day-size\) \* 6\)/,
     )
+    expect(panelBlock).toMatch(/overflow-y:\s*auto/)
+    expect(cssBlocks(datePickerCss, ".datePickerPanel[data-placement='above']")[0] ?? '').toMatch(
+      /border-bottom-right-radius:\s*0/,
+    )
     expect(areaBlock).toMatch(/min-height:\s*var\(--date-picker-grid-height\)/)
     expect(monthsBlock).toMatch(/align-items:\s*start/)
     expect(monthBlock).toMatch(
@@ -168,11 +163,11 @@ describe('TripWorkspacePage layout scroll contract', () => {
     const actionsBlock = cssBlocks(workspaceCss, '.placeDetailActions')[0] ?? ''
     const primaryActionBlock = cssBlocks(workspaceCss, '.placeDetailActions .primaryAction')[0] ?? ''
 
-    expect(cardBlock).toMatch(/width:\s*min\(22rem,\s*calc\(100% - var\(--space-8\)\)\)/)
+    expect(cardBlock).toMatch(/width:\s*min\(18\.75rem,\s*calc\(100% - var\(--space-8\)\)\)/)
     expect(cardBlock).toMatch(/max-height:\s*min\(28rem,\s*80dvh\)/)
     expect(cardBlock).toMatch(/grid-template-rows:\s*auto minmax\(0,\s*1fr\)/)
     expect(raisedBlock).toMatch(
-      /bottom:\s*calc\(var\(--map-search-results-height\) \+ var\(--space-10\)\)/,
+      /bottom:\s*calc\(var\(--map-search-results-height\) \+ var\(--map-search-results-gap\)\)/,
     )
     expect(heroBlock).toMatch(/aspect-ratio:\s*16 \/ 9/)
     expect(heroBlock).toMatch(/min-height:\s*9\.25rem/)
@@ -194,18 +189,26 @@ describe('TripWorkspacePage layout scroll contract', () => {
     const routeSummaryBlock = cssBlocks(tripMapCss, '.routeSummary')[0] ?? ''
     const shelfBlock = cssBlocks(searchShelfCss, '.shelf')[0] ?? ''
 
-    expect(mapPanelBlock).toMatch(/--map-route-controls-width:\s*18\.5rem/)
-    expect(mapPanelBlock).toMatch(/--map-route-summary-width:\s*13rem/)
+    expect(mapPanelBlock).toMatch(/--map-search-results-height:\s*11\.25rem/)
+    expect(mapPanelBlock).toMatch(/--map-search-results-gap:\s*var\(--space-5\)/)
+    expect(mapPanelBlock).toMatch(/--map-route-controls-width:\s*15\.25rem/)
+    expect(mapPanelBlock).toMatch(/--map-route-summary-width:\s*12rem/)
+    expect(mapPanelBlock).toMatch(/--map-search-max-width:\s*34rem/)
     expect(mapChromeBlock).toMatch(/width:\s*auto/)
     expect(mapChromeBlock).toMatch(/justify-content:\s*flex-end/)
     expect(routeOverlayBlock).toMatch(/display:\s*grid/)
     expect(routeOverlayBlock).toMatch(/justify-items:\s*end/)
     expect(mapSearchLayoutBlock).toMatch(/display:\s*block/)
-    expect(routeSummaryBlock).toMatch(
-      /right:\s*calc\(var\(--space-4\) \+ var\(--map-route-controls-width,\s*18\.5rem\) \+ var\(--space-2\)\)/,
+    expect(workspaceCss).toMatch(
+      /width:\s*min\(\s*var\(--map-search-max-width\),\s*calc\(\s*100% - var\(--space-8\) - var\(--map-route-controls-width\) -\s*var\(--map-route-summary-width\) - var\(--space-4\)\s*\)\s*\)/,
     )
-    expect(routeSummaryBlock).toMatch(/width:\s*min\(var\(--map-route-summary-width,\s*13rem\)/)
-    expect(routeSummaryBlock).toMatch(/padding:\s*var\(--space-2\) var\(--space-3\)/)
+    expect(routeSummaryBlock).toMatch(
+      /right:\s*calc\(var\(--space-4\) \+ var\(--map-route-controls-width,\s*15\.25rem\) \+ var\(--space-2\)\)/,
+    )
+    expect(routeSummaryBlock).toMatch(/width:\s*min\(var\(--map-route-summary-width,\s*12rem\)/)
+    expect(routeSummaryBlock).toMatch(/height:\s*42px/)
+    expect(routeSummaryBlock).toMatch(/min-height:\s*42px/)
+    expect(routeSummaryBlock).toMatch(/padding:\s*0 var\(--space-3\)/)
     expect(shelfBlock).toMatch(/right:\s*var\(--space-4\)/)
     expect(shelfBlock).not.toMatch(/right:\s*calc/)
   })

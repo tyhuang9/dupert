@@ -1,21 +1,14 @@
 .list {
+  --activity-dot-gap: 3px;
+  --activity-dot-size: 10px;
+  --activity-marker-center: 50%;
+  --activity-spine-x: 8px;
   position: relative;
   display: grid;
   gap: var(--space-2);
   padding: 0;
   margin: 0;
   list-style: none;
-}
-
-.list::before {
-  content: '';
-  position: absolute;
-  top: 8px;
-  bottom: 8px;
-  left: 7px;
-  width: 2px;
-  border-radius: var(--radius-pill);
-  background: var(--color-surface-border);
 }
 
 .sortableItem {
@@ -25,20 +18,51 @@
   display: grid;
   grid-template-columns: 16px minmax(0, 1fr);
   gap: var(--space-2);
-  align-items: center;
+  align-items: start;
 }
 
-.lastItem::before {
+.sortableItem::before,
+.sortableItem::after {
+  content: '';
+  position: absolute;
+  left: calc(var(--activity-spine-x) - 0.5px);
+  width: 1px;
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-border);
+  pointer-events: none;
+}
+
+.sortableItem::before {
+  top: 0;
+  height: max(0px, calc(var(--activity-marker-center) - (var(--activity-dot-size) / 2) - var(--activity-dot-gap)));
+}
+
+.sortableItem::after {
+  top: calc(var(--activity-marker-center) + (var(--activity-dot-size) / 2) + var(--activity-dot-gap));
+  bottom: calc(-1 * var(--space-2));
+}
+
+.sortableItem:first-child::before {
   display: none;
+}
+
+.lastItem::after {
+  display: none;
+}
+
+.expandedItem {
+  --activity-dot-size: 11px;
+  --activity-marker-center: 24px;
 }
 
 .timelineMarker {
   z-index: 1;
   justify-self: center;
+  align-self: center;
   display: inline-grid;
   place-items: center;
-  width: 9px;
-  height: 9px;
+  width: var(--activity-dot-size);
+  height: var(--activity-dot-size);
   border: none;
   border-radius: var(--radius-pill);
   background: color-mix(in srgb, var(--color-primary) 42%, var(--color-surface-border));
@@ -47,6 +71,15 @@
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   box-shadow: 0 0 0 3px var(--color-surface);
+}
+
+.expandedItem .timelineMarker {
+  align-self: start;
+  margin-top: calc(var(--activity-marker-center) - (var(--activity-dot-size) / 2));
+  background: var(--color-primary-active);
+  box-shadow:
+    0 0 0 3px var(--color-surface),
+    0 0 0 5px color-mix(in srgb, var(--color-primary) 16%, transparent);
 }
 
 .cardSlot {
@@ -136,8 +169,6 @@
   }
 
   .timelineMarker {
-    width: 10px;
-    height: 10px;
+    --activity-dot-size: 10px;
   }
-
 }

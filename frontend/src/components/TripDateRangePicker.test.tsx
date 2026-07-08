@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { TripDateRangePicker } from './TripDateRangePicker'
 
-function mockFieldRect() {
+function mockFieldRect(rect: Partial<DOMRect> = {}) {
   const field = screen.getByText('Trip dates').closest('div')
   if (!(field instanceof HTMLElement)) {
     throw new Error('Date range field was not rendered')
@@ -17,6 +17,7 @@ function mockFieldRect() {
     width: 360,
     x: 40,
     y: 48,
+    ...rect,
     toJSON: () => ({}),
   })
 }
@@ -45,11 +46,46 @@ describe('<TripDateRangePicker>', () => {
     expect(dialog).toContainElement(screen.getByRole('button', { name: /next month/i }))
     expect(within(dialog).queryByRole('button', { name: /reset/i })).not.toBeInTheDocument()
     expect(within(dialog).queryByRole('button', { name: /fri, may 1/i })).not.toBeInTheDocument()
-    expect(dialog.style.maxHeight).toBe('')
     expect(dialog).toHaveStyle({
       left: '40px',
+      maxHeight: '613px',
       position: 'fixed',
       top: '143px',
+      width: '760px',
+    })
+  })
+
+  it('opens above the field when there is more room above than below', async () => {
+    const onChange = vi.fn()
+
+    render(
+      <TripDateRangePicker
+        startDate="2026-05-01"
+        endDate=""
+        onChange={onChange}
+      />,
+    )
+    mockFieldRect({
+      bottom: 690,
+      height: 70,
+      left: 82,
+      right: 520,
+      top: 620,
+      width: 438,
+      x: 82,
+      y: 620,
+    })
+
+    await userEvent.click(screen.getByRole('button', { name: /trip dates/i }))
+
+    const dialog = screen.getByRole('dialog', { name: /trip dates/i })
+    expect(dialog).toHaveAttribute('data-placement', 'above')
+    expect(dialog.style.top).toBe('')
+    expect(dialog).toHaveStyle({
+      bottom: '147px',
+      left: '82px',
+      maxHeight: '609px',
+      position: 'fixed',
       width: '760px',
     })
   })

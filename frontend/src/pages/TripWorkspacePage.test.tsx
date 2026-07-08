@@ -720,6 +720,20 @@ describe('<TripWorkspacePage>', () => {
     expect(selectedMapActivities.queryByText('Tsukiji sushi')).not.toBeInTheDocument()
   })
 
+  it('focuses the activity name field when opening a new day activity composer', async () => {
+    mockWorkspace()
+
+    renderWorkspace('/trips/abc234def567/d/2026-05-01')
+
+    await screen.findByRole('heading', { level: 2, name: /friday, may 1/i })
+    await userEvent.click(screen.getAllByRole('button', { name: /^add activity$/i })[0])
+
+    const nameInput = screen.getByRole('textbox', { name: /activity name/i })
+    await waitFor(() => {
+      expect(nameInput).toHaveFocus()
+    })
+  })
+
   it('jumps to the target day after dragging an activity to another day', async () => {
     const dayTwoActivity = {
       ...SAMPLE_ACTIVITY,

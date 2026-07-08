@@ -1148,7 +1148,6 @@ function TripMapContent({
           <strong>
             {formatTravelTime(currentRoute.duration)} total · {(currentRoute.distance / 1000).toFixed(1)} km
           </strong>
-          <span>{routeMappedActivities.length} mapped stops</span>
         </div>
       )}
     </div>

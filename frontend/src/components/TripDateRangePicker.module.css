@@ -118,7 +118,7 @@
   box-sizing: border-box;
   display: grid;
   gap: var(--space-4);
-  overflow: visible;
+  overflow-y: auto;
   overscroll-behavior: contain;
   padding: var(--space-5);
   border: 1px solid var(--date-picker-border);
@@ -128,6 +128,12 @@
   background: var(--date-picker-bg);
   color: var(--date-picker-text);
   box-shadow: var(--shadow-lg);
+}
+
+.datePickerPanel[data-placement='above'] {
+  border-radius: var(--radius-xl);
+  border-bottom-right-radius: 0;
+  border-bottom-left-radius: 0;
 }
 
 .dateNavButton,

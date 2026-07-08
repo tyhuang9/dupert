@@ -83,7 +83,7 @@ function SortableActivityCard({
   return (
     <li
       ref={setNodeRef}
-      className={`${styles.sortableItem} ${isLast ? styles.lastItem : ''} ${isDragging ? styles.dragging : ''}`}
+      className={`${styles.sortableItem} ${isExpanded ? styles.expandedItem : ''} ${isLast ? styles.lastItem : ''} ${isDragging ? styles.dragging : ''}`}
     >
       <span className={styles.timelineMarker} aria-hidden="true">
         {position}

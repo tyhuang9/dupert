@@ -954,27 +954,12 @@
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
-  scrollbar-color: color-mix(in srgb, var(--color-surface-border) 66%, var(--color-surface)) transparent;
-  scrollbar-gutter: stable;
-  scrollbar-width: thin;
+  scrollbar-width: none;
   padding: var(--space-5);
 }
 
 .timelineScroll::-webkit-scrollbar {
-  width: 6px;
-}
-
-.timelineScroll::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.timelineScroll::-webkit-scrollbar-thumb {
-  border-radius: var(--radius-pill);
-  background: color-mix(in srgb, var(--color-surface-border) 66%, var(--color-surface));
-}
-
-.timelineScroll::-webkit-scrollbar-thumb:hover {
-  background: var(--color-border-strong);
+  display: none;
 }
 
 .composer {
@@ -1259,9 +1244,11 @@
   min-height: 0;
   overflow: hidden;
   background: var(--color-surface-3);
-  --map-search-results-height: 9.75rem;
-  --map-route-controls-width: 18.5rem;
-  --map-route-summary-width: 13rem;
+  --map-search-results-height: 11.25rem;
+  --map-search-results-gap: var(--space-5);
+  --map-route-controls-width: 15.25rem;
+  --map-route-summary-width: 12rem;
+  --map-search-max-width: 34rem;
 }
 
 .mapOverlayStack {
@@ -1269,7 +1256,13 @@
   top: var(--space-4);
   left: var(--space-4);
   z-index: 8;
-  width: min(58rem, calc(100% - var(--space-8)));
+  width: min(
+    var(--map-search-max-width),
+    calc(
+      100% - var(--space-8) - var(--map-route-controls-width) -
+      var(--map-route-summary-width) - var(--space-4)
+    )
+  );
   display: grid;
   gap: var(--space-2);
   justify-items: start;
@@ -1370,7 +1363,7 @@
 }
 
 .mapSearchAndStyle {
-  width: min(58rem, 100%);
+  width: min(var(--map-search-max-width), 100%);
   max-width: 100%;
   display: block;
   pointer-events: auto;
@@ -1381,7 +1374,7 @@
   left: var(--space-4);
   bottom: var(--space-4);
   z-index: 7;
-  width: min(22rem, calc(100% - var(--space-8)));
+  width: min(18.75rem, calc(100% - var(--space-8)));
   max-height: min(28rem, 80dvh);
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
@@ -1394,7 +1387,7 @@
 }
 
 .placeDetailCardRaised {
-  bottom: calc(var(--map-search-results-height) + var(--space-10));
+  bottom: calc(var(--map-search-results-height) + var(--map-search-results-gap));
 }
 
 .placeHero {
@@ -1457,8 +1450,8 @@
 .placeDetailBody {
   min-height: 0;
   display: grid;
-  gap: var(--space-3);
-  padding: var(--space-4);
+  gap: var(--space-2);
+  padding: var(--space-3);
   overflow-y: auto;
   scrollbar-width: none;
 }
@@ -1468,6 +1461,7 @@
 }
 
 .placeDetailHeader {
+  min-width: 0;
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -1481,16 +1475,20 @@
   font-size: var(--font-size-base);
   font-weight: 700;
   line-height: 1.25;
+  overflow-wrap: anywhere;
 }
 
 .placeAddress {
   margin: 0;
-  display: inline-flex;
-  align-items: flex-start;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
   gap: var(--space-1);
   color: var(--color-text-muted);
   font-size: var(--font-size-xs);
   line-height: 1.35;
+  overflow-wrap: anywhere;
 }
 
 .placeRating {
@@ -2378,6 +2376,28 @@
   }
 }
 
+@media (max-width: 1180px) {
+  .mapOverlayStack {
+    top: calc(var(--space-4) + 58px);
+    width: min(var(--map-search-max-width), calc(100% - var(--space-8)));
+  }
+
+  .placeDetailCard {
+    top: calc(var(--space-4) + 118px);
+    bottom: var(--space-4);
+    width: min(18.75rem, calc(100% - var(--space-8)));
+    max-height: none;
+  }
+
+  .placeDetailCardRaised {
+    bottom: var(--space-4);
+  }
+
+  .placeHero {
+    display: none;
+  }
+}
+
 @media (max-width: 520px) {
   .railStats,
   .dayTargets {
@@ -2394,7 +2414,7 @@
   }
 
   .mapOverlayStack {
-    top: var(--space-3);
+    top: calc(var(--space-3) + 106px);
     left: var(--space-3);
     width: min(30rem, calc(100% - var(--space-6)));
   }
@@ -2419,17 +2439,13 @@
   .placeDetailCard {
     left: var(--space-3);
     bottom: var(--space-3);
-    width: min(20rem, calc(100% - var(--space-6)));
-    max-height: 76dvh;
+    top: calc(var(--space-3) + 164px);
+    width: min(18.5rem, calc(100% - var(--space-6)));
+    max-height: none;
   }
 
   .placeDetailCardRaised {
-    bottom: calc(var(--map-search-results-height) + var(--space-8));
-  }
-
-  .placeHero {
-    min-height: 8rem;
-    max-height: min(9.5rem, 30dvh);
+    bottom: var(--space-3);
   }
 
   .timelineActivityButton {

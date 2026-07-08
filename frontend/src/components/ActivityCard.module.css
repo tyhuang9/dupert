@@ -9,6 +9,7 @@
   background: var(--color-surface);
   box-shadow: none;
   cursor: pointer;
+  overflow: hidden;
   transition:
     border-color var(--transition-base),
     background-color var(--transition-base),
@@ -53,9 +54,11 @@
   background: color-mix(in srgb, var(--color-surface) 92%, var(--color-primary-softer));
   box-shadow: var(--shadow-soft);
   cursor: default;
+  animation: cardExpandIn 160ms ease-out;
 }
 
 .cardCollapsed .summary {
+  animation: summarySettle 120ms ease-out;
   user-select: none;
 }
 
@@ -187,6 +190,40 @@
   min-width: 0;
   display: grid;
   gap: var(--space-1);
+  transform-origin: top;
+  animation: editorPanelIn 160ms ease-out;
+}
+
+@keyframes cardExpandIn {
+  from {
+    transform: translateY(-2px);
+  }
+
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes editorPanelIn {
+  from {
+    opacity: 0.72;
+    transform: translateY(-4px) scaleY(0.985);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scaleY(1);
+  }
+}
+
+@keyframes summarySettle {
+  from {
+    opacity: 0.82;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
 
 @media (max-width: 560px) {
