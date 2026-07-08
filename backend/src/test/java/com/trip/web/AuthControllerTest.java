@@ -4,6 +4,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -40,6 +41,7 @@ import com.trip.repo.TripMemberRepository;
 import com.trip.repo.TripRepository;
 import com.trip.repo.UserRepository;
 import com.trip.service.auth.JwtService;
+import com.trip.service.auth.AuthEmailDeliveryException;
 import com.trip.service.auth.EmailVerificationOperations;
 import com.trip.service.auth.RefreshTokenService;
 import com.trip.service.auth.RefreshTokenService.IssuedRefreshToken;
@@ -142,6 +144,29 @@ class AuthControllerTest {
             .andExpect(header().doesNotExist("Set-Cookie"));
 
         verify(emailVerificationService).sendInitialVerification(saved);
+        verify(refreshTokenService, never()).issueFor(any(User.class));
+        verify(jwtService, never()).issueAccessToken(any());
+    }
+
+    @Test
+    void registerReturns503AndDeletesPendingUserWhenVerificationEmailFails() throws Exception {
+        when(userRepository.existsByEmailIgnoreCase("alice@example.com")).thenReturn(false);
+        User saved = unverifiedUserWith(42L, "alice@example.com", "Alice");
+        when(userRepository.save(any(User.class))).thenReturn(saved);
+        doThrow(AuthEmailDeliveryException.brevoStatus(
+            "email_verification", 401, "{\"message\":\"sender rejected\"}"))
+            .when(emailVerificationService)
+            .sendInitialVerification(saved);
+
+        mvc.perform(post("/api/auth/register")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(
+                    new RegisterRequest("alice@example.com", "password1234", "Alice"))))
+            .andExpect(status().isServiceUnavailable())
+            .andExpect(jsonPath("$.error").value("email_unavailable"))
+            .andExpect(header().doesNotExist("Set-Cookie"));
+
+        verify(userRepository).delete(saved);
         verify(refreshTokenService, never()).issueFor(any(User.class));
         verify(jwtService, never()).issueAccessToken(any());
     }

@@ -89,7 +89,8 @@ public class GoogleMapsService {
         "routes.duration",
         "routes.polyline.encodedPolyline",
         "routes.legs.distanceMeters",
-        "routes.legs.duration"
+        "routes.legs.duration",
+        "routes.legs.polyline.encodedPolyline"
     );
     private static final Set<String> AUTOCOMPLETE_REQUEST_FIELDS = Set.of(
         "input",
@@ -314,6 +315,7 @@ public class GoogleMapsService {
             ObjectNode normalizedLeg = objectMapper.createObjectNode();
             normalizedLeg.put("distance", legDistance);
             normalizedLeg.put("duration", legDuration);
+            normalizedLeg.set("path", decodedPolyline(leg.path("polyline").path("encodedPolyline").asText("")));
             legs.add(normalizedLeg);
             fallbackDistance += legDistance;
             fallbackDuration += legDuration;

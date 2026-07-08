@@ -30,6 +30,7 @@ function makeAuth(overrides: Partial<AuthContextValue> = {}): AuthContextValue {
     })),
     changePassword: vi.fn(async () => {}),
     requestPasswordReset: vi.fn(async () => {}),
+    resendEmailVerification: vi.fn(async () => {}),
     logout: vi.fn(async () => {}),
     deleteAccount: vi.fn(async () => {}),
     ...overrides,
@@ -139,11 +140,12 @@ describe('<LoginPage>', () => {
     expect(banner).toHaveTextContent(/email or password is incorrect/i)
   })
 
-  it('shows the email_unverified banner on an unverified account', async () => {
+  it('shows the email_unverified banner and can resend verification', async () => {
     const ctx = makeAuth({
       login: vi.fn(async () => {
         throw makeAxiosError(403, { error: 'email_unverified' })
       }),
+      resendEmailVerification: vi.fn(async () => {}),
     })
     renderLogin(ctx)
 
@@ -154,6 +156,58 @@ describe('<LoginPage>', () => {
 
     const banner = await screen.findByRole('alert')
     expect(banner).toHaveTextContent(/verify your account before signing in/i)
+    await user.click(
+      screen.getByRole('button', { name: /resend verification email/i }),
+    )
+
+    expect(ctx.resendEmailVerification).toHaveBeenCalledWith({
+      email: 'me@example.com',
+    })
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      /verification email is on the way/i,
+    )
+  })
+
+  it('shows resend verification rate limits from an unverified login state', async () => {
+    const ctx = makeAuth({
+      login: vi.fn(async () => {
+        throw makeAxiosError(403, { error: 'email_unverified' })
+      }),
+      resendEmailVerification: vi.fn(async () => {
+        throw makeAxiosError(429, { error: 'rate_limited' })
+      }),
+    })
+    renderLogin(ctx)
+
+    const user = userEvent.setup()
+    await user.type(screen.getByLabelText('Email'), 'me@example.com')
+    await user.type(screen.getByLabelText('Password'), 'super-secret-1')
+    await user.click(screen.getByRole('button', { name: /sign in/i }))
+    await screen.findByRole('button', { name: /resend verification email/i })
+
+    await user.click(
+      screen.getByRole('button', { name: /resend verification email/i }),
+    )
+
+    const alerts = await screen.findAllByRole('alert')
+    expect(alerts.at(-1)).toHaveTextContent(/too many attempts/i)
+  })
+
+  it('shows rate limits when password reset requests are throttled', async () => {
+    const ctx = makeAuth({
+      requestPasswordReset: vi.fn(async () => {
+        throw makeAxiosError(429, { error: 'rate_limited' })
+      }),
+    })
+    renderLogin(ctx)
+
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: /forgot password/i }))
+    await user.type(screen.getByLabelText('Email'), 'me@example.com')
+    await user.click(screen.getByRole('button', { name: /send reset email/i }))
+
+    const banner = await screen.findByRole('alert')
+    expect(banner).toHaveTextContent(/too many attempts/i)
   })
 
   it('renders per-field errors from a 400 validation response', async () => {

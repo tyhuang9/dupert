@@ -20,6 +20,7 @@ import axios, { type AxiosError } from 'axios'
 export interface ParsedApiError {
   topMessage: string | null
   fieldErrors: Record<string, string>
+  code: string | null
   /**
    * Visual treatment hint. Network failures (no response) are non-fatal
    * recoverable conditions that the page should style differently from
@@ -37,6 +38,7 @@ interface BackendErrorBody {
 const TOP_MESSAGE_BY_CODE: Record<string, string | null> = {
   invalid_credentials: 'Email or password is incorrect.',
   email_unverified: 'Check your email to verify your account before signing in.',
+  email_unavailable: 'We could not send that email right now. Try again soon.',
   rate_limited: 'Too many attempts. Try again in a few minutes.',
   email_taken: null,
   signup_disabled: 'Signup is temporarily closed.',
@@ -52,6 +54,17 @@ const TOP_MESSAGE_BY_CODE: Record<string, string | null> = {
 
 function isAxiosError(err: unknown): err is AxiosError<BackendErrorBody> {
   return axios.isAxiosError(err)
+}
+
+export function apiErrorCode(err: unknown): string | null {
+  if (!isAxiosError(err) || !err.response) {
+    return null
+  }
+  const body = err.response.data
+  if (body && typeof body === 'object' && typeof body.error === 'string') {
+    return body.error
+  }
+  return null
 }
 
 /**
@@ -94,6 +107,7 @@ export function parseApiError(err: unknown): ParsedApiError {
     return {
       topMessage: 'Something went wrong. Please try again.',
       fieldErrors: {},
+      code: null,
       severity: 'error',
     }
   }
@@ -104,6 +118,7 @@ export function parseApiError(err: unknown): ParsedApiError {
       topMessage:
         "Couldn't reach the server. Check your connection and try again.",
       fieldErrors: {},
+      code: null,
       severity: 'warning',
     }
   }
@@ -111,6 +126,7 @@ export function parseApiError(err: unknown): ParsedApiError {
   const status = err.response.status
   const body = err.response.data
   const code = body && typeof body === 'object' ? body.error : undefined
+  const normalizedCode = typeof code === 'string' ? code : null
   const fieldErrors =
     body && typeof body === 'object' ? extractFieldErrors(body.fieldErrors) : {}
 
@@ -119,6 +135,7 @@ export function parseApiError(err: unknown): ParsedApiError {
     return {
       topMessage: 'Too many attempts. Try again in a few minutes.',
       fieldErrors: {},
+      code: normalizedCode,
       severity: 'error',
     }
   }
@@ -131,6 +148,7 @@ export function parseApiError(err: unknown): ParsedApiError {
           ...fieldErrors,
           email: 'An account with this email already exists.',
         },
+        code,
         severity: 'error',
       }
     }
@@ -141,6 +159,7 @@ export function parseApiError(err: unknown): ParsedApiError {
           ...fieldErrors,
           displayName: 'Please choose a different display name.',
         },
+        code,
         severity: 'error',
       }
     }
@@ -154,6 +173,7 @@ export function parseApiError(err: unknown): ParsedApiError {
           password:
             'This password appears in a known data breach. Please choose a different one.',
         },
+        code,
         severity: 'error',
       }
     }
@@ -161,6 +181,7 @@ export function parseApiError(err: unknown): ParsedApiError {
       return {
         topMessage: TOP_MESSAGE_BY_CODE[code],
         fieldErrors,
+        code,
         severity: 'error',
       }
     }
@@ -172,6 +193,7 @@ export function parseApiError(err: unknown): ParsedApiError {
     return {
       topMessage: 'Please fix the highlighted fields and try again.',
       fieldErrors,
+      code: normalizedCode,
       severity: 'error',
     }
   }
@@ -180,6 +202,7 @@ export function parseApiError(err: unknown): ParsedApiError {
     return {
       topMessage: 'The server blocked this request. Refresh the page and try again.',
       fieldErrors: {},
+      code: normalizedCode,
       severity: 'error',
     }
   }
@@ -188,6 +211,7 @@ export function parseApiError(err: unknown): ParsedApiError {
     return {
       topMessage: 'The server ran into a problem. Please try again.',
       fieldErrors: {},
+      code: normalizedCode,
       severity: 'error',
     }
   }
@@ -195,6 +219,7 @@ export function parseApiError(err: unknown): ParsedApiError {
   return {
     topMessage: 'Something went wrong. Please try again.',
     fieldErrors,
+    code: normalizedCode,
     severity: 'error',
   }
 }

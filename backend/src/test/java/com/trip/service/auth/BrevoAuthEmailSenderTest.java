@@ -1,6 +1,7 @@
 package com.trip.service.auth;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -82,6 +83,31 @@ class BrevoAuthEmailSenderTest {
         assertThat(httpClient.body).doesNotContain("brevo-secret");
     }
 
+    @Test
+    void nonSuccessResponseThrowsSanitizedDeliveryException() {
+        // Simulate a provider rejection. Brevo success is 201; 401 is only for the error path.
+        RecordingHttpClient httpClient = new RecordingHttpClient(
+            401,
+            "{\"message\":\"bad api-key=brevo-secret token=raw-token\"}");
+        BrevoAuthEmailSender sender = new BrevoAuthEmailSender(
+            appProperties(),
+            new ObjectMapper(),
+            httpClient);
+
+        assertThatThrownBy(() -> sender.sendPasswordReset(new PasswordResetEmail(
+                "bob@example.com",
+                "raw-token",
+                OffsetDateTime.parse("2026-07-08T12:00:00Z"))))
+            .isInstanceOfSatisfying(AuthEmailDeliveryException.class, ex -> {
+                assertThat(ex.provider()).isEqualTo("brevo");
+                assertThat(ex.operation()).isEqualTo("password_reset");
+                assertThat(ex.statusCode()).isEqualTo(401);
+                assertThat(ex.providerResponseBody()).contains("<redacted>");
+                assertThat(ex.providerResponseBody()).doesNotContain("brevo-secret", "raw-token");
+                assertThat(ex.getMessage()).doesNotContain("brevo-secret", "raw-token");
+            });
+    }
+
     private static AppProperties appProperties() {
         AppProperties props = new AppProperties();
         props.setPublicFrontendUrl("https://app.example.com/");
@@ -93,11 +119,17 @@ class BrevoAuthEmailSenderTest {
 
     private static final class RecordingHttpClient extends HttpClient {
         private final int statusCode;
+        private final String responseBody;
         private HttpRequest request;
         private String body;
 
         RecordingHttpClient(int statusCode) {
+            this(statusCode, "{}");
+        }
+
+        RecordingHttpClient(int statusCode, String responseBody) {
             this.statusCode = statusCode;
+            this.responseBody = responseBody;
         }
 
         @Override
@@ -155,7 +187,7 @@ class BrevoAuthEmailSenderTest {
                 throws IOException, InterruptedException {
             this.request = request;
             this.body = readBody(request);
-            return stubResponse(statusCode, "{}");
+            return stubResponse(statusCode, responseBody);
         }
 
         @Override

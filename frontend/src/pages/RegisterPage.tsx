@@ -78,6 +78,9 @@ export function RegisterPage() {
   const [errorInfo, setErrorInfo] = useState<ParsedApiError | null>(null)
   const [registrationResult, setRegistrationResult] =
     useState<RegisterResponse | null>(null)
+  const [resendMessage, setResendMessage] = useState<string | null>(null)
+  const [resendError, setResendError] = useState<string | null>(null)
+  const [isResendingVerification, setIsResendingVerification] = useState(false)
   // Server-supplied field errors take precedence over client ones for the
   // fields they cover; merged at render time.
   const [serverFieldErrors, setServerFieldErrors] = useState<
@@ -130,6 +133,8 @@ export function RegisterPage() {
     setErrorInfo(null)
     setServerFieldErrors({})
     setRegistrationResult(null)
+    setResendMessage(null)
+    setResendError(null)
 
     // Client validation: still let the user submit even if the form looks
     // invalid client-side — the spec says "let the server confirm". We just
@@ -156,6 +161,8 @@ export function RegisterPage() {
     try {
       const result = await auth.register({ email, password, displayName })
       setRegistrationResult(result)
+      setResendMessage(null)
+      setResendError(null)
       setIsSubmitting(false)
     } catch (err) {
       const parsed = parseApiError(err)
@@ -178,6 +185,23 @@ export function RegisterPage() {
   const bannerClass = isWarning ? styles.bannerWarning : styles.banner
   const bannerIcon = '!'
 
+  async function onResendVerification() {
+    if (!registrationResult || isResendingVerification) return
+    setIsResendingVerification(true)
+    setResendMessage(null)
+    setResendError(null)
+    try {
+      await auth.resendEmailVerification({ email: registrationResult.email })
+      setResendMessage(
+        'If that account is still waiting, a verification email is on the way.',
+      )
+    } catch (err) {
+      setResendError(parseApiError(err).topMessage)
+    } finally {
+      setIsResendingVerification(false)
+    }
+  }
+
   if (registrationResult) {
     const verificationRequired = registrationResult.status === 'verification_required'
     return (
@@ -196,6 +220,31 @@ export function RegisterPage() {
               ? `We sent a verification link to ${registrationResult.email}.`
               : `${registrationResult.email} can now sign in.`}
           </div>
+          {verificationRequired && resendMessage ? (
+            <div className={styles.bannerSuccess} role="status">
+              {resendMessage}
+            </div>
+          ) : null}
+          {verificationRequired && resendError ? (
+            <div className={styles.banner} role="alert">
+              <span className={styles.bannerIcon} aria-hidden="true">
+                {bannerIcon}
+              </span>
+              <span>{resendError}</span>
+            </div>
+          ) : null}
+          {verificationRequired ? (
+            <button
+              type="button"
+              className={styles.textButton}
+              onClick={onResendVerification}
+              disabled={isResendingVerification}
+            >
+              {isResendingVerification
+                ? 'Sending…'
+                : 'Resend verification email'}
+            </button>
+          ) : null}
           <p className={styles.altLink}>
             <Link to={loginHref}>Back to sign in</Link>
           </p>

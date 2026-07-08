@@ -18,7 +18,7 @@ import {
   type MapMouseEvent,
 } from '@vis.gl/react-google-maps'
 import { AlertCircle, LoaderCircle, MapPin, MapPinned, Route } from 'lucide-react'
-import { getDrivingDirections, type AppRoute } from '../api/googleMapsRoute'
+import { getDrivingDirections, type AppRoute, type LatLng } from '../api/googleMapsRoute'
 import { geocodeDestination, type DestinationCoordinate } from '../api/googleMapsGeocode'
 import type { Activity } from '../types/activity'
 import type { PlaceSelection } from '../types/place'
@@ -44,7 +44,6 @@ interface TripMapProps {
   routeActivities?: Activity[]
   destination: string | null
   mapStyle?: MapStyleId
-  onMapStyleChange?: (mapStyle: MapStyleId) => void
   previewPlace?: MapPreviewPlace | null
   searchResults?: MapSearchPlace[]
   selectedSearchResultId?: string | null
@@ -149,6 +148,19 @@ interface MapCamera {
   zoom: number
 }
 
+interface RouteLegDisplay {
+  fallbackPosition: LatLng
+  id: string
+  index: number
+  label: string
+  path: LatLng[]
+}
+
+interface ActiveRouteLeg {
+  id: string
+  position: LatLng | null
+}
+
 const DEFAULT_CAMERA: MapCamera = {
   center: {
     lat: 39.8283,
@@ -157,16 +169,20 @@ const DEFAULT_CAMERA: MapCamera = {
   zoom: 2.7,
 }
 
-const MAP_TYPE_CONTROL_OPTIONS: google.maps.MapTypeControlOptions = {
-  position: 3 as google.maps.ControlPosition,
-}
+const ROUTE_STYLE = {
+  strokeColor: '#2563eb',
+  strokeOpacity: 0.78,
+  strokeWeight: 4,
+} as const
+
+const ACTIVE_ROUTE_STYLE = {
+  strokeColor: '#1d4ed8',
+  strokeOpacity: 0.95,
+  strokeWeight: 6,
+} as const
 
 function isFiniteCoordinate(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value)
-}
-
-function isMapStyleId(value: unknown): value is MapStyleId {
-  return value === 'roadmap' || value === 'terrain' || value === 'satellite' || value === 'hybrid'
 }
 
 function hasCoordinates(activity: Activity): activity is CoordinateActivity {
@@ -333,6 +349,28 @@ function formatTravelTime(seconds: number): string {
   return remainder > 0 ? `${hours} hr ${remainder} min` : `${hours} hr`
 }
 
+function routeEventPosition(event: google.maps.MapMouseEvent): LatLng | null {
+  const latLng = event.latLng
+  if (!latLng) return null
+  const lat = typeof latLng.lat === 'function' ? latLng.lat() : latLng.lat
+  const lng = typeof latLng.lng === 'function' ? latLng.lng() : latLng.lng
+  return isFiniteCoordinate(lat) && isFiniteCoordinate(lng) ? { lat, lng } : null
+}
+
+function midpointOfPoints(first: LatLng, second: LatLng): LatLng {
+  return {
+    lat: (first.lat + second.lat) / 2,
+    lng: (first.lng + second.lng) / 2,
+  }
+}
+
+function midpointOfPath(path: LatLng[]): LatLng | null {
+  if (path.length === 0) return null
+  const middleIndex = Math.floor(path.length / 2)
+  if (path.length % 2 === 1) return path[middleIndex]
+  return midpointOfPoints(path[middleIndex - 1], path[middleIndex])
+}
+
 const MARKER_PRESS_DEDUPLICATION_MS = 350
 const MARKER_TRAILING_CLICK_SUPPRESSION_MS = 750
 
@@ -469,7 +507,6 @@ function TripMapContent({
   viewportFitKey,
   destination,
   mapStyle = 'roadmap',
-  onMapStyleChange,
   previewPlace = null,
   searchResults = [],
   selectedSearchResultId = null,
@@ -495,6 +532,8 @@ function TripMapContent({
     key: '',
     route: null,
   })
+  const [routeCache, setRouteCache] = useState(() => new globalThis.Map<string, AppRoute | null>())
+  const [activeRouteLeg, setActiveRouteLeg] = useState<ActiveRouteLeg | null>(null)
   const [destinationState, setDestinationState] = useState<{
     coordinate: DestinationCoordinate | null
     error: 'not-found' | 'request-failed' | null
@@ -605,11 +644,14 @@ function TripMapContent({
       routeMappedActivities.map((activity) => `${activity.lng},${activity.lat}`).join(';'),
     [routeMappedActivities],
   )
-  const currentRoute = directionsState.key === routeKey ? directionsState.route : null
+  const hasCachedRoute = routeKey !== '' && routeCache.has(routeKey)
+  const cachedRoute = hasCachedRoute ? routeCache.get(routeKey) ?? null : null
+  const currentRoute = directionsState.key === routeKey ? directionsState.route : cachedRoute
   const routeError = directionsState.key === routeKey ? directionsState.error : null
   const routeLoading =
     routeMappedActivities.length >= 2 &&
-    directionsState.key !== routeKey
+    directionsState.key !== routeKey &&
+    !hasCachedRoute
   const mapLoadFailed =
     apiLoadingStatus === APILoadingStatus.FAILED ||
     apiLoadingStatus === APILoadingStatus.AUTH_FAILURE
@@ -646,21 +688,30 @@ function TripMapContent({
     routeLoading,
     selectedMappedActivities.length,
   ])
-  const routeLegMarkers = useMemo(
+  const routeLegs = useMemo<RouteLegDisplay[]>(
     () =>
-      currentRoute?.legs.flatMap((leg, index) => {
+      (currentRoute?.legs ?? []).flatMap((leg, index) => {
+        if (!leg) return []
         const from = routeMappedActivities[index]
         const to = routeMappedActivities[index + 1]
-        if (!from || !to) return []
+        const legPath = Array.isArray(leg.path) ? leg.path : []
+        if (!from || !to || legPath.length < 2) return []
+        const fallbackPosition = midpointOfPath(legPath) ?? midpointOfPoints(from, to)
         return [{
+          fallbackPosition,
           id: `${from.id}-${to.id}`,
+          index,
           label: formatTravelTime(leg.duration),
-          lat: (from.lat + to.lat) / 2,
-          lng: (from.lng + to.lng) / 2,
+          path: legPath,
         }]
       }) ?? [],
     [currentRoute, routeMappedActivities],
   )
+  const activeRouteLegMarker = activeRouteLeg
+    ? routeLegs.find((leg) => leg.id === activeRouteLeg.id) ?? null
+    : null
+  const activeRouteLegPosition =
+    activeRouteLegMarker ? activeRouteLeg?.position ?? activeRouteLegMarker.fallbackPosition : null
   const baseDisplayKey = useMemo(
     () => baseDisplayStops.map((stop) => `${stop.source}:${stop.lng},${stop.lat}`).join(';'),
     [baseDisplayStops],
@@ -704,23 +755,23 @@ function TripMapContent({
     onMapPlaceClick?.({ clickedAtIso, clickedAtMs, location, placeId, traceId })
   }, [onMapPlaceClick])
 
-  const handleMapTypeIdChanged = useCallback(() => {
-    if (!onMapStyleChange || !map || typeof map.getMapTypeId !== 'function') return
-    const nextMapTypeId = map.getMapTypeId()
-    if (isMapStyleId(nextMapTypeId)) {
-      onMapStyleChange(nextMapTypeId)
-    }
-  }, [map, onMapStyleChange])
-
   useEffect(() => {
     const controller = new AbortController()
     if (routeMappedActivities.length < 2) {
+      return () => controller.abort()
+    }
+    if (routeCache.has(routeKey)) {
       return () => controller.abort()
     }
 
     void getDrivingDirections(routeMappedActivities, controller.signal)
       .then((nextRoute) => {
         if (controller.signal.aborted) return
+        setRouteCache((current) => {
+          const next = new globalThis.Map(current)
+          next.set(routeKey, nextRoute)
+          return next
+        })
         setDirectionsState({ error: null, key: routeKey, route: nextRoute })
       })
       .catch((error: unknown) => {
@@ -734,7 +785,7 @@ function TripMapContent({
       })
 
     return () => controller.abort()
-  }, [routeKey, routeMappedActivities])
+  }, [routeCache, routeKey, routeMappedActivities])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -858,12 +909,11 @@ function TripMapContent({
           mapId={mapId}
           mapTypeId={mapStyle}
           clickableIcons={Boolean(onMapPlaceClick)}
-          disableDefaultUI={false}
+          disableDefaultUI
           fullscreenControl={false}
-          mapTypeControl={Boolean(onMapStyleChange)}
-          mapTypeControlOptions={MAP_TYPE_CONTROL_OPTIONS}
+          mapTypeControl={false}
           streetViewControl={false}
-          zoomControl
+          zoomControl={false}
           gestureHandling="greedy"
           onTilesLoaded={reportViewportContext}
           onCameraChanged={(event: MapCameraChangedEvent) => {
@@ -877,16 +927,38 @@ function TripMapContent({
             })
           }}
           onClick={handleMapClick}
-          onMapTypeIdChanged={handleMapTypeIdChanged}
           reuseMaps
           style={{ width: '100%', height: '100%' }}
         >
-          {currentRoute && currentRoute.path.length > 0 && (
+          {routeLegs.length > 0 ? routeLegs.map((leg) => {
+            const isActive = activeRouteLeg?.id === leg.id
+            const routeStyle = isActive ? ACTIVE_ROUTE_STYLE : ROUTE_STYLE
+            return (
+              <Polyline
+                clickable
+                key={leg.id}
+                path={leg.path}
+                strokeColor={routeStyle.strokeColor}
+                strokeOpacity={routeStyle.strokeOpacity}
+                strokeWeight={routeStyle.strokeWeight}
+                zIndex={isActive ? 2 : 1}
+                onClick={(event) =>
+                  setActiveRouteLeg({ id: leg.id, position: routeEventPosition(event) })
+                }
+                onMouseOver={(event) =>
+                  setActiveRouteLeg({ id: leg.id, position: routeEventPosition(event) })
+                }
+                onMouseOut={() =>
+                  setActiveRouteLeg((current) => current?.id === leg.id ? null : current)
+                }
+              />
+            )
+          }) : currentRoute && Array.isArray(currentRoute.path) && currentRoute.path.length > 0 && (
             <Polyline
               path={currentRoute.path}
-              strokeColor="#2563eb"
-              strokeOpacity={0.82}
-              strokeWeight={4}
+              strokeColor={ROUTE_STYLE.strokeColor}
+              strokeOpacity={ROUTE_STYLE.strokeOpacity}
+              strokeWeight={ROUTE_STYLE.strokeWeight}
             />
           )}
           {displayStops.map((stop) => (
@@ -1009,14 +1081,14 @@ function TripMapContent({
               )}
             </GoogleOverlayMarker>
           ))}
-          {routeLegMarkers.map((leg) => (
+          {activeRouteLegMarker && activeRouteLegPosition && (
             <GoogleOverlayMarker
-              key={leg.id}
-              position={{ lat: leg.lat, lng: leg.lng }}
+              key={activeRouteLegMarker.id}
+              position={activeRouteLegPosition}
             >
-              <span className={styles.durationMarker}>{leg.label}</span>
+              <span className={styles.durationMarker}>{activeRouteLegMarker.label}</span>
             </GoogleOverlayMarker>
-          ))}
+          )}
         </Map>
       </div>
       {mapNotice && (

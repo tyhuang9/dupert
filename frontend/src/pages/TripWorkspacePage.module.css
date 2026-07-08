@@ -99,13 +99,16 @@
 .primaryAction:focus-visible,
 .addActivityButton:focus-visible,
 .exportDayButton:focus-visible,
+.routeToggle:focus-within,
 .shareLink:focus-visible,
 .sidebarAction:focus-visible,
 .pinControl button:focus-visible,
 .calendarControls button:focus-visible,
 .calendarDay:focus-visible,
 .railNav button:focus-visible,
-.mapStyleSelect select:focus-visible,
+.mapStyleTile:focus-visible,
+.mapStyleOption:focus-visible,
+.mapStyleCloseButton:focus-visible,
 .iconOnlyButton:focus-visible,
 .modalInput:focus-visible,
 .timelineActivityEntry:focus-visible,
@@ -559,6 +562,11 @@
   box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.08);
 }
 
+.calendarDayDragTarget,
+.calendarDayDragTarget * {
+  cursor: pointer !important;
+}
+
 .calendarDayOver {
   border-color: var(--color-primary);
   box-shadow:
@@ -774,7 +782,10 @@
 .sidebarAction,
 .calendarControls button,
 .calendarDay,
-.mapStyleSelect select,
+.mapStyleTile,
+.mapStyleOption,
+.mapStyleCloseButton,
+.routeToggle,
 .pinControl button,
 .railNav button,
 .timelineDayToggle,
@@ -913,7 +924,7 @@
 
 .activityDragOverlay article {
   cursor: grabbing;
-  opacity: 0.98;
+  opacity: 0.62;
 }
 
 .avatarStack {
@@ -1244,6 +1255,7 @@
   overflow: hidden;
   background: var(--color-surface-3);
   --map-search-results-height: 9.75rem;
+  --map-route-summary-width: 15.75rem;
 }
 
 .mapOverlayStack {
@@ -1251,7 +1263,7 @@
   top: var(--space-4);
   left: var(--space-4);
   z-index: 8;
-  width: min(35rem, calc(100% - var(--space-8)));
+  width: min(58rem, calc(100% - var(--space-8)));
   display: grid;
   gap: var(--space-2);
   justify-items: start;
@@ -1264,16 +1276,93 @@
 
 .mapChrome {
   position: relative;
-  width: 100%;
+  width: min(var(--map-route-summary-width), calc(100vw - var(--space-8)));
+  max-width: 100%;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  justify-content: flex-start;
+  pointer-events: auto;
+}
+
+.mapRouteOverlay {
+  position: absolute;
+  top: var(--space-4);
+  right: var(--space-4);
+  z-index: 9;
+  max-width: calc(100% - var(--space-8));
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--space-3);
+  justify-content: flex-end;
   pointer-events: none;
 }
 
+.mapRouteOverlay > * {
+  pointer-events: auto;
+}
+
+.routeToggle {
+  position: relative;
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-surface-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: var(--font-size-xs);
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.routeToggle:hover {
+  border-color: var(--color-primary);
+  background: var(--color-primary-softer);
+  color: var(--color-primary-text);
+}
+
+.routeToggle input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.routeToggleControl {
+  width: 1.35rem;
+  height: 1.35rem;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid var(--color-surface-border);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-2);
+  color: var(--color-text-subtle);
+  transition:
+    background-color var(--transition-base),
+    border-color var(--transition-base),
+    color var(--transition-base);
+}
+
+.routeToggle input:checked + .routeToggleControl {
+  border-color: var(--color-primary);
+  background: var(--color-primary);
+  color: var(--color-primary-fg);
+}
+
 .mapSearchOverlay {
-  width: 100%;
+  flex: 1 1 30rem;
+  min-width: min(30rem, 100%);
+}
+
+.mapSearchAndStyle {
+  max-width: 100%;
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  pointer-events: auto;
 }
 
 .placeDetailCard {
@@ -1490,18 +1579,15 @@
 }
 
 .placeMapsAction {
-  min-height: 34px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-1);
-  padding: 0 var(--space-3);
+  width: 34px;
+  height: 34px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
   border: 1px solid var(--color-surface-border);
   border-radius: var(--radius-sm);
   background: var(--color-surface);
-  color: var(--color-text);
-  font-size: var(--font-size-xs);
-  font-weight: 800;
+  color: var(--color-text-muted);
   text-decoration: none;
   transition:
     background-color var(--transition-base),
@@ -1519,41 +1605,306 @@
   flex: 0 0 auto;
 }
 
-.mapStyleSelect {
-  border: 1px solid var(--color-text-subtle);
-  background: rgba(255, 255, 255, 0.94);
-  box-shadow: var(--shadow-sm);
-  pointer-events: auto;
+.mapStyleControl {
+  position: relative;
+  flex: 0 1 auto;
 }
 
-.mapStyleSelect {
+.mapStyleStrip {
+  max-width: min(19rem, calc(100vw - var(--space-8)));
   display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-2);
+  align-items: stretch;
+  gap: var(--space-1);
+  padding: 6px;
+  overflow: hidden;
+  border: 1px solid rgba(194, 198, 214, 0.72);
   border-radius: var(--radius-md);
-  color: var(--color-text-muted);
-  font-size: var(--font-size-xs);
-  font-weight: 800;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: var(--shadow-md);
+  scrollbar-width: none;
+  transition: max-width var(--transition-base);
 }
 
-.mapStyleSelect span {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
+.mapStyleStrip[data-expanded='false'] {
+  max-width: 76px;
+}
+
+.mapStyleStrip[data-expanded='true'] {
+  max-width: min(19rem, calc(100vw - var(--space-8)));
+}
+
+.mapStyleStrip::-webkit-scrollbar {
+  display: none;
+}
+
+.mapStyleTile,
+.mapStyleOption,
+.mapStyleCloseButton {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-muted);
+  font: inherit;
+}
+
+.mapStyleTile,
+.mapStyleOption {
+  min-width: 62px;
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  padding: 0;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.15;
   white-space: nowrap;
 }
 
-.mapStyleSelect select {
-  min-height: 30px;
-  padding: 0 var(--space-8) 0 var(--space-2);
-  border: 0;
-  border-radius: var(--radius-sm);
-  background: var(--color-surface);
-  color: var(--color-text);
-  font: inherit;
-  font-size: var(--font-size-xs);
-  font-weight: 800;
+.mapStyleTile:hover,
+.mapStyleOption:hover,
+.mapStyleTile[data-active='true'],
+.mapStyleOption[data-active='true'] {
+  color: #1f7a8c;
+}
+
+.mapStyleMoreButton {
+  color: #3c4043;
+}
+
+.mapStyleOption:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.mapStyleOption:disabled:hover {
+  color: var(--color-text-muted);
+}
+
+.mapStyleThumbnail {
+  position: relative;
+  width: 58px;
+  height: 58px;
+  display: inline-grid;
+  place-items: center;
+  overflow: hidden;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  background: #eff3f4;
+  color: #2f3135;
+  box-shadow: inset 0 0 0 1px rgba(17, 24, 39, 0.08);
+}
+
+.mapStyleTile[data-active='true'] .mapStyleThumbnail,
+.mapStyleOption[data-active='true'] .mapStyleThumbnail {
+  border-color: #1f7a8c;
+}
+
+.mapStyleThumbnail[data-style='roadmap'] {
+  background:
+    linear-gradient(90deg, transparent 0 40%, #ffffff 40% 60%, transparent 60%),
+    linear-gradient(45deg, transparent 0 46%, #94a3b8 46% 54%, transparent 54%),
+    linear-gradient(135deg, transparent 0 48%, #93c5fd 48% 56%, transparent 56%),
+    linear-gradient(0deg, #d9f2e4 0 30%, #f6f7f1 30% 72%, #c7ecd6 72%);
+}
+
+.mapStyleThumbnail[data-style='satellite'],
+.mapStyleThumbnail[data-style='hybrid'] {
+  background:
+    radial-gradient(circle at 28% 24%, rgba(205, 220, 150, 0.75) 0 13%, transparent 14%),
+    radial-gradient(circle at 78% 72%, rgba(71, 85, 105, 0.9) 0 18%, transparent 19%),
+    linear-gradient(135deg, #475569 0 16%, #768b55 16% 36%, #334155 36% 52%, #7a8b5a 52% 74%, #253349 74%);
+}
+
+.mapStyleThumbnail[data-style='hybrid']::after {
+  content: '';
+  position: absolute;
+  inset: 9px 0 auto;
+  height: 3px;
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: 0 18px 0 rgba(255, 255, 255, 0.82);
+  transform: rotate(-26deg);
+}
+
+.mapStyleThumbnail[data-style='terrain'] {
+  background:
+    radial-gradient(circle at 76% 26%, rgba(255, 255, 255, 0.65) 0 8%, transparent 9%),
+    linear-gradient(140deg, #7f8f74 0 18%, #d8ded0 18% 30%, #a8b09d 30% 46%, #eef1e7 46% 58%, #71806d 58% 78%, #d9dfcf 78%);
+}
+
+.mapStyleThumbnail[data-style='traffic'] {
+  background:
+    linear-gradient(90deg, transparent 0 43%, #ffffff 43% 57%, transparent 57%),
+    linear-gradient(0deg, transparent 0 48%, #facc15 48% 55%, transparent 55%),
+    linear-gradient(45deg, transparent 0 44%, #22c55e 44% 50%, #ef4444 50% 56%, transparent 56%),
+    linear-gradient(0deg, #dcfce7 0 34%, #f8fafc 34% 72%, #dbeafe 72%);
+}
+
+.mapStyleThumbnail[data-style='transit'] {
+  background:
+    radial-gradient(circle at 26% 72%, #ffffff 0 7%, transparent 8%),
+    radial-gradient(circle at 72% 30%, #ffffff 0 7%, transparent 8%),
+    linear-gradient(45deg, transparent 0 44%, #2563eb 44% 54%, transparent 54%),
+    linear-gradient(135deg, transparent 0 45%, #16a34a 45% 54%, transparent 54%),
+    linear-gradient(0deg, #edf7ff 0 44%, #f8fafc 44% 66%, #e8f5e9 66%);
+}
+
+.mapStyleThumbnail[data-style='biking'] {
+  background:
+    radial-gradient(circle at 31% 62%, transparent 0 11%, #166534 12% 16%, transparent 17%),
+    radial-gradient(circle at 68% 62%, transparent 0 11%, #166534 12% 16%, transparent 17%),
+    linear-gradient(30deg, transparent 0 42%, #22c55e 42% 49%, transparent 49%),
+    linear-gradient(150deg, transparent 0 45%, #22c55e 45% 52%, transparent 52%),
+    linear-gradient(0deg, #e7f8ec 0 44%, #f7faf5 44% 74%, #d9f99d 74%);
+}
+
+.mapStyleThumbnail[data-style='street-view'] {
+  background:
+    radial-gradient(circle at 50% 36%, #0f766e 0 13%, transparent 14%),
+    linear-gradient(90deg, transparent 0 44%, #0f766e 44% 56%, transparent 56%),
+    linear-gradient(0deg, #e0f2fe 0 50%, #f8fafc 50%);
+}
+
+.mapStyleThumbnail[data-style='wildfires'] {
+  background:
+    radial-gradient(circle at 38% 62%, #f97316 0 13%, transparent 14%),
+    radial-gradient(circle at 52% 42%, #ef4444 0 14%, transparent 15%),
+    radial-gradient(circle at 60% 65%, #facc15 0 10%, transparent 11%),
+    linear-gradient(0deg, #fef3c7 0 50%, #f8fafc 50%);
+}
+
+.mapStyleThumbnail[data-style='air-quality'] {
+  background:
+    radial-gradient(circle at 32% 40%, rgba(34, 197, 94, 0.82) 0 11%, transparent 12%),
+    radial-gradient(circle at 58% 62%, rgba(59, 130, 246, 0.75) 0 12%, transparent 13%),
+    radial-gradient(circle at 74% 32%, rgba(250, 204, 21, 0.72) 0 9%, transparent 10%),
+    linear-gradient(0deg, #ecfeff 0 52%, #f8fafc 52%);
+}
+
+.mapStyleThumbnail[data-style='travel-time'] {
+  background:
+    conic-gradient(from 0deg, #1d4ed8 0 25%, transparent 25% 100%),
+    radial-gradient(circle, #ffffff 0 45%, transparent 46%),
+    linear-gradient(0deg, #eff6ff 0 100%);
+}
+
+.mapStyleThumbnail[data-style='measure'] {
+  background:
+    repeating-linear-gradient(90deg, #475569 0 2px, transparent 2px 10px),
+    linear-gradient(0deg, #f8fafc 0 100%);
+}
+
+.mapStyleThumbnail[data-style='more'] {
+  background: #f3f4f6;
+}
+
+.mapStyleMenu {
+  position: absolute;
+  top: calc(100% + var(--space-2));
+  right: 0;
+  z-index: 11;
+  width: min(22rem, calc(100vw - var(--space-8)));
+  max-height: min(34rem, calc(100dvh - 9rem));
+  overflow-y: auto;
+  padding: var(--space-3);
+  border: 1px solid rgba(194, 198, 214, 0.72);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: var(--shadow-lg);
+}
+
+.mapStyleMenuHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.mapStyleMenuHeader h3 {
+  margin: 0;
+  color: #2f3135;
+  font-size: var(--font-size-base);
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.mapStyleCloseButton {
+  width: 32px;
+  height: 32px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: var(--radius-pill);
+}
+
+.mapStyleCloseButton:hover {
+  background: #f1f3f4;
+  color: #202124;
+}
+
+.mapStyleOptionGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3) var(--space-2);
+}
+
+.mapStyleMenuDivider {
+  height: 1px;
+  margin: var(--space-3) calc(var(--space-3) * -1);
+  background: rgba(218, 220, 224, 0.9);
+}
+
+.mapStyleMenuSection {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.mapStyleMenuSection h4 {
+  margin: 0;
+  color: #2f3135;
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.mapStyleToolGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3) var(--space-2);
+}
+
+.mapStyleCheckboxRows {
+  display: grid;
+  gap: var(--space-2);
+  padding-top: var(--space-1);
+}
+
+.mapStyleCheckboxRow {
+  min-height: 28px;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: #3c4043;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}
+
+.mapStyleCheckboxRow[aria-disabled='true'] {
+  opacity: 0.72;
+}
+
+.mapStyleCheckbox {
+  width: 16px;
+  height: 16px;
+  display: inline-grid;
+  place-items: center;
+  border: 2px solid #5f6368;
+  border-radius: 2px;
+  color: #fff;
+}
+
+.mapStyleCheckboxRow[data-active='true'] .mapStyleCheckbox {
+  border-color: #1a73e8;
+  background: #1a73e8;
 }
 
 .sectionHeader span {
@@ -2003,10 +2354,6 @@
 }
 
 @media (max-width: 520px) {
-  .mapStyleSelect select {
-    min-height: 44px;
-  }
-
   .railStats,
   .dayTargets {
     grid-template-columns: 1fr;
@@ -2017,6 +2364,7 @@
   }
 
   .mapChrome {
+    width: min(var(--map-route-summary-width), calc(100vw - var(--space-6)));
     display: grid;
   }
 
@@ -2024,6 +2372,31 @@
     top: var(--space-3);
     left: var(--space-3);
     width: min(30rem, calc(100% - var(--space-6)));
+  }
+
+  .mapRouteOverlay {
+    top: var(--space-3);
+    right: var(--space-3);
+    max-width: calc(100% - var(--space-6));
+  }
+
+  .mapSearchAndStyle {
+    flex-wrap: wrap;
+  }
+
+  .mapSearchOverlay {
+    flex-basis: 100%;
+  }
+
+  .mapStyleStrip {
+    max-width: calc(100vw - var(--space-6));
+  }
+
+  .mapStyleMenu {
+    left: 0;
+    right: auto;
+    width: min(22rem, calc(100vw - var(--space-6)));
+    max-height: min(30rem, calc(100dvh - 10rem));
   }
 
   .placeDetailCard {
@@ -2059,12 +2432,6 @@
 
   .modalActions {
     display: grid;
-  }
-}
-
-@media (pointer: coarse) {
-  .mapStyleSelect select {
-    min-height: 44px;
   }
 }
 

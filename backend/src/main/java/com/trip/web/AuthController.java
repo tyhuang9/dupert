@@ -1,9 +1,12 @@
 package com.trip.web;
 
 import java.time.OffsetDateTime;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.core.env.Environment;
 import org.springframework.core.env.Profiles;
 import org.springframework.http.HttpHeaders;
@@ -27,6 +30,7 @@ import com.trip.config.RateLimitRegistry;
 import com.trip.domain.User;
 import com.trip.repo.UserRepository;
 import com.trip.service.auth.AccountService;
+import com.trip.service.auth.AuthEmailDeliveryException;
 import com.trip.service.auth.AuthTokenService;
 import com.trip.service.auth.EmailNormalizer;
 import com.trip.service.auth.EmailVerificationOperations;
@@ -77,6 +81,8 @@ import jakarta.validation.Valid;
 @RestController
 @RequestMapping("/api/auth")
 public class AuthController {
+
+    private static final Logger log = LoggerFactory.getLogger(AuthController.class);
 
     private static final String UNAUTHENTICATED_BODY_KEY = "error";
     private static final String UNAUTHENTICATED_BODY_VALUE = "unauthenticated";
@@ -173,7 +179,21 @@ public class AuthController {
                 .body(new RegisterResponse("verified", saved.getEmail()));
         }
 
-        emailVerificationService.sendInitialVerification(saved);
+        try {
+            emailVerificationService.sendInitialVerification(saved);
+        } catch (AuthEmailDeliveryException e) {
+            userRepository.delete(saved);
+            log.warn(
+                "Registration verification email unavailable userId={} recipientDomain={} provider={} operation={} status={} providerBody={} pendingUserDeleted=true token=<redacted>",
+                saved.getId(),
+                emailDomain(saved.getEmail()),
+                e.provider(),
+                e.operation(),
+                e.statusCode(),
+                e.providerResponseBody());
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(Map.of("error", "email_unavailable"));
+        }
         return ResponseEntity.status(HttpStatus.ACCEPTED)
             .body(new RegisterResponse("verification_required", saved.getEmail()));
     }
@@ -455,6 +475,17 @@ public class AuthController {
             return id;
         }
         return null;
+    }
+
+    private static String emailDomain(String email) {
+        if (email == null || email.isBlank()) {
+            return "<missing>";
+        }
+        int at = email.lastIndexOf('@');
+        if (at < 0 || at == email.length() - 1) {
+            return "<invalid>";
+        }
+        return email.substring(at + 1).toLowerCase(Locale.ROOT);
     }
 
 }

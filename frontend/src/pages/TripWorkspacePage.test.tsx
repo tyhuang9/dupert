@@ -131,7 +131,6 @@ vi.mock('../components/TripMap', () => ({
     mapStyle,
     onActivityActivate,
     onActiveActivityChange,
-    onMapStyleChange,
     onMapPlaceClick,
     onPreviewPlaceClear,
     onSearchResultRemove,
@@ -148,7 +147,6 @@ vi.mock('../components/TripMap', () => ({
     mapStyle?: string
     onActivityActivate?: (activityId: number) => void
     onActiveActivityChange?: (activityId: number | null) => void
-    onMapStyleChange?: (mapStyle: string) => void
     onMapPlaceClick?: (event: {
       clickedAtIso: string
       clickedAtMs: number
@@ -208,9 +206,6 @@ vi.mock('../components/TripMap', () => ({
         })}
       >
         Mock viewport center
-      </button>
-      <button type="button" onClick={() => onMapStyleChange?.('satellite')}>
-        Mock satellite map style
       </button>
       <button
         type="button"
@@ -1036,6 +1031,45 @@ describe('<TripWorkspacePage>', () => {
     expect(screen.queryByText(/mapped stop in view/i)).not.toBeInTheDocument()
   })
 
+  it('toggles selected-day route activities without changing map markers', async () => {
+    const lunch = {
+      ...SAMPLE_ACTIVITY,
+      id: 12,
+      title: 'Lunch stop',
+      lat: 35.6654,
+      lng: 139.7707,
+      orderIndex: 1,
+    }
+    mockWorkspace([SAMPLE_ACTIVITY, lunch])
+
+    renderWorkspace('/trips/abc234def567/d/2026-05-01')
+
+    await screen.findByTestId('trip-map')
+    const selectedMapActivities = within(screen.getByTestId('selected-map-activities'))
+    const routeMapActivities = within(screen.getByTestId('route-map-activities'))
+    const routesToggle = screen.getByRole('checkbox', { name: /routes/i })
+
+    expect(routesToggle).toBeChecked()
+    expect(selectedMapActivities.getByText('Tsukiji sushi')).toBeInTheDocument()
+    expect(selectedMapActivities.getByText('Lunch stop')).toBeInTheDocument()
+    expect(routeMapActivities.getByText('Tsukiji sushi')).toBeInTheDocument()
+    expect(routeMapActivities.getByText('Lunch stop')).toBeInTheDocument()
+
+    await userEvent.click(routesToggle)
+
+    expect(routesToggle).not.toBeChecked()
+    expect(selectedMapActivities.getByText('Tsukiji sushi')).toBeInTheDocument()
+    expect(selectedMapActivities.getByText('Lunch stop')).toBeInTheDocument()
+    expect(routeMapActivities.queryByText('Tsukiji sushi')).not.toBeInTheDocument()
+    expect(routeMapActivities.queryByText('Lunch stop')).not.toBeInTheDocument()
+
+    await userEvent.click(routesToggle)
+
+    expect(routesToggle).toBeChecked()
+    expect(routeMapActivities.getByText('Tsukiji sushi')).toBeInTheDocument()
+    expect(routeMapActivities.getByText('Lunch stop')).toBeInTheDocument()
+  })
+
   it('does not show other-day markers as fallback when the selected day has no mapped activities', async () => {
     const dayOneMappedActivity = {
       ...SAMPLE_ACTIVITY,
@@ -1348,15 +1382,49 @@ describe('<TripWorkspacePage>', () => {
     })).toHaveAttribute('src', 'https://example.com/tokyo-tower-marker.webp')
     expect(within(screen.getByLabelText(/selected map place/i)).getByText(/4\.5 \(10,000 reviews\)/i))
       .toBeInTheDocument()
-    expect(within(screen.getByLabelText(/selected map place/i)).getByRole('link', {
+    const selectedMapPlace = screen.getByLabelText(/selected map place/i)
+    const googleMapsLink = within(selectedMapPlace).getByRole('link', {
       name: /open in google maps/i,
-    })).toHaveAttribute('href', 'https://maps.google.com/?cid=tokyo-tower')
+    })
+    expect(googleMapsLink).toHaveAttribute('href', 'https://maps.google.com/?cid=tokyo-tower')
+    expect(googleMapsLink).not.toHaveTextContent(/open in google maps/i)
 
     await userEvent.click(screen.getByRole('button', { name: /mock activate marker/i }))
     expect(activityCard).toHaveAttribute('aria-expanded', 'true')
 
-    await userEvent.click(screen.getByRole('button', { name: /mock satellite map style/i }))
+    await userEvent.click(screen.getByRole('button', { name: /^default$/i }))
+    await userEvent.click(screen.getByRole('button', { name: /^satellite$/i }))
     expect(screen.getByTestId('map-style')).toHaveTextContent('satellite')
+  })
+
+  it('expands the current map style into the four supported map styles', async () => {
+    mockWorkspace([SAMPLE_ACTIVITY])
+
+    renderWorkspace('/trips/abc234def567/d/2026-05-01')
+
+    await screen.findByTestId('trip-map')
+
+    expect(screen.getByRole('button', { name: /^default$/i })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^satellite$/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^terrain$/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^hybrid$/i })).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: /^default$/i }))
+    const mapStyleGroup = screen.getByRole('group', { name: /^map style$/i })
+    expect(within(mapStyleGroup).getAllByRole('button')).toHaveLength(4)
+    expect(within(mapStyleGroup).getByRole('button', { name: /^default$/i })).toBeInTheDocument()
+    expect(within(mapStyleGroup).getByRole('button', { name: /^satellite$/i })).toBeInTheDocument()
+    expect(within(mapStyleGroup).getByRole('button', { name: /^terrain$/i })).toBeInTheDocument()
+    expect(within(mapStyleGroup).getByRole('button', { name: /^hybrid$/i })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^more$/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^traffic$/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^transit$/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^biking$/i })).not.toBeInTheDocument()
+
+    await userEvent.click(within(mapStyleGroup).getByRole('button', { name: /^hybrid$/i }))
+    expect(screen.getByTestId('map-style')).toHaveTextContent('hybrid')
+    expect(screen.getByRole('button', { name: /^hybrid$/i })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^default$/i })).not.toBeInTheDocument()
   })
 
   it('keeps viewer workspaces read-only while preserving itinerary and map context', async () => {

@@ -214,6 +214,16 @@
   text-decoration-thickness: 2px;
 }
 
+.textButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.textButton:hover:disabled {
+  color: var(--color-primary);
+  text-decoration-thickness: auto;
+}
+
 .textButton:focus-visible {
   outline: var(--focus-ring-width) solid var(--focus-ring-color);
   outline-offset: var(--focus-ring-offset);

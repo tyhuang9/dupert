@@ -8,6 +8,7 @@ import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.Base64;
 import java.util.HexFormat;
+import java.util.Locale;
 import java.util.Optional;
 
 import org.slf4j.Logger;
@@ -72,8 +73,12 @@ public class PasswordResetService {
     @Transactional
     public void requestReset(String email) {
         String normalizedEmail = EmailNormalizer.normalize(email);
+        String recipientDomain = emailDomain(normalizedEmail);
+        log.info("Password reset request received recipientDomain={}", recipientDomain);
         Optional<User> maybeUser = userRepository.findByEmailIgnoreCase(normalizedEmail);
         if (maybeUser.isEmpty()) {
+            log.info("Password reset request completed without email recipientDomain={} matched=false",
+                recipientDomain);
             return;
         }
 
@@ -84,15 +89,36 @@ public class PasswordResetService {
         PasswordResetToken resetToken = new PasswordResetToken(
             user.getId(), generated.hash(), now.plus(RESET_TOKEN_TTL));
         PasswordResetToken saved = passwordResetTokenRepository.save(resetToken);
+        log.info(
+            "Password reset token created userId={} recipientDomain={} expiresAt={} token=<redacted>",
+            user.getId(), recipientDomain, saved.getExpiresAt());
         try {
             emailSender.sendPasswordReset(
                 new PasswordResetEmail(user.getEmail(), generated.raw(), saved.getExpiresAt()));
+            log.info("Password reset email send completed userId={} recipientDomain={} expiresAt={} token=<redacted>",
+                user.getId(), recipientDomain, saved.getExpiresAt());
         } catch (RuntimeException e) {
             saved.revoke(OffsetDateTime.now());
             passwordResetTokenRepository.save(saved);
-            log.warn("Password reset email sender failed for userId={} token=<redacted>",
-                user.getId());
+            logEmailFailure(user.getId(), recipientDomain, e);
         }
+    }
+
+    private void logEmailFailure(long userId, String recipientDomain, RuntimeException exception) {
+        if (exception instanceof AuthEmailDeliveryException delivery) {
+            log.warn(
+                "Password reset email sender failed for userId={} recipientDomain={} provider={} operation={} status={} providerBody={} tokenRevoked=true token=<redacted>",
+                userId,
+                recipientDomain,
+                delivery.provider(),
+                delivery.operation(),
+                delivery.statusCode(),
+                delivery.providerResponseBody());
+            return;
+        }
+        log.warn(
+            "Password reset email sender failed for userId={} recipientDomain={} exception={} tokenRevoked=true token=<redacted>",
+            userId, recipientDomain, exception.getClass().getSimpleName());
     }
 
     @Transactional
@@ -147,6 +173,17 @@ public class PasswordResetService {
 
     private static ValidationException invalidToken() {
         return new ValidationException("invalid_reset_token", "password reset token is invalid");
+    }
+
+    private static String emailDomain(String email) {
+        if (email == null || email.isBlank()) {
+            return "<missing>";
+        }
+        int at = email.lastIndexOf('@');
+        if (at < 0 || at == email.length() - 1) {
+            return "<invalid>";
+        }
+        return email.substring(at + 1).toLowerCase(Locale.ROOT);
     }
 
     private record GeneratedToken(String raw, String hash) {

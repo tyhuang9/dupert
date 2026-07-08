@@ -239,7 +239,7 @@ APP_EMAIL_FROM_NAME=TripPlanner
 
 ## Brevo email setup
 
-Production signup and password-reset email use Brevo transactional email. Local development and tests use a no-op sender, so you do not need Brevo for `SPRING_PROFILES_ACTIVE=local`.
+Production signup and password-reset email use Brevo transactional email. The `local` and `test` profiles use the local logging sender instead, so they log/skip auth email delivery and do not call Brevo. The `dev` and `prod` profiles use Brevo. For local end-to-end Brevo testing, use `SPRING_PROFILES_ACTIVE=dev`; `prod` also enables production cookie/HSTS settings and is not the right localhost profile.
 
 Before enabling public signup in production:
 
@@ -259,6 +259,17 @@ SIGNUP_ENABLED=true
 `APP_EMAIL_FROM_EMAIL` must be a sender Brevo allows for the account. `APP_PUBLIC_FRONTEND_URL` must be the exact browser origin where `/verify-email` and `/reset-password` are served; the backend uses it to build email links.
 
 Keep `SIGNUP_ENABLED=false` in production until the Brevo API key, sender, and public frontend URL are configured. With signup enabled outside `local` and `test`, the backend fails startup if any required email setting is missing.
+
+At backend startup, check the auth email sender log line:
+
+- `Auth email sender active provider=brevo ...` means Brevo is active (`dev`/`prod`).
+- `Auth email sender active provider=local-logging` means the local/test sender is active and emails are not delivered.
+
+If password reset or verification emails are not arriving in `dev`/`prod`, verify:
+
+1. `APP_PUBLIC_FRONTEND_URL` is the frontend origin users open in their browser, with no path, and it serves `/verify-email` and `/reset-password`.
+2. `APP_EMAIL_FROM_EMAIL` is a verified Brevo sender or belongs to a verified Brevo sending domain.
+3. Brevo transactional email accepts the API key and sender; provider rejections are logged with status and a sanitized Brevo response body.
 
 ## Security notes
 

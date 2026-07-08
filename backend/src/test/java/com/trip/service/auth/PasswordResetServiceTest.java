@@ -5,6 +5,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -109,6 +111,30 @@ class PasswordResetServiceTest {
         verify(passwordResetTokenRepository, never()).save(any());
         verify(passwordResetTokenRepository, never()).revokeActiveForUser(any(), any());
         verify(emailSender, never()).sendPasswordReset(any());
+    }
+
+    @Test
+    void requestResetRevokesSavedTokenWhenEmailDeliveryFails() {
+        User user = userWith(42L, "alice@example.com", "Alice");
+        when(userRepository.findByEmailIgnoreCase("alice@example.com"))
+            .thenReturn(Optional.of(user));
+        when(passwordResetTokenRepository.findByTokenHash(anyString())).thenReturn(Optional.empty());
+        when(passwordResetTokenRepository.save(any(PasswordResetToken.class)))
+            .thenAnswer(invocation -> invocation.getArgument(0));
+        doThrow(AuthEmailDeliveryException.brevoStatus(
+            "password_reset", 401, "{\"message\":\"token=raw-token\"}"))
+            .when(emailSender)
+            .sendPasswordReset(any());
+
+        service.requestReset("alice@example.com");
+
+        ArgumentCaptor<PasswordResetToken> tokenCaptor =
+            ArgumentCaptor.forClass(PasswordResetToken.class);
+        verify(passwordResetTokenRepository, times(2)).save(tokenCaptor.capture());
+        PasswordResetToken revoked = tokenCaptor.getAllValues().get(1);
+        assertThat(revoked.getRevokedAt()).isNotNull();
+        assertThat(revoked.isUsableAt(OffsetDateTime.now())).isFalse();
+        verify(passwordResetTokenRepository).revokeActiveForUser(any(), any());
     }
 
     @Test

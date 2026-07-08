@@ -27,6 +27,7 @@ function makeAuth(overrides: Partial<AuthContextValue> = {}): AuthContextValue {
     }),
     changePassword: async () => {},
     requestPasswordReset: async () => {},
+    resendEmailVerification: async () => {},
     logout: async () => {},
     deleteAccount: async () => {},
     ...overrides,

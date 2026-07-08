@@ -123,11 +123,12 @@
 }
 
 .routeSummary {
-  right: var(--space-3);
-  bottom: var(--space-3);
+  top: calc(var(--space-4) + 48px);
+  right: var(--space-4);
+  width: min(var(--map-route-summary-width, 15.75rem), calc(100% - var(--space-6)));
   display: grid;
   gap: var(--space-1);
-  min-width: min(16rem, calc(100% - var(--space-6)));
+  min-width: 0;
   padding: var(--space-3);
   color: var(--color-text);
 }
@@ -239,7 +240,14 @@
   .routeSummary,
   .emptyMapCard {
     right: var(--space-3);
+    width: min(var(--map-route-summary-width, 15.75rem), calc(100% - var(--space-6)));
     min-width: 0;
+  }
+}
+
+@media (max-width: 520px) {
+  .routeSummary {
+    top: calc(var(--space-3) + 92px);
   }
 }
 

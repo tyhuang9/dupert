@@ -20,7 +20,14 @@ const COORDINATES: LatLng[] = [
 const ROUTE: AppRoute = {
   distance: 2400,
   duration: 720,
-  legs: [{ distance: 2400, duration: 720 }],
+  legs: [{
+    distance: 2400,
+    duration: 720,
+    path: [
+      { lat: 35.6586, lng: 139.7454 },
+      { lat: 35.6654, lng: 139.7707 },
+    ],
+  }],
   path: [
     { lat: 35.6586, lng: 139.7454 },
     { lat: 35.6654, lng: 139.7707 },
@@ -31,12 +38,19 @@ function computedRoute(overrides: {
   distanceMeters?: number
   durationMillis?: number
   path?: LatLng[]
-  legs?: Array<{ distanceMeters: number; durationMillis?: number }>
+  legs?: Array<{ distanceMeters: number; durationMillis?: number; path?: LatLng[] }>
 } = {}) {
   return {
     distanceMeters: 2400,
     durationMillis: 720000,
-    legs: [{ distanceMeters: 2400, durationMillis: 720000 }],
+    legs: [{
+      distanceMeters: 2400,
+      durationMillis: 720000,
+      path: [
+        { lat: 35.6586, lng: 139.7454 },
+        { lat: 35.6654, lng: 139.7707 },
+      ],
+    }],
     path: [
       { lat: 35.6586, lng: 139.7454 },
       { lat: 35.6654, lng: 139.7707 },
@@ -76,8 +90,8 @@ describe('google maps route adapter', () => {
       distance: 2400,
       duration: 720,
       legs: [
-        { distance: 1000, duration: 300 },
-        { distance: 1400, duration: 420 },
+        { distance: 1000, duration: 300, path: [] },
+        { distance: 1400, duration: 420, path: [] },
       ],
     })
   })
@@ -102,8 +116,8 @@ describe('google maps route adapter', () => {
       distance: 2400,
       duration: 720,
       legs: [
-        { distance: 1000, duration: 300 },
-        { distance: 1400, duration: 420 },
+        { distance: 1000, duration: 300, path: [] },
+        { distance: 1400, duration: 420, path: [] },
       ],
       path: [
         { lat: 35.6586, lng: 139.7454 },
@@ -131,6 +145,28 @@ describe('google maps route adapter', () => {
     expect(apiMock.history.post[0].url).toBe('/maps/routes/driving')
     expect(JSON.parse(String(apiMock.history.post[0].data))).toEqual({
       coordinates: COORDINATES,
+    })
+  })
+
+  it('normalizes backend driving routes that do not include leg paths', async () => {
+    apiMock.onPost('/maps/routes/driving').reply(200, {
+      distance: 2400,
+      duration: 720,
+      legs: [{ distance: 2400, duration: 720 }],
+      path: [
+        { lat: 35.6586, lng: 139.7454 },
+        { lat: 35.6654, lng: 139.7707 },
+      ],
+    })
+
+    await expect(getDrivingDirections(COORDINATES)).resolves.toEqual({
+      distance: 2400,
+      duration: 720,
+      legs: [{ distance: 2400, duration: 720, path: [] }],
+      path: [
+        { lat: 35.6586, lng: 139.7454 },
+        { lat: 35.6654, lng: 139.7707 },
+      ],
     })
   })
 

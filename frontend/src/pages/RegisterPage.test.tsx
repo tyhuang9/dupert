@@ -30,6 +30,7 @@ function makeAuth(overrides: Partial<AuthContextValue> = {}): AuthContextValue {
     })),
     changePassword: vi.fn(async () => {}),
     requestPasswordReset: vi.fn(async () => {}),
+    resendEmailVerification: vi.fn(async () => {}),
     logout: vi.fn(async () => {}),
     deleteAccount: vi.fn(async () => {}),
     ...overrides,
@@ -156,6 +157,53 @@ describe('<RegisterPage>', () => {
       /verification link to me@example.com/i,
     )
     expect(screen.queryByTestId('post-register')).not.toBeInTheDocument()
+  })
+
+  it('can resend verification from the check-email state', async () => {
+    const ctx = makeAuth({
+      register: vi.fn(async () => ({
+        status: 'verification_required' as const,
+        email: 'me@example.com',
+      })),
+      resendEmailVerification: vi.fn(async () => {}),
+    })
+    renderRegister(ctx)
+
+    const user = userEvent.setup()
+    await user.type(screen.getByLabelText(/email/i), 'me@example.com')
+    await user.type(screen.getByLabelText(/^password$/i), 'super-secret-1234')
+    await user.type(screen.getByLabelText(/display name/i), 'Me')
+    await user.click(screen.getByRole('button', { name: /create account/i }))
+    await screen.findByRole('heading', { name: /check your email/i })
+
+    await user.click(
+      screen.getByRole('button', { name: /resend verification email/i }),
+    )
+
+    expect(ctx.resendEmailVerification).toHaveBeenCalledWith({
+      email: 'me@example.com',
+    })
+    expect(await screen.findAllByRole('status')).toHaveLength(2)
+    expect(screen.getByText(/verification email is on the way/i)).toBeInTheDocument()
+  })
+
+  it('shows email_unavailable when the backend cannot send verification mail', async () => {
+    const ctx = makeAuth({
+      register: vi.fn(async () => {
+        throw makeAxiosError(503, { error: 'email_unavailable' })
+      }),
+    })
+    renderRegister(ctx)
+
+    const user = userEvent.setup()
+    await user.type(screen.getByLabelText(/email/i), 'me@example.com')
+    await user.type(screen.getByLabelText(/^password$/i), 'super-secret-1234')
+    await user.type(screen.getByLabelText(/display name/i), 'Me')
+    await user.click(screen.getByRole('button', { name: /create account/i }))
+
+    const banner = await screen.findByRole('alert')
+    expect(banner).toHaveTextContent(/could not send that email/i)
+    expect(screen.queryByRole('heading', { name: /check your email/i })).not.toBeInTheDocument()
   })
 
   it('shows a field error on email when the server returns email_taken', async () => {

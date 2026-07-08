@@ -5,11 +5,28 @@ export interface LatLng {
   lng: number
 }
 
+export interface AppRouteLeg {
+  distance: number
+  duration: number
+  path: LatLng[]
+}
+
 export interface AppRoute {
   distance: number
   duration: number
   path: LatLng[]
-  legs: Array<{ distance: number; duration: number }>
+  legs: AppRouteLeg[]
+}
+
+interface BackendAppRoute {
+  distance?: number
+  duration?: number
+  path?: LatLng[]
+  legs?: Array<{
+    distance?: number
+    duration?: number
+    path?: LatLng[]
+  }>
 }
 
 const MAX_ROUTE_COORDINATES = 25
@@ -29,7 +46,11 @@ export function normalizeDirectionsResult(
   result: {
     routes?: Array<{
       overview_path?: LatLng[]
-      legs?: Array<{ distance?: { value?: number }; duration?: { value?: number } }>
+      legs?: Array<{
+        distance?: { value?: number }
+        duration?: { value?: number }
+        path?: LatLng[]
+      }>
     }>
   } | null,
 ): AppRoute | null {
@@ -40,6 +61,7 @@ export function normalizeDirectionsResult(
   const legs = (route.legs ?? []).map((leg) => ({
     distance: leg.distance?.value ?? 0,
     duration: leg.duration?.value ?? 0,
+    path: leg.path ?? [],
   }))
   const distance = legs.reduce((sum, leg) => sum + leg.distance, 0)
   const duration = legs.reduce((sum, leg) => sum + leg.duration, 0)
@@ -58,7 +80,11 @@ export function normalizeComputedRoute(
         distanceMeters?: number
         durationMillis?: number
         path?: LatLng[]
-        legs?: Array<{ distanceMeters: number; durationMillis?: number }>
+        legs?: Array<{
+          distanceMeters: number
+          durationMillis?: number
+          path?: LatLng[]
+        }>
       }
     | undefined,
 ): AppRoute | null {
@@ -67,6 +93,7 @@ export function normalizeComputedRoute(
   const legs = route.legs?.map((leg) => ({
     distance: leg.distanceMeters,
     duration: Math.max(0, Math.round((leg.durationMillis ?? 0) / 1000)),
+    path: leg.path ?? [],
   })) ?? []
   const fallbackDistance = legs.reduce((sum, leg) => sum + leg.distance, 0)
   const fallbackDuration = legs.reduce((sum, leg) => sum + leg.duration, 0)
@@ -82,6 +109,25 @@ export function normalizeComputedRoute(
   }
 }
 
+function normalizeBackendRoute(route: BackendAppRoute | null): AppRoute | null {
+  if (!route) return null
+
+  const legs = (route.legs ?? []).map((leg) => ({
+    distance: leg.distance ?? 0,
+    duration: leg.duration ?? 0,
+    path: leg.path ?? [],
+  }))
+  const fallbackDistance = legs.reduce((sum, leg) => sum + leg.distance, 0)
+  const fallbackDuration = legs.reduce((sum, leg) => sum + leg.duration, 0)
+
+  return {
+    distance: route.distance ?? fallbackDistance,
+    duration: route.duration ?? fallbackDuration,
+    path: route.path ?? [],
+    legs,
+  }
+}
+
 export async function getDrivingDirections(
   coordinates: LatLng[],
   signal?: AbortSignal,
@@ -92,10 +138,10 @@ export async function getDrivingDirections(
     .map(({ lat, lng }) => ({ lat, lng }))
   if (routeCoordinates.length < 2) return null
 
-  const response = await apiClient.post<AppRoute | null>(
+  const response = await apiClient.post<BackendAppRoute | null>(
     '/maps/routes/driving',
     { coordinates: routeCoordinates },
     { signal },
   )
-  return response.data
+  return normalizeBackendRoute(response.data)
 }

@@ -54,7 +54,8 @@ import {
   PinOff,
   Plane,
   Plus,
-  Route as TimelineIcon,
+  Route,
+  Timeline as TimelineIcon,
   Share2,
   Settings,
   Star,
@@ -159,6 +160,19 @@ const MAP_SEARCH_THUMBNAIL_WIDTH = 320
 const GOOGLE_MAPS_DIRECTIONS_URL = 'https://www.google.com/maps/dir/'
 const GOOGLE_MAPS_MAX_WAYPOINTS = 9
 const GOOGLE_MAPS_MAX_DIRECTIONS_URL_LENGTH = 2048
+
+interface MapStyleOption {
+  id: MapStyleId
+  label: string
+  thumbnail: string
+}
+
+const MAP_STYLE_OPTIONS: MapStyleOption[] = [
+  { id: 'roadmap', label: 'Default', thumbnail: 'roadmap' },
+  { id: 'satellite', label: 'Satellite', thumbnail: 'satellite' },
+  { id: 'terrain', label: 'Terrain', thumbnail: 'terrain' },
+  { id: 'hybrid', label: 'Hybrid', thumbnail: 'hybrid' },
+]
 
 type MappedActivity = Activity & { lat: number; lng: number }
 
@@ -821,6 +835,56 @@ function PlaceThumbnail({ place }: { place: PlaceSelection }) {
   )
 }
 
+function MapStyleControl({
+  mapStyle,
+  onMapStyleChange,
+}: {
+  mapStyle: MapStyleId
+  onMapStyleChange: (mapStyle: MapStyleId) => void
+}) {
+  const [expanded, setExpanded] = useState(false)
+  const currentStyle =
+    MAP_STYLE_OPTIONS.find((option) => option.id === mapStyle) ?? MAP_STYLE_OPTIONS[0]
+  const visibleOptions = expanded ? MAP_STYLE_OPTIONS : [currentStyle]
+
+  return (
+    <div className={styles.mapStyleControl}>
+      <div
+        className={styles.mapStyleStrip}
+        data-expanded={expanded ? 'true' : 'false'}
+        role="group"
+        aria-label="Map style"
+      >
+        {visibleOptions.map((option) => (
+          <button
+            key={option.id}
+            type="button"
+            className={styles.mapStyleTile}
+            aria-expanded={expanded ? undefined : false}
+            aria-pressed={mapStyle === option.id}
+            data-active={mapStyle === option.id ? 'true' : 'false'}
+            onClick={() => {
+              if (!expanded) {
+                setExpanded(true)
+                return
+              }
+              onMapStyleChange(option.id)
+              setExpanded(false)
+            }}
+          >
+            <span
+              className={styles.mapStyleThumbnail}
+              data-style={option.thumbnail}
+              aria-hidden="true"
+            />
+            <span>{option.label}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function pointerCoordinatesFromEvent(event: Event | null | undefined): PointerCoordinates | null {
   if (!event) return null
   if (
@@ -936,6 +1000,7 @@ function CalendarDayCell({
     !cell.inMonth ? styles.calendarDayOutside : '',
     !cell.inTripRange ? styles.calendarDayDisabled : '',
     showDropTarget && cell.inTripRange ? styles.calendarDayDropTarget : '',
+    showDropTarget && cell.inTripRange ? styles.calendarDayDragTarget : '',
     selected ? styles.calendarDaySelected : '',
     isOver ? styles.calendarDayOver : '',
   ].filter(Boolean).join(' ')
@@ -1558,6 +1623,7 @@ export function TripWorkspacePage() {
   const [sidebarCollapsedAfterTabClick, setSidebarCollapsedAfterTabClick] = useState(false)
   const [collapsedTimelineDays, setCollapsedTimelineDays] = useState<Set<string>>(() => new Set())
   const [mapStyle, setMapStyle] = useState<MapStyleId>('roadmap')
+  const [routesEnabled, setRoutesEnabled] = useState(true)
   const [mapViewportContext, setMapViewportContext] = useState<MapViewportContext | null>(null)
   const [mapLocationTarget, setMapLocationTarget] = useState<MapLocationTarget | null>(null)
   const [mapSearchValue, setMapSearchValue] = useState('')
@@ -3272,34 +3338,6 @@ export function TripWorkspacePage() {
                         </span>
                       ))}
                     </div>
-                    {workspaceMode === 'days' && (
-                      selectedDayMapsExport.url ? (
-                        <a
-                          className={styles.exportDayButton}
-                          href={selectedDayMapsExport.url}
-                          target="_blank"
-                          rel="noreferrer"
-                          title={
-                            selectedDayMapsExport.truncated
-                              ? `Opens ${selectedDayMapsExport.exportedStopCount} of ${selectedDayMapsExport.totalMappedStopCount} mapped stops in Google Maps`
-                              : 'Open this day in Google Maps'
-                          }
-                        >
-                          <ExternalLink size={15} aria-hidden="true" />
-                          Export Day
-                        </a>
-                      ) : (
-                        <button
-                          type="button"
-                          className={styles.exportDayButton}
-                          disabled
-                          title={selectedDayMapsExport.disabledReason ?? undefined}
-                        >
-                          <ExternalLink size={15} aria-hidden="true" />
-                          Export Day
-                        </button>
-                      )
-                    )}
                     {canEditTrip && workspaceMode !== 'timeline' && (
                       <button
                         type="button"
@@ -3446,33 +3484,82 @@ export function TripWorkspacePage() {
                 className={`${styles.panel} ${styles.mapPanel}`}
                 aria-labelledby="map-panel-title"
               >
-                <div className={styles.mapOverlayStack}>
-                  {canEditTrip && (
-                    <div
-                      id="map-search-panel"
-                      className={styles.mapSearchOverlay}
-                      aria-busy={isMapSearchSubmitting}
-                    >
-                      <PlaceSearch
-                        contextLabel={
-                          mapLocationTarget
-                            ? `Updating location for ${mapLocationTarget.activityTitle}`
-                            : undefined
-                        }
-                        focusKey={mapSearchFocusKey}
-                        searchValue={mapSearchValue}
-                        searchOptions={placeSearchOptions}
-                        onPlacePreview={(place) => {
-                          setMapSearchPreview(place)
-                          setSelectedMapClickedPlace(null)
-                          setSelectedMapClickedActivityId(null)
-                        }}
-                        onPlaceSelect={handleMapPlaceSuggestionSelect}
-                        onSearchSubmit={handleMapSearchSubmit}
-                        onSearchValueChange={handleMapSearchValueChange}
-                      />
+                {workspaceMode === 'days' && (
+                  <div className={styles.mapRouteOverlay}>
+                    <div className={styles.mapChrome} aria-label="Map route controls">
+                      <label className={styles.routeToggle}>
+                        <input
+                          type="checkbox"
+                          checked={routesEnabled}
+                          onChange={(event) => setRoutesEnabled(event.currentTarget.checked)}
+                        />
+                        <span className={styles.routeToggleControl} aria-hidden="true">
+                          <Route size={14} />
+                        </span>
+                        <span>Routes</span>
+                      </label>
+                      {selectedDayMapsExport.url ? (
+                        <a
+                          className={styles.exportDayButton}
+                          href={selectedDayMapsExport.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          title={
+                            selectedDayMapsExport.truncated
+                              ? `Opens ${selectedDayMapsExport.exportedStopCount} of ${selectedDayMapsExport.totalMappedStopCount} mapped stops in Google Maps`
+                              : 'Open this day in Google Maps'
+                          }
+                        >
+                          <ExternalLink size={15} aria-hidden="true" />
+                          Export Day
+                        </a>
+                      ) : (
+                        <button
+                          type="button"
+                          className={styles.exportDayButton}
+                          disabled
+                          title={selectedDayMapsExport.disabledReason ?? undefined}
+                        >
+                          <ExternalLink size={15} aria-hidden="true" />
+                          Export Day
+                        </button>
+                      )}
                     </div>
-                  )}
+                  </div>
+                )}
+                <div className={styles.mapOverlayStack}>
+                  <div className={styles.mapSearchAndStyle}>
+                    {canEditTrip && (
+                      <div
+                        id="map-search-panel"
+                        className={styles.mapSearchOverlay}
+                        aria-busy={isMapSearchSubmitting}
+                      >
+                        <PlaceSearch
+                          contextLabel={
+                            mapLocationTarget
+                              ? `Updating location for ${mapLocationTarget.activityTitle}`
+                              : undefined
+                          }
+                          focusKey={mapSearchFocusKey}
+                          searchValue={mapSearchValue}
+                          searchOptions={placeSearchOptions}
+                          onPlacePreview={(place) => {
+                            setMapSearchPreview(place)
+                            setSelectedMapClickedPlace(null)
+                            setSelectedMapClickedActivityId(null)
+                          }}
+                          onPlaceSelect={handleMapPlaceSuggestionSelect}
+                          onSearchSubmit={handleMapSearchSubmit}
+                          onSearchValueChange={handleMapSearchValueChange}
+                        />
+                      </div>
+                    )}
+                    <MapStyleControl
+                      mapStyle={mapStyle}
+                      onMapStyleChange={setMapStyle}
+                    />
+                  </div>
                   <h2 id="map-panel-title" className="sr-only">Map</h2>
                 </div>
                 {canEditTrip && mapDetailPlace && (
@@ -3567,9 +3654,10 @@ export function TripWorkspacePage() {
                             href={mapDetailGoogleMapsUrl}
                             target="_blank"
                             rel="noreferrer"
+                            aria-label="Open in Google Maps"
+                            title="Open in Google Maps"
                           >
                             <ExternalLink size={15} aria-hidden="true" />
-                            Open in Google Maps
                           </a>
                         )}
                         {!isMapDetailLoading && mapDetailPlace.websiteUri && (
@@ -3609,11 +3697,10 @@ export function TripWorkspacePage() {
                   activityMarkerColors={workspaceMode === 'timeline' ? timelineActivityMarkerColors : undefined}
                   activityMarkerMode={workspaceMode === 'timeline' ? 'timeline-days' : 'default'}
                   fallbackActivities={mapFallbackActivities}
-                  routeActivities={workspaceMode === 'days' ? dayActivities : []}
+                  routeActivities={routesEnabled && workspaceMode === 'days' ? dayActivities : []}
                   activeActivityId={visibleActiveActivityId}
                   destination={tripQuery.data.destination}
                   mapStyle={mapStyle}
-                  onMapStyleChange={setMapStyle}
                   previewPlace={mapPreviewPlace}
                   searchResults={visibleMapSearchResults}
                   selectedSearchResultId={selectedMapSearchResult?.placeId ?? null}

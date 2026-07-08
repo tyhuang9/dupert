@@ -10,7 +10,11 @@ import * as authApi from '../api/auth'
 import { refreshSession } from '../api/client'
 import { useAuthStore, useIsAuthenticated, useUser } from './authStore'
 import { AuthContext, type AuthContextValue } from './authContextValue'
-import type { LoginRequest, RegisterRequest } from '../types/auth'
+import type {
+  EmailVerificationResendRequest,
+  LoginRequest,
+  RegisterRequest,
+} from '../types/auth'
 
 interface AuthProviderProps {
   children: ReactNode
@@ -191,6 +195,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
     [],
   )
 
+  const resendEmailVerification = useCallback(
+    async (body: EmailVerificationResendRequest) => {
+      await authApi.resendEmailVerification(body)
+    },
+    [],
+  )
+
   const deleteAccount = useCallback(async () => {
     await authApi.deleteMe()
     clearSession()
@@ -206,6 +217,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       updateProfile,
       changePassword,
       requestPasswordReset,
+      resendEmailVerification,
       logout,
       deleteAccount,
     }),
@@ -218,6 +230,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       updateProfile,
       changePassword,
       requestPasswordReset,
+      resendEmailVerification,
       logout,
       deleteAccount,
     ],

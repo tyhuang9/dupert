@@ -9,6 +9,7 @@ import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.Base64;
 import java.util.HexFormat;
+import java.util.Locale;
 import java.util.Optional;
 
 import org.slf4j.Logger;
@@ -65,21 +66,34 @@ public class EmailVerificationService implements EmailVerificationOperations {
         this.clock = clock;
     }
 
-    @Transactional
+    @Transactional(noRollbackFor = AuthEmailDeliveryException.class)
     @Override
     public void sendInitialVerification(User user) {
         if (user.isEmailVerified()) {
+            log.info("Initial email verification send skipped userId={} reason=already_verified",
+                user.getId());
             return;
         }
-        createAndSend(user);
+        log.info("Initial email verification send requested userId={} recipientDomain={}",
+            user.getId(), emailDomain(user.getEmail()));
+        createAndSend(user, true);
     }
 
     @Transactional
     @Override
     public void resend(String email) {
         String normalizedEmail = EmailNormalizer.normalize(email);
+        String recipientDomain = emailDomain(normalizedEmail);
+        log.info("Email verification resend requested recipientDomain={}", recipientDomain);
         Optional<User> maybeUser = userRepository.findByEmailIgnoreCase(normalizedEmail);
-        if (maybeUser.isEmpty() || maybeUser.get().isEmailVerified()) {
+        if (maybeUser.isEmpty()) {
+            log.info("Email verification resend skipped reason=user_not_found recipientDomain={}",
+                recipientDomain);
+            return;
+        }
+        if (maybeUser.get().isEmailVerified()) {
+            log.info("Email verification resend skipped reason=already_verified userId={} recipientDomain={}",
+                maybeUser.get().getId(), recipientDomain);
             return;
         }
 
@@ -89,16 +103,24 @@ public class EmailVerificationService implements EmailVerificationOperations {
             tokenRepository.findTopByUserIdOrderByCreatedAtDesc(user.getId());
         if (latest.isPresent()
             && latest.get().getCreatedAt().plus(RESEND_COOLDOWN).isAfter(now)) {
+            log.info(
+                "Email verification resend skipped reason=cooldown userId={} recipientDomain={} nextAllowedAt={}",
+                user.getId(),
+                recipientDomain,
+                latest.get().getCreatedAt().plus(RESEND_COOLDOWN));
             return;
         }
 
         long sentToday = tokenRepository.countByUserIdAndCreatedAtAfter(
             user.getId(), now.minus(RESEND_DAILY_WINDOW));
         if (sentToday >= RESEND_DAILY_CAP) {
+            log.info(
+                "Email verification resend skipped reason=daily_cap userId={} recipientDomain={} sentToday={} dailyCap={}",
+                user.getId(), recipientDomain, sentToday, RESEND_DAILY_CAP);
             return;
         }
 
-        createAndSend(user);
+        createAndSend(user, false);
     }
 
     @Transactional
@@ -132,22 +154,51 @@ public class EmailVerificationService implements EmailVerificationOperations {
         }
     }
 
-    private void createAndSend(User user) {
+    private void createAndSend(User user, boolean propagateFailure) {
         OffsetDateTime now = now();
+        String recipientDomain = emailDomain(user.getEmail());
         tokenRepository.revokeActiveForUser(user.getId(), now);
         GeneratedToken generated = generateUniqueToken();
         EmailVerificationToken token = new EmailVerificationToken(
             user.getId(), generated.hash(), now.plus(VERIFICATION_TOKEN_TTL));
         EmailVerificationToken saved = tokenRepository.save(token);
+        log.info(
+            "Email verification token created userId={} recipientDomain={} expiresAt={} propagateFailure={} token=<redacted>",
+            user.getId(), recipientDomain, saved.getExpiresAt(), propagateFailure);
         try {
             emailSender.sendEmailVerification(
                 new EmailVerificationEmail(user.getEmail(), generated.raw(), saved.getExpiresAt()));
+            log.info(
+                "Email verification email send completed userId={} recipientDomain={} expiresAt={} token=<redacted>",
+                user.getId(), recipientDomain, saved.getExpiresAt());
         } catch (RuntimeException e) {
             saved.revoke(now());
             tokenRepository.save(saved);
-            log.warn("Email verification sender failed for userId={} token=<redacted>",
-                user.getId());
+            logEmailFailure("Email verification sender failed", user.getId(), recipientDomain, e);
+            if (propagateFailure) {
+                throw e;
+            }
         }
+    }
+
+    private void logEmailFailure(String message,
+                                 long userId,
+                                 String recipientDomain,
+                                 RuntimeException exception) {
+        if (exception instanceof AuthEmailDeliveryException delivery) {
+            log.warn(
+                "{} for userId={} recipientDomain={} provider={} operation={} status={} providerBody={} tokenRevoked=true token=<redacted>",
+                message,
+                userId,
+                recipientDomain,
+                delivery.provider(),
+                delivery.operation(),
+                delivery.statusCode(),
+                delivery.providerResponseBody());
+            return;
+        }
+        log.warn("{} for userId={} recipientDomain={} exception={} tokenRevoked=true token=<redacted>",
+            message, userId, recipientDomain, exception.getClass().getSimpleName());
     }
 
     private GeneratedToken generateUniqueToken() {
@@ -183,6 +234,17 @@ public class EmailVerificationService implements EmailVerificationOperations {
 
     private static ValidationException invalidToken() {
         return new ValidationException("invalid_verification_token", "email verification token is invalid");
+    }
+
+    private static String emailDomain(String email) {
+        if (email == null || email.isBlank()) {
+            return "<missing>";
+        }
+        int at = email.lastIndexOf('@');
+        if (at < 0 || at == email.length() - 1) {
+            return "<invalid>";
+        }
+        return email.substring(at + 1).toLowerCase(Locale.ROOT);
     }
 
     private record GeneratedToken(String raw, String hash) {

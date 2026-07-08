@@ -2,7 +2,7 @@ import { useId, useRef, useState, type FormEvent } from 'react'
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth'
 import { useIsAuthenticated } from '../auth/authStore'
-import { parseApiError, type ParsedApiError } from '../api/errors'
+import { apiErrorCode, parseApiError, type ParsedApiError } from '../api/errors'
 import { safeReturnPath } from '../auth/safeReturnPath'
 import { usePageTitle } from '../utils/usePageTitle'
 import styles from './AuthForm.module.css'
@@ -31,6 +31,10 @@ export function LoginPage() {
   const [resetMessage, setResetMessage] = useState<string | null>(null)
   const [resetError, setResetError] = useState<string | null>(null)
   const [isResetSubmitting, setIsResetSubmitting] = useState(false)
+  const [unverifiedEmail, setUnverifiedEmail] = useState<string | null>(null)
+  const [resendMessage, setResendMessage] = useState<string | null>(null)
+  const [resendError, setResendError] = useState<string | null>(null)
+  const [isResendingVerification, setIsResendingVerification] = useState(false)
 
   const emailRef = useRef<HTMLInputElement>(null)
   const passwordRef = useRef<HTMLInputElement>(null)
@@ -55,6 +59,9 @@ export function LoginPage() {
     setIsSubmitting(true)
     setErrorInfo(null)
     setFieldErrors({})
+    setUnverifiedEmail(null)
+    setResendMessage(null)
+    setResendError(null)
     try {
       await auth.login({ email, password })
       navigate(returnTo, { replace: true })
@@ -62,6 +69,9 @@ export function LoginPage() {
       const parsed = parseApiError(err)
       setErrorInfo(parsed)
       setFieldErrors(parsed.fieldErrors)
+      if (apiErrorCode(err) === 'email_unverified') {
+        setUnverifiedEmail(email)
+      }
       setIsSubmitting(false)
       // Move focus to the first field that the server flagged so an SR
       // user lands on the offending input immediately.
@@ -89,6 +99,23 @@ export function LoginPage() {
     }
   }
 
+  async function onResendVerification() {
+    if (!unverifiedEmail || isResendingVerification) return
+    setIsResendingVerification(true)
+    setResendMessage(null)
+    setResendError(null)
+    try {
+      await auth.resendEmailVerification({ email: unverifiedEmail })
+      setResendMessage(
+        'If that account is still waiting, a verification email is on the way.',
+      )
+    } catch (err) {
+      setResendError(parseApiError(err).topMessage)
+    } finally {
+      setIsResendingVerification(false)
+    }
+  }
+
   const topMessage = errorInfo?.topMessage ?? null
   const isWarning = errorInfo?.severity === 'warning'
   const bannerClass = isWarning ? styles.bannerWarning : styles.banner
@@ -113,6 +140,19 @@ export function LoginPage() {
               {bannerIcon}
             </span>
             <span>{topMessage}</span>
+          </div>
+        ) : null}
+        {!isPasswordResetMode && resendMessage ? (
+          <div className={styles.bannerSuccess} role="status">
+            {resendMessage}
+          </div>
+        ) : null}
+        {!isPasswordResetMode && resendError ? (
+          <div className={styles.banner} role="alert">
+            <span className={styles.bannerIcon} aria-hidden="true">
+              {bannerIcon}
+            </span>
+            <span>{resendError}</span>
           </div>
         ) : null}
         {isPasswordResetMode && resetMessage ? (
@@ -229,6 +269,18 @@ export function LoginPage() {
               )}
               {isSubmitting ? 'Signing in…' : 'Sign in'}
             </button>
+            {unverifiedEmail ? (
+              <button
+                type="button"
+                className={styles.textButton}
+                onClick={onResendVerification}
+                disabled={isResendingVerification}
+              >
+                {isResendingVerification
+                  ? 'Sending…'
+                  : 'Resend verification email'}
+              </button>
+            ) : null}
             <button
               type="button"
               className={styles.textButton}
@@ -237,6 +289,9 @@ export function LoginPage() {
                 setResetEmail(email)
                 setErrorInfo(null)
                 setFieldErrors({})
+                setUnverifiedEmail(null)
+                setResendMessage(null)
+                setResendError(null)
                 setResetError(null)
                 setResetMessage(null)
               }}

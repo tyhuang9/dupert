@@ -58,6 +58,14 @@ describe('parseApiError', () => {
     expect(result.topMessage).toMatch(/Too many attempts/)
   })
 
+  it('maps email_unavailable (503) before the generic server-error fallback', () => {
+    const result = parseApiError(
+      makeAxiosError(503, { error: 'email_unavailable' }),
+    )
+    expect(result.topMessage).toMatch(/could not send that email/i)
+    expect(result.code).toBe('email_unavailable')
+  })
+
   it('maps forbidden (403) to a blocked-request banner', () => {
     const result = parseApiError(makeAxiosError(403, { error: 'forbidden' }))
     expect(result.topMessage).toMatch(/server blocked/i)

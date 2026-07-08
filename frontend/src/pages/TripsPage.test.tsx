@@ -94,6 +94,7 @@ function makeAuth(overrides: Partial<AuthContextValue> = {}): AuthContextValue {
     })),
     changePassword: vi.fn(async () => {}),
     requestPasswordReset: vi.fn(async () => {}),
+    resendEmailVerification: vi.fn(async () => {}),
     logout: vi.fn(async () => {}),
     deleteAccount: vi.fn(async () => {}),
     ...overrides,

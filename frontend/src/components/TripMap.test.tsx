@@ -19,9 +19,9 @@ const mapMockState = vi.hoisted(() => ({
   apiStatus: 'LOADED',
   clickableIcons: null as null | boolean,
   currentMapTypeId: 'roadmap',
+  disableDefaultUI: null as null | boolean,
   mapTypeId: null as null | string,
   mapTypeControl: null as null | boolean,
-  mapTypeControlOptions: null as null | Record<string, unknown>,
   onCameraChanged: null as null | ((event: {
     detail: {
       bounds?: { north: number; south: number; east: number; west: number }
@@ -36,9 +36,9 @@ const mapMockState = vi.hoisted(() => ({
     }
     stop: () => void
   }) => void),
-  onMapTypeIdChanged: null as null | (() => void),
   onTilesLoaded: null as null | (() => void),
   preventMapHitsAndGesturesFrom: vi.fn(),
+  zoomControl: null as null | boolean,
 }))
 
 vi.mock('../api/googleMapsRoute', () => ({
@@ -72,36 +72,74 @@ vi.mock('@vis.gl/react-google-maps', () => {
     Map: ({
       children,
       clickableIcons,
+      disableDefaultUI,
       mapTypeId,
       mapTypeControl,
-      mapTypeControlOptions,
       onCameraChanged,
       onClick,
-      onMapTypeIdChanged,
       onTilesLoaded,
+      zoomControl,
     }: PropsWithChildren<{
       clickableIcons?: boolean
+      disableDefaultUI?: boolean
       mapTypeId?: string
       mapTypeControl?: boolean
-      mapTypeControlOptions?: Record<string, unknown>
       onCameraChanged?: typeof mapMockState.onCameraChanged
       onClick?: typeof mapMockState.onClick
-      onMapTypeIdChanged?: () => void
       onTilesLoaded?: () => void
+      zoomControl?: boolean
     }>) => {
       mapMockState.clickableIcons = clickableIcons ?? null
+      mapMockState.disableDefaultUI = disableDefaultUI ?? null
       mapMockState.mapTypeId = mapTypeId ?? null
       mapMockState.mapTypeControl = mapTypeControl ?? null
-      mapMockState.mapTypeControlOptions = mapTypeControlOptions ?? null
       mapMockState.onCameraChanged = onCameraChanged ?? null
       mapMockState.onClick = onClick ?? null
-      mapMockState.onMapTypeIdChanged = onMapTypeIdChanged ?? null
       mapMockState.onTilesLoaded = onTilesLoaded ?? null
+      mapMockState.zoomControl = zoomControl ?? null
       return <div data-testid="map">{children}</div>
     },
-    Polyline: ({ children }: { children?: ReactNode }) => (
-      <div data-testid="route-layer">{children}</div>
-    ),
+    Polyline: ({
+      children,
+      onClick,
+      onMouseOut,
+      onMouseOver,
+      path,
+      strokeColor,
+      strokeOpacity,
+      strokeWeight,
+    }: {
+      children?: ReactNode
+      onClick?: (event: { latLng: { lat: () => number; lng: () => number } }) => void
+      onMouseOut?: (event: Record<string, never>) => void
+      onMouseOver?: (event: { latLng: { lat: () => number; lng: () => number } }) => void
+      path?: Array<{ lat: number; lng: number }>
+      strokeColor?: string
+      strokeOpacity?: number
+      strokeWeight?: number
+    }) => {
+      const routeMouseEvent = {
+        latLng: {
+          lat: () => 35.662,
+          lng: () => 139.758,
+        },
+      }
+      return (
+        <button
+          type="button"
+          data-testid="route-layer"
+          data-path-length={path?.length ?? 0}
+          data-stroke-color={strokeColor ?? ''}
+          data-stroke-opacity={strokeOpacity ?? ''}
+          data-stroke-weight={strokeWeight ?? ''}
+          onClick={() => onClick?.(routeMouseEvent)}
+          onMouseEnter={() => onMouseOver?.(routeMouseEvent)}
+          onMouseLeave={() => onMouseOut?.({})}
+        >
+          {children}
+        </button>
+      )
+    },
     useApiLoadingStatus: () => mapMockState.apiStatus,
     useMap: () => googleMap,
   }
@@ -195,7 +233,11 @@ function installGoogleOverlayMock() {
     preventMapHitsAndGesturesFrom: mapMockState.preventMapHitsAndGesturesFrom,
   })
 
-  const googleMock = { maps: { OverlayView: OverlayViewMock } }
+  const googleMock = {
+    maps: {
+      OverlayView: OverlayViewMock,
+    },
+  }
   Object.defineProperty(globalThis, 'google', {
     configurable: true,
     value: googleMock,
@@ -228,18 +270,26 @@ beforeEach(() => {
   mapMockState.apiStatus = 'LOADED'
   mapMockState.clickableIcons = null
   mapMockState.currentMapTypeId = 'roadmap'
+  mapMockState.disableDefaultUI = null
   mapMockState.mapTypeId = null
   mapMockState.mapTypeControl = null
-  mapMockState.mapTypeControlOptions = null
   mapMockState.onCameraChanged = null
   mapMockState.onClick = null
-  mapMockState.onMapTypeIdChanged = null
   mapMockState.onTilesLoaded = null
+  mapMockState.zoomControl = null
   mapMockState.preventMapHitsAndGesturesFrom.mockClear()
   directionsMock.mockResolvedValue({
     distance: 2400,
     duration: 720,
-    legs: [{ distance: 2400, duration: 720 }],
+    legs: [{
+      distance: 2400,
+      duration: 720,
+      path: [
+        { lat: 35.6586, lng: 139.7454 },
+        { lat: 35.662, lng: 139.758 },
+        { lat: 35.6654, lng: 139.7707 },
+      ],
+    }],
     path: [
       { lat: 35.6586, lng: 139.7454 },
       { lat: 35.6654, lng: 139.7707 },
@@ -253,7 +303,7 @@ afterEach(() => {
 })
 
 describe('<TripMap>', () => {
-  it('renders markers, route line, and leg duration labels', async () => {
+  it('renders markers and route legs without showing duration labels by default', async () => {
     render(<TripMap activities={ACTIVITIES} fallbackActivities={[]} destination="Tokyo" />)
 
     expect(screen.getByRole('region', { name: 'Map for Tokyo' })).toBeInTheDocument()
@@ -266,10 +316,79 @@ describe('<TripMap>', () => {
         expect.any(AbortSignal),
       )
     })
-    expect(await screen.findByText('12 min')).toBeInTheDocument()
+    expect(screen.queryByText('12 min')).not.toBeInTheDocument()
     expect(screen.getByText('12 min total · 2.4 km')).toBeInTheDocument()
-    expect(screen.getByTestId('route-layer')).toBeInTheDocument()
+    expect(screen.getByTestId('route-layer')).toHaveAttribute('data-path-length', '3')
     expect(geocodeMock.geocodeDestination).not.toHaveBeenCalled()
+  })
+
+  it('shows only the hovered or tapped route leg duration', async () => {
+    const user = userEvent.setup()
+    render(<TripMap activities={ACTIVITIES} fallbackActivities={[]} destination="Tokyo" />)
+
+    await waitFor(() => {
+      expect(directionsMock).toHaveBeenCalledTimes(1)
+    })
+    const routeLayer = screen.getByTestId('route-layer')
+
+    expect(screen.queryByText('12 min')).not.toBeInTheDocument()
+    await user.hover(routeLayer)
+    expect(await screen.findByText('12 min')).toBeInTheDocument()
+    expect(routeLayer).toHaveAttribute('data-stroke-weight', '6')
+
+    await user.unhover(routeLayer)
+    await waitFor(() => {
+      expect(screen.queryByText('12 min')).not.toBeInTheDocument()
+    })
+
+    await user.click(routeLayer)
+    expect(await screen.findByText('12 min')).toBeInTheDocument()
+  })
+
+  it('falls back to the full route line when route legs have no paths', async () => {
+    directionsMock.mockResolvedValueOnce({
+      distance: 2400,
+      duration: 720,
+      legs: [{
+        distance: 2400,
+        duration: 720,
+      } as NonNullable<Awaited<ReturnType<typeof getDrivingDirections>>>['legs'][number]],
+      path: [
+        { lat: 35.6586, lng: 139.7454 },
+        { lat: 35.6654, lng: 139.7707 },
+      ],
+    })
+
+    render(<TripMap activities={ACTIVITIES} fallbackActivities={[]} destination="Tokyo" />)
+
+    await waitFor(() => {
+      expect(directionsMock).toHaveBeenCalledTimes(1)
+    })
+    expect(screen.getByTestId('route-layer')).toHaveAttribute('data-path-length', '2')
+    expect(screen.getByText('12 min total · 2.4 km')).toBeInTheDocument()
+    expect(screen.queryByText('12 min')).not.toBeInTheDocument()
+  })
+
+  it('ignores undefined cached route legs and falls back to the full route line', async () => {
+    directionsMock.mockResolvedValueOnce({
+      distance: 2400,
+      duration: 720,
+      legs: [
+        undefined as unknown as NonNullable<Awaited<ReturnType<typeof getDrivingDirections>>>['legs'][number],
+      ],
+      path: [
+        { lat: 35.6586, lng: 139.7454 },
+        { lat: 35.6654, lng: 139.7707 },
+      ],
+    })
+
+    render(<TripMap activities={ACTIVITIES} fallbackActivities={[]} destination="Tokyo" />)
+
+    await waitFor(() => {
+      expect(directionsMock).toHaveBeenCalledTimes(1)
+    })
+    expect(screen.getByTestId('route-layer')).toHaveAttribute('data-path-length', '2')
+    expect(screen.getByText('12 min total · 2.4 km')).toBeInTheDocument()
   })
 
   it('shows route calculation state while directions are loading', async () => {
@@ -287,7 +406,15 @@ describe('<TripMap>', () => {
     resolveRoute({
       distance: 2400,
       duration: 720,
-      legs: [{ distance: 2400, duration: 720 }],
+      legs: [{
+        distance: 2400,
+        duration: 720,
+        path: [
+          { lat: 35.6586, lng: 139.7454 },
+          { lat: 35.662, lng: 139.758 },
+          { lat: 35.6654, lng: 139.7707 },
+        ],
+      }],
       path: [
         { lat: 35.6586, lng: 139.7454 },
         { lat: 35.6654, lng: 139.7707 },
@@ -434,6 +561,48 @@ describe('<TripMap>', () => {
     expect(screen.queryByText(/selected-day route/i)).not.toBeInTheDocument()
   })
 
+  it('reuses a successful route when route rendering is toggled off and back on', async () => {
+    const { rerender } = render(
+      <TripMap
+        activities={ACTIVITIES}
+        fallbackActivities={[]}
+        routeActivities={ACTIVITIES}
+        destination="Tokyo"
+      />,
+    )
+
+    await waitFor(() => {
+      expect(directionsMock).toHaveBeenCalledTimes(1)
+    })
+    expect(screen.getByTestId('route-layer')).toBeInTheDocument()
+
+    rerender(
+      <TripMap
+        activities={ACTIVITIES}
+        fallbackActivities={[]}
+        routeActivities={[]}
+        destination="Tokyo"
+      />,
+    )
+
+    expect(screen.getByRole('button', { name: /stop 1: tokyo tower/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /stop 2: tsukiji market/i })).toBeInTheDocument()
+    expect(screen.queryByTestId('route-layer')).not.toBeInTheDocument()
+    expect(screen.queryByText(/selected-day route/i)).not.toBeInTheDocument()
+
+    rerender(
+      <TripMap
+        activities={ACTIVITIES}
+        fallbackActivities={[]}
+        routeActivities={ACTIVITIES}
+        destination="Tokyo"
+      />,
+    )
+
+    expect(screen.getByTestId('route-layer')).toBeInTheDocument()
+    expect(directionsMock).toHaveBeenCalledTimes(1)
+  })
+
   it('numbers timeline markers per day without rendering unscheduled ideas', () => {
     const unscheduledActivity = runtimeActivity({
       id: 22,
@@ -495,7 +664,7 @@ describe('<TripMap>', () => {
     expect(dayTwoFirst.getAttribute('style')).toContain('--marker-accent: #059669')
   })
 
-  it('maps style options to Google map types', () => {
+  it('applies selected map style while keeping native map controls hidden', () => {
     render(
       <TripMap
         activities={[]}
@@ -506,30 +675,10 @@ describe('<TripMap>', () => {
     )
 
     expect(mapMockState.mapTypeId).toBe('terrain')
-  })
-
-  it('uses the native map type control and reports selected style changes', () => {
-    const onMapStyleChange = vi.fn()
-
-    render(
-      <TripMap
-        activities={[]}
-        fallbackActivities={[]}
-        destination={null}
-        mapStyle="roadmap"
-        onMapStyleChange={onMapStyleChange}
-      />,
-    )
-
-    expect(mapMockState.mapTypeControl).toBe(true)
-    expect(mapMockState.mapTypeControlOptions).toEqual(expect.objectContaining({ position: 3 }))
+    expect(mapMockState.disableDefaultUI).toBe(true)
+    expect(mapMockState.mapTypeControl).toBe(false)
+    expect(mapMockState.zoomControl).toBe(false)
     expect(screen.queryByRole('button', { name: /map style/i })).not.toBeInTheDocument()
-
-    mapMockState.currentMapTypeId = 'hybrid'
-    act(() => {
-      mapMockState.onMapTypeIdChanged?.()
-    })
-    expect(onMapStyleChange).toHaveBeenCalledWith('hybrid')
   })
 
   it('reports viewport context on tiles and camera changes', () => {

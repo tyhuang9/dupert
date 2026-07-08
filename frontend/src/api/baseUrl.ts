@@ -29,9 +29,12 @@ export function normalizeBackendApiBaseUrl(value: string | undefined): string {
   return `${normalizeBackendBaseUrl(value)}${BACKEND_API_PATH_PREFIX}`
 }
 
-export const backendBaseUrl = normalizeBackendBaseUrl(
-  import.meta.env.VITE_BACKEND_API_URL as string | undefined,
-)
+const configuredBackendApiUrl =
+  import.meta.env.MODE === 'test'
+    ? undefined
+    : (import.meta.env.VITE_BACKEND_API_URL as string | undefined)
+
+export const backendBaseUrl = normalizeBackendBaseUrl(configuredBackendApiUrl)
 
 export const backendApiBaseUrl = `${backendBaseUrl}${BACKEND_API_PATH_PREFIX}`
 

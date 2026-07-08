@@ -5,6 +5,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -87,6 +89,54 @@ class EmailVerificationServiceTest {
         assertThat(saved.getTokenHash()).doesNotContain(email.token());
         assertThat(email.toString()).doesNotContain(email.token());
         verify(tokenRepository).revokeActiveForUser(42L, NOW);
+    }
+
+    @Test
+    void sendInitialVerificationRevokesTokenAndPropagatesDeliveryFailure() {
+        User user = userWith(42L, "alice@example.com", "Alice");
+        when(tokenRepository.findByTokenHash(anyString())).thenReturn(Optional.empty());
+        when(tokenRepository.save(any(EmailVerificationToken.class)))
+            .thenAnswer(invocation -> invocation.getArgument(0));
+        doThrow(AuthEmailDeliveryException.brevoStatus(
+            "email_verification", 401, "{\"message\":\"token=raw-token\"}"))
+            .when(emailSender)
+            .sendEmailVerification(any());
+
+        assertThatThrownBy(() -> service.sendInitialVerification(user))
+            .isInstanceOf(AuthEmailDeliveryException.class);
+
+        ArgumentCaptor<EmailVerificationToken> tokenCaptor =
+            ArgumentCaptor.forClass(EmailVerificationToken.class);
+        verify(tokenRepository, times(2)).save(tokenCaptor.capture());
+        EmailVerificationToken revoked = tokenCaptor.getAllValues().get(1);
+        assertThat(revoked.getRevokedAt()).isEqualTo(NOW);
+        assertThat(revoked.isUsableAt(NOW)).isFalse();
+        verify(tokenRepository).revokeActiveForUser(42L, NOW);
+    }
+
+    @Test
+    void resendRevokesTokenAndKeepsPublicResponseGenericWhenDeliveryFails() {
+        User user = userWith(42L, "alice@example.com", "Alice");
+        when(userRepository.findByEmailIgnoreCase("alice@example.com"))
+            .thenReturn(Optional.of(user));
+        when(tokenRepository.findTopByUserIdOrderByCreatedAtDesc(42L))
+            .thenReturn(Optional.empty());
+        when(tokenRepository.countByUserIdAndCreatedAtAfter(any(), any()))
+            .thenReturn(0L);
+        when(tokenRepository.findByTokenHash(anyString())).thenReturn(Optional.empty());
+        when(tokenRepository.save(any(EmailVerificationToken.class)))
+            .thenAnswer(invocation -> invocation.getArgument(0));
+        doThrow(AuthEmailDeliveryException.brevoStatus(
+            "email_verification", 401, "{\"message\":\"token=raw-token\"}"))
+            .when(emailSender)
+            .sendEmailVerification(any());
+
+        service.resend("alice@example.com");
+
+        ArgumentCaptor<EmailVerificationToken> tokenCaptor =
+            ArgumentCaptor.forClass(EmailVerificationToken.class);
+        verify(tokenRepository, times(2)).save(tokenCaptor.capture());
+        assertThat(tokenCaptor.getAllValues().get(1).getRevokedAt()).isEqualTo(NOW);
     }
 
     @Test

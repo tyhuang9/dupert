@@ -196,8 +196,10 @@ class GoogleMapsServiceTest {
 
     @Test
     void drivingRouteBuildsGoogleRequestAndNormalizesResponse() {
+        String routeFieldMask = "routes.distanceMeters,routes.duration,routes.polyline.encodedPolyline,"
+            + "routes.legs.distanceMeters,routes.legs.duration,routes.legs.polyline.encodedPolyline";
         when(cacheRepository.findById(any())).thenReturn(Optional.empty());
-        when(googleClient.computeRoute(any(), eq("routes.distanceMeters,routes.duration,routes.polyline.encodedPolyline,routes.legs.distanceMeters,routes.legs.duration")))
+        when(googleClient.computeRoute(any(), eq(routeFieldMask)))
             .thenReturn(json("""
                 {
                   "routes": [
@@ -206,8 +208,16 @@ class GoogleMapsServiceTest {
                       "duration": "720s",
                       "polyline": { "encodedPolyline": "_p~iF~ps|U_ulLnnqC_mqNvxq`@" },
                       "legs": [
-                        { "distanceMeters": 1000, "duration": "300s" },
-                        { "distanceMeters": 1400, "duration": "420s" }
+                        {
+                          "distanceMeters": 1000,
+                          "duration": "300s",
+                          "polyline": { "encodedPolyline": "_p~iF~ps|U_ulLnnqC" }
+                        },
+                        {
+                          "distanceMeters": 1400,
+                          "duration": "420s",
+                          "polyline": { "encodedPolyline": "_p~iF~ps|U_ulLnnqC_mqNvxq`@" }
+                        }
                       ]
                     }
                   ]
@@ -224,9 +234,11 @@ class GoogleMapsServiceTest {
         assertThat(response.path("duration").asLong()).isEqualTo(720);
         assertThat(response.path("legs").size()).isEqualTo(2);
         assertThat(response.path("path").size()).isEqualTo(3);
+        assertThat(response.path("legs").get(0).path("path").size()).isEqualTo(2);
+        assertThat(response.path("legs").get(1).path("path").size()).isEqualTo(3);
 
         ArgumentCaptor<JsonNode> routeRequest = ArgumentCaptor.forClass(JsonNode.class);
-        verify(googleClient).computeRoute(routeRequest.capture(), eq("routes.distanceMeters,routes.duration,routes.polyline.encodedPolyline,routes.legs.distanceMeters,routes.legs.duration"));
+        verify(googleClient).computeRoute(routeRequest.capture(), eq(routeFieldMask));
         assertThat(routeRequest.getValue().path("origin").path("location").path("latLng").path("latitude").asDouble())
             .isEqualTo(35.0);
         assertThat(routeRequest.getValue().path("intermediates").size()).isEqualTo(1);
