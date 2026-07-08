@@ -9,6 +9,12 @@ Trips can be shared two ways:
 
 Multiple viewers see each other's edits live (under a second) without manual refresh.
 
+## Screenshots
+
+![Trip dashboard showing the authenticated trips list](docs/screenshots/trip-dashboard.png)
+
+![Trip workspace with day schedule, mapped stops, and route controls](docs/screenshots/trip-workspace.png)
+
 ## Tech stack
 
 **Backend** — Java 21, Spring Boot 3.5, Gradle, Spring Security, Spring Data JPA, Flyway, JJWT, Bucket4j, PostgreSQL (hosted on [Neon](https://neon.tech)).
