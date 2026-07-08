@@ -45,6 +45,7 @@ interface TripMapProps {
   destination: string | null
   mapStyle?: MapStyleId
   previewPlace?: MapPreviewPlace | null
+  coordinatePreviewPlace?: MapPreviewPlace | null
   searchResults?: MapSearchPlace[]
   selectedSearchResultId?: string | null
   highlightedSearchResultId?: string | null
@@ -56,6 +57,7 @@ interface TripMapProps {
   onActiveActivityChange?: (activityId: number | null) => void
   onMapPlaceClick?: (event: MapPlaceClickEvent) => void
   onPreviewPlaceClear?: () => void
+  onCoordinatePreviewPlaceClear?: () => void
   onSearchResultHoverChange?: (placeId: string | null) => void
   onSearchResultRemove?: (place: MapSearchPlace) => void
   onSearchResultSelect?: (place: MapSearchPlace) => void
@@ -508,6 +510,7 @@ function TripMapContent({
   destination,
   mapStyle = 'roadmap',
   previewPlace = null,
+  coordinatePreviewPlace = null,
   searchResults = [],
   selectedSearchResultId = null,
   highlightedSearchResultId = selectedSearchResultId,
@@ -515,6 +518,7 @@ function TripMapContent({
   onActiveActivityChange,
   onMapPlaceClick,
   onPreviewPlaceClear,
+  onCoordinatePreviewPlaceClear,
   onSearchResultHoverChange,
   onSearchResultRemove,
   onSearchResultSelect,
@@ -578,6 +582,10 @@ function TripMapContent({
     () => previewPlaceToDisplayStop(previewPlace),
     [previewPlace],
   )
+  const coordinatePreviewDisplayStop = useMemo(
+    () => previewPlaceToDisplayStop(coordinatePreviewPlace),
+    [coordinatePreviewPlace],
+  )
   const searchDisplayStops = useMemo(
     () =>
       searchResults.flatMap((place, index) => {
@@ -626,15 +634,20 @@ function TripMapContent({
     const mergedStops = searchDisplayStops.length > 0
       ? [...baseDisplayStops, ...searchDisplayStops]
       : baseDisplayStops
-    if (!previewDisplayStop) return mergedStops
-    const previewAlreadySaved = mergedStops.some(
-      (stop) =>
-        stop.source !== 'destination' &&
-        Math.abs(stop.lat - previewDisplayStop.lat) < 0.000001 &&
-        Math.abs(stop.lng - previewDisplayStop.lng) < 0.000001,
-    )
-    return previewAlreadySaved ? mergedStops : [...mergedStops, previewDisplayStop]
-  }, [baseDisplayStops, previewDisplayStop, searchDisplayStops])
+    const previewStops = [previewDisplayStop, coordinatePreviewDisplayStop]
+      .filter((stop): stop is DisplayStop => stop !== null)
+    if (previewStops.length === 0) return mergedStops
+
+    return previewStops.reduce((stops, previewStop) => {
+      const previewAlreadySaved = stops.some(
+        (stop) =>
+          stop.source !== 'destination' &&
+          Math.abs(stop.lat - previewStop.lat) < 0.000001 &&
+          Math.abs(stop.lng - previewStop.lng) < 0.000001,
+      )
+      return previewAlreadySaved ? stops : [...stops, previewStop]
+    }, mergedStops)
+  }, [baseDisplayStops, coordinatePreviewDisplayStop, previewDisplayStop, searchDisplayStops])
   const camera = useMemo(
     () => initialCamera(baseDisplayStops.length > 0 ? baseDisplayStops : displayStops),
     [baseDisplayStops, displayStops],
@@ -723,6 +736,22 @@ function TripMapContent({
   const selectedSearchDisplayKey = selectedSearchDisplayStop
     ? `${selectedSearchDisplayStop.source}:${selectedSearchDisplayStop.lng},${selectedSearchDisplayStop.lat}`
     : ''
+  const isCoordinatePreviewDisplayStop = useCallback(
+    (stop: DisplayStop) =>
+      Boolean(
+        coordinatePreviewDisplayStop &&
+        Math.abs(stop.lat - coordinatePreviewDisplayStop.lat) < 0.000001 &&
+        Math.abs(stop.lng - coordinatePreviewDisplayStop.lng) < 0.000001,
+      ),
+    [coordinatePreviewDisplayStop],
+  )
+  const previewStopClearHandler = useCallback(
+    (stop: DisplayStop) =>
+      isCoordinatePreviewDisplayStop(stop)
+        ? onCoordinatePreviewPlaceClear
+        : onPreviewPlaceClear,
+    [isCoordinatePreviewDisplayStop, onCoordinatePreviewPlaceClear, onPreviewPlaceClear],
+  )
   const reportViewportContext = useCallback(() => {
     if (!onViewportContextChange) return
     if (!map) return
@@ -971,7 +1000,7 @@ function TripMapContent({
                     ? () => onSearchResultRemove(stop.place as MapSearchPlace)
                     : () => onSearchResultSelect?.(stop.place as MapSearchPlace)
                   : stop.source === 'preview'
-                    ? onPreviewPlaceClear
+                    ? previewStopClearHandler(stop)
                   : stop.activityId !== undefined
                     ? () => onActivityActivate?.(stop.activityId as number)
                     : undefined
@@ -1000,7 +1029,7 @@ function TripMapContent({
                     <MapPin size={17} aria-hidden="true" />
                   </span>
                 </span>
-              ) : stop.source === 'preview' && onPreviewPlaceClear ? (
+              ) : stop.source === 'preview' && previewStopClearHandler(stop) ? (
                 <button
                   type="button"
                   className={[styles.marker, styles.previewMarker].join(' ')}
