@@ -1,0 +1,23 @@
+name: Keep Backend Awake
+
+# Pings the backend health endpoint so hosts with idle timeouts keep the service warm.
+# Configure the KEEP_ALIVE_URL repository secret with the full health endpoint URL,
+# for example: https://my-backend.onrender.com/actuator/health
+on:
+  schedule:
+    # Every 13 minutes keeps the service active while avoiding the synchronized
+    # traffic pattern that can happen with common 5, 10, or 15 minute intervals.
+    - cron: "*/13 * * * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Ping backend health endpoint
+        env:
+          KEEP_ALIVE_URL: ${{ secrets.KEEP_ALIVE_URL }}
+        run: |
+          curl --fail --show-error --silent --location "$KEEP_ALIVE_URL" >/dev/null
+          echo "Backend health endpoint responded successfully."
