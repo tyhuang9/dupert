@@ -2299,9 +2299,6 @@ describe('<TripWorkspacePage>', () => {
     await userEvent.click(screen.getByRole('button', { name: /trip dates/i }))
     const datePickerDialog = screen.getByRole('dialog', { name: /trip dates/i })
     await userEvent.click(within(datePickerDialog).getByRole('button', {
-      name: /fri, may 1/i,
-    }))
-    await userEvent.click(within(datePickerDialog).getByRole('button', {
       name: /choose saturday, may 2, 2026/i,
     }))
     await userEvent.click(within(datePickerDialog).getByRole('button', {
