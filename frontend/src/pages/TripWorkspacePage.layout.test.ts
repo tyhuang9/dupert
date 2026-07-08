@@ -138,6 +138,8 @@ describe('TripWorkspacePage layout scroll contract', () => {
     const gridBlock = cssBlocks(datePickerCss, '.calendarGrid').join('\n')
     const buttonBlock = cssBlocks(datePickerCss, '.calendarDateButton').join('\n')
     const rangeBlock = cssBlocks(datePickerCss, '.calendarDateButton::before')[0] ?? ''
+    const previousButtonBlock = cssBlocks(datePickerCss, '.dateNavButtonPrevious')[0] ?? ''
+    const nextButtonBlock = cssBlocks(datePickerCss, '.dateNavButtonNext')[0] ?? ''
 
     expect(panelBlock).toMatch(/--date-picker-day-size:\s*2\.5rem/)
     expect(panelBlock).toMatch(
@@ -151,8 +153,10 @@ describe('TripWorkspacePage layout scroll contract', () => {
     expect(gridBlock).toMatch(/min-height:\s*var\(--date-picker-grid-height\)/)
     expect(gridBlock).toMatch(/grid-auto-rows:\s*var\(--date-picker-day-size\)/)
     expect(buttonBlock).toMatch(/border:\s*0/)
-    expect(rangeBlock).toMatch(/right:\s*-3px/)
-    expect(rangeBlock).toMatch(/left:\s*-3px/)
+    expect(rangeBlock).toMatch(/right:\s*0/)
+    expect(rangeBlock).toMatch(/left:\s*0/)
+    expect(previousButtonBlock).toMatch(/left:\s*calc\(-1 \* \(var\(--space-5\) \+ 1\.5rem\)\)/)
+    expect(nextButtonBlock).toMatch(/right:\s*calc\(-1 \* \(var\(--space-5\) \+ 1\.5rem\)\)/)
   })
 
   it('keeps the selected-place detail card compact above search results', () => {

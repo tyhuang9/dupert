@@ -169,28 +169,21 @@ export function TripDateRangePicker({
 
     const rect = field.getBoundingClientRect()
     const viewportPadding = 12
-    const gap = 8
+    const gap = -1
     const maxWidth = Math.max(0, window.innerWidth - viewportPadding * 2)
     const compact = maxWidth < 680 || window.innerHeight < 640
     const preferredWidth = compact ? 380 : 760
-    const estimatedHeight = compact ? 504 : 590
     const width = Math.min(Math.max(rect.width, preferredWidth), maxWidth)
     setVisibleMonthCount(compact ? 1 : 2)
     const left = Math.min(
       Math.max(viewportPadding, rect.left),
       Math.max(viewportPadding, window.innerWidth - width - viewportPadding),
     )
-    const spaceBelow = window.innerHeight - rect.bottom - gap - viewportPadding
-    const spaceAbove = rect.top - gap - viewportPadding
-    const opensAbove = spaceBelow < estimatedHeight && spaceAbove > spaceBelow
-    const top = opensAbove
-      ? Math.max(viewportPadding, rect.top - gap - estimatedHeight)
-      : rect.bottom + gap
 
     setPanelStyle({
       left,
       position: 'fixed',
-      top,
+      top: rect.bottom + gap,
       width,
     })
   }, [])
@@ -228,7 +221,7 @@ export function TripDateRangePicker({
     }
   }, [isOpen, updatePanelPosition])
 
-  function openPicker(part: DateRangePart = startDate ? 'end' : 'start') {
+  function openPicker(part: DateRangePart = startDate && !endDate ? 'end' : 'start') {
     if (disabled) return
     setVisibleMonth(rangePickerInitialMonth(startDate, endDate))
     setActivePart(part)
@@ -239,7 +232,7 @@ export function TripDateRangePicker({
     if (activePart === 'start' || !startDate) {
       onChange({
         startDate: dateKey,
-        endDate: endDate && endDate >= dateKey ? endDate : '',
+        endDate: '',
       })
       setActivePart('end')
       return
@@ -250,17 +243,12 @@ export function TripDateRangePicker({
         startDate: dateKey,
         endDate: startDate,
       })
-      setActivePart('end')
+      setActivePart('start')
       return
     }
 
     onChange({ endDate: dateKey })
-  }
-
-  function resetRange() {
-    onChange({ startDate: '', endDate: '' })
     setActivePart('start')
-    setVisibleMonth(getMonthKey(todayDateKey()))
   }
 
   function renderMonth(monthKey: string, monthLabel: string) {
@@ -307,46 +295,6 @@ export function TripDateRangePicker({
       aria-labelledby={dateRangeId}
       id={datePickerId}
     >
-      <div className={styles.datePickerTopbar}>
-        <button
-          type="button"
-          className={styles.datePickerReset}
-          onClick={resetRange}
-          disabled={disabled || (!startDate && !endDate)}
-        >
-          Reset
-        </button>
-        <div className={styles.datePickerSelection}>
-          <button
-            type="button"
-            className={[
-              styles.dateFieldControl,
-              activePart === 'start' ? styles.dateFieldControlActive : '',
-            ].filter(Boolean).join(' ')}
-            onClick={() => {
-              setActivePart('start')
-              setIsOpen(true)
-            }}
-          >
-            <CalendarDays size={16} aria-hidden="true" />
-            {startDate ? formatCompactDate(startDate) : 'Start date'}
-          </button>
-          <button
-            type="button"
-            className={[
-              styles.dateFieldControl,
-              activePart === 'end' ? styles.dateFieldControlActive : '',
-            ].filter(Boolean).join(' ')}
-            onClick={() => {
-              setActivePart('end')
-              setIsOpen(true)
-            }}
-          >
-            {endDate ? formatCompactDate(endDate) : 'End date'}
-          </button>
-        </div>
-      </div>
-
       <div className={styles.datePickerCalendarArea}>
         <button
           type="button"

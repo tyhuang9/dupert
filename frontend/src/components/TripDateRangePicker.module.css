@@ -43,6 +43,11 @@
   box-shadow: var(--shadow-sm);
 }
 
+.dateRangeTrigger[aria-expanded='true'] {
+  border-bottom-right-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
 .dateRangeTrigger[aria-invalid='true'] {
   border-color: var(--color-danger);
 }
@@ -58,10 +63,8 @@
 }
 
 .dateRangeTrigger:focus-visible,
-.dateFieldControl:focus-visible,
 .dateNavButton:focus-visible,
 .calendarDateButton:focus-visible,
-.datePickerReset:focus-visible,
 .datePickerDone:focus-visible {
   outline: var(--focus-ring-width) solid var(--focus-ring-color);
   outline-offset: var(--focus-ring-offset);
@@ -107,7 +110,7 @@
   --date-picker-text: var(--color-text);
   --date-picker-muted: var(--color-text-muted);
   --date-picker-blue: var(--color-primary);
-  --date-picker-range: var(--color-primary-soft);
+  --date-picker-range: color-mix(in srgb, var(--date-picker-blue) 22%, var(--date-picker-bg));
   --date-picker-day-size: 2.5rem;
   --date-picker-grid-height: calc(var(--date-picker-day-size) * 6);
   position: fixed;
@@ -117,73 +120,21 @@
   gap: var(--space-4);
   overflow: visible;
   overscroll-behavior: contain;
-  padding: var(--space-4) var(--space-5) var(--space-5);
+  padding: var(--space-5);
   border: 1px solid var(--date-picker-border);
   border-radius: var(--radius-xl);
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
   background: var(--date-picker-bg);
   color: var(--date-picker-text);
   box-shadow: var(--shadow-lg);
 }
 
-.datePickerTopbar {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: center;
-  gap: var(--space-3);
-  padding-bottom: var(--space-3);
-  border-bottom: 1px solid var(--date-picker-border);
-}
-
-.datePickerReset,
 .dateNavButton,
-.dateFieldControl,
 .calendarDateButton,
 .datePickerDone {
   font: inherit;
   cursor: pointer;
-}
-
-.datePickerReset {
-  border: 0;
-  background: transparent;
-  color: var(--date-picker-blue);
-  font-size: var(--font-size-sm);
-  font-weight: 700;
-}
-
-.datePickerReset:disabled {
-  color: var(--date-picker-muted);
-  cursor: not-allowed;
-  opacity: 0.58;
-}
-
-.datePickerSelection {
-  min-width: 0;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  justify-self: end;
-  gap: var(--space-2);
-}
-
-.dateFieldControl {
-  min-width: 9rem;
-  min-height: 2.75rem;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-2);
-  padding: 0 var(--space-3);
-  border: 1px solid var(--date-picker-border);
-  border-radius: var(--radius-md);
-  background: transparent;
-  color: var(--date-picker-text);
-  font-size: var(--font-size-sm);
-  font-weight: 700;
-}
-
-.dateFieldControlActive {
-  border-color: var(--date-picker-blue);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--date-picker-blue) 18%, transparent);
 }
 
 .datePickerCalendarArea {
@@ -214,11 +165,11 @@
 }
 
 .dateNavButtonPrevious {
-  left: -1.5rem;
+  left: calc(-1 * (var(--space-5) + 1.5rem));
 }
 
 .dateNavButtonNext {
-  right: -1.5rem;
+  right: calc(-1 * (var(--space-5) + 1.5rem));
 }
 
 .datePickerMonths {
@@ -299,8 +250,8 @@
   position: absolute;
   z-index: 0;
   top: 50%;
-  right: -3px;
-  left: -3px;
+  right: 0;
+  left: 0;
   height: 2.5rem;
   background: transparent;
   transform: translateY(-50%);
@@ -328,12 +279,10 @@
 }
 
 .calendarDateStart::before {
-  right: -3px;
   left: 50%;
 }
 
 .calendarDateEnd::before {
-  left: -3px;
   right: 50%;
 }
 
@@ -342,15 +291,11 @@
 }
 
 .calendarDateStart .calendarDateNumber,
+.calendarDateEnd .calendarDateNumber,
 .calendarDateSingle .calendarDateNumber {
+  border-color: var(--date-picker-blue);
   background: var(--date-picker-blue);
   color: var(--color-primary-fg);
-}
-
-.calendarDateEnd .calendarDateNumber {
-  border-color: var(--date-picker-blue);
-  background: var(--date-picker-bg);
-  color: var(--date-picker-text);
 }
 
 .datePickerFooter {
@@ -380,18 +325,8 @@
     --date-picker-day-size: 2.375rem;
   }
 
-  .dateRangeSummary,
-  .datePickerTopbar,
-  .datePickerSelection {
+  .dateRangeSummary {
     grid-template-columns: 1fr;
-  }
-
-  .datePickerSelection {
-    justify-self: stretch;
-  }
-
-  .dateFieldControl {
-    min-width: 0;
   }
 
   .datePickerCalendarArea {
@@ -399,10 +334,10 @@
   }
 
   .dateNavButtonPrevious {
-    left: -0.75rem;
+    left: calc(-1 * (var(--space-5) + 1.5rem));
   }
 
   .dateNavButtonNext {
-    right: -0.75rem;
+    right: calc(-1 * (var(--space-5) + 1.5rem));
   }
 }

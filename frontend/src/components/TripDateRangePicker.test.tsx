@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { TripDateRangePicker } from './TripDateRangePicker'
@@ -43,11 +43,13 @@ describe('<TripDateRangePicker>', () => {
     expect(document.body).toContainElement(dialog)
     expect(dialog).toContainElement(screen.getByRole('button', { name: /previous month/i }))
     expect(dialog).toContainElement(screen.getByRole('button', { name: /next month/i }))
+    expect(within(dialog).queryByRole('button', { name: /reset/i })).not.toBeInTheDocument()
+    expect(within(dialog).queryByRole('button', { name: /fri, may 1/i })).not.toBeInTheDocument()
     expect(dialog.style.maxHeight).toBe('')
     expect(dialog).toHaveStyle({
       left: '40px',
       position: 'fixed',
-      top: '152px',
+      top: '143px',
       width: '760px',
     })
   })
@@ -72,7 +74,7 @@ describe('<TripDateRangePicker>', () => {
     expect(onChange).toHaveBeenCalledWith({ endDate: '2026-05-03' })
   })
 
-  it('updates the end date when reopening an existing range from the trigger', async () => {
+  it('starts a new range when reopening an existing range from the trigger', async () => {
     const onChange = vi.fn()
 
     render(
@@ -89,7 +91,46 @@ describe('<TripDateRangePicker>', () => {
       name: /choose tuesday, may 5, 2026/i,
     }))
 
-    expect(onChange).toHaveBeenCalledWith({ endDate: '2026-05-05' })
+    expect(onChange).toHaveBeenCalledWith({
+      startDate: '2026-05-05',
+      endDate: '',
+    })
+  })
+
+  it('refocuses on the start date after choosing an end date', async () => {
+    const onChange = vi.fn()
+    const { rerender } = render(
+      <TripDateRangePicker
+        startDate="2026-05-01"
+        endDate=""
+        onChange={onChange}
+      />,
+    )
+    mockFieldRect()
+
+    await userEvent.click(screen.getByRole('button', { name: /trip dates/i }))
+    await userEvent.click(screen.getByRole('button', {
+      name: /choose sunday, may 3, 2026/i,
+    }))
+
+    expect(onChange).toHaveBeenLastCalledWith({ endDate: '2026-05-03' })
+
+    rerender(
+      <TripDateRangePicker
+        startDate="2026-05-01"
+        endDate="2026-05-03"
+        onChange={onChange}
+      />,
+    )
+
+    await userEvent.click(screen.getByRole('button', {
+      name: /choose tuesday, may 5, 2026/i,
+    }))
+
+    expect(onChange).toHaveBeenLastCalledWith({
+      startDate: '2026-05-05',
+      endDate: '',
+    })
   })
 
   it('closes the portaled calendar on Escape', async () => {
