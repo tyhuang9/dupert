@@ -1,6 +1,9 @@
 .shell {
   width: min(100% - var(--space-8), 64rem);
-  margin: var(--space-8) auto;
+  min-height: 100vh;
+  min-height: 100dvh;
+  margin: 0 auto;
+  padding-block: var(--space-8);
   color: var(--color-text);
   font-family: var(--font-sans);
 }
@@ -955,7 +958,8 @@
 @media (max-width: 640px) {
   .shell {
     width: min(100% - var(--space-4), 56rem);
-    margin: var(--space-6) auto;
+    margin: 0 auto;
+    padding-block: var(--space-6);
   }
 
   .header {
