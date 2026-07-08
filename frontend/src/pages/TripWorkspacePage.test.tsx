@@ -2286,7 +2286,8 @@ describe('<TripWorkspacePage>', () => {
     renderWorkspace('/trips/abc234def567/d/2026-05-05')
 
     await userEvent.click(await screen.findByRole('button', { name: /^settings$/i }))
-    expect(screen.getByRole('dialog', { name: /trip settings/i })).toBeInTheDocument()
+    const settingsDialog = screen.getByRole('dialog', { name: /trip settings/i })
+    expect(settingsDialog).toBeInTheDocument()
 
     const nameInput = screen.getByLabelText(/trip name/i)
     await userEvent.clear(nameInput)
@@ -2296,10 +2297,14 @@ describe('<TripWorkspacePage>', () => {
     await userEvent.type(destinationInput, 'Kyoto, Japan')
     await userEvent.type(screen.getByLabelText(/cover image url/i), 'https://example.com/kyoto.jpg')
     await userEvent.click(screen.getByRole('button', { name: /trip dates/i }))
-    await userEvent.click(screen.getByRole('button', {
+    const datePickerDialog = screen.getByRole('dialog', { name: /trip dates/i })
+    await userEvent.click(within(datePickerDialog).getByRole('button', {
+      name: /fri, may 1/i,
+    }))
+    await userEvent.click(within(datePickerDialog).getByRole('button', {
       name: /choose saturday, may 2, 2026/i,
     }))
-    await userEvent.click(screen.getByRole('button', {
+    await userEvent.click(within(datePickerDialog).getByRole('button', {
       name: /choose sunday, may 3, 2026/i,
     }))
     expect(screen.queryByText(/round trip/i)).not.toBeInTheDocument()
