@@ -7,6 +7,8 @@ const currentDir = dirname(fileURLToPath(import.meta.url))
 const workspaceCss = readFileSync(join(currentDir, 'TripWorkspacePage.module.css'), 'utf8')
 const tripMapCss = readFileSync(join(currentDir, '../components/TripMap.module.css'), 'utf8')
 const activityFormCss = readFileSync(join(currentDir, '../components/ActivityForm.module.css'), 'utf8')
+const datePickerCss = readFileSync(join(currentDir, '../components/TripDateRangePicker.module.css'), 'utf8')
+const searchShelfCss = readFileSync(join(currentDir, '../components/MapSearchResultsShelf.module.css'), 'utf8')
 
 function cssBlocks(css: string, selector: string) {
   const escapedSelector = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -128,6 +130,31 @@ describe('TripWorkspacePage layout scroll contract', () => {
     expect(tripMapCss).not.toMatch(/min-height:\s*(?:24|30)rem/)
   })
 
+  it('keeps the date picker popup height independent of visible month row count', () => {
+    const panelBlock = cssBlocks(datePickerCss, '.datePickerPanel')[0] ?? ''
+    const areaBlock = cssBlocks(datePickerCss, '.datePickerCalendarArea')[0] ?? ''
+    const monthsBlock = cssBlocks(datePickerCss, '.datePickerMonths')[0] ?? ''
+    const monthBlock = cssBlocks(datePickerCss, '.calendarMonth')[0] ?? ''
+    const gridBlock = cssBlocks(datePickerCss, '.calendarGrid').join('\n')
+    const buttonBlock = cssBlocks(datePickerCss, '.calendarDateButton').join('\n')
+    const rangeBlock = cssBlocks(datePickerCss, '.calendarDateButton::before')[0] ?? ''
+
+    expect(panelBlock).toMatch(/--date-picker-day-size:\s*2\.5rem/)
+    expect(panelBlock).toMatch(
+      /--date-picker-grid-height:\s*calc\(var\(--date-picker-day-size\) \* 6\)/,
+    )
+    expect(areaBlock).toMatch(/min-height:\s*var\(--date-picker-grid-height\)/)
+    expect(monthsBlock).toMatch(/align-items:\s*start/)
+    expect(monthBlock).toMatch(
+      /grid-template-rows:\s*auto auto var\(--date-picker-grid-height\)/,
+    )
+    expect(gridBlock).toMatch(/min-height:\s*var\(--date-picker-grid-height\)/)
+    expect(gridBlock).toMatch(/grid-auto-rows:\s*var\(--date-picker-day-size\)/)
+    expect(buttonBlock).toMatch(/border:\s*0/)
+    expect(rangeBlock).toMatch(/right:\s*-3px/)
+    expect(rangeBlock).toMatch(/left:\s*-3px/)
+  })
+
   it('keeps the selected-place detail card compact above search results', () => {
     const cardBlock = cssBlocks(workspaceCss, '.placeDetailCard')[0] ?? ''
     const raisedBlock = cssBlocks(workspaceCss, '.placeDetailCardRaised')[0] ?? ''
@@ -135,6 +162,7 @@ describe('TripWorkspacePage layout scroll contract', () => {
     const bodyBlock = cssBlocks(workspaceCss, '.placeDetailBody')[0] ?? ''
     const bodyScrollbarBlock = cssBlocks(workspaceCss, '.placeDetailBody::-webkit-scrollbar')[0] ?? ''
     const actionsBlock = cssBlocks(workspaceCss, '.placeDetailActions')[0] ?? ''
+    const primaryActionBlock = cssBlocks(workspaceCss, '.placeDetailActions .primaryAction')[0] ?? ''
 
     expect(cardBlock).toMatch(/width:\s*min\(20rem,\s*calc\(100% - var\(--space-8\)\)\)/)
     expect(cardBlock).toMatch(/max-height:\s*min\(28rem,\s*80dvh\)/)
@@ -150,6 +178,32 @@ describe('TripWorkspacePage layout scroll contract', () => {
     expect(bodyBlock).toMatch(/scrollbar-width:\s*none/)
     expect(bodyScrollbarBlock).toMatch(/display:\s*none/)
     expect(actionsBlock).toMatch(/flex-wrap:\s*nowrap/)
+    expect(primaryActionBlock).toMatch(/min-width:\s*8rem/)
+    expect(primaryActionBlock).toMatch(/flex:\s*0 1 auto/)
+  })
+
+  it('keeps map search results and route controls using the available map space', () => {
+    const mapPanelBlock = cssBlocks(workspaceCss, '.mapPanel')[0] ?? ''
+    const mapChromeBlock = cssBlocks(workspaceCss, '.mapChrome')[0] ?? ''
+    const routeOverlayBlock = cssBlocks(workspaceCss, '.mapRouteOverlay')[0] ?? ''
+    const mapSearchLayoutBlock = cssBlocks(workspaceCss, '.mapSearchAndStyle')[0] ?? ''
+    const routeSummaryBlock = cssBlocks(tripMapCss, '.routeSummary')[0] ?? ''
+    const shelfBlock = cssBlocks(searchShelfCss, '.shelf')[0] ?? ''
+
+    expect(mapPanelBlock).toMatch(/--map-route-controls-width:\s*18\.5rem/)
+    expect(mapPanelBlock).toMatch(/--map-route-summary-width:\s*13rem/)
+    expect(mapChromeBlock).toMatch(/width:\s*auto/)
+    expect(mapChromeBlock).toMatch(/justify-content:\s*flex-end/)
+    expect(routeOverlayBlock).toMatch(/display:\s*grid/)
+    expect(routeOverlayBlock).toMatch(/justify-items:\s*end/)
+    expect(mapSearchLayoutBlock).toMatch(/display:\s*block/)
+    expect(routeSummaryBlock).toMatch(
+      /right:\s*calc\(var\(--space-4\) \+ var\(--map-route-controls-width,\s*18\.5rem\) \+ var\(--space-2\)\)/,
+    )
+    expect(routeSummaryBlock).toMatch(/width:\s*min\(var\(--map-route-summary-width,\s*13rem\)/)
+    expect(routeSummaryBlock).toMatch(/padding:\s*var\(--space-2\) var\(--space-3\)/)
+    expect(shelfBlock).toMatch(/right:\s*var\(--space-4\)/)
+    expect(shelfBlock).not.toMatch(/right:\s*calc/)
   })
 
   it('keeps compact editable fields on token-based surfaces in dark mode', () => {

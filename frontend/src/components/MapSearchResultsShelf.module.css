@@ -1,6 +1,6 @@
 .shelf {
   position: absolute;
-  right: calc(var(--space-4) + 3.5rem);
+  right: var(--space-4);
   bottom: var(--space-4);
   left: var(--space-4);
   z-index: 6;

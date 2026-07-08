@@ -108,6 +108,8 @@
   --date-picker-muted: #bdc1c6;
   --date-picker-blue: #8ab4f8;
   --date-picker-range: rgba(138, 180, 248, 0.22);
+  --date-picker-day-size: 2.5rem;
+  --date-picker-grid-height: calc(var(--date-picker-day-size) * 6);
   position: fixed;
   z-index: 2000;
   box-sizing: border-box;
@@ -187,6 +189,7 @@
 .datePickerCalendarArea {
   position: relative;
   min-width: 0;
+  min-height: var(--date-picker-grid-height);
   padding-inline: var(--space-6);
 }
 
@@ -221,6 +224,7 @@
 .datePickerMonths {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
   gap: var(--space-6);
 }
 
@@ -232,6 +236,7 @@
 .calendarMonth {
   min-width: 0;
   display: grid;
+  grid-template-rows: auto auto var(--date-picker-grid-height);
   gap: var(--space-3);
 }
 
@@ -260,12 +265,15 @@
 
 .calendarGrid {
   gap: 0;
+  min-height: var(--date-picker-grid-height);
+  grid-auto-rows: var(--date-picker-day-size);
+  align-content: start;
 }
 
 .calendarDateEmpty,
 .calendarDateButton {
   width: 100%;
-  aspect-ratio: 1;
+  min-height: var(--date-picker-day-size);
 }
 
 .calendarDateEmpty {
@@ -277,7 +285,7 @@
   display: inline-grid;
   place-items: center;
   min-width: 2.5rem;
-  border: 1px solid transparent;
+  border: 0;
   border-radius: 0;
   background: transparent;
   color: var(--date-picker-text);
@@ -291,8 +299,8 @@
   position: absolute;
   z-index: 0;
   top: 50%;
-  right: 0;
-  left: 0;
+  right: -3px;
+  left: -3px;
   height: 2.5rem;
   background: transparent;
   transform: translateY(-50%);
@@ -320,10 +328,12 @@
 }
 
 .calendarDateStart::before {
+  right: -3px;
   left: 50%;
 }
 
 .calendarDateEnd::before {
+  left: -3px;
   right: 50%;
 }
 
@@ -366,6 +376,10 @@
 }
 
 @media (max-width: 52rem) {
+  .datePickerPanel {
+    --date-picker-day-size: 2.375rem;
+  }
+
   .dateRangeSummary,
   .datePickerTopbar,
   .datePickerSelection {

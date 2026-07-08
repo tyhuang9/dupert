@@ -3464,8 +3464,8 @@ export function TripWorkspacePage() {
                 className={`${styles.panel} ${styles.mapPanel}`}
                 aria-labelledby="map-panel-title"
               >
-                {workspaceMode === 'days' && (
-                  <div className={styles.mapRouteOverlay}>
+                <div className={styles.mapRouteOverlay}>
+                  {workspaceMode === 'days' && (
                     <div className={styles.mapChrome} aria-label="Map route controls">
                       <label className={styles.routeToggle}>
                         <input
@@ -3505,8 +3505,12 @@ export function TripWorkspacePage() {
                         </button>
                       )}
                     </div>
-                  </div>
-                )}
+                  )}
+                  <MapStyleControl
+                    mapStyle={mapStyle}
+                    onMapStyleChange={setMapStyle}
+                  />
+                </div>
                 <div className={styles.mapOverlayStack}>
                   <div className={styles.mapSearchAndStyle}>
                     {canEditTrip && (
@@ -3536,10 +3540,6 @@ export function TripWorkspacePage() {
                         />
                       </div>
                     )}
-                    <MapStyleControl
-                      mapStyle={mapStyle}
-                      onMapStyleChange={setMapStyle}
-                    />
                   </div>
                   <h2 id="map-panel-title" className="sr-only">Map</h2>
                 </div>
