@@ -595,7 +595,7 @@ function directionsUrlForPlace(place: PlaceSelection): string | null {
   return place.googleMapsUri ?? null
 }
 
-interface DayGoogleMapsExport {
+interface GoogleMapsExport {
   disabledReason: string | null
   exportedStopCount: number
   totalMappedStopCount: number
@@ -607,7 +607,7 @@ function googleMapsCoordinateValue(activity: Pick<MappedActivity, 'lat' | 'lng'>
   return `${activity.lat},${activity.lng}`
 }
 
-function createDayGoogleMapsDirectionsUrl(
+function createGoogleMapsDirectionsUrl(
   origin: MappedActivity | null,
   destination: MappedActivity,
   waypoints: MappedActivity[],
@@ -625,12 +625,12 @@ function createDayGoogleMapsDirectionsUrl(
   return url.toString()
 }
 
-function buildSelectedDayGoogleMapsExport(activities: Activity[]): DayGoogleMapsExport {
+function buildGoogleMapsExport(activities: Activity[], scopeLabel: string): GoogleMapsExport {
   const mappedStops = activities.filter(hasFiniteCoordinates)
   const totalMappedStopCount = mappedStops.length
   if (totalMappedStopCount === 0) {
     return {
-      disabledReason: 'Add at least one mapped stop to export this day.',
+      disabledReason: `Add at least one mapped stop to export this ${scopeLabel}.`,
       exportedStopCount: 0,
       totalMappedStopCount,
       truncated: false,
@@ -644,23 +644,23 @@ function buildSelectedDayGoogleMapsExport(activities: Activity[]): DayGoogleMaps
       exportedStopCount: 1,
       totalMappedStopCount,
       truncated: false,
-      url: createDayGoogleMapsDirectionsUrl(null, mappedStops[0], []),
+      url: createGoogleMapsDirectionsUrl(null, mappedStops[0], []),
     }
   }
 
   const origin = mappedStops[0]
   const destination = mappedStops[mappedStops.length - 1]
   let waypoints = mappedStops.slice(1, -1).slice(0, GOOGLE_MAPS_MAX_WAYPOINTS)
-  let url = createDayGoogleMapsDirectionsUrl(origin, destination, waypoints)
+  let url = createGoogleMapsDirectionsUrl(origin, destination, waypoints)
 
   while (url.length > GOOGLE_MAPS_MAX_DIRECTIONS_URL_LENGTH && waypoints.length > 0) {
     waypoints = waypoints.slice(0, -1)
-    url = createDayGoogleMapsDirectionsUrl(origin, destination, waypoints)
+    url = createGoogleMapsDirectionsUrl(origin, destination, waypoints)
   }
 
   if (url.length > GOOGLE_MAPS_MAX_DIRECTIONS_URL_LENGTH) {
     return {
-      disabledReason: 'This day has too many mapped stops for a Google Maps directions URL.',
+      disabledReason: `This ${scopeLabel} has too many mapped stops for a Google Maps directions URL.`,
       exportedStopCount: 0,
       totalMappedStopCount,
       truncated: false,
@@ -1863,9 +1863,17 @@ export function TripWorkspacePage() {
   const selectedDayMappedCount = dayActivities.filter(
     hasFiniteCoordinates,
   ).length
-  const selectedDayMapsExport = useMemo(
-    () => buildSelectedDayGoogleMapsExport(dayActivities),
-    [dayActivities],
+  const routeControlActivities = useMemo(() => {
+    if (workspaceMode === 'timeline') return visibleTimelineActivities
+    if (workspaceMode === 'days') return dayActivities
+    return []
+  }, [dayActivities, visibleTimelineActivities, workspaceMode])
+  const routeControlsVisible = workspaceMode === 'days' || workspaceMode === 'timeline'
+  const routeExportScopeLabel = workspaceMode === 'timeline' ? 'timeline' : 'day'
+  const routeExportButtonLabel = workspaceMode === 'timeline' ? 'Export Timeline' : 'Export Day'
+  const routeMapsExport = useMemo(
+    () => buildGoogleMapsExport(routeControlActivities, routeExportScopeLabel),
+    [routeControlActivities, routeExportScopeLabel],
   )
   const collaboratorNames = useMemo(
     () => collectCollaboratorNames(allActivities),
@@ -3474,7 +3482,7 @@ export function TripWorkspacePage() {
                 aria-labelledby="map-panel-title"
               >
                 <div className={styles.mapRouteOverlay}>
-                  {workspaceMode === 'days' && (
+                  {routeControlsVisible && (
                     <div className={styles.mapChrome} aria-label="Map route controls">
                       <label className={styles.routeToggle}>
                         <input
@@ -3487,30 +3495,30 @@ export function TripWorkspacePage() {
                         </span>
                         <span>Routes</span>
                       </label>
-                      {selectedDayMapsExport.url ? (
+                      {routeMapsExport.url ? (
                         <a
                           className={styles.exportDayButton}
-                          href={selectedDayMapsExport.url}
+                          href={routeMapsExport.url}
                           target="_blank"
                           rel="noreferrer"
                           title={
-                            selectedDayMapsExport.truncated
-                              ? `Opens ${selectedDayMapsExport.exportedStopCount} of ${selectedDayMapsExport.totalMappedStopCount} mapped stops in Google Maps`
-                              : 'Open this day in Google Maps'
+                            routeMapsExport.truncated
+                              ? `Opens ${routeMapsExport.exportedStopCount} of ${routeMapsExport.totalMappedStopCount} mapped stops in Google Maps`
+                              : `Open this ${routeExportScopeLabel} in Google Maps`
                           }
                         >
                           <ExternalLink size={15} aria-hidden="true" />
-                          Export Day
+                          {routeExportButtonLabel}
                         </a>
                       ) : (
                         <button
                           type="button"
                           className={styles.exportDayButton}
                           disabled
-                          title={selectedDayMapsExport.disabledReason ?? undefined}
+                          title={routeMapsExport.disabledReason ?? undefined}
                         >
                           <ExternalLink size={15} aria-hidden="true" />
-                          Export Day
+                          {routeExportButtonLabel}
                         </button>
                       )}
                     </div>
@@ -3687,7 +3695,7 @@ export function TripWorkspacePage() {
                   activityMarkerColors={workspaceMode === 'timeline' ? timelineActivityMarkerColors : undefined}
                   activityMarkerMode={workspaceMode === 'timeline' ? 'timeline-days' : 'default'}
                   fallbackActivities={mapFallbackActivities}
-                  routeActivities={routesEnabled && workspaceMode === 'days' ? dayActivities : []}
+                  routeActivities={routesEnabled ? routeControlActivities : []}
                   activeActivityId={visibleActiveActivityId}
                   destination={tripQuery.data.destination}
                   showDestinationFallback={workspaceMode !== 'timeline'}

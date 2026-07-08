@@ -1130,6 +1130,14 @@ describe('<TripWorkspacePage>', () => {
   })
 
   it('switches to a full-trip timeline and maps all trip activities', async () => {
+    const dayOneActivity = {
+      ...SAMPLE_ACTIVITY,
+      placeId: 'google.tsukiji',
+      placeName: 'Tsukiji sushi',
+      address: 'Tsukiji, Chuo City, Tokyo',
+      lat: 35.6654,
+      lng: 139.7707,
+    }
     const dayTwoActivity = {
       ...SAMPLE_ACTIVITY,
       id: 22,
@@ -1139,7 +1147,7 @@ describe('<TripWorkspacePage>', () => {
       lng: 139.7454,
       orderIndex: 0,
     }
-    mockWorkspace([SAMPLE_ACTIVITY, dayTwoActivity])
+    mockWorkspace([dayOneActivity, dayTwoActivity])
 
     renderWorkspace('/trips/abc234def567/d/2026-05-01')
 
@@ -1164,8 +1172,21 @@ describe('<TripWorkspacePage>', () => {
     expect(selectedMapActivities.getByText('Tsukiji sushi')).toBeInTheDocument()
     expect(selectedMapActivities.getByText('Tokyo Tower')).toBeInTheDocument()
     expect(screen.getByTestId('destination-fallback')).toHaveTextContent('false')
+    expect(routeMapActivities.getByText('Tsukiji sushi')).toBeInTheDocument()
+    expect(routeMapActivities.getByText('Tokyo Tower')).toBeInTheDocument()
+    const routesToggle = screen.getByRole('checkbox', { name: /routes/i })
+    expect(routesToggle).toBeChecked()
+    const exportLink = screen.getByRole('link', { name: /export timeline/i })
+    const exportUrl = new URL(exportLink.getAttribute('href') ?? '')
+    expect(exportUrl.searchParams.get('origin')).toBe('35.6654,139.7707')
+    expect(exportUrl.searchParams.get('destination')).toBe('35.6586,139.7454')
+    expect(exportUrl.searchParams.get('travelmode')).toBe('driving')
+    await userEvent.click(routesToggle)
     expect(routeMapActivities.queryByText('Tsukiji sushi')).not.toBeInTheDocument()
     expect(routeMapActivities.queryByText('Tokyo Tower')).not.toBeInTheDocument()
+    await userEvent.click(routesToggle)
+    expect(routeMapActivities.getByText('Tsukiji sushi')).toBeInTheDocument()
+    expect(routeMapActivities.getByText('Tokyo Tower')).toBeInTheDocument()
     expect(screen.queryByLabelText(/full trip map summary/i)).not.toBeInTheDocument()
 
     expect(within(fullTimeline).queryByRole('button', { name: /drag tokyo tower/i }))
@@ -1182,6 +1203,7 @@ describe('<TripWorkspacePage>', () => {
     expect(dayTwoToggle).toHaveAttribute('aria-expanded', 'false')
     expect(within(fullTimeline).queryByRole('button', { name: /^tokyo tower/i })).not.toBeInTheDocument()
     expect(selectedMapActivities.queryByText('Tokyo Tower')).not.toBeInTheDocument()
+    expect(routeMapActivities.queryByText('Tokyo Tower')).not.toBeInTheDocument()
 
     await userEvent.click(dayTwoToggle)
     expect(dayTwoToggle).toHaveAttribute('aria-expanded', 'true')
@@ -1255,7 +1277,7 @@ describe('<TripWorkspacePage>', () => {
     const timelineRouteActivities = within(screen.getByTestId('route-map-activities'))
     expect(timelineMapActivities.getByText('Tsukiji sushi')).toBeInTheDocument()
     expect(timelineMapActivities.queryByText('Save teamLab')).not.toBeInTheDocument()
-    expect(timelineRouteActivities.queryByText('Tsukiji sushi')).not.toBeInTheDocument()
+    expect(timelineRouteActivities.getByText('Tsukiji sushi')).toBeInTheDocument()
     expect(timelineRouteActivities.queryByText('Save teamLab')).not.toBeInTheDocument()
   })
 
