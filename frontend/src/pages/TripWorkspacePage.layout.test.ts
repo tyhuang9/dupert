@@ -136,7 +136,10 @@ describe('TripWorkspacePage layout scroll contract', () => {
     expect(panelBlock).toMatch(
       /--date-picker-grid-height:\s*calc\(var\(--date-picker-day-size\) \* 6\)/,
     )
-    expect(panelBlock).toMatch(/overflow-y:\s*auto/)
+    expect(panelBlock).toMatch(/--date-nav-overlap:\s*1\.5rem/)
+    expect(panelBlock).toMatch(/overflow:\s*visible/)
+    expect(panelBlock).not.toMatch(/overflow-y:/)
+    expect(panelBlock).not.toMatch(/overscroll-behavior/)
     expect(cssBlocks(datePickerCss, ".datePickerPanel[data-placement='above']")[0] ?? '').toMatch(
       /border-bottom-right-radius:\s*0/,
     )
@@ -150,8 +153,12 @@ describe('TripWorkspacePage layout scroll contract', () => {
     expect(buttonBlock).toMatch(/border:\s*0/)
     expect(rangeBlock).toMatch(/right:\s*0/)
     expect(rangeBlock).toMatch(/left:\s*0/)
-    expect(previousButtonBlock).toMatch(/left:\s*calc\(-1 \* \(var\(--space-5\) \+ 1\.5rem\)\)/)
-    expect(nextButtonBlock).toMatch(/right:\s*calc\(-1 \* \(var\(--space-5\) \+ 1\.5rem\)\)/)
+    expect(previousButtonBlock).toMatch(
+      /left:\s*calc\(-1 \* \(var\(--space-5\) \+ var\(--date-nav-overlap\)\)\)/,
+    )
+    expect(nextButtonBlock).toMatch(
+      /right:\s*calc\(-1 \* \(var\(--space-5\) \+ var\(--date-nav-overlap\)\)\)/,
+    )
   })
 
   it('keeps the selected-place detail card compact above search results', () => {

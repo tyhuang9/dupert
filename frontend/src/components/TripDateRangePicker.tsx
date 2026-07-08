@@ -180,21 +180,20 @@ export function TripDateRangePicker({
     const availableBelow = Math.max(0, window.innerHeight - rect.bottom - viewportPadding - gap)
     const availableAbove = Math.max(0, rect.top - viewportPadding - gap)
     const openAbove = availableBelow < preferredHeight && availableAbove > availableBelow
-    const availableHeight = openAbove ? availableAbove : availableBelow
-    const maxHeight = Math.max(260, Math.floor(availableHeight))
     setVisibleMonthCount(compact ? 1 : 2)
     setPanelPlacement(openAbove ? 'above' : 'below')
     const left = Math.min(
       Math.max(viewportPadding, rect.left),
       Math.max(viewportPadding, window.innerWidth - width - viewportPadding),
     )
+    const preferredTop = openAbove ? rect.top - gap - preferredHeight : rect.bottom + gap
+    const maxTop = Math.max(viewportPadding, window.innerHeight - preferredHeight - viewportPadding)
+    const top = Math.min(Math.max(viewportPadding, preferredTop), maxTop)
 
     setPanelStyle({
-      bottom: openAbove ? window.innerHeight - rect.top + gap : undefined,
       left,
-      maxHeight,
       position: 'fixed',
-      top: openAbove ? undefined : rect.bottom + gap,
+      top,
       width,
     })
   }, [])

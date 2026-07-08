@@ -113,13 +113,13 @@
   --date-picker-range: color-mix(in srgb, var(--date-picker-blue) 22%, var(--date-picker-bg));
   --date-picker-day-size: 2.5rem;
   --date-picker-grid-height: calc(var(--date-picker-day-size) * 6);
+  --date-nav-overlap: 1.5rem;
   position: fixed;
   z-index: 2000;
   box-sizing: border-box;
   display: grid;
   gap: var(--space-4);
-  overflow-y: auto;
-  overscroll-behavior: contain;
+  overflow: visible;
   padding: var(--space-5);
   border: 1px solid var(--date-picker-border);
   border-radius: var(--radius-xl);
@@ -171,11 +171,11 @@
 }
 
 .dateNavButtonPrevious {
-  left: calc(-1 * (var(--space-5) + 1.5rem));
+  left: calc(-1 * (var(--space-5) + var(--date-nav-overlap)));
 }
 
 .dateNavButtonNext {
-  right: calc(-1 * (var(--space-5) + 1.5rem));
+  right: calc(-1 * (var(--space-5) + var(--date-nav-overlap)));
 }
 
 .datePickerMonths {
@@ -340,10 +340,10 @@
   }
 
   .dateNavButtonPrevious {
-    left: calc(-1 * (var(--space-5) + 1.5rem));
+    left: calc(-1 * (var(--space-5) + var(--date-nav-overlap)));
   }
 
   .dateNavButtonNext {
-    right: calc(-1 * (var(--space-5) + 1.5rem));
+    right: calc(-1 * (var(--space-5) + var(--date-nav-overlap)));
   }
 }

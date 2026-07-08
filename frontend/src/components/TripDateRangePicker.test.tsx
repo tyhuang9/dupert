@@ -48,11 +48,11 @@ describe('<TripDateRangePicker>', () => {
     expect(within(dialog).queryByRole('button', { name: /fri, may 1/i })).not.toBeInTheDocument()
     expect(dialog).toHaveStyle({
       left: '40px',
-      maxHeight: '613px',
       position: 'fixed',
       top: '143px',
       width: '760px',
     })
+    expect(dialog.style.maxHeight).toBe('')
   })
 
   it('opens above the field when there is more room above than below', async () => {
@@ -80,14 +80,14 @@ describe('<TripDateRangePicker>', () => {
 
     const dialog = screen.getByRole('dialog', { name: /trip dates/i })
     expect(dialog).toHaveAttribute('data-placement', 'above')
-    expect(dialog.style.top).toBe('')
+    expect(dialog.style.bottom).toBe('')
     expect(dialog).toHaveStyle({
-      bottom: '147px',
       left: '82px',
-      maxHeight: '609px',
       position: 'fixed',
+      top: '237px',
       width: '760px',
     })
+    expect(dialog.style.maxHeight).toBe('')
   })
 
   it('keeps date selection working inside the portaled calendar', async () => {
