@@ -59,7 +59,7 @@ echo "Starting frontend on http://localhost:3000"
 ) &
 frontend_pid=$!
 
-echo "TripPlanner dev is starting."
+echo "Dupert dev is starting."
 echo "Open http://localhost:3000"
 echo "Press Ctrl+C to stop both processes."
 

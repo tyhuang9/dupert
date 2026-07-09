@@ -36,7 +36,7 @@ const PUBLIC_PATHS = new Set<string>([
   '/auth/refresh',
 ])
 
-const GUEST_WRITE_HEADER = 'X-TripPlanner-Guest-Write'
+const GUEST_WRITE_HEADER = 'X-Dupert-Guest-Write'
 
 /** True when the URL points at one of the unauthenticated/cookie-only endpoints. */
 function isPublicPath(url: string | undefined): boolean {
@@ -76,8 +76,8 @@ function shouldSendGuestWriteHeader(config: InternalAxiosRequestConfig): boolean
  */
 let refreshPromise: Promise<AuthResponse> | null = null
 
-const REFRESH_LOCK_NAME = 'tripplanner:auth-refresh'
-const REFRESH_LOCK_STORAGE_KEY = 'tripplanner:auth-refresh-lock'
+const REFRESH_LOCK_NAME = 'dupert:auth-refresh'
+const REFRESH_LOCK_STORAGE_KEY = 'dupert:auth-refresh-lock'
 const REFRESH_LOCK_TTL_MS = 10_000
 const REFRESH_LOCK_POLL_MS = 50
 

@@ -6,7 +6,7 @@ import { usePageTitle } from '../utils/usePageTitle'
 import styles from './SharePages.module.css'
 
 export default function AcceptInvitePage() {
-  usePageTitle('Accept invite – TripPlanner')
+  usePageTitle('Accept invite – Dupert')
 
   const { token } = useParams()
   const location = useLocation()

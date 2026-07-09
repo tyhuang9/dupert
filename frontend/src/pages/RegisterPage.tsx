@@ -55,7 +55,7 @@ function validate(input: {
 }
 
 export function RegisterPage() {
-  usePageTitle('Create account – TripPlanner')
+  usePageTitle('Create account – Dupert')
 
   const auth = useAuth()
   const [searchParams] = useSearchParams()
@@ -212,7 +212,7 @@ export function RegisterPage() {
           </h1>
           <p className={styles.subtitle}>
             {verificationRequired
-              ? 'Verify your email before signing in to TripPlanner.'
+              ? 'Verify your email before signing in to Dupert.'
               : 'Your local account is ready.'}
           </p>
           <div
@@ -263,7 +263,7 @@ export function RegisterPage() {
     <main id="main" className={styles.shell}>
       <div className={styles.card}>
         <h1 className={styles.title}>Create account</h1>
-        <p className={styles.subtitle}>Plan trips together with TripPlanner.</p>
+        <p className={styles.subtitle}>Plan trips together with Dupert.</p>
 
         {topMessage ? (
           <div className={bannerClass} role="alert">

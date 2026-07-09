@@ -57,9 +57,9 @@ class BrevoAuthEmailSenderTest {
             .contains("brevo-secret");
         assertThat(httpClient.body).contains(
             "\"email\":\"no-reply@example.com\"",
-            "\"name\":\"TripPlanner\"",
+            "\"name\":\"Dupert\"",
             "\"email\":\"alice@example.com\"",
-            "Verify your TripPlanner email",
+            "Verify your Dupert email",
             "https://app.example.com/verify-email?token=raw-token");
         assertThat(httpClient.body).doesNotContain("brevo-secret");
     }
@@ -78,7 +78,7 @@ class BrevoAuthEmailSenderTest {
             OffsetDateTime.parse("2026-07-08T12:00:00Z")));
 
         assertThat(httpClient.body).contains(
-            "Reset your TripPlanner password",
+            "Reset your Dupert password",
             "https://app.example.com/reset-password?token=reset+token");
         assertThat(httpClient.body).doesNotContain("brevo-secret");
     }
@@ -113,7 +113,7 @@ class BrevoAuthEmailSenderTest {
         props.setPublicFrontendUrl("https://app.example.com/");
         props.getEmail().setBrevoApiKey("brevo-secret");
         props.getEmail().setFromEmail("no-reply@example.com");
-        props.getEmail().setFromName("TripPlanner");
+        props.getEmail().setFromName("Dupert");
         return props;
     }
 

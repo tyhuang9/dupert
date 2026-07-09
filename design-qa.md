@@ -1,11 +1,11 @@
 # Design QA
 
-source target: Google Stitch `TripPlanner Collaborative Workspace`, screen `Trip Workspace`
+source target: Google Stitch `Dupert Collaborative Workspace`, screen `Trip Workspace`
 local target: `http://127.0.0.1:3000/`
 
 ## Checks Completed
 
-- The supplied TripPlanner workspace specification was mapped into the existing app contract without replacing the Google Maps, Places search, React Query, SSE, or drag/drop flows.
+- The supplied Dupert workspace specification was mapped into the existing app contract without replacing the Google Maps, Places search, React Query, SSE, or drag/drop flows.
 - The implementation maps the target structure into the existing app: compact left rail, pin-able 244px expanded sidebar, trip-name header scoped to the itinerary column, center days/timeline/calendar workspace, compact activity cards, autosaving edit cards, and persistent right-side Google map/search pane.
 - Activity cards now use a slimmer marker rail, smaller card typography, h:mm AM/PM time labels under the title, hidden unset times, and stacked compact editors with Delete-only autosaving for existing activities.
 - The map selection flow keeps selected places pending until the user confirms the update or applies the place to the create-activity flow.

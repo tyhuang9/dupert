@@ -29,8 +29,8 @@ export default function MembersPage() {
 
   usePageTitle(
     tripQuery.data
-      ? `Share ${tripQuery.data.name} – TripPlanner`
-      : 'Share trip – TripPlanner',
+      ? `Share ${tripQuery.data.name} – Dupert`
+      : 'Share trip – Dupert',
   )
 
   const activeLinks = useMemo(

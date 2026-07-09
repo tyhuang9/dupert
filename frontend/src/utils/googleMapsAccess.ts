@@ -55,12 +55,12 @@ function sentence(value: string): string {
 function backendUnavailableMessage(): string {
   if (backendBaseUrl) {
     return [
-      `Could not reach the TripPlanner backend at ${backendBaseUrl}.`,
+      `Could not reach the Dupert backend at ${backendBaseUrl}.`,
       'Check VITE_BACKEND_API_URL, backend availability, and CORS settings.',
     ].join(' ')
   }
   return [
-    'Could not reach the TripPlanner backend.',
+    'Could not reach the Dupert backend.',
     'Start the backend on http://localhost:8000 and keep the frontend dev server proxying /api.',
   ].join(' ')
 }

@@ -21,7 +21,7 @@ export function AccountSettingsDialog({
   const { colorMode, setColorMode } = useColorMode()
   const [displayName, setDisplayName] = useState(user.displayName)
   const [marketingEmails, setMarketingEmails] = useState(() =>
-    window.localStorage.getItem('tripplanner.marketingEmails') === 'true',
+    window.localStorage.getItem('dupert.marketingEmails') === 'true',
   )
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -45,7 +45,7 @@ export function AccountSettingsDialog({
     setErrorMessage(null)
     try {
       await auth.updateProfile({ displayName })
-      window.localStorage.setItem('tripplanner.marketingEmails', String(marketingEmails))
+      window.localStorage.setItem('dupert.marketingEmails', String(marketingEmails))
       setStatusMessage('Account settings saved.')
     } catch (error) {
       setErrorMessage(parseApiError(error).topMessage)

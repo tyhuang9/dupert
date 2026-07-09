@@ -8,7 +8,7 @@ import styles from './AuthForm.module.css'
 type VerificationState = 'verifying' | 'verified' | 'error'
 
 export function EmailVerificationPage() {
-  usePageTitle('Verify email - TripPlanner')
+  usePageTitle('Verify email - Dupert')
 
   const [searchParams] = useSearchParams()
   const token = searchParams.get('token') ?? ''
@@ -58,7 +58,7 @@ export function EmailVerificationPage() {
         <p className={styles.subtitle}>
           {state === 'verifying'
             ? 'Checking your verification link.'
-            : 'TripPlanner account verification.'}
+            : 'Dupert account verification.'}
         </p>
         <div
           className={

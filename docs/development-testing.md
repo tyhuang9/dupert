@@ -1,6 +1,6 @@
 # Development Auth Testing
 
-TripPlanner has a local-only authentication testing surface for multi-user flows such as sharing, permissions, ownership, and invitations.
+Dupert has a local-only authentication testing surface for multi-user flows such as sharing, permissions, ownership, and invitations.
 
 These endpoints are registered only when the backend runs with:
 
@@ -41,7 +41,7 @@ The dev script sources `backend/.env` and defaults the backend to `SPRING_PROFIL
 
 ```bash
 curl -i \
-  -c /tmp/tripplanner-alice.cookies \
+  -c /tmp/dupert-alice.cookies \
   -H 'Content-Type: application/json' \
   -d '{"email":"alice@test.local"}' \
   http://localhost:8000/api/dev/auth/login-as

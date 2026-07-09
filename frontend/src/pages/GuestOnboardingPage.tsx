@@ -6,7 +6,7 @@ import { usePageTitle } from '../utils/usePageTitle'
 import styles from './SharePages.module.css'
 
 export default function GuestOnboardingPage() {
-  usePageTitle('Guest access – TripPlanner')
+  usePageTitle('Guest access – Dupert')
 
   const { token } = useParams()
   const navigate = useNavigate()

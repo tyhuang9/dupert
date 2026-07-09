@@ -61,7 +61,7 @@ function imageUrlFromPlace(place: GooglePlaceSelection): string | null {
 }
 
 export function NewTripPage() {
-  usePageTitle('New trip – TripPlanner')
+  usePageTitle('New trip – Dupert')
 
   const navigate = useNavigate()
   const createTrip = useCreateTrip()

@@ -1742,7 +1742,7 @@ export function TripWorkspacePage() {
   }, [])
 
   usePageTitle(
-    tripQuery.data ? `${tripQuery.data.name} – TripPlanner` : 'Trip workspace – TripPlanner',
+    tripQuery.data ? `${tripQuery.data.name} – Dupert` : 'Trip workspace – Dupert',
   )
 
   useEffect(() => {
@@ -3285,7 +3285,7 @@ export function TripWorkspacePage() {
                       <span className={styles.brandIcon} aria-hidden="true">
                         <Plane size={15} />
                       </span>
-                      <span>TripPlanner</span>
+                      <span>Dupert</span>
                     </Link>
                     <nav className={styles.topNavLinks} aria-label="Primary">
                       <Link to="/trips" aria-current="page">

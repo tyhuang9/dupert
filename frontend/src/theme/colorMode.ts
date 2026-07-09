@@ -1,7 +1,7 @@
 export type ColorMode = 'light' | 'dark' | 'system'
 export type ResolvedColorMode = 'light' | 'dark'
 
-export const COLOR_MODE_STORAGE_KEY = 'tripplanner.colorMode'
+export const COLOR_MODE_STORAGE_KEY = 'dupert.colorMode'
 
 const COLOR_MODES = new Set<ColorMode>(['light', 'dark', 'system'])
 

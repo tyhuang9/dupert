@@ -27,7 +27,7 @@ import io.jsonwebtoken.security.Keys;
  *   <li>15-minute lifetime — refresh tokens carry the long-lived session.</li>
  *   <li>The signing secret comes from {@link AppProperties#getJwtSecret()} as a hex string;
  *       it must decode to at least 32 bytes (256 bits) for HS256 — enforced at boot.</li>
- *   <li>Issuer is {@code trip-planner}; we set {@code typ=access} as a custom claim and
+ *   <li>Issuer is {@code dupert}; we set {@code typ=access} as a custom claim and
  *       reject any token missing it. This blocks future-proofing mistakes where a refresh
  *       opaque string accidentally gets fed in here, or where a token of a different
  *       purpose (e.g. share-link, email-verify) gets minted with the same key.</li>
@@ -38,7 +38,7 @@ import io.jsonwebtoken.security.Keys;
 @Service
 public class JwtService {
 
-    static final String ISSUER = "trip-planner";
+    static final String ISSUER = "dupert";
     static final String TYPE_ACCESS = "access";
     static final String CLAIM_TYP = "typ";
     static final Duration ACCESS_TOKEN_TTL = Duration.ofMinutes(15);

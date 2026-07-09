@@ -5,8 +5,8 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BACKEND_ENV_FILE="$ROOT_DIR/backend/.env"
 FRONTEND_ENV_FILE="$ROOT_DIR/frontend/.env"
 
-IMAGE_NAME="${BACKEND_DOCKER_IMAGE:-trip-planner-backend:local}"
-CONTAINER_NAME="${BACKEND_DOCKER_CONTAINER:-trip-planner-backend-dev}"
+IMAGE_NAME="${BACKEND_DOCKER_IMAGE:-dupert-backend:local}"
+CONTAINER_NAME="${BACKEND_DOCKER_CONTAINER:-dupert-backend-dev}"
 BACKEND_HOST_PORT="${BACKEND_HOST_PORT:-8000}"
 BACKEND_CONTAINER_PORT="${BACKEND_CONTAINER_PORT:-10000}"
 BACKEND_PROFILE="${BACKEND_PROFILE:-local}"
@@ -77,7 +77,7 @@ echo "Starting frontend on http://localhost:3000"
 ) &
 frontend_pid=$!
 
-echo "TripPlanner Docker dev is starting."
+echo "Dupert Docker dev is starting."
 echo "Backend health: http://localhost:$BACKEND_HOST_PORT/actuator/health"
 echo "Open http://localhost:3000"
 echo "Press Ctrl+C to stop the frontend and backend container."

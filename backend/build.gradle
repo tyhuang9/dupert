@@ -7,7 +7,7 @@ plugins {
 
 group = 'com.trip'
 version = '0.0.1-SNAPSHOT'
-description = 'TripPlanner backend'
+description = 'Dupert backend'
 
 // Dependency-Check matches Log4j API/SLF4J bridge artifacts to generic Log4j
 // CPEs. Keep the managed Log4j 2.x line on the release that fixes the flagged

@@ -270,7 +270,7 @@ describe('<GooglePlaceAutocomplete>', () => {
 
     await waitFor(() => {
       expect(onSearchError).toHaveBeenLastCalledWith(
-        expect.stringContaining('Could not reach the TripPlanner backend'),
+        expect.stringContaining('Could not reach the Dupert backend'),
       )
     })
     expect(onSearchError).toHaveBeenLastCalledWith(expect.stringContaining('localhost:8000'))

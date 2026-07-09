@@ -39,7 +39,7 @@ import jakarta.servlet.http.Cookie;
  * <p><b>How to run.</b> The test is gated on {@code INTEGRATION=true} so {@code ./gradlew
  * test} skips it by default. To run:
  * <pre>{@code
- *   cd /home/tyhuang/Projects/TripPlanner
+ *   cd /home/tyhuang/Projects/dupert
  *   set -a && source .env && set +a
  *   cd backend
  *   INTEGRATION=true ./gradlew test --tests AuthFlowIntegrationTest

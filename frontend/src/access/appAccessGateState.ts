@@ -1,4 +1,4 @@
-export const APP_ACCESS_STORAGE_KEY = 'tripplanner:access-unlocked-until'
+export const APP_ACCESS_STORAGE_KEY = 'dupert:access-unlocked-until'
 export const APP_ACCESS_DURATION_MS = 30 * 24 * 60 * 60 * 1000
 
 export function configuredAccessPassword(): string {

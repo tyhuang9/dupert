@@ -103,7 +103,7 @@ describe('<PlaceSearch>', () => {
     fireEvent.keyDown(input, { key: 'Enter' })
 
     await waitFor(() => {
-      expect(screen.getByRole('alert')).toHaveTextContent(/could not reach the tripplanner backend/i)
+      expect(screen.getByRole('alert')).toHaveTextContent(/could not reach the Dupert backend/i)
     })
     expect(screen.getByRole('alert')).toHaveTextContent(/localhost:8000/i)
   })

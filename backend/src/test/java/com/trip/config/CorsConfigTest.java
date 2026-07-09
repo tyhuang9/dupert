@@ -60,18 +60,18 @@ class CorsConfigTest {
 
     @Test
     void nonLocalOriginsAreNeverExpanded() {
-        AppProperties props = appProperties("https://tripplanner.example");
+        AppProperties props = appProperties("https://dupert.example");
         MockEnvironment environment = new MockEnvironment();
         environment.setActiveProfiles("dev");
 
         assertThat(CorsConfig.allowedOrigins(props, environment))
-            .containsExactly("https://tripplanner.example");
+            .containsExactly("https://dupert.example");
     }
 
     @Test
     void configuredCommaSeparatedOriginsArePreservedAndDeduped() {
         AppProperties props = appProperties(
-            "http://localhost:3000, http://127.0.0.1:3000, https://tripplanner.example");
+            "http://localhost:3000, http://127.0.0.1:3000, https://dupert.example");
         MockEnvironment environment = new MockEnvironment();
         environment.setActiveProfiles("dev");
 
@@ -80,7 +80,7 @@ class CorsConfigTest {
                 "http://localhost:3000",
                 "http://127.0.0.1:3000",
                 "http://0.0.0.0:3000",
-                "https://tripplanner.example"));
+                "https://dupert.example"));
     }
 
     private static AppProperties appProperties(String frontendOrigin) {

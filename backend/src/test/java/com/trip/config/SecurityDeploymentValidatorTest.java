@@ -27,7 +27,7 @@ class SecurityDeploymentValidatorTest {
 
     @Test
     void productionProfileRequiresSecureCookiesAndHsts() {
-        AppProperties app = appProperties("https://tripplanner.example", false);
+        AppProperties app = appProperties("https://dupert.example", false);
         SecureProperties secure = secureProperties(false);
         SecurityDeploymentValidator validator = new SecurityDeploymentValidator(
             app, secure, new MockEnvironment().withProperty("spring.profiles.active", "prod"));
@@ -41,7 +41,7 @@ class SecurityDeploymentValidatorTest {
 
     @Test
     void publicFrontendOriginRequiresTransportHardening() {
-        AppProperties app = appProperties("https://tripplanner.example", true);
+        AppProperties app = appProperties("https://dupert.example", true);
         app.setTrustProxy(true);
         SecureProperties secure = secureProperties(true);
         SecurityDeploymentValidator validator = new SecurityDeploymentValidator(
@@ -53,7 +53,7 @@ class SecurityDeploymentValidatorTest {
 
     @Test
     void productionProfileRequiresTrustProxy() {
-        AppProperties app = appProperties("https://tripplanner.example", true);
+        AppProperties app = appProperties("https://dupert.example", true);
         SecureProperties secure = secureProperties(true);
         SecurityDeploymentValidator validator = new SecurityDeploymentValidator(
             app, secure, new MockEnvironment().withProperty("spring.profiles.active", "prod"));
@@ -80,7 +80,7 @@ class SecurityDeploymentValidatorTest {
         AppProperties app = Binder.get(env).bind("app", AppProperties.class).orElseGet(AppProperties::new);
         SecureProperties secure = Binder.get(env).bind("secure", SecureProperties.class)
             .orElseGet(SecureProperties::new);
-        app.setFrontendOrigin("https://tripplanner.example");
+        app.setFrontendOrigin("https://dupert.example");
         app.setSignupEnabled(false);
         SecurityDeploymentValidator validator = new SecurityDeploymentValidator(app, secure, env);
 
@@ -105,7 +105,7 @@ class SecurityDeploymentValidatorTest {
 
     @Test
     void signupOutsideLocalRequiresEmailConfiguration() {
-        AppProperties app = appProperties("https://tripplanner.example", true);
+        AppProperties app = appProperties("https://dupert.example", true);
         app.setTrustProxy(true);
         app.setSignupEnabled(true);
         SecureProperties secure = secureProperties(true);

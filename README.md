@@ -1,4 +1,4 @@
-# TripPlanner
+# Dupert
 
 A collaborative trip-planning web app. Create a trip with a date range, then for each day pin places from a map (search by keyword or category — e.g. *"chinese food"*, *"museum"*), categorize each stop (meal, activity, snack, transport, lodging), assign optional times, and drag to reorder within a day or move across days. A second pane shows the day's stops as numbered markers on a map with a route polyline and per-leg travel times.
 
@@ -39,7 +39,7 @@ No Docker, no local Postgres install, no global Gradle.
 
 ```bash
 git clone <this repo>
-cd trip-planner
+cd dupert
 cp backend/.env.example backend/.env
 cp frontend/.env.example frontend/.env
 # Edit backend/.env and fill in real values for:
@@ -172,7 +172,7 @@ The Dependency-Check Data workflow runs daily and can be dispatched manually. It
 ## Project layout
 
 ```
-trip-planner/
+dupert/
 ├── .github/         GitHub Actions CI workflow
 ├── backend/         Spring Boot service (Java 21)
 │   └── src/main/java/com/trip/
@@ -240,7 +240,7 @@ If production signup is enabled, set `SIGNUP_ENABLED=true` only after also confi
 ```bash
 BREVO_API_KEY=<brevo-transactional-api-key>
 APP_EMAIL_FROM_EMAIL=no-reply@your-verified-domain.example
-APP_EMAIL_FROM_NAME=TripPlanner
+APP_EMAIL_FROM_NAME=Dupert
 ```
 
 ## Brevo email setup
@@ -249,7 +249,7 @@ Production signup and password-reset email use Brevo transactional email. The `l
 
 Before enabling public signup in production:
 
-1. In Brevo, verify the sending domain or sender address you want to use for TripPlanner auth email.
+1. In Brevo, verify the sending domain or sender address you want to use for Dupert auth email.
 2. Create a Brevo Transactional Email API key.
 3. Set these backend environment variables on Render:
 
@@ -258,7 +258,7 @@ SPRING_PROFILES_ACTIVE=prod
 APP_PUBLIC_FRONTEND_URL=https://your-frontend.example
 BREVO_API_KEY=<brevo-transactional-api-key>
 APP_EMAIL_FROM_EMAIL=no-reply@your-verified-domain.example
-APP_EMAIL_FROM_NAME=TripPlanner
+APP_EMAIL_FROM_NAME=Dupert
 SIGNUP_ENABLED=true
 ```
 
@@ -288,7 +288,7 @@ If password reset or verification emails are not arriving in `dev`/`prod`, verif
 - Public auth/share endpoints are rate limited in memory. This is fine for a small deployment, but limits reset on backend restart and are weaker against distributed abuse.
 - `/api/dev/**` endpoints are registered only under `SPRING_PROFILES_ACTIVE=local` and operate only on `@test.local` accounts.
 - Share links store only a SHA-256 hash of the raw token and can be revoked by the trip owner.
-- Anonymous guest writes require the guest cookie plus the `X-TripPlanner-Guest-Write: 1` header, and guest/share endpoints are rate limited.
+- Anonymous guest writes require the guest cookie plus the `X-Dupert-Guest-Write: 1` header, and guest/share endpoints are rate limited.
 - SSE events on `/api/trips/{publicId}/stream` contain only pointers such as event type, trip id, activity id, or day date; clients refetch the real data through authenticated API calls.
 - The browser key is only for Maps JavaScript rendering and should be HTTP-referrer restricted. Expensive or cacheable Google web-service calls run through authenticated backend endpoints using `GOOGLE_MAPS_API_KEY`; do not expose the backend key to the frontend.
 - `VITE_APP_ACCESS_PASSWORD` is a lightweight first-screen wall only. Because Vite embeds `VITE_*` values in the browser bundle, it is not a replacement for backend access control.

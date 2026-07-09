@@ -652,7 +652,7 @@ describe('<TripWorkspacePage>', () => {
       expect(screen.getByTestId('current-location')).toHaveTextContent('/trips/abc234def567/d/2026-05-01')
     })
     expect(screen.getByRole('heading', { level: 2, name: /friday, may 1/i })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /tripplanner/i })).toHaveAttribute('href', '/trips')
+    expect(screen.getByRole('link', { name: /Dupert/i })).toHaveAttribute('href', '/trips')
     expect(screen.getByRole('link', { name: /^tokyo 2026$/i })).toHaveAttribute('aria-current', 'page')
     expect(screen.getByRole('button', { name: /^pin sidebar$/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /^settings$/i })).toBeInTheDocument()

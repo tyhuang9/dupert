@@ -33,7 +33,7 @@ import jakarta.servlet.http.HttpServletResponse;
 @Component
 public class GuestAuthenticationFilter extends OncePerRequestFilter {
 
-    public static final String GUEST_WRITE_HEADER = "X-TripPlanner-Guest-Write";
+    public static final String GUEST_WRITE_HEADER = "X-Dupert-Guest-Write";
     private static final String AUTH_PATH_PREFIX = "/api/auth/";
 
     private final RateLimitRegistry rateLimitRegistry;

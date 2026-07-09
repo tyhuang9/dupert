@@ -6,7 +6,7 @@ import { usePageTitle } from '../utils/usePageTitle'
 import styles from './AuthForm.module.css'
 
 export default function PasswordResetPage() {
-  usePageTitle('Reset password - TripPlanner')
+  usePageTitle('Reset password - Dupert')
 
   const [searchParams] = useSearchParams()
   const initialToken = searchParams.get('token') ?? searchParams.get('code') ?? ''

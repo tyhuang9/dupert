@@ -100,7 +100,7 @@ function tripMatchesSearch(trip: Trip, searchTerm: string): boolean {
 }
 
 export function TripsPage() {
-  usePageTitle('Trips – TripPlanner')
+  usePageTitle('Trips – Dupert')
 
   const { logout, user } = useAuth()
   const navigate = useNavigate()

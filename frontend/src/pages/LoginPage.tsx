@@ -10,7 +10,7 @@ import styles from './AuthForm.module.css'
 type LoginMode = 'signIn' | 'passwordReset'
 
 export function LoginPage() {
-  usePageTitle('Sign in – TripPlanner')
+  usePageTitle('Sign in – Dupert')
 
   const auth = useAuth()
   const navigate = useNavigate()
@@ -131,7 +131,7 @@ export function LoginPage() {
         <p className={styles.subtitle}>
           {isPasswordResetMode
             ? 'Enter your email and we will send a reset link.'
-            : 'Welcome back to TripPlanner.'}
+            : 'Welcome back to Dupert.'}
         </p>
 
         {!isPasswordResetMode && topMessage ? (

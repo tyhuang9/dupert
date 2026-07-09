@@ -143,7 +143,7 @@ public class AppProperties {
     public static class Email {
         private String brevoApiKey = "";
         private String fromEmail = "";
-        private String fromName = "TripPlanner";
+        private String fromName = "Dupert";
 
         public String getBrevoApiKey() {
             return brevoApiKey;
@@ -166,7 +166,7 @@ public class AppProperties {
         }
 
         public void setFromName(String fromName) {
-            this.fromName = fromName == null || fromName.isBlank() ? "TripPlanner" : fromName;
+            this.fromName = fromName == null || fromName.isBlank() ? "Dupert" : fromName;
         }
     }
 

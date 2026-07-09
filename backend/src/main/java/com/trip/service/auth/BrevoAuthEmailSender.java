@@ -62,8 +62,8 @@ public class BrevoAuthEmailSender implements AuthEmailSender {
     @Override
     public void sendPasswordReset(PasswordResetEmail email) {
         String link = frontendUrl("/reset-password?token=" + encode(email.token()));
-        send(OPERATION_PASSWORD_RESET, email.recipientEmail(), "Reset your TripPlanner password",
-            "<p>Use this link to reset your TripPlanner password:</p>"
+        send(OPERATION_PASSWORD_RESET, email.recipientEmail(), "Reset your Dupert password",
+            "<p>Use this link to reset your Dupert password:</p>"
                 + "<p><a href=\"" + link + "\">Reset password</a></p>"
                 + "<p>This link expires at " + email.expiresAt() + ".</p>");
     }
@@ -71,8 +71,8 @@ public class BrevoAuthEmailSender implements AuthEmailSender {
     @Override
     public void sendEmailVerification(EmailVerificationEmail email) {
         String link = frontendUrl("/verify-email?token=" + encode(email.token()));
-        send(OPERATION_EMAIL_VERIFICATION, email.recipientEmail(), "Verify your TripPlanner email",
-            "<p>Welcome to TripPlanner. Use this link to verify your email address:</p>"
+        send(OPERATION_EMAIL_VERIFICATION, email.recipientEmail(), "Verify your Dupert email",
+            "<p>Welcome to Dupert. Use this link to verify your email address:</p>"
                 + "<p><a href=\"" + link + "\">Verify email</a></p>"
                 + "<p>This link expires at " + email.expiresAt() + ".</p>");
     }

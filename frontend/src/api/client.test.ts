@@ -19,7 +19,7 @@ const SAMPLE_USER = {
   displayName: 'Q',
   emailVerified: true,
 }
-const REFRESH_LOCK_STORAGE_KEY = 'tripplanner:auth-refresh-lock'
+const REFRESH_LOCK_STORAGE_KEY = 'dupert:auth-refresh-lock'
 let originalLocksDescriptor: PropertyDescriptor | undefined
 
 function readStorageLock() {
@@ -129,8 +129,8 @@ describe('apiClient request interceptor', () => {
   it('adds the guest write header on trip writes when no bearer token is present', async () => {
     apiMock.onPost('/trips/abc234def567/activities').reply((cfg) => {
       const guestWrite =
-        cfg.headers?.['X-TripPlanner-Guest-Write'] ??
-        cfg.headers?.['x-tripplanner-guest-write']
+        cfg.headers?.['X-Dupert-Guest-Write'] ??
+        cfg.headers?.['x-dupert-guest-write']
       const auth = cfg.headers?.['Authorization'] ?? cfg.headers?.['authorization']
       return [200, { guestWrite, auth: auth ?? null }]
     })
@@ -149,8 +149,8 @@ describe('apiClient request interceptor', () => {
 
     apiMock.onPost('/trips/abc234def567/activities').reply((cfg) => {
       const guestWrite =
-        cfg.headers?.['X-TripPlanner-Guest-Write'] ??
-        cfg.headers?.['x-tripplanner-guest-write']
+        cfg.headers?.['X-Dupert-Guest-Write'] ??
+        cfg.headers?.['x-dupert-guest-write']
       const auth = cfg.headers?.['Authorization'] ?? cfg.headers?.['authorization']
       return [200, { guestWrite: guestWrite ?? null, auth }]
     })
@@ -174,8 +174,8 @@ describe('apiClient request interceptor', () => {
     })
     apiMock.onPost('/trips/abc234def567/activities').reply((cfg) => {
       const guestWrite =
-        cfg.headers?.['X-TripPlanner-Guest-Write'] ??
-        cfg.headers?.['x-tripplanner-guest-write']
+        cfg.headers?.['X-Dupert-Guest-Write'] ??
+        cfg.headers?.['x-dupert-guest-write']
       const auth = cfg.headers?.['Authorization'] ?? cfg.headers?.['authorization']
       return [200, { guestWrite: guestWrite ?? null, auth: auth ?? null }]
     })
@@ -196,8 +196,8 @@ describe('apiClient request interceptor', () => {
     refreshMock.onPost('/api/auth/refresh').reply(401, { error: 'unauthenticated' })
     apiMock.onPost('/trips/abc234def567/activities').reply((cfg) => {
       const guestWrite =
-        cfg.headers?.['X-TripPlanner-Guest-Write'] ??
-        cfg.headers?.['x-tripplanner-guest-write']
+        cfg.headers?.['X-Dupert-Guest-Write'] ??
+        cfg.headers?.['x-dupert-guest-write']
       const auth = cfg.headers?.['Authorization'] ?? cfg.headers?.['authorization']
       return [401, { guestWrite: guestWrite ?? null, auth: auth ?? null }]
     })
@@ -209,7 +209,7 @@ describe('apiClient request interceptor', () => {
     })
 
     expect(refreshMock.history.post).toHaveLength(1)
-    expect(apiMock.history.post[0].headers?.['X-TripPlanner-Guest-Write']).toBe(
+    expect(apiMock.history.post[0].headers?.['X-Dupert-Guest-Write']).toBe(
       undefined,
     )
     expect(apiMock.history.post[0].headers?.['Authorization']).toBe(undefined)
@@ -376,7 +376,7 @@ describe('refreshSession cross-tab coordination', () => {
     await Promise.resolve()
 
     expect(request).toHaveBeenCalledTimes(1)
-    expect(request.mock.calls[0][0]).toBe('tripplanner:auth-refresh')
+    expect(request.mock.calls[0][0]).toBe('dupert:auth-refresh')
     expect(request.mock.calls[0][1]).toEqual({ mode: 'exclusive' })
     expect(refreshMock.history.post).toHaveLength(0)
 

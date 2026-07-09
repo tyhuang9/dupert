@@ -81,7 +81,7 @@ function AccessGatePage({
   passwordId,
   passwordRef,
 }: AccessGatePageProps) {
-  usePageTitle('Enter access password - TripPlanner')
+  usePageTitle('Enter access password - Dupert')
 
   return (
     <main id="main" className={styles.shell}>
