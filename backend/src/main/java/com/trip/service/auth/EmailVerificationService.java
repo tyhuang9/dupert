@@ -100,18 +100,23 @@ public class EmailVerificationService implements EmailVerificationOperations {
     }
 
     @Override
-    public void queueInitialVerification(long userId) {
+    public void queueInitialVerification(long userId, String returnPath) {
+        String safeReturnPath = SafeReturnPath.normalize(returnPath);
         try {
-            emailVerificationExecutor.execute(() -> sendInitialVerificationAsync(userId));
+            emailVerificationExecutor.execute(() -> sendInitialVerificationAsync(userId, safeReturnPath));
         } catch (RejectedExecutionException e) {
             log.warn("Initial email verification queue rejected userId={} token=<redacted>", userId);
         }
     }
 
-    private void sendInitialVerificationAsync(long userId) {
+    public void queueInitialVerification(long userId) {
+        queueInitialVerification(userId, null);
+    }
+
+    private void sendInitialVerificationAsync(long userId, String returnPath) {
         try {
             transactionOperations.execute(status -> {
-                sendInitialVerificationInTransaction(userId);
+                sendInitialVerificationInTransaction(userId, returnPath);
                 return null;
             });
         } catch (RuntimeException e) {
@@ -120,7 +125,7 @@ public class EmailVerificationService implements EmailVerificationOperations {
         }
     }
 
-    private void sendInitialVerificationInTransaction(long userId) {
+    private void sendInitialVerificationInTransaction(long userId, String returnPath) {
         Optional<User> maybeUser = userRepository.findById(userId);
         if (maybeUser.isEmpty()) {
             log.info("Initial email verification send skipped userId={} reason=user_not_found", userId);
@@ -135,13 +140,14 @@ public class EmailVerificationService implements EmailVerificationOperations {
         }
         log.info("Initial email verification send requested userId={} recipientDomain={}",
             user.getId(), emailDomain(user.getEmail()));
-        createAndSend(user, false);
+        createAndSend(user, false, returnPath);
     }
 
     @Transactional
     @Override
-    public void resend(String email) {
+    public void resend(String email, String returnPath) {
         String normalizedEmail = EmailNormalizer.normalize(email);
+        String safeReturnPath = SafeReturnPath.normalize(returnPath);
         String recipientDomain = emailDomain(normalizedEmail);
         log.info("Email verification resend requested recipientDomain={}", recipientDomain);
         Optional<User> maybeUser = userRepository.findByEmailIgnoreCase(normalizedEmail);
@@ -179,12 +185,16 @@ public class EmailVerificationService implements EmailVerificationOperations {
             return;
         }
 
-        createAndSend(user, false);
+        createAndSend(user, false, safeReturnPath);
+    }
+
+    public void resend(String email) {
+        resend(email, null);
     }
 
     @Transactional
     @Override
-    public void verify(String rawToken) {
+    public User verify(String rawToken) {
         OffsetDateTime now = now();
         String hash = sha256Hex(rawToken);
         EmailVerificationToken token = tokenRepository.findByTokenHashForUpdate(hash)
@@ -201,6 +211,7 @@ public class EmailVerificationService implements EmailVerificationOperations {
         }
         token.consume(now);
         tokenRepository.save(token);
+        return user;
     }
 
     @Scheduled(cron = "0 0 3 * * *")
@@ -213,7 +224,7 @@ public class EmailVerificationService implements EmailVerificationOperations {
         }
     }
 
-    private void createAndSend(User user, boolean propagateFailure) {
+    private void createAndSend(User user, boolean propagateFailure, String returnPath) {
         OffsetDateTime now = now();
         String recipientDomain = emailDomain(user.getEmail());
         tokenRepository.revokeActiveForUser(user.getId(), now);
@@ -226,7 +237,11 @@ public class EmailVerificationService implements EmailVerificationOperations {
             user.getId(), recipientDomain, saved.getExpiresAt(), propagateFailure);
         try {
             emailSender.sendEmailVerification(
-                new EmailVerificationEmail(user.getEmail(), generated.raw(), saved.getExpiresAt()));
+                new EmailVerificationEmail(
+                    user.getEmail(),
+                    generated.raw(),
+                    saved.getExpiresAt(),
+                    SafeReturnPath.normalize(returnPath)));
             log.info(
                 "Email verification email send completed userId={} recipientDomain={} expiresAt={} token=<redacted>",
                 user.getId(), recipientDomain, saved.getExpiresAt());

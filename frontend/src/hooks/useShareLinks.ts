@@ -31,6 +31,10 @@ export const shareKeys = {
   members: (publicId: string) => ['trip-members', publicId] as const,
 }
 
+function upsertShareLink(existing: ShareLink[] | undefined, link: ShareLink): ShareLink[] {
+  return [link, ...(existing ?? []).filter((item) => item.id !== link.id)]
+}
+
 export function useShareLinks(
   publicId: string | undefined,
 ): UseQueryResult<ShareLink[]> {
@@ -63,7 +67,7 @@ export function useCreateShareLink(): UseMutationResult<
     onSuccess: (link, { publicId }) => {
       queryClient.setQueryData<ShareLink[]>(
         shareKeys.forTrip(publicId),
-        (existing) => [link, ...(existing ?? [])],
+        (existing) => upsertShareLink(existing, link),
       )
     },
   })

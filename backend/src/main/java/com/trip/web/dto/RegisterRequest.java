@@ -26,11 +26,19 @@ public record RegisterRequest(
 
     @NotBlank
     @Size(min = 1, max = 50)
-    String displayName
+    String displayName,
+
+    @Size(max = 512)
+    String returnPath
 ) {
+    public RegisterRequest(String email, String password, String displayName) {
+        this(email, password, displayName, null);
+    }
+
     @Override
     public String toString() {
         return "RegisterRequest[email=" + email
-            + ", password=<redacted>, displayName=" + displayName + "]";
+            + ", password=<redacted>, displayName=" + displayName
+            + ", returnPath=" + returnPath + "]";
     }
 }

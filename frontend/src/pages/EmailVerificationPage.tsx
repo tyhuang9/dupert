@@ -1,7 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { verifyEmail } from '../api/auth'
 import { parseApiError } from '../api/errors'
+import { listTrips } from '../api/trips'
+import { useAuthStore } from '../auth/authStore'
+import { safeReturnPath } from '../auth/safeReturnPath'
+import { tripKeys } from '../hooks/useTrips'
 import { usePageTitle } from '../utils/usePageTitle'
 import styles from './AuthForm.module.css'
 
@@ -11,7 +16,11 @@ export function EmailVerificationPage() {
   usePageTitle('Verify email - Dupert')
 
   const [searchParams] = useSearchParams()
+  const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const setSession = useAuthStore((state) => state.setSession)
   const token = searchParams.get('token') ?? ''
+  const returnTo = safeReturnPath(searchParams.get('return'))
   const hasToken = token.trim().length > 0
   const [verification, setVerification] = useState<{
     state: VerificationState
@@ -28,11 +37,21 @@ export function EmailVerificationPage() {
     startedRef.current = true
 
     verifyEmail({ token })
-      .then(() => {
+      .then((res) => {
+        setSession({
+          accessToken: res.accessToken,
+          expiresInSeconds: res.expiresInSeconds,
+          user: res.user,
+        })
+        void queryClient.prefetchQuery({
+          queryKey: tripKeys.lists(),
+          queryFn: listTrips,
+        })
         setVerification({
           state: 'verified',
-          message: 'Your email is verified. You can now sign in.',
+          message: 'Your email is verified. Taking you to Dupert...',
         })
+        navigate(returnTo, { replace: true })
       })
       .catch((err) => {
         setVerification({
@@ -42,7 +61,7 @@ export function EmailVerificationPage() {
             'This verification link is invalid or expired.',
         })
       })
-  }, [hasToken, token])
+  }, [hasToken, navigate, queryClient, returnTo, setSession, token])
 
   const state = hasToken ? verification.state : 'error'
   const message = hasToken

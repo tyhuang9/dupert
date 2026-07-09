@@ -64,6 +64,20 @@ class SecurityDeploymentValidatorTest {
     }
 
     @Test
+    void sameSiteNoneRequiresSecureCookies() {
+        AppProperties app = appProperties("https://dupert.example", false);
+        app.setTrustProxy(true);
+        app.getCookies().setSameSite("None");
+        SecureProperties secure = secureProperties(true);
+        SecurityDeploymentValidator validator = new SecurityDeploymentValidator(
+            app, secure, new MockEnvironment().withProperty("spring.profiles.active", "prod"));
+
+        assertThatThrownBy(() -> validator.run(new DefaultApplicationArguments()))
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("app.cookies.secure=true");
+    }
+
+    @Test
     void renderTransportEnvironmentVariablesBindAndSatisfyValidator() {
         StandardEnvironment env = new StandardEnvironment();
         env.getPropertySources().replace(
@@ -81,6 +95,7 @@ class SecurityDeploymentValidatorTest {
         SecureProperties secure = Binder.get(env).bind("secure", SecureProperties.class)
             .orElseGet(SecureProperties::new);
         app.setFrontendOrigin("https://dupert.example");
+        app.setPublicFrontendUrl("https://dupert.example");
         app.setSignupEnabled(false);
         SecurityDeploymentValidator validator = new SecurityDeploymentValidator(app, secure, env);
 
@@ -108,6 +123,7 @@ class SecurityDeploymentValidatorTest {
         AppProperties app = appProperties("https://dupert.example", true);
         app.setTrustProxy(true);
         app.setSignupEnabled(true);
+        app.setPublicFrontendUrl("");
         SecureProperties secure = secureProperties(true);
         SecurityDeploymentValidator validator = new SecurityDeploymentValidator(
             app, secure, new MockEnvironment().withProperty("spring.profiles.active", "prod"));
@@ -133,6 +149,7 @@ class SecurityDeploymentValidatorTest {
     private static AppProperties appProperties(String frontendOrigin, boolean secureCookies) {
         AppProperties app = new AppProperties();
         app.setFrontendOrigin(frontendOrigin);
+        app.setPublicFrontendUrl(frontendOrigin);
         app.getCookies().setSecure(secureCookies);
         app.setSignupEnabled(false);
         return app;

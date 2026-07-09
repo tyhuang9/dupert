@@ -29,6 +29,7 @@ export interface RegisterRequest {
   email: string
   password: string
   displayName: string
+  returnPath?: string | null
 }
 
 export interface RegisterResponse {
@@ -65,4 +66,5 @@ export interface EmailVerificationRequest {
 
 export interface EmailVerificationResendRequest {
   email: string
+  returnPath?: string | null
 }

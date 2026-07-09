@@ -22,12 +22,14 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.trip.domain.User;
 import com.trip.repo.UserRepository;
 import com.trip.service.auth.EmailVerificationOperations;
 import com.trip.service.auth.JwtService;
+import com.trip.web.auth.AuthCookieAction;
 import com.trip.web.dto.LoginRequest;
 import com.trip.web.dto.RegisterRequest;
 
@@ -157,7 +159,9 @@ class AuthFlowIntegrationTest {
             .andExpect(jsonPath("$.email").value(testEmail));
 
         // 3. Refresh — rotates the cookie and mints a new access token.
-        MvcResult refreshed = mvc.perform(post("/api/auth/refresh").cookie(registerCookie))
+        MvcResult refreshed = mvc.perform(post("/api/auth/refresh")
+                .with(authCookieAction())
+                .cookie(registerCookie))
             .andExpect(status().isOk())
             .andReturn();
         Cookie rotatedCookie = refreshed.getResponse().getCookie("refresh_token");
@@ -173,7 +177,9 @@ class AuthFlowIntegrationTest {
 
         // 5. Logout — revokes the rotated cookie's refresh row, sets Max-Age=0 on the
         //    response cookie.
-        mvc.perform(post("/api/auth/logout").cookie(rotatedCookie))
+        mvc.perform(post("/api/auth/logout")
+                .with(authCookieAction())
+                .cookie(rotatedCookie))
             .andExpect(status().isNoContent());
 
         // 6. The old access token still works because access tokens are short-lived
@@ -185,7 +191,9 @@ class AuthFlowIntegrationTest {
 
         // Step 7: presenting the just-logged-out cookie to /refresh hits the
         // "revoked token" branch of rotate(), which fires chain revocation.
-        mvc.perform(post("/api/auth/refresh").cookie(rotatedCookie))
+        mvc.perform(post("/api/auth/refresh")
+                .with(authCookieAction())
+                .cookie(rotatedCookie))
             .andExpect(status().isUnauthorized());
 
         // 8. DELETE /me cleans up everything; the @AfterEach cleanup becomes a no-op.
@@ -200,5 +208,12 @@ class AuthFlowIntegrationTest {
         assertThat(user.getDisplayName()).isEqualTo(expectedDisplayName);
         user.markEmailVerified(OffsetDateTime.now());
         return userRepository.save(user);
+    }
+
+    private static RequestPostProcessor authCookieAction() {
+        return request -> {
+            request.addHeader(AuthCookieAction.HEADER, AuthCookieAction.VALUE);
+            return request;
+        };
     }
 }

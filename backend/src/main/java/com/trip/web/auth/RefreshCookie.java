@@ -40,22 +40,29 @@ public class RefreshCookie {
     static final Duration COOKIE_MAX_AGE = Duration.ofDays(30);
 
     private final boolean secure;
+    private final String sameSite;
 
     @Autowired
     public RefreshCookie(AppProperties props) {
         this.secure = props.getCookies().isSecure();
+        this.sameSite = props.getCookies().getSameSite();
     }
 
     /** Test seam — let unit tests construct the helper without a Spring context. */
     RefreshCookie(boolean secure) {
+        this(secure, "Strict");
+    }
+
+    RefreshCookie(boolean secure, String sameSite) {
         this.secure = secure;
+        this.sameSite = sameSite == null || sameSite.isBlank() ? "Strict" : sameSite;
     }
 
     public void addToResponse(HttpServletResponse response, String rawRefreshToken) {
         ResponseCookie cookie = ResponseCookie.from(COOKIE_NAME, rawRefreshToken)
             .httpOnly(true)
             .secure(secure)
-            .sameSite("Strict")
+            .sameSite(sameSite)
             .path(COOKIE_PATH)
             .maxAge(COOKIE_MAX_AGE)
             .build();
@@ -70,7 +77,7 @@ public class RefreshCookie {
         ResponseCookie cookie = ResponseCookie.from(COOKIE_NAME, "")
             .httpOnly(true)
             .secure(secure)
-            .sameSite("Strict")
+            .sameSite(sameSite)
             .path(COOKIE_PATH)
             .maxAge(Duration.ZERO)
             .build();

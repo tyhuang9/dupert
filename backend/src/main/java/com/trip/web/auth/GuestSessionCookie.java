@@ -21,16 +21,18 @@ public class GuestSessionCookie {
     static final Duration COOKIE_MAX_AGE = Duration.ofDays(14);
 
     private final boolean secure;
+    private final String sameSite;
 
     public GuestSessionCookie(AppProperties props) {
         this.secure = props.getCookies().isSecure();
+        this.sameSite = props.getCookies().getSameSite();
     }
 
     public void addToResponse(HttpServletResponse response, String rawGuestToken) {
         ResponseCookie cookie = ResponseCookie.from(COOKIE_NAME, rawGuestToken)
             .httpOnly(true)
             .secure(secure)
-            .sameSite("Strict")
+            .sameSite(sameSite)
             .path(COOKIE_PATH)
             .maxAge(COOKIE_MAX_AGE)
             .build();
@@ -41,7 +43,7 @@ public class GuestSessionCookie {
         ResponseCookie cookie = ResponseCookie.from(COOKIE_NAME, "")
             .httpOnly(true)
             .secure(secure)
-            .sameSite("Strict")
+            .sameSite(sameSite)
             .path(COOKIE_PATH)
             .maxAge(Duration.ZERO)
             .build();

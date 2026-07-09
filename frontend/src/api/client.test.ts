@@ -1,7 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import MockAdapter from 'axios-mock-adapter'
 import axios from 'axios'
-import { __resetRefreshSingletonForTests, apiClient, refreshSession } from './client'
+import {
+  __resetRefreshSingletonForTests,
+  apiClient,
+  AUTH_COOKIE_ACTION_HEADER,
+  AUTH_COOKIE_ACTION_VALUE,
+  refreshSession,
+} from './client'
 import { useAuthStore } from '../auth/authStore'
 
 /**
@@ -343,8 +349,30 @@ describe('refreshSession cross-tab coordination', () => {
     const [first, second] = await Promise.all([refreshSession(), refreshSession()])
 
     expect(refreshCalls).toBe(1)
+    expect(refreshMock.history.post[0].headers?.[AUTH_COOKIE_ACTION_HEADER]).toBe(
+      AUTH_COOKIE_ACTION_VALUE,
+    )
     expect(first.accessToken).toBe('coalesced-tok')
     expect(second.accessToken).toBe('coalesced-tok')
+  })
+
+  it('does not clear a newer session when an older refresh fails', async () => {
+    refreshMock.onPost('/api/auth/refresh').reply(() => {
+      useAuthStore.getState().setSession({
+        accessToken: 'verified-after-refresh-started',
+        expiresInSeconds: 900,
+        user: SAMPLE_USER,
+      })
+      return [401, { error: 'unauthenticated' }]
+    })
+
+    await expect(refreshSession()).rejects.toMatchObject({
+      response: { status: 401 },
+    })
+
+    expect(useAuthStore.getState().accessToken).toBe(
+      'verified-after-refresh-started',
+    )
   })
 
   it('waits for Web Lock acquisition before refreshing', async () => {

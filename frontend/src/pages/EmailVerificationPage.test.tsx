@@ -1,25 +1,55 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { AxiosError, AxiosHeaders } from 'axios'
 import { EmailVerificationPage } from './EmailVerificationPage'
 import { verifyEmail } from '../api/auth'
+import { useAuthStore } from '../auth/authStore'
+import type { AuthResponse } from '../types/auth'
 
 vi.mock('../api/auth', () => ({
   verifyEmail: vi.fn(),
 }))
 
+vi.mock('../api/trips', async () => {
+  const actual = await vi.importActual<typeof import('../api/trips')>('../api/trips')
+  return {
+    ...actual,
+    listTrips: vi.fn(async () => []),
+  }
+})
+
 const verifyEmailMock = vi.mocked(verifyEmail)
 
 function renderEmailVerification(path: string) {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  })
   return render(
-    <MemoryRouter initialEntries={[path]}>
-      <Routes>
-        <Route path="/verify-email" element={<EmailVerificationPage />} />
-        <Route path="/login" element={<div>Sign in page</div>} />
-      </Routes>
-    </MemoryRouter>,
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter initialEntries={[path]}>
+        <Routes>
+          <Route path="/verify-email" element={<EmailVerificationPage />} />
+          <Route path="/login" element={<div>Sign in page</div>} />
+          <Route path="/trips" element={<div data-testid="trips-page">Trips page</div>} />
+          <Route path="/share/:token" element={<div data-testid="share-page">Share page</div>} />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>,
   )
+}
+
+const AUTH_RESPONSE: AuthResponse = {
+  accessToken: 'verified-access-token',
+  tokenType: 'Bearer',
+  expiresInSeconds: 900,
+  user: {
+    id: 7,
+    email: 'verified@example.com',
+    displayName: 'Verified User',
+    emailVerified: true,
+  },
 }
 
 function makeAxiosError(status: number, data: unknown): AxiosError {
@@ -34,11 +64,12 @@ function makeAxiosError(status: number, data: unknown): AxiosError {
 
 beforeEach(() => {
   verifyEmailMock.mockReset()
+  useAuthStore.getState().clearSession()
 })
 
 describe('<EmailVerificationPage>', () => {
   it('verifies the token from the verify-email URL', async () => {
-    verifyEmailMock.mockResolvedValue(undefined)
+    verifyEmailMock.mockResolvedValue(AUTH_RESPONSE)
 
     renderEmailVerification(
       '/verify-email?token=0nh2PQj6NG-Kwqc-gx8mfbKs3KuEd8OjBVu_q29qSAs',
@@ -47,12 +78,16 @@ describe('<EmailVerificationPage>', () => {
     expect(verifyEmailMock).toHaveBeenCalledWith({
       token: '0nh2PQj6NG-Kwqc-gx8mfbKs3KuEd8OjBVu_q29qSAs',
     })
-    expect(
-      await screen.findByRole('heading', { name: /email verified/i }),
-    ).toBeInTheDocument()
-    expect(screen.getByRole('status')).toHaveTextContent(
-      /your email is verified/i,
-    )
+    expect(await screen.findByTestId('trips-page')).toBeInTheDocument()
+    expect(useAuthStore.getState().user?.email).toBe('verified@example.com')
+  })
+
+  it('redirects to a safe return path after verification', async () => {
+    verifyEmailMock.mockResolvedValue(AUTH_RESPONSE)
+
+    renderEmailVerification('/verify-email?token=token&return=%2Fshare%2Fraw-token')
+
+    expect(await screen.findByTestId('share-page')).toBeInTheDocument()
   })
 
   it('does not call the verify API when the token is missing', () => {

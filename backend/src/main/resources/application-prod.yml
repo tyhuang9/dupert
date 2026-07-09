@@ -1,6 +1,7 @@
 app:
   cookies:
     secure: true
+    same-site: None
 
 secure:
   hsts:

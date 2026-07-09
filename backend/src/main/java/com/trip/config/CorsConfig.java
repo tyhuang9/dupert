@@ -14,6 +14,9 @@ import org.springframework.core.env.Profiles;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import com.trip.web.auth.AuthCookieAction;
+import com.trip.web.auth.GuestAuthenticationFilter;
+
 /**
  * Exact-origin CORS allowlist. The list comes from the {@code ALLOWED_ORIGINS}
  * environment variable (comma-separated); no wildcards, no runtime reflection of the
@@ -38,11 +41,13 @@ public class CorsConfig {
         cfg.setAllowedHeaders(List.of(
             "Authorization",
             "Content-Type",
+            AuthCookieAction.HEADER,
+            GuestAuthenticationFilter.GUEST_WRITE_HEADER,
             "X-Requested-With",
             "Accept",
             "Origin"
         ));
-        cfg.setExposedHeaders(List.of("X-Correlation-Id"));
+        cfg.setExposedHeaders(List.of("X-Correlation-Id", "Server-Timing"));
         cfg.setAllowCredentials(true);
         cfg.setMaxAge(3600L);
 

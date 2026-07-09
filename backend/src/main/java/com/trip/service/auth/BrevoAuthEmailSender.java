@@ -70,7 +70,8 @@ public class BrevoAuthEmailSender implements AuthEmailSender {
 
     @Override
     public void sendEmailVerification(EmailVerificationEmail email) {
-        String link = frontendUrl("/verify-email?token=" + encode(email.token()));
+        String link = frontendUrl(
+            "/verify-email?token=" + encode(email.token()) + returnQuery(email.returnPath()));
         send(OPERATION_EMAIL_VERIFICATION, email.recipientEmail(), "Verify your Dupert email",
             "<p>Welcome to Dupert. Use this link to verify your email address:</p>"
                 + "<p><a href=\"" + link + "\">Verify email</a></p>"
@@ -139,6 +140,11 @@ public class BrevoAuthEmailSender implements AuthEmailSender {
 
     private static String encode(String token) {
         return URLEncoder.encode(token, StandardCharsets.UTF_8);
+    }
+
+    private static String returnQuery(String returnPath) {
+        String safeReturnPath = SafeReturnPath.normalize(returnPath);
+        return safeReturnPath == null ? "" : "&return=" + encode(safeReturnPath);
     }
 
     private static String emailDomain(String email) {

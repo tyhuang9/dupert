@@ -49,7 +49,7 @@ public class ShareLinkService {
     private final TripAccessGuard tripAccessGuard;
     private final ShareTokenService shareTokenService;
     private final TripEventPublisher tripEventPublisher;
-    private final String frontendOrigin;
+    private final String shareUrlOrigin;
 
     public ShareLinkService(ShareLinkRepository shareLinkRepository,
                             GuestSessionRepository guestSessionRepository,
@@ -66,7 +66,7 @@ public class ShareLinkService {
         this.tripAccessGuard = tripAccessGuard;
         this.shareTokenService = shareTokenService;
         this.tripEventPublisher = tripEventPublisher;
-        this.frontendOrigin = appProperties.getFrontendOrigin();
+        this.shareUrlOrigin = shareUrlOrigin(appProperties);
     }
 
     @Transactional
@@ -239,7 +239,7 @@ public class ShareLinkService {
     }
 
     private String shareUrl(String rawToken) {
-        String trimmedOrigin = frontendOrigin == null ? "" : frontendOrigin.strip();
+        String trimmedOrigin = shareUrlOrigin == null ? "" : shareUrlOrigin.strip();
         if (trimmedOrigin.isEmpty()) {
             return "/share/" + rawToken;
         }
@@ -255,6 +255,19 @@ public class ShareLinkService {
             return null;
         }
         return shareUrl(rawToken);
+    }
+
+    private static String shareUrlOrigin(AppProperties appProperties) {
+        String publicFrontendUrl = appProperties.getPublicFrontendUrl();
+        if (publicFrontendUrl != null && !publicFrontendUrl.isBlank()) {
+            return publicFrontendUrl;
+        }
+        String frontendOrigin = appProperties.getFrontendOrigin();
+        if (frontendOrigin == null || frontendOrigin.isBlank()) {
+            return "";
+        }
+        int comma = frontendOrigin.indexOf(',');
+        return comma < 0 ? frontendOrigin : frontendOrigin.substring(0, comma);
     }
 
     private record GeneratedToken(String raw, String hash) {

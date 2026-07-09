@@ -23,12 +23,18 @@ public interface AuthEmailSender {
     record EmailVerificationEmail(
         String recipientEmail,
         String token,
-        OffsetDateTime expiresAt
+        OffsetDateTime expiresAt,
+        String returnPath
     ) {
+        public EmailVerificationEmail(String recipientEmail, String token, OffsetDateTime expiresAt) {
+            this(recipientEmail, token, expiresAt, null);
+        }
+
         @Override
         public String toString() {
             return "EmailVerificationEmail[recipientEmail=" + recipientEmail
-                + ", token=<redacted>, expiresAt=" + expiresAt + "]";
+                + ", token=<redacted>, expiresAt=" + expiresAt
+                + ", returnPath=" + returnPath + "]";
         }
     }
 }

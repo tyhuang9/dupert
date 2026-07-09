@@ -1,4 +1,8 @@
-import { apiClient } from './client'
+import {
+  apiClient,
+  AUTH_COOKIE_ACTION_HEADER,
+  AUTH_COOKIE_ACTION_VALUE,
+} from './client'
 import type {
   AuthResponse,
   ChangePasswordRequest,
@@ -39,7 +43,9 @@ export async function login(body: LoginRequest): Promise<AuthResponse> {
 }
 
 export async function logout(): Promise<void> {
-  await apiClient.post('/auth/logout')
+  await apiClient.post('/auth/logout', undefined, {
+    headers: { [AUTH_COOKIE_ACTION_HEADER]: AUTH_COOKIE_ACTION_VALUE },
+  })
 }
 
 export async function getMe(): Promise<UserSummary> {
@@ -64,8 +70,11 @@ export async function confirmPasswordReset(body: PasswordResetConfirmRequest): P
   await apiClient.post('/auth/password-reset/confirm', body)
 }
 
-export async function verifyEmail(body: EmailVerificationRequest): Promise<void> {
-  await apiClient.post('/auth/email/verify', body)
+export async function verifyEmail(
+  body: EmailVerificationRequest,
+): Promise<AuthResponse> {
+  const { data } = await apiClient.post<AuthResponse>('/auth/email/verify', body)
+  return data
 }
 
 export async function resendEmailVerification(

@@ -34,7 +34,9 @@ public class SecurityDeploymentValidator implements ApplicationRunner {
         boolean publicDeployment = requiresTransportHardening();
         if (publicDeployment) {
             validateCorsOrigins();
+            validatePublicFrontendUrl();
             validateTransportHardening();
+            validateCookieSameSite();
         }
         if (requiresEmailConfig()) {
             validateEmailConfig();
@@ -78,6 +80,25 @@ public class SecurityDeploymentValidator implements ApplicationRunner {
         if (environment.acceptsProfiles(Profiles.of("prod")) && origins.isEmpty()) {
             throw new IllegalStateException(
                 "Production deployments require ALLOWED_ORIGINS to be set to the exact frontend origin");
+        }
+    }
+
+    private void validatePublicFrontendUrl() {
+        if (appProperties.getPublicFrontendUrl().isBlank()) {
+            throw new IllegalStateException(
+                "Production-like deployments require APP_PUBLIC_FRONTEND_URL for email and share links");
+        }
+    }
+
+    private void validateCookieSameSite() {
+        String sameSite = appProperties.getCookies().getSameSite();
+        if (!"Strict".equals(sameSite) && !"Lax".equals(sameSite) && !"None".equals(sameSite)) {
+            throw new IllegalStateException(
+                "app.cookies.same-site must be Strict, Lax, or None");
+        }
+        if ("None".equals(sameSite) && !appProperties.getCookies().isSecure()) {
+            throw new IllegalStateException(
+                "app.cookies.same-site=None requires app.cookies.secure=true");
         }
     }
 

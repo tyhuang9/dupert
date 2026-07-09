@@ -1,8 +1,11 @@
 import { useId, useRef, useState, type FormEvent } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth'
 import { useIsAuthenticated } from '../auth/authStore'
 import { apiErrorCode, parseApiError, type ParsedApiError } from '../api/errors'
+import { listTrips } from '../api/trips'
+import { tripKeys } from '../hooks/useTrips'
 import { safeReturnPath } from '../auth/safeReturnPath'
 import { usePageTitle } from '../utils/usePageTitle'
 import styles from './AuthForm.module.css'
@@ -14,11 +17,13 @@ export function LoginPage() {
 
   const auth = useAuth()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const [searchParams] = useSearchParams()
   const { isInitializing } = auth
   const isAuthenticated = useIsAuthenticated()
   const rawReturn = searchParams.get('return')
   const returnTo = safeReturnPath(rawReturn)
+  const verificationReturnPath = rawReturn ? returnTo : undefined
   const registerHref = `/register?return=${encodeURIComponent(rawReturn ?? '')}`
 
   const [email, setEmail] = useState('')
@@ -64,6 +69,10 @@ export function LoginPage() {
     setResendError(null)
     try {
       await auth.login({ email, password })
+      void queryClient.prefetchQuery({
+        queryKey: tripKeys.lists(),
+        queryFn: listTrips,
+      })
       navigate(returnTo, { replace: true })
     } catch (err) {
       const parsed = parseApiError(err)
@@ -105,7 +114,10 @@ export function LoginPage() {
     setResendMessage(null)
     setResendError(null)
     try {
-      await auth.resendEmailVerification({ email: unverifiedEmail })
+      await auth.resendEmailVerification({
+        email: unverifiedEmail,
+        returnPath: verificationReturnPath,
+      })
       setResendMessage(
         'If that account is still waiting, a verification email is on the way.',
       )

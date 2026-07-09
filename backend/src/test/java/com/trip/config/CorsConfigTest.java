@@ -6,6 +6,10 @@ import java.util.List;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.env.MockEnvironment;
+import org.springframework.mock.web.MockHttpServletRequest;
+
+import com.trip.web.auth.AuthCookieAction;
+import com.trip.web.auth.GuestAuthenticationFilter;
 
 class CorsConfigTest {
 
@@ -81,6 +85,23 @@ class CorsConfigTest {
                 "http://127.0.0.1:3000",
                 "http://0.0.0.0:3000",
                 "https://dupert.example"));
+    }
+
+    @Test
+    void corsAllowsGuestAndAuthCookieActionHeadersAndExposesTiming() {
+        AppProperties props = appProperties("http://localhost:3000");
+        MockEnvironment environment = new MockEnvironment();
+        environment.setActiveProfiles("dev");
+
+        var source = new CorsConfig().corsConfigurationSource(props, environment);
+        var config = source.getCorsConfiguration(
+            new MockHttpServletRequest("OPTIONS", "/api/trips/abc"));
+
+        assertThat(config).isNotNull();
+        assertThat(config.getAllowedHeaders())
+            .contains(AuthCookieAction.HEADER, GuestAuthenticationFilter.GUEST_WRITE_HEADER);
+        assertThat(config.getExposedHeaders())
+            .contains("X-Correlation-Id", "Server-Timing");
     }
 
     private static AppProperties appProperties(String frontendOrigin) {

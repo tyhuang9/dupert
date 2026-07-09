@@ -1,11 +1,20 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { AxiosError, AxiosHeaders } from 'axios'
 import { LoginPage } from './LoginPage'
 import { AuthContext, type AuthContextValue } from '../auth/authContextValue'
 import { useAuthStore } from '../auth/authStore'
+
+vi.mock('../api/trips', async () => {
+  const actual = await vi.importActual<typeof import('../api/trips')>('../api/trips')
+  return {
+    ...actual,
+    listTrips: vi.fn(async () => []),
+  }
+})
 
 function makeAuth(overrides: Partial<AuthContextValue> = {}): AuthContextValue {
   return {
@@ -44,19 +53,24 @@ function renderLogin(
     <div data-testid="post-login">POST LOGIN</div>
   ),
 ) {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  })
   return render(
-    <AuthContext.Provider value={ctx}>
-      <MemoryRouter initialEntries={[initialPath]}>
-        <Routes>
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/trips" element={postLoginElement} />
-          <Route
-            path="/trips/abc"
-            element={<div data-testid="trip-deep">TRIP DEEP</div>}
-          />
-        </Routes>
-      </MemoryRouter>
-    </AuthContext.Provider>,
+    <QueryClientProvider client={queryClient}>
+      <AuthContext.Provider value={ctx}>
+        <MemoryRouter initialEntries={[initialPath]}>
+          <Routes>
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/trips" element={postLoginElement} />
+            <Route
+              path="/trips/abc"
+              element={<div data-testid="trip-deep">TRIP DEEP</div>}
+            />
+          </Routes>
+        </MemoryRouter>
+      </AuthContext.Provider>
+    </QueryClientProvider>,
   )
 }
 
@@ -147,7 +161,7 @@ describe('<LoginPage>', () => {
       }),
       resendEmailVerification: vi.fn(async () => {}),
     })
-    renderLogin(ctx)
+    renderLogin(ctx, `/login?return=${encodeURIComponent('/share/raw-token')}`)
 
     const user = userEvent.setup()
     await user.type(screen.getByLabelText('Email'), 'me@example.com')
@@ -162,6 +176,7 @@ describe('<LoginPage>', () => {
 
     expect(ctx.resendEmailVerification).toHaveBeenCalledWith({
       email: 'me@example.com',
+      returnPath: '/share/raw-token',
     })
     expect(await screen.findByRole('status')).toHaveTextContent(
       /verification email is on the way/i,
