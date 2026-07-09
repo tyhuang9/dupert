@@ -11,9 +11,11 @@ Multiple viewers see each other's edits live (under a second) without manual ref
 
 ## Screenshots
 
-![Trip dashboard showing the authenticated trips list](docs/screenshots/trip-dashboard.png)
+These screenshots use the local demo seed data described in [Development Auth Testing](docs/development-testing.md).
 
-![Trip workspace with day schedule, mapped stops, and route controls](docs/screenshots/trip-workspace.png)
+![Dupert dashboard showing the authenticated trips list](docs/screenshots/dupert-dashboard.png)
+
+![Dupert workspace with a day schedule, mapped stops, and route controls](docs/screenshots/dupert-workspace.png)
 
 ## Tech stack
 
