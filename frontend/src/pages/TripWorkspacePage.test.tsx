@@ -709,6 +709,30 @@ describe('<TripWorkspacePage>', () => {
     })
   })
 
+  it('moves a mobile activity through the explicit day-picker action', async () => {
+    mockViewport(true)
+    mockWorkspace([SAMPLE_ACTIVITY])
+    apiMock.onPost('/activities/10/move?publicId=abc234def567').reply((config) => {
+      expect(JSON.parse(config.data as string)).toEqual({
+        dayDate: '2026-05-02',
+        orderIndex: 0,
+      })
+      return [200, { ...SAMPLE_ACTIVITY, dayDate: '2026-05-02' }]
+    })
+
+    renderWorkspace('/trips/abc234def567/d/2026-05-01')
+
+    expect(await screen.findByRole('button', { name: /move to day/i })).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: /move to day/i }))
+    expect(screen.getByRole('dialog', { name: /move tsukiji sushi/i })).toBeInTheDocument()
+
+    await userEvent.click(screen.getByTitle('2026-05-02 (0 activities)'))
+    await waitFor(() => {
+      expect(apiMock.history.post.some((request) => request.url?.startsWith('/activities/10/move'))).toBe(true)
+      expect(screen.getByTestId('current-location')).toHaveTextContent('/trips/abc234def567/d/2026-05-02')
+    })
+  })
+
   it('renders workspace shell when trip is loaded', async () => {
     mockWorkspace()
 

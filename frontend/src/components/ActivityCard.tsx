@@ -12,6 +12,7 @@ import type {
 import {
   BedDouble,
   Coffee,
+  GripVertical,
   Landmark,
   MapPin,
   Plane,
@@ -31,12 +32,14 @@ interface ActivityCardProps {
   dragListeners?: DraggableSyntheticListeners
   domId?: string
   expanded?: boolean
+  mobileDragHandle?: boolean
   presentation?: boolean
   readOnly?: boolean
   active?: boolean
   onActiveChange?: (activityId: number | null) => void
   onDelete: (activityId: number) => void
   onRequestMapLocation?: (activity: Activity, payload: CreateActivityRequest) => void
+  onMoveToDay?: (activity: Activity) => void
   onScheduleForSelectedDay?: (activity: Activity) => void
   onSubmitEdit: (activity: Activity, payload: CreateActivityRequest) => Promise<void> | void
   onToggleExpand: (activity: Activity) => void
@@ -148,11 +151,13 @@ export function ActivityCard({
   dragListeners,
   domId,
   expanded = false,
+  mobileDragHandle = false,
   presentation = false,
   readOnly = false,
   onActiveChange,
   onDelete,
   onRequestMapLocation,
+  onMoveToDay,
   onScheduleForSelectedDay,
   onSubmitEdit,
   onToggleExpand,
@@ -161,6 +166,7 @@ export function ActivityCard({
   const timeDisplay = getTimeDisplay(activity)
   const categoryLabel = getCategoryLabel(activity.category)
   const canDrag = !presentation && !readOnly && !busy && !dragDisabled && !expanded
+  const usesMobileDragHandle = canDrag && mobileDragHandle
   const cardClassName = [
     styles.card,
     canDrag ? styles.cardDraggable : '',
@@ -215,15 +221,15 @@ export function ActivityCard({
 
   return (
     <article
-      ref={canDrag ? dragActivatorRef : undefined}
+      ref={canDrag && !usesMobileDragHandle ? dragActivatorRef : undefined}
       id={domId ?? `activity-${activity.id}`}
       className={cardClassName}
-      {...(canDrag ? dragAttributes : undefined)}
+      {...(canDrag && !usesMobileDragHandle ? dragAttributes : undefined)}
       tabIndex={presentation ? -1 : 0}
       aria-hidden={presentation ? true : undefined}
       onClick={presentation ? undefined : handleClick}
       onKeyDown={presentation ? undefined : handleKeyDown}
-      onPointerDown={presentation ? undefined : handlePointerDown}
+      onPointerDown={presentation || usesMobileDragHandle ? undefined : handlePointerDown}
       onMouseEnter={presentation ? undefined : () => onActiveChange?.(activity.id)}
       onFocusCapture={presentation ? undefined : () => onActiveChange?.(activity.id)}
       onBlurCapture={presentation ? undefined : handleBlurCapture}
@@ -263,12 +269,60 @@ export function ActivityCard({
                 </button>
               </div>
             )}
+            {!readOnly && onMoveToDay && activity.dayDate !== null && (
+              <div className={styles.cardQuickActions}>
+                <button
+                  type="button"
+                  className={styles.cardQuickAction}
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    onMoveToDay(activity)
+                  }}
+                >
+                  Move to day
+                </button>
+              </div>
+            )}
           </div>
+          {usesMobileDragHandle ? (
+            <button
+              ref={dragActivatorRef}
+              type="button"
+              className={styles.dragHandle}
+              {...dragAttributes}
+              aria-label={`Reorder ${activity.title}`}
+              onClick={(event) => event.stopPropagation()}
+              onKeyDown={(event) => {
+                event.stopPropagation()
+                dragListeners?.onKeyDown?.(event)
+              }}
+              onPointerDown={(event) => {
+                event.stopPropagation()
+                dragListeners?.onPointerDown?.(event)
+              }}
+            >
+              <GripVertical size={18} aria-hidden="true" />
+            </button>
+          ) : null}
         </div>
       )}
 
       {expanded && !readOnly && (
         <div className={styles.editorPanel}>
+          {mobileDragHandle ? (
+            <div className={styles.mobileEditorHeader}>
+              <p>Edit activity</p>
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation()
+                  onToggleExpand(activity)
+                }}
+              >
+                Done
+              </button>
+            </div>
+          ) : null}
           <ActivityForm
             key={editFormKey(activity)}
             initialValues={editInitialValues(activity)}

@@ -1677,6 +1677,8 @@ export function TripWorkspacePage() {
   const [calendarMonth, setCalendarMonth] = useState(() =>
     getMonthKey(day ?? new Date().toISOString().slice(0, 10)),
   )
+  const [isMobileDayPickerOpen, setIsMobileDayPickerOpen] = useState(false)
+  const [mobileMoveActivity, setMobileMoveActivity] = useState<Activity | null>(null)
   const isMobileViewport = useMediaQuery('(max-width: 820px)')
   const claimGuestSessionMutation = useClaimGuestSession()
   const shouldClaimGuestSession = isAuthenticated && searchParams.get('claimGuest') === '1'
@@ -2239,8 +2241,49 @@ export function TripWorkspacePage() {
       setHoveredActivityId(null)
       setFocusedActivityId(null)
       setCalendarMonth(getMonthKey(nextDay))
+      setIsMobileDayPickerOpen(false)
       navigate(`/trips/${encodeURIComponent(publicId)}/d/${encodeURIComponent(nextDay)}`)
     }
+  }
+
+  const openMobileDayPicker = () => {
+    setMobileMoveActivity(null)
+    setCalendarMonth(getMonthKey(selectedDay ?? tripQuery.data?.startDate ?? new Date().toISOString().slice(0, 10)))
+    setIsMobileDayPickerOpen(true)
+  }
+
+  const openMobileMoveDayPicker = (activity: Activity) => {
+    if (!canEditTrip) return
+    setMobileMoveActivity(activity)
+    setCalendarMonth(getMonthKey(selectedDay ?? tripQuery.data?.startDate ?? new Date().toISOString().slice(0, 10)))
+    setIsMobileDayPickerOpen(true)
+  }
+
+  const handleMobileDayPickerSelect = (nextDay: string) => {
+    if (!mobileMoveActivity) {
+      handleSelectDay(nextDay)
+      return
+    }
+
+    if (
+      !publicId ||
+      !tripQuery.data ||
+      moveActivityMutation.isPending ||
+      !dayInRange(nextDay, tripQuery.data.startDate, tripQuery.data.endDate)
+    ) {
+      return
+    }
+
+    const orderIndex = allActivities.filter((activity) => activity.dayDate === nextDay).length
+    const activity = mobileMoveActivity
+    setMobileMoveActivity(null)
+    setIsMobileDayPickerOpen(false)
+    void moveActivityMutation.mutateAsync({
+      activityId: activity.id,
+      publicId,
+      body: { dayDate: nextDay, orderIndex },
+    })
+    jumpToActivityMoveDestination(activity.id, nextDay)
   }
 
   const openTimelineMode = () => {
@@ -2990,6 +3033,10 @@ export function TripWorkspacePage() {
 
   const handleScheduleIdeaForSelectedDay = (activity: Activity) => {
     if (!canEditTrip || activity.dayDate !== null) return
+    if (isMobileViewport) {
+      openMobileMoveDayPicker(activity)
+      return
+    }
     setSchedulingIdeaActivityId(activity.id)
     setSidebarCollapsedAfterTabClick(false)
     setCalendarMonth(
@@ -3173,6 +3220,10 @@ export function TripWorkspacePage() {
     setMobileTab(tab)
     if (tab === 'plan') {
       setWorkspaceMode('days')
+    }
+    if (tab === 'map') {
+      setExpandedActivityId(null)
+      clearPlaceDraft()
     }
   }
 
@@ -3479,6 +3530,17 @@ export function TripWorkspacePage() {
                     </p>
                   </div>
                   <div className={styles.timelineHeaderActions}>
+                    {isMobileViewport && workspaceMode === 'days' ? (
+                      <button
+                        type="button"
+                        className={styles.mobileDayPickerTrigger}
+                        onClick={openMobileDayPicker}
+                        aria-label="Choose trip day"
+                      >
+                        <CalendarDays size={17} aria-hidden="true" />
+                        <span>{formatReadableDate(selectedDay)}</span>
+                      </button>
+                    ) : null}
                     <div className={styles.avatarStack} aria-label="Recent collaborators">
                       {collaboratorNames.map((name) => (
                         <span key={name} className={styles.collaboratorAvatar} title={name}>
@@ -3529,11 +3591,13 @@ export function TripWorkspacePage() {
                           dragDisabled={isActivityDragDisabled}
                           freezeDragPreview={isDraggingActivityOverSidebar}
                           hideEmptyState={canEditTrip && placeDraft !== null && placeDraftDayDate !== null}
+                          mobileDragHandle={isMobileViewport}
                           readOnly={!canEditTrip}
                           onActiveActivityChange={handleActiveActivityChange}
                           onAddActivity={openActivityComposer}
                           onDelete={handleDeleteActivity}
                           onRequestMapLocation={handleRequestActivityLocationOnMap}
+                          onMoveToDay={isMobileViewport ? openMobileMoveDayPicker : undefined}
                           onSubmitEdit={handleUpdateActivity}
                           onToggleExpand={handleToggleActivityExpand}
                         />
@@ -3576,6 +3640,7 @@ export function TripWorkspacePage() {
                           emptyTitle="No ideas saved yet"
                           freezeDragPreview={isDraggingActivityOverSidebar}
                           hideEmptyState={canEditTrip && placeDraft !== null && placeDraftDayDate === null}
+                          mobileDragHandle={isMobileViewport}
                           readOnly={!canEditTrip}
                           onActiveActivityChange={handleActiveActivityChange}
                           onAddActivity={openIdeaComposer}
@@ -3610,7 +3675,7 @@ export function TripWorkspacePage() {
                               activeActivityId={visibleActiveActivityId}
                               busy={isActivityEditMutationPending}
                               collapsed={collapsedTimelineDays.has(group.dayDate)}
-                              dragDisabled={isActivityDragDisabled}
+                              dragDisabled={isActivityDragDisabled || isMobileViewport}
                               dragging={isDraggingActivity}
                               freezeDragPreview={isDraggingActivityOverSidebar}
                               group={group}
@@ -3892,6 +3957,56 @@ export function TripWorkspacePage() {
               ) : null}
             </DragOverlay>
           </DndContext>
+          {isMobileViewport && isMobileDayPickerOpen ? (
+            <div
+              className={styles.mobileDayPickerBackdrop}
+              onMouseDown={() => {
+                setIsMobileDayPickerOpen(false)
+                setMobileMoveActivity(null)
+              }}
+            >
+              <section
+                className={styles.mobileDayPickerSheet}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="mobile-day-picker-title"
+                onMouseDown={(event) => event.stopPropagation()}
+              >
+                <div className={styles.mobileDayPickerHeader}>
+                  <div>
+                    <p>{mobileMoveActivity ? 'Schedule activity' : 'Day plan'}</p>
+                    <h2 id="mobile-day-picker-title">
+                      {mobileMoveActivity
+                        ? `Move ${mobileMoveActivity.title}`
+                        : 'Choose a trip day'}
+                    </h2>
+                  </div>
+                  <button
+                    type="button"
+                    className={styles.mobileDayPickerClose}
+                    aria-label="Close day picker"
+                    onClick={() => {
+                      setIsMobileDayPickerOpen(false)
+                      setMobileMoveActivity(null)
+                    }}
+                  >
+                    <X size={20} aria-hidden="true" />
+                  </button>
+                </div>
+                <CompactMonthCalendar
+                  activities={scheduledActivities}
+                  disabled={moveActivityMutation.isPending}
+                  dragging={false}
+                  endDate={tripQuery.data.endDate}
+                  monthKey={displayedCalendarMonth}
+                  onMonthChange={setCalendarMonth}
+                  onSelectDay={handleMobileDayPickerSelect}
+                  selectedDay={mobileMoveActivity?.dayDate ?? selectedDay ?? tripQuery.data.startDate}
+                  startDate={tripQuery.data.startDate}
+                />
+              </section>
+            </div>
+          ) : null}
           {isTripSettingsOpen && (
             <TripSettingsModal
               activities={allActivities}
