@@ -65,6 +65,43 @@ class BrevoAuthEmailSenderTest {
     }
 
     @Test
+    void sendEmailVerificationIncludesSafeReturnPath() {
+        RecordingHttpClient httpClient = new RecordingHttpClient(202);
+        BrevoAuthEmailSender sender = new BrevoAuthEmailSender(
+            appProperties(),
+            new ObjectMapper(),
+            httpClient);
+
+        sender.sendEmailVerification(new EmailVerificationEmail(
+            "alice@example.com",
+            "raw-token",
+            OffsetDateTime.parse("2026-07-08T12:00:00Z"),
+            "/share/raw-token"));
+
+        assertThat(httpClient.body).contains(
+            "https://app.example.com/verify-email?token=raw-token&return=%2Fshare%2Fraw-token");
+    }
+
+    @Test
+    void sendEmailVerificationDropsUnsafeReturnPath() {
+        RecordingHttpClient httpClient = new RecordingHttpClient(202);
+        BrevoAuthEmailSender sender = new BrevoAuthEmailSender(
+            appProperties(),
+            new ObjectMapper(),
+            httpClient);
+
+        sender.sendEmailVerification(new EmailVerificationEmail(
+            "alice@example.com",
+            "raw-token",
+            OffsetDateTime.parse("2026-07-08T12:00:00Z"),
+            "https://evil.example/share/raw-token"));
+
+        assertThat(httpClient.body).contains(
+            "https://app.example.com/verify-email?token=raw-token");
+        assertThat(httpClient.body).doesNotContain("return=");
+    }
+
+    @Test
     void sendPasswordResetUsesPublicFrontendUrl() {
         RecordingHttpClient httpClient = new RecordingHttpClient(202);
         BrevoAuthEmailSender sender = new BrevoAuthEmailSender(

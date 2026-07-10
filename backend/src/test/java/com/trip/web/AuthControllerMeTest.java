@@ -32,6 +32,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.trip.domain.RefreshToken;
@@ -46,6 +47,7 @@ import com.trip.repo.UserRepository;
 import com.trip.service.auth.JwtService;
 import com.trip.service.auth.RefreshTokenService;
 import com.trip.service.auth.RefreshTokenService.IssuedRefreshToken;
+import com.trip.web.auth.AuthCookieAction;
 import com.trip.web.auth.RefreshCookie;
 
 /**
@@ -244,6 +246,7 @@ class AuthControllerMeTest {
             .thenReturn(Optional.of(issued));
 
         mvc.perform(post("/api/auth/refresh")
+                .with(authCookieAction())
                 .cookie(new Cookie("refresh_token", "old-raw-refresh-token")))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.accessToken").exists())
@@ -257,8 +260,16 @@ class AuthControllerMeTest {
     }
 
     @Test
-    void refreshWithNoCookieReturns401AndClearsCookie() throws Exception {
+    void refreshRequiresAuthCookieActionHeader() throws Exception {
         mvc.perform(post("/api/auth/refresh"))
+            .andExpect(status().isForbidden());
+        verify(refreshTokenService, never()).rotate(anyString());
+    }
+
+    @Test
+    void refreshWithNoCookieReturns401AndClearsCookie() throws Exception {
+        mvc.perform(post("/api/auth/refresh")
+                .with(authCookieAction()))
             .andExpect(status().isUnauthorized())
             .andExpect(jsonPath("$.error").value("unauthenticated"))
             .andExpect(cookie().maxAge("refresh_token", 0));
@@ -270,6 +281,7 @@ class AuthControllerMeTest {
         when(refreshTokenService.rotate("ghost-token")).thenReturn(Optional.empty());
 
         mvc.perform(post("/api/auth/refresh")
+                .with(authCookieAction())
                 .cookie(new Cookie("refresh_token", "ghost-token")))
             .andExpect(status().isUnauthorized())
             .andExpect(jsonPath("$.error").value("unauthenticated"))
@@ -284,6 +296,7 @@ class AuthControllerMeTest {
         when(refreshTokenService.rotate("revoked-token")).thenReturn(Optional.empty());
 
         mvc.perform(post("/api/auth/refresh")
+                .with(authCookieAction())
                 .cookie(new Cookie("refresh_token", "revoked-token")))
             .andExpect(status().isUnauthorized())
             .andExpect(jsonPath("$.error").value("unauthenticated"))
@@ -299,6 +312,7 @@ class AuthControllerMeTest {
         when(userRepository.findById(99L)).thenReturn(Optional.empty());
 
         mvc.perform(post("/api/auth/refresh")
+                .with(authCookieAction())
                 .cookie(new Cookie("refresh_token", "valid-old")))
             .andExpect(status().isUnauthorized())
             .andExpect(jsonPath("$.error").value("unauthenticated"))
@@ -315,6 +329,7 @@ class AuthControllerMeTest {
     @Test
     void logoutWithValidCookieReturns204AndRevokesAndClears() throws Exception {
         mvc.perform(post("/api/auth/logout")
+                .with(authCookieAction())
                 .cookie(new Cookie("refresh_token", "session-token")))
             .andExpect(status().isNoContent())
             .andExpect(cookie().maxAge("refresh_token", 0));
@@ -324,9 +339,19 @@ class AuthControllerMeTest {
 
     @Test
     void logoutWithNoCookieReturns204Idempotent() throws Exception {
-        mvc.perform(post("/api/auth/logout"))
+        mvc.perform(post("/api/auth/logout")
+                .with(authCookieAction()))
             .andExpect(status().isNoContent())
             .andExpect(cookie().maxAge("refresh_token", 0));
+
+        verify(refreshTokenService, never()).revokeByRawToken(anyString());
+    }
+
+    @Test
+    void logoutRequiresAuthCookieActionHeader() throws Exception {
+        mvc.perform(post("/api/auth/logout")
+                .cookie(new Cookie("refresh_token", "session-token")))
+            .andExpect(status().isForbidden());
 
         verify(refreshTokenService, never()).revokeByRawToken(anyString());
     }
@@ -383,6 +408,13 @@ class AuthControllerMeTest {
             throw new RuntimeException(e);
         }
         return u;
+    }
+
+    private static RequestPostProcessor authCookieAction() {
+        return request -> {
+            request.addHeader(AuthCookieAction.HEADER, AuthCookieAction.VALUE);
+            return request;
+        };
     }
 
     private static RefreshToken refreshTokenEntity(long userId) {

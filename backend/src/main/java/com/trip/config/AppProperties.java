@@ -1,6 +1,7 @@
 package com.trip.config;
 
 import java.time.Duration;
+import java.util.Locale;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
@@ -238,6 +239,7 @@ public class AppProperties {
      */
     public static class Cookies {
         private boolean secure = false;
+        private String sameSite = "Strict";
 
         public boolean isSecure() {
             return secure;
@@ -245,6 +247,23 @@ public class AppProperties {
 
         public void setSecure(boolean secure) {
             this.secure = secure;
+        }
+
+        public String getSameSite() {
+            return sameSite;
+        }
+
+        public void setSameSite(String sameSite) {
+            if (sameSite == null || sameSite.isBlank()) {
+                this.sameSite = "Strict";
+                return;
+            }
+            this.sameSite = switch (sameSite.trim().toLowerCase(Locale.ROOT)) {
+                case "strict" -> "Strict";
+                case "lax" -> "Lax";
+                case "none" -> "None";
+                default -> sameSite.trim();
+            };
         }
     }
 }

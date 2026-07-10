@@ -34,7 +34,8 @@ import {
   type FormEvent,
   type ReactNode,
 } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { useIsAuthenticated } from '../auth/authStore'
 import {
   AlertTriangle,
   BedDouble,
@@ -76,6 +77,7 @@ import {
 import { useTripStream } from '../hooks/useTripStream'
 import {
   useCreateShareLink,
+  useClaimGuestSession,
   useRenameShareLink,
   useRevokeShareLink,
   useShareLinks,
@@ -1607,6 +1609,9 @@ function ShareTripModal({
 export function TripWorkspacePage() {
   const { publicId, day } = useParams()
   const navigate = useNavigate()
+  const location = useLocation()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const isAuthenticated = useIsAuthenticated()
   const [expandedActivityId, setExpandedActivityId] = useState<number | null>(null)
   const [placeDraft, setPlaceDraft] = useState<PlaceSelection | null>(null)
   const [placeDraftDayDate, setPlaceDraftDayDate] = useState<string | null | undefined>(undefined)
@@ -1662,11 +1667,15 @@ export function TripWorkspacePage() {
   const [hoveredActivityId, setHoveredActivityId] = useState<number | null>(null)
   const [focusedActivityId, setFocusedActivityId] = useState<number | null>(null)
   const [activityFocusKey, setActivityFocusKey] = useState(0)
+  const [claimSuccessMessage, setClaimSuccessMessage] = useState<string | null>(null)
   const [calendarMonth, setCalendarMonth] = useState(() =>
     getMonthKey(day ?? new Date().toISOString().slice(0, 10)),
   )
-  const tripQuery = useTrip(publicId)
-  const activitiesQuery = useActivities(publicId)
+  const claimGuestSessionMutation = useClaimGuestSession()
+  const shouldClaimGuestSession = isAuthenticated && searchParams.get('claimGuest') === '1'
+  const queryPublicId = shouldClaimGuestSession ? undefined : publicId
+  const tripQuery = useTrip(queryPublicId, { enabled: !shouldClaimGuestSession })
+  const activitiesQuery = useActivities(queryPublicId)
   const selectedDay = tripQuery.data
     ? day && dayInRange(day, tripQuery.data.startDate, tripQuery.data.endDate)
       ? day
@@ -1679,7 +1688,7 @@ export function TripWorkspacePage() {
   const reorderActivitiesMutation = useReorderActivities()
   const reorderIdeasMutation = useReorderIdeas()
   const moveActivityMutation = useMoveActivity()
-  useTripStream(publicId, { bufferActivityEvents: isDraggingActivity })
+  useTripStream(queryPublicId, { bufferActivityEvents: isDraggingActivity })
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: { distance: 8 },
@@ -1745,6 +1754,34 @@ export function TripWorkspacePage() {
     tripQuery.data ? `${tripQuery.data.name} – Dupert` : 'Trip workspace – Dupert',
   )
 
+  const clearClaimFlag = useCallback(() => {
+    const nextParams = new URLSearchParams(searchParams)
+    nextParams.delete('claimGuest')
+    setSearchParams(nextParams, { replace: true })
+  }, [searchParams, setSearchParams])
+
+  const claimStartedRef = useRef(false)
+  const claimGuestSession = useCallback(async () => {
+    if (!publicId || claimGuestSessionMutation.isPending) return
+    try {
+      await claimGuestSessionMutation.mutateAsync()
+      setClaimSuccessMessage('Trip saved to My trips.')
+      clearClaimFlag()
+    } catch {
+      // React Query owns the visible error state.
+    }
+  }, [claimGuestSessionMutation, clearClaimFlag, publicId])
+
+  useEffect(() => {
+    if (!shouldClaimGuestSession) {
+      claimStartedRef.current = false
+      return
+    }
+    if (!publicId || claimStartedRef.current) return
+    claimStartedRef.current = true
+    void claimGuestSession()
+  }, [claimGuestSession, publicId, shouldClaimGuestSession])
+
   useEffect(() => {
     if (!publicId || !tripQuery.data) return
     if (!day) {
@@ -1762,6 +1799,13 @@ export function TripWorkspacePage() {
       { replace: true },
     )
   }, [day, navigate, publicId, tripQuery.data])
+
+  const guestClaimReturnPath = useMemo(() => {
+    const nextParams = new URLSearchParams(searchParams)
+    nextParams.set('claimGuest', '1')
+    const query = nextParams.toString()
+    return `${location.pathname}${query ? `?${query}` : ''}`
+  }, [location.pathname, searchParams])
 
   const allActivities = useMemo(() => activitiesQuery.data ?? [], [activitiesQuery.data])
   const dragOverlayActivity = useMemo(
@@ -3100,7 +3144,35 @@ export function TripWorkspacePage() {
 
   return (
     <main id="main" className={styles.shell}>
-      {tripQuery.isLoading ? (
+      {shouldClaimGuestSession && !claimGuestSessionMutation.isError ? (
+        <section className={styles.state} aria-live="polite">
+          <p>Saving trip to your account...</p>
+        </section>
+      ) : shouldClaimGuestSession && claimGuestSessionMutation.isError ? (
+        <section className={styles.errorState} role="alert">
+          <h1 className={styles.heading}>Could not save trip</h1>
+          <p>
+            We could not save this guest trip to your account. The link may have expired or
+            no longer be available.
+          </p>
+          <div className={styles.actions}>
+            <button
+              type="button"
+              className={styles.secondaryAction}
+              onClick={() => {
+                claimStartedRef.current = true
+                claimGuestSessionMutation.reset()
+                void claimGuestSession()
+              }}
+            >
+              Retry
+            </button>
+            <Link to="/trips" className={styles.secondaryLink}>
+              Back to trips
+            </Link>
+          </div>
+        </section>
+      ) : tripQuery.isLoading ? (
         <section className={styles.state} aria-live="polite">
           <p>Loading trip...</p>
         </section>
@@ -3293,7 +3365,28 @@ export function TripWorkspacePage() {
                       </Link>
                     </nav>
                   </div>
+                  {!isAuthenticated && (
+                    <div className={styles.guestSaveActions}>
+                      <Link
+                        to={`/login?return=${encodeURIComponent(guestClaimReturnPath)}`}
+                        className={styles.guestSavePrimary}
+                      >
+                        Sign in to save
+                      </Link>
+                      <Link
+                        to={`/register?return=${encodeURIComponent(guestClaimReturnPath)}`}
+                        className={styles.guestSaveSecondary}
+                      >
+                        Create account
+                      </Link>
+                    </div>
+                  )}
                 </header>
+                {claimSuccessMessage && (
+                  <p className={styles.inlineSuccess} role="status">
+                    {claimSuccessMessage}
+                  </p>
+                )}
 
               <section
                 id="timeline-panel"

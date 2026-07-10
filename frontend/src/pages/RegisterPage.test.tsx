@@ -150,6 +150,7 @@ describe('<RegisterPage>', () => {
       email: 'me@example.com',
       password: 'super-secret-1234',
       displayName: 'Me',
+      returnPath: undefined,
     })
     expect(
       await screen.findByRole('heading', { name: /check your email/i }),
@@ -215,11 +216,46 @@ describe('<RegisterPage>', () => {
 
     expect(ctx.resendEmailVerification).toHaveBeenCalledWith({
       email: 'me@example.com',
+      returnPath: undefined,
     })
     expect(await screen.findAllByRole('status')).toHaveLength(2)
     const resendNotice = screen.getByText(/verification email is on the way/i)
     expect(resendNotice).toBeInTheDocument()
     expect(resendNotice).toHaveClass(styles.centeredNotice)
+  })
+
+  it('passes the safe return path to register and resend verification', async () => {
+    const ctx = makeAuth({
+      register: vi.fn(async () => ({
+        status: 'verification_required' as const,
+        email: 'me@example.com',
+      })),
+      resendEmailVerification: vi.fn(async () => {}),
+    })
+    renderRegister(ctx, `/register?return=${encodeURIComponent('/share/raw-token')}`)
+
+    const user = userEvent.setup()
+    await user.type(screen.getByLabelText(/email/i), 'me@example.com')
+    await user.type(screen.getByLabelText(/^password$/i), 'super-secret-1234')
+    await user.type(screen.getByLabelText(/display name/i), 'Me')
+    await user.click(screen.getByRole('button', { name: /create account/i }))
+    await screen.findByRole('heading', { name: /check your email/i })
+
+    expect(ctx.register).toHaveBeenCalledWith({
+      email: 'me@example.com',
+      password: 'super-secret-1234',
+      displayName: 'Me',
+      returnPath: '/share/raw-token',
+    })
+
+    await user.click(
+      screen.getByRole('button', { name: /resend verification email/i }),
+    )
+
+    expect(ctx.resendEmailVerification).toHaveBeenCalledWith({
+      email: 'me@example.com',
+      returnPath: '/share/raw-token',
+    })
   })
 
   it('shows a field error on email when the server returns email_taken', async () => {

@@ -25,6 +25,7 @@ import com.trip.web.dto.share.AcceptGuestShareLinkResponse;
 import com.trip.web.dto.share.CreateShareLinkRequest;
 import com.trip.web.dto.share.CreateShareLinkResponse;
 import com.trip.web.dto.share.ShareLinkResponse;
+import com.trip.web.dto.trip.TripResponse;
 import com.trip.web.exception.NotFoundException;
 import com.trip.web.exception.ValidationException;
 import com.trip.web.auth.DisplayNameSanitizer;
@@ -49,7 +50,7 @@ public class ShareLinkService {
     private final TripAccessGuard tripAccessGuard;
     private final ShareTokenService shareTokenService;
     private final TripEventPublisher tripEventPublisher;
-    private final String frontendOrigin;
+    private final String shareUrlOrigin;
 
     public ShareLinkService(ShareLinkRepository shareLinkRepository,
                             GuestSessionRepository guestSessionRepository,
@@ -66,7 +67,7 @@ public class ShareLinkService {
         this.tripAccessGuard = tripAccessGuard;
         this.shareTokenService = shareTokenService;
         this.tripEventPublisher = tripEventPublisher;
-        this.frontendOrigin = appProperties.getFrontendOrigin();
+        this.shareUrlOrigin = shareUrlOrigin(appProperties);
     }
 
     @Transactional
@@ -145,6 +146,24 @@ public class ShareLinkService {
             new AcceptGuestShareLinkResponse(trip.getPublicId(), link.getRole(), displayName));
     }
 
+    @Transactional
+    public TripResponse claimGuestSession(String rawGuestToken, Long userId) {
+        if (rawGuestToken == null || rawGuestToken.isBlank()) {
+            throw new NotFoundException("guest session not found");
+        }
+        String hash = shareTokenService.sha256Hex(rawGuestToken.trim());
+        GuestSession guestSession = guestSessionRepository.findByTokenHash(hash)
+            .orElseThrow(() -> new NotFoundException("guest session not found"));
+        ShareLink link = shareLinkRepository.findById(guestSession.getShareLinkId())
+            .orElseThrow(() -> new NotFoundException("share link not found for guest session"));
+        requireUsableLink(link);
+        Trip trip = tripRepository.findById(link.getTripId())
+            .orElseThrow(() -> new NotFoundException("trip not found for share link: id=" + link.getId()));
+
+        TripRole effectiveRole = upsertMembership(trip.getId(), userId, link.getRole());
+        return TripResponse.of(trip, effectiveRole);
+    }
+
     private TripRole upsertMembership(Long tripId, Long userId, TripRole invitedRole) {
         return tripMemberRepository.findByIdTripIdAndIdUserId(tripId, userId)
             .map(existing -> {
@@ -164,6 +183,11 @@ public class ShareLinkService {
         String hash = shareTokenService.sha256Hex(rawToken);
         ShareLink link = shareLinkRepository.findByTokenHash(hash)
             .orElseThrow(() -> new NotFoundException("share link not found"));
+        requireUsableLink(link);
+        return link;
+    }
+
+    private static void requireUsableLink(ShareLink link) {
         OffsetDateTime now = OffsetDateTime.now();
         if (link.getRevokedAt() != null) {
             throw new NotFoundException("share link revoked: id=" + link.getId());
@@ -171,7 +195,6 @@ public class ShareLinkService {
         if (link.getExpiresAt() != null && !link.getExpiresAt().isAfter(now)) {
             throw new NotFoundException("share link expired: id=" + link.getId());
         }
-        return link;
     }
 
     private ShareLink findLinkOnTrip(Long linkId, Long tripId) {
@@ -239,7 +262,7 @@ public class ShareLinkService {
     }
 
     private String shareUrl(String rawToken) {
-        String trimmedOrigin = frontendOrigin == null ? "" : frontendOrigin.strip();
+        String trimmedOrigin = shareUrlOrigin == null ? "" : shareUrlOrigin.strip();
         if (trimmedOrigin.isEmpty()) {
             return "/share/" + rawToken;
         }
@@ -255,6 +278,19 @@ public class ShareLinkService {
             return null;
         }
         return shareUrl(rawToken);
+    }
+
+    private static String shareUrlOrigin(AppProperties appProperties) {
+        String publicFrontendUrl = appProperties.getPublicFrontendUrl();
+        if (publicFrontendUrl != null && !publicFrontendUrl.isBlank()) {
+            return publicFrontendUrl;
+        }
+        String frontendOrigin = appProperties.getFrontendOrigin();
+        if (frontendOrigin == null || frontendOrigin.isBlank()) {
+            return "";
+        }
+        int comma = frontendOrigin.indexOf(',');
+        return comma < 0 ? frontendOrigin : frontendOrigin.substring(0, comma);
     }
 
     private record GeneratedToken(String raw, String hash) {

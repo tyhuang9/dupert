@@ -63,6 +63,7 @@ export function RegisterPage() {
   const isAuthenticated = useIsAuthenticated()
   const rawReturn = searchParams.get('return')
   const returnTo = safeReturnPath(rawReturn)
+  const verificationReturnPath = rawReturn ? returnTo : undefined
   const loginHref = `/login?return=${encodeURIComponent(rawReturn ?? '')}`
 
   const [email, setEmail] = useState('')
@@ -159,7 +160,12 @@ export function RegisterPage() {
 
     setIsSubmitting(true)
     try {
-      const result = await auth.register({ email, password, displayName })
+      const result = await auth.register({
+        email,
+        password,
+        displayName,
+        returnPath: verificationReturnPath,
+      })
       setRegistrationResult(result)
       setResendMessage(null)
       setResendError(null)
@@ -191,7 +197,10 @@ export function RegisterPage() {
     setResendMessage(null)
     setResendError(null)
     try {
-      await auth.resendEmailVerification({ email: registrationResult.email })
+      await auth.resendEmailVerification({
+        email: registrationResult.email,
+        returnPath: verificationReturnPath,
+      })
       setResendMessage(
         'If that account is still waiting, a verification email is on the way.',
       )

@@ -57,6 +57,7 @@ app:
   # so dev browsers (http://localhost) actually receive the cookie.
   cookies:
     secure: false
+    same-site: ${APP_COOKIES_SAME_SITE:Strict}
   signup-enabled: ${SIGNUP_ENABLED:true}
   email:
     brevo-api-key: ${BREVO_API_KEY:}

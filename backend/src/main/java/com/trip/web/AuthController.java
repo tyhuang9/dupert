@@ -36,8 +36,11 @@ import com.trip.service.auth.JwtService;
 import com.trip.service.auth.PasswordResetService;
 import com.trip.service.auth.RefreshTokenService;
 import com.trip.service.auth.RefreshTokenService.IssuedRefreshToken;
+import com.trip.service.auth.SafeReturnPath;
+import com.trip.web.auth.AuthCookieAction;
 import com.trip.web.auth.DisplayNameSanitizer;
 import com.trip.web.auth.RefreshCookie;
+import com.trip.web.dto.AuthResponse;
 import com.trip.web.dto.ChangePasswordRequest;
 import com.trip.web.dto.EmailVerificationRequest;
 import com.trip.web.dto.EmailVerificationResendRequest;
@@ -166,7 +169,8 @@ public class AuthController {
         }
 
         try {
-            emailVerificationService.queueInitialVerification(saved.getId());
+            emailVerificationService.queueInitialVerification(
+                saved.getId(), SafeReturnPath.normalize(body.returnPath()));
         } catch (RuntimeException e) {
             log.warn("Initial email verification enqueue failed userId={} exception={} token=<redacted>",
                 saved.getId(), e.getClass().getSimpleName());
@@ -246,6 +250,9 @@ public class AuthController {
      */
     @PostMapping("/refresh")
     public ResponseEntity<?> refresh(HttpServletRequest request, HttpServletResponse response) {
+        if (!AuthCookieAction.isPresent(request)) {
+            return authCookieHeaderRequired();
+        }
         Cookie cookie = WebUtils.getCookie(request, RefreshCookie.COOKIE_NAME);
         if (cookie == null || cookie.getValue() == null || cookie.getValue().isEmpty()) {
             refreshCookie.clearOnResponse(response);
@@ -283,6 +290,9 @@ public class AuthController {
      */
     @PostMapping("/logout")
     public ResponseEntity<Void> logout(HttpServletRequest request, HttpServletResponse response) {
+        if (!AuthCookieAction.isPresent(request)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
         Cookie cookie = WebUtils.getCookie(request, RefreshCookie.COOKIE_NAME);
         if (cookie != null && cookie.getValue() != null && !cookie.getValue().isEmpty()) {
             // No-op for unknown/already-revoked tokens; revokeByRawToken handles those.
@@ -313,9 +323,11 @@ public class AuthController {
     }
 
     @PostMapping("/email/verify")
-    public ResponseEntity<Void> verifyEmail(@Valid @RequestBody EmailVerificationRequest body) {
-        emailVerificationService.verify(body.token());
-        return ResponseEntity.noContent().build();
+    public ResponseEntity<AuthResponse> verifyEmail(
+            @Valid @RequestBody EmailVerificationRequest body,
+            HttpServletResponse response) {
+        User user = emailVerificationService.verify(body.token());
+        return ResponseEntity.ok(authTokenService.issueTokens(user, response));
     }
 
     @PostMapping("/email/resend")
@@ -328,7 +340,7 @@ public class AuthController {
             return limited;
         }
 
-        emailVerificationService.resend(email);
+        emailVerificationService.resend(email, SafeReturnPath.normalize(body.returnPath()));
         return ResponseEntity.noContent().build();
     }
 
@@ -401,6 +413,11 @@ public class AuthController {
     private static ResponseEntity<?> unauthenticated() {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
             .body(Map.of(UNAUTHENTICATED_BODY_KEY, UNAUTHENTICATED_BODY_VALUE));
+    }
+
+    private static ResponseEntity<?> authCookieHeaderRequired() {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+            .body(Map.of("error", "auth_cookie_header_required"));
     }
 
     private ResponseEntity<?> enforcePasswordResetRequestLimit(HttpServletRequest request,

@@ -7,6 +7,9 @@ import { backendApiBaseUrl, buildApiUrl } from './baseUrl'
 import { useAuthStore } from '../auth/authStore'
 import type { AuthResponse } from '../types/auth'
 
+export const AUTH_COOKIE_ACTION_HEADER = 'X-Dupert-Auth-Cookie-Action'
+export const AUTH_COOKIE_ACTION_VALUE = '1'
+
 /**
  * Single shared axios instance for every backend call.
  *
@@ -253,17 +256,23 @@ function refreshWithCrossTabLock(): Promise<AuthResponse> {
  * interceptor needs the refresh primitive. Keep them split.
  */
 async function performRefresh(): Promise<AuthResponse> {
+  const accessTokenAtStart = useAuthStore.getState().accessToken
   try {
     const response = await axios.post<AuthResponse>(
       buildApiUrl('/auth/refresh'),
       undefined,
-      { withCredentials: true },
+      {
+        withCredentials: true,
+        headers: { [AUTH_COOKIE_ACTION_HEADER]: AUTH_COOKIE_ACTION_VALUE },
+      },
     )
     const { accessToken, expiresInSeconds, user } = response.data
     useAuthStore.getState().setSession({ accessToken, expiresInSeconds, user })
     return response.data
   } catch (err) {
-    useAuthStore.getState().clearSession()
+    if (useAuthStore.getState().accessToken === accessTokenAtStart) {
+      useAuthStore.getState().clearSession()
+    }
     throw err
   }
 }

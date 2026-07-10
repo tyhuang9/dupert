@@ -16,6 +16,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.time.OffsetDateTime;
+import java.util.Map;
 import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -136,9 +137,45 @@ class AuthControllerTest {
             .andExpect(jsonPath("$.email").value("alice@example.com"))
             .andExpect(header().doesNotExist("Set-Cookie"));
 
-        verify(emailVerificationService).queueInitialVerification(42L);
+        verify(emailVerificationService).queueInitialVerification(42L, null);
         verify(refreshTokenService, never()).issueFor(any(User.class));
         verify(jwtService, never()).issueAccessToken(any());
+    }
+
+    @Test
+    void registerPassesSafeReturnPathToVerificationQueue() throws Exception {
+        when(userRepository.existsByEmailIgnoreCase("alice@example.com")).thenReturn(false);
+        User saved = unverifiedUserWith(42L, "alice@example.com", "Alice");
+        when(userRepository.save(any(User.class))).thenReturn(saved);
+
+        mvc.perform(post("/api/auth/register")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of(
+                    "email", "alice@example.com",
+                    "password", "password1234",
+                    "displayName", "Alice",
+                    "returnPath", "/share/raw-token"))))
+            .andExpect(status().isAccepted());
+
+        verify(emailVerificationService).queueInitialVerification(42L, "/share/raw-token");
+    }
+
+    @Test
+    void registerDropsUnsafeReturnPathBeforeVerificationQueue() throws Exception {
+        when(userRepository.existsByEmailIgnoreCase("alice@example.com")).thenReturn(false);
+        User saved = unverifiedUserWith(42L, "alice@example.com", "Alice");
+        when(userRepository.save(any(User.class))).thenReturn(saved);
+
+        mvc.perform(post("/api/auth/register")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of(
+                    "email", "alice@example.com",
+                    "password", "password1234",
+                    "displayName", "Alice",
+                    "returnPath", "https://evil.example/share/raw-token"))))
+            .andExpect(status().isAccepted());
+
+        verify(emailVerificationService).queueInitialVerification(42L, null);
     }
 
     @Test
@@ -148,7 +185,7 @@ class AuthControllerTest {
         when(userRepository.save(any(User.class))).thenReturn(saved);
         doThrow(new IllegalStateException("queue unavailable"))
             .when(emailVerificationService)
-            .queueInitialVerification(42L);
+            .queueInitialVerification(42L, null);
 
         mvc.perform(post("/api/auth/register")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -322,6 +359,47 @@ class AuthControllerTest {
             .andExpect(status().isUnauthorized());
 
         verify(userRepository, times(1)).findByEmailIgnoreCase("alice@example.com");
+    }
+
+    @Test
+    void verifyEmailReturnsAuthResponseAndRefreshCookie() throws Exception {
+        User user = userWith(44L, "verified@example.com", "Verified");
+        when(emailVerificationService.verify("verify-token")).thenReturn(user);
+        when(refreshTokenService.issueFor(user))
+            .thenReturn(new IssuedRefreshToken("verify-refresh-token", refreshTokenEntity(44L)));
+
+        mvc.perform(post("/api/auth/email/verify")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of("token", "verify-token"))))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.accessToken").value("jwt-access-token"))
+            .andExpect(jsonPath("$.user.id").value(44))
+            .andExpect(header().string("Set-Cookie",
+                org.hamcrest.Matchers.containsString("refresh_token=verify-refresh-token")));
+    }
+
+    @Test
+    void resendEmailVerificationPassesSafeReturnPath() throws Exception {
+        mvc.perform(post("/api/auth/email/resend")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of(
+                    "email", "ALICE@Example.com",
+                    "returnPath", "/share/raw-token"))))
+            .andExpect(status().isNoContent());
+
+        verify(emailVerificationService).resend("alice@example.com", "/share/raw-token");
+    }
+
+    @Test
+    void resendEmailVerificationDropsUnsafeReturnPath() throws Exception {
+        mvc.perform(post("/api/auth/email/resend")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(Map.of(
+                    "email", "ALICE@Example.com",
+                    "returnPath", "//evil.example/share/raw-token"))))
+            .andExpect(status().isNoContent());
+
+        verify(emailVerificationService).resend("alice@example.com", null);
     }
 
     // ------------------------------------------------------------------

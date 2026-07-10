@@ -7,7 +7,7 @@ import org.springframework.mock.web.MockHttpServletResponse;
 
 /**
  * Unit tests for {@link RefreshCookie}. Verifies the {@code Set-Cookie} header includes
- * every expected attribute, including {@code SameSite=Strict} (which the legacy
+ * every expected attribute, including SameSite (which the legacy
  * {@code Cookie} API can't emit). Uses Spring's {@code MockHttpServletResponse}.
  */
 class RefreshCookieTest {
@@ -41,6 +41,19 @@ class RefreshCookieTest {
         assertThat(header).doesNotContain("Secure");
         assertThat(header).contains("HttpOnly");
         assertThat(header).contains("SameSite=Strict");
+    }
+
+    @Test
+    void supportsSameSiteNoneForSplitOriginDeployments() {
+        RefreshCookie cookie = new RefreshCookie(true, "None");
+        MockHttpServletResponse resp = new MockHttpServletResponse();
+
+        cookie.addToResponse(resp, "raw-token-value");
+
+        String header = resp.getHeader("Set-Cookie");
+        assertThat(header).isNotNull();
+        assertThat(header).contains("Secure");
+        assertThat(header).contains("SameSite=None");
     }
 
     @Test

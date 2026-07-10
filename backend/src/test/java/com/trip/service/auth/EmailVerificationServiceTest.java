@@ -71,7 +71,7 @@ class EmailVerificationServiceTest {
         when(tokenRepository.save(any(EmailVerificationToken.class)))
             .thenAnswer(invocation -> invocation.getArgument(0));
 
-        service.queueInitialVerification(42L);
+        service.queueInitialVerification(42L, "/share/raw-token");
 
         ArgumentCaptor<EmailVerificationToken> tokenCaptor =
             ArgumentCaptor.forClass(EmailVerificationToken.class);
@@ -86,6 +86,7 @@ class EmailVerificationServiceTest {
         EmailVerificationEmail email = emailCaptor.getValue();
         assertThat(email.recipientEmail()).isEqualTo("alice@example.com");
         assertThat(email.token()).isNotBlank();
+        assertThat(email.returnPath()).isEqualTo("/share/raw-token");
         assertThat(saved.getTokenHash()).isEqualTo(sha256Hex(email.token()));
         assertThat(saved.getTokenHash()).doesNotContain(email.token());
         assertThat(email.toString()).doesNotContain(email.token());
@@ -161,8 +162,9 @@ class EmailVerificationServiceTest {
             .thenReturn(Optional.of(token));
         when(userRepository.findById(42L)).thenReturn(Optional.of(user));
 
-        service.verify(RAW_TOKEN);
+        User verified = service.verify(RAW_TOKEN);
 
+        assertThat(verified).isSameAs(user);
         assertThat(user.isEmailVerified()).isTrue();
         assertThat(user.getEmailVerifiedAt()).isEqualTo(NOW);
         assertThat(token.getConsumedAt()).isEqualTo(NOW);

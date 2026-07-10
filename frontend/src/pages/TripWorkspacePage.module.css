@@ -95,11 +95,62 @@
   white-space: nowrap;
 }
 
+.guestSaveActions {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.guestSavePrimary,
+.guestSaveSecondary {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+  transition:
+    background-color var(--transition-base),
+    border-color var(--transition-base),
+    color var(--transition-base);
+}
+
+.guestSavePrimary {
+  border: 1px solid var(--color-primary);
+  background: var(--color-primary);
+  color: var(--color-primary-fg);
+}
+
+.guestSavePrimary:hover {
+  border-color: var(--color-primary-hover);
+  background: var(--color-primary-hover);
+}
+
+.guestSaveSecondary {
+  border: 1px solid var(--color-surface-border);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+}
+
+.guestSaveSecondary:hover {
+  border-color: color-mix(in srgb, var(--color-primary) 34%, var(--color-surface-border));
+  background: var(--color-primary-softer);
+  color: var(--color-primary-text);
+}
+
 .secondaryLink:focus-visible,
 .secondaryAction:focus-visible,
 .primaryAction:focus-visible,
 .addActivityButton:focus-visible,
 .exportDayButton:focus-visible,
+.guestSavePrimary:focus-visible,
+.guestSaveSecondary:focus-visible,
 .routeToggle:focus-within,
 .shareLink:focus-visible,
 .sidebarAction:focus-visible,
@@ -998,6 +1049,17 @@
   border-radius: var(--radius-md);
   background: var(--color-danger-bg);
   color: var(--color-danger-fg);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-base);
+}
+
+.inlineSuccess {
+  margin: var(--space-3) var(--space-5) 0;
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-success-fg) 20%, var(--color-success-bg));
+  border-radius: var(--radius-md);
+  background: var(--color-success-bg);
+  color: var(--color-success-fg);
   font-size: var(--font-size-sm);
   line-height: var(--line-height-base);
 }

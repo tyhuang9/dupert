@@ -50,8 +50,14 @@ import com.trip.service.auth.JwtService;
 import com.trip.service.realtime.TripEventPublisher;
 import com.trip.service.share.ShareTokenService;
 import com.trip.service.trip.ReflectionIds;
+import com.trip.web.auth.GuestSessionCookie;
 
-@SpringBootTest
+import jakarta.servlet.http.Cookie;
+
+@SpringBootTest(properties = {
+    "app.frontend-origin=http://localhost:3000,http://127.0.0.1:3000",
+    "app.public-frontend-url=https://app.example.com"
+})
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 class ShareLinkControllerTest {
@@ -63,6 +69,7 @@ class ShareLinkControllerTest {
     private static final String RAW_TOKEN = "abcdefghijklmnopqrstuvwxyz1234567890";
     private static final String EXPIRED_TOKEN = "expiredabcdefghijklmnopqrstuvwxyz123456";
     private static final String RATE_LIMIT_TOKEN = "ratelimitabcdefghijklmnopqrstuvwxyz12";
+    private static final String RAW_GUEST_TOKEN = "guest-session-token-abcdefghijklmnopqrstuvwxyz";
 
     @Autowired
     MockMvc mvc;
@@ -144,7 +151,7 @@ class ShareLinkControllerTest {
             .andExpect(jsonPath("$.allowAnonymous").value(false))
             .andExpect(jsonPath("$.token").isString())
             .andExpect(jsonPath("$.shareUrl").value(org.hamcrest.Matchers.startsWith(
-                "http://localhost:3000/share/")));
+                "https://app.example.com/share/")));
 
         ArgumentCaptor<ShareLink> saved = ArgumentCaptor.forClass(ShareLink.class);
         verify(shareLinkRepository).save(saved.capture());
@@ -213,12 +220,12 @@ class ShareLinkControllerTest {
             .andExpect(jsonPath("$[0].name").value("Editors"))
             .andExpect(jsonPath("$[0].allowAnonymous").value(false))
             .andExpect(jsonPath("$[0].token").doesNotExist())
-            .andExpect(jsonPath("$[0].shareUrl").value("http://localhost:3000/share/" + RAW_TOKEN))
+            .andExpect(jsonPath("$[0].shareUrl").value("https://app.example.com/share/" + RAW_TOKEN))
             .andExpect(jsonPath("$[1].id").value(502))
             .andExpect(jsonPath("$[1].name").value("Shared link"))
             .andExpect(jsonPath("$[1].allowAnonymous").value(true))
             .andExpect(jsonPath("$[1].token").doesNotExist())
-            .andExpect(jsonPath("$[1].shareUrl").value("http://localhost:3000/share/" + RATE_LIMIT_TOKEN));
+            .andExpect(jsonPath("$[1].shareUrl").value("https://app.example.com/share/" + RATE_LIMIT_TOKEN));
     }
 
     @Test
@@ -459,6 +466,115 @@ class ShareLinkControllerTest {
     }
 
     @Test
+    void claimGuestSessionWithoutCookieReturns404() throws Exception {
+        mvc.perform(post("/api/guest-session/claim")
+                .header("Authorization", bearerFor(BOB_ID)))
+            .andExpect(status().isNotFound())
+            .andExpect(jsonPath("$.error").value("not_found"))
+            .andExpect(header().doesNotExist("Set-Cookie"));
+
+        verify(tripMemberRepository, never()).save(any(TripMember.class));
+    }
+
+    @Test
+    void claimGuestSessionCreatesMembershipReturnsTripAndClearsCookie() throws Exception {
+        ShareLink shareLink = link(501L, TRIP_PK, "share-hash", TripRole.VIEWER, true, ALICE_ID, null);
+        GuestSession guestSession = guestSession(501L, RAW_GUEST_TOKEN);
+        when(guestSessionRepository.findByTokenHash(shareTokenService.sha256Hex(RAW_GUEST_TOKEN)))
+            .thenReturn(Optional.of(guestSession));
+        when(shareLinkRepository.findById(501L)).thenReturn(Optional.of(shareLink));
+        when(tripRepository.findById(TRIP_PK)).thenReturn(Optional.of(trip));
+        when(tripMemberRepository.findByIdTripIdAndIdUserId(TRIP_PK, BOB_ID))
+            .thenReturn(Optional.empty());
+
+        mvc.perform(post("/api/guest-session/claim")
+                .header("Authorization", bearerFor(BOB_ID))
+                .cookie(guestCookie()))
+            .andExpect(status().isOk())
+            .andExpect(header().string("Set-Cookie", org.hamcrest.Matchers.allOf(
+                org.hamcrest.Matchers.containsString("guest_session="),
+                org.hamcrest.Matchers.containsString("Max-Age=0"),
+                org.hamcrest.Matchers.containsString("HttpOnly"),
+                org.hamcrest.Matchers.containsString("Path=/api"))))
+            .andExpect(jsonPath("$.publicId").value(TRIP_PUBLIC_ID))
+            .andExpect(jsonPath("$.name").value("Tokyo 2026"))
+            .andExpect(jsonPath("$.role").value("VIEWER"));
+
+        ArgumentCaptor<TripMember> member = ArgumentCaptor.forClass(TripMember.class);
+        verify(tripMemberRepository).save(member.capture());
+        assertThat(member.getValue().getId().getTripId()).isEqualTo(TRIP_PK);
+        assertThat(member.getValue().getId().getUserId()).isEqualTo(BOB_ID);
+        assertThat(member.getValue().getRole()).isEqualTo(TripRole.VIEWER);
+        verify(guestSessionRepository, never()).delete(any(GuestSession.class));
+    }
+
+    @Test
+    void claimGuestSessionUpgradesLowerRoleButDoesNotDowngradeOwner() throws Exception {
+        ShareLink shareLink = link(501L, TRIP_PK, "share-hash", TripRole.EDITOR, true, ALICE_ID, null);
+        GuestSession guestSession = guestSession(501L, RAW_GUEST_TOKEN);
+        when(guestSessionRepository.findByTokenHash(shareTokenService.sha256Hex(RAW_GUEST_TOKEN)))
+            .thenReturn(Optional.of(guestSession));
+        when(shareLinkRepository.findById(501L)).thenReturn(Optional.of(shareLink));
+        when(tripRepository.findById(TRIP_PK)).thenReturn(Optional.of(trip));
+
+        TripMember viewer = new TripMember(TRIP_PK, BOB_ID, TripRole.VIEWER);
+        when(tripMemberRepository.findByIdTripIdAndIdUserId(TRIP_PK, BOB_ID))
+            .thenReturn(Optional.of(viewer));
+
+        mvc.perform(post("/api/guest-session/claim")
+                .header("Authorization", bearerFor(BOB_ID))
+                .cookie(guestCookie()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.role").value("EDITOR"));
+
+        assertThat(viewer.getRole()).isEqualTo(TripRole.EDITOR);
+        verify(tripMemberRepository).save(viewer);
+
+        TripMember owner = new TripMember(TRIP_PK, ALICE_ID, TripRole.OWNER);
+        when(tripMemberRepository.findByIdTripIdAndIdUserId(TRIP_PK, ALICE_ID))
+            .thenReturn(Optional.of(owner));
+
+        mvc.perform(post("/api/guest-session/claim")
+                .header("Authorization", bearerFor(ALICE_ID))
+                .cookie(guestCookie()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.role").value("OWNER"));
+
+        assertThat(owner.getRole()).isEqualTo(TripRole.OWNER);
+    }
+
+    @Test
+    void claimGuestSessionRejectsRevokedOrExpiredLinkWithoutSavingMembership() throws Exception {
+        GuestSession guestSession = guestSession(501L, RAW_GUEST_TOKEN);
+        when(guestSessionRepository.findByTokenHash(shareTokenService.sha256Hex(RAW_GUEST_TOKEN)))
+            .thenReturn(Optional.of(guestSession));
+
+        ShareLink revoked = link(501L, TRIP_PK, "share-hash", TripRole.VIEWER, true, ALICE_ID, null);
+        revoked.revoke(OffsetDateTime.now());
+        when(shareLinkRepository.findById(501L)).thenReturn(Optional.of(revoked));
+
+        mvc.perform(post("/api/guest-session/claim")
+                .header("Authorization", bearerFor(BOB_ID))
+                .cookie(guestCookie()))
+            .andExpect(status().isNotFound())
+            .andExpect(jsonPath("$.error").value("not_found"))
+            .andExpect(header().doesNotExist("Set-Cookie"));
+
+        ShareLink expired = link(501L, TRIP_PK, "share-hash", TripRole.VIEWER,
+            true, ALICE_ID, OffsetDateTime.now().minusMinutes(1));
+        when(shareLinkRepository.findById(501L)).thenReturn(Optional.of(expired));
+
+        mvc.perform(post("/api/guest-session/claim")
+                .header("Authorization", bearerFor(BOB_ID))
+                .cookie(guestCookie()))
+            .andExpect(status().isNotFound())
+            .andExpect(jsonPath("$.error").value("not_found"))
+            .andExpect(header().doesNotExist("Set-Cookie"));
+
+        verify(tripMemberRepository, never()).save(any(TripMember.class));
+    }
+
+    @Test
     void shareAcceptIsRateLimitedPerIp() throws Exception {
         when(shareLinkRepository.findByTokenHash(shareTokenService.sha256Hex(RATE_LIMIT_TOKEN)))
             .thenReturn(Optional.empty());
@@ -486,6 +602,17 @@ class ShareLinkControllerTest {
             request.setRemoteAddr(remoteAddr);
             return request;
         };
+    }
+
+    private GuestSession guestSession(long shareLinkId, String rawGuestToken) {
+        return new GuestSession(
+            shareLinkId,
+            shareTokenService.sha256Hex(rawGuestToken),
+            "Guest Alice");
+    }
+
+    private static Cookie guestCookie() {
+        return new Cookie(GuestSessionCookie.COOKIE_NAME, RAW_GUEST_TOKEN);
     }
 
     private static ShareLink link(long id, long tripId, String tokenHash, TripRole role,

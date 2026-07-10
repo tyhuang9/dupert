@@ -8,6 +8,12 @@ public record EmailVerificationResendRequest(
     @NotBlank
     @Email
     @Size(max = 254)
-    String email
+    String email,
+
+    @Size(max = 512)
+    String returnPath
 ) {
+    public EmailVerificationResendRequest(String email) {
+        this(email, null);
+    }
 }

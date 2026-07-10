@@ -9,6 +9,7 @@ import type {
   ShareLink,
   TripMember,
 } from '../types/share'
+import type { Trip } from '../types/trip'
 
 export async function listShareLinks(publicId: string): Promise<ShareLink[]> {
   const { data } = await apiClient.get<ShareLink[]>(
@@ -73,5 +74,10 @@ export async function acceptGuestShareLink(
     `/share/${encodeURIComponent(token)}/guest`,
     body,
   )
+  return data
+}
+
+export async function claimGuestSession(): Promise<Trip> {
+  const { data } = await apiClient.post<Trip>('/guest-session/claim')
   return data
 }
