@@ -75,6 +75,7 @@ import {
   useUpdateActivity,
 } from '../hooks/useActivities'
 import { useTripStream } from '../hooks/useTripStream'
+import { useMediaQuery } from '../hooks/useMediaQuery'
 import {
   useCreateShareLink,
   useClaimGuestSession,
@@ -85,6 +86,10 @@ import {
 } from '../hooks/useShareLinks'
 import { usePageTitle } from '../utils/usePageTitle'
 import styles from './TripWorkspacePage.module.css'
+import {
+  MobileWorkspaceChrome,
+  type MobileWorkspaceTab,
+} from '../components/MobileWorkspaceChrome'
 import { ActivityCard } from '../components/ActivityCard'
 import { ActivityForm } from '../components/ActivityForm'
 import { ActivityList } from '../components/ActivityList'
@@ -1622,6 +1627,7 @@ export function TripWorkspacePage() {
   const [dragOverlayActivityId, setDragOverlayActivityId] = useState<number | null>(null)
   const [schedulingIdeaActivityId, setSchedulingIdeaActivityId] = useState<number | null>(null)
   const [workspaceMode, setWorkspaceMode] = useState<WorkspaceMode>('days')
+  const [mobileTab, setMobileTab] = useState<MobileWorkspaceTab>('plan')
   const [sidebarPinned, setSidebarPinned] = useState(false)
   const [sidebarCollapsedAfterTabClick, setSidebarCollapsedAfterTabClick] = useState(false)
   const [collapsedTimelineDays, setCollapsedTimelineDays] = useState<Set<string>>(() => new Set())
@@ -1671,6 +1677,7 @@ export function TripWorkspacePage() {
   const [calendarMonth, setCalendarMonth] = useState(() =>
     getMonthKey(day ?? new Date().toISOString().slice(0, 10)),
   )
+  const isMobileViewport = useMediaQuery('(max-width: 820px)')
   const claimGuestSessionMutation = useClaimGuestSession()
   const shouldClaimGuestSession = isAuthenticated && searchParams.get('claimGuest') === '1'
   const queryPublicId = shouldClaimGuestSession ? undefined : publicId
@@ -2140,6 +2147,7 @@ export function TripWorkspacePage() {
 
   const showWorkspaceForDraftDay = (dayDate: string | null) => {
     setWorkspaceMode(dayDate === null ? 'ideas' : 'days')
+    setMobileTab(dayDate === null ? 'ideas' : 'plan')
   }
 
   const focusItineraryPanel = () => {
@@ -2220,6 +2228,7 @@ export function TripWorkspacePage() {
     ) {
       collapseSidebarAndFocusItinerary()
       setWorkspaceMode('days')
+      setMobileTab('plan')
       setExpandedActivityId(null)
       clearPlaceDraft()
       setMapLocationTarget(null)
@@ -2236,6 +2245,7 @@ export function TripWorkspacePage() {
 
   const openTimelineMode = () => {
     setWorkspaceMode('timeline')
+    setMobileTab('timeline')
     collapseSidebarAndFocusItinerary()
     setExpandedActivityId(null)
     clearPlaceDraft()
@@ -2249,6 +2259,7 @@ export function TripWorkspacePage() {
 
   const openIdeasMode = () => {
     setWorkspaceMode('ideas')
+    setMobileTab('ideas')
     collapseSidebarAndFocusItinerary()
     setExpandedActivityId(null)
     clearPlaceDraft()
@@ -2278,6 +2289,7 @@ export function TripWorkspacePage() {
     }
 
     setWorkspaceMode('days')
+    setMobileTab('plan')
     collapseSidebarAndFocusItinerary()
     setExpandedActivityId(null)
     clearPlaceDraft()
@@ -2294,6 +2306,7 @@ export function TripWorkspacePage() {
 
   const openActivityComposer = () => {
     setWorkspaceMode('days')
+    setMobileTab('plan')
     setExpandedActivityId(null)
     setMapLocationTarget(null)
     setMapSearchPreview(null)
@@ -2313,6 +2326,7 @@ export function TripWorkspacePage() {
 
   const openIdeaComposer = () => {
     setWorkspaceMode('ideas')
+    setMobileTab('ideas')
     setExpandedActivityId(null)
     setMapLocationTarget(null)
     setMapSearchPreview(null)
@@ -2409,6 +2423,7 @@ export function TripWorkspacePage() {
   }
 
   const showTimelineActivityOnMap = (activity: Activity) => {
+    setMobileTab('map')
     setExpandedActivityId(null)
     clearPlaceDraft()
     setMapLocationTarget(null)
@@ -2468,6 +2483,7 @@ export function TripWorkspacePage() {
   ) => {
     const query = locationSearchQuery(activity, payload)
     setWorkspaceMode('days')
+    setMobileTab('map')
     setExpandedActivityId(activity.id)
     focusActivityOnMap(activity.id)
     clearPlaceDraft()
@@ -2502,6 +2518,7 @@ export function TripWorkspacePage() {
       tripQuery.data?.destination ||
       ''
     showWorkspaceForDraftDay(draftDayDate)
+    setMobileTab('map')
     setExpandedActivityId(null)
     setMapLocationTarget(null)
     setMapSearchPreview(null)
@@ -3142,6 +3159,23 @@ export function TripWorkspacePage() {
       ].join(':')
     : `create-${selectedDay ?? 'none'}`
 
+  const selectMobileTab = (tab: MobileWorkspaceTab) => {
+    if (tab === 'timeline') {
+      openTimelineMode()
+      return
+    }
+
+    if (tab === 'ideas') {
+      openIdeasMode()
+      return
+    }
+
+    setMobileTab(tab)
+    if (tab === 'plan') {
+      setWorkspaceMode('days')
+    }
+  }
+
   return (
     <main id="main" className={styles.shell}>
       {shouldClaimGuestSession && !claimGuestSessionMutation.isError ? (
@@ -3217,8 +3251,31 @@ export function TripWorkspacePage() {
               className={[
                 styles.workspaceShell,
                 sidebarPinned ? styles.workspaceShellPinned : '',
+                isMobileViewport ? styles.workspaceShellMobile : '',
+                isMobileViewport && mobileTab === 'map' ? styles.workspaceShellMobileMap : '',
               ].filter(Boolean).join(' ')}
             >
+              {isMobileViewport ? (
+                <MobileWorkspaceChrome
+                  activeTab={mobileTab}
+                  canEditTrip={canEditTrip}
+                  guestActions={!isAuthenticated ? (
+                    <Link
+                      to={`/login?return=${encodeURIComponent(guestClaimReturnPath)}`}
+                      className={styles.mobileGuestSave}
+                    >
+                      Sign in
+                    </Link>
+                  ) : undefined}
+                  isAuthenticated={isAuthenticated}
+                  onOpenSettings={() => setIsTripSettingsOpen(true)}
+                  onOpenShare={() => setIsShareTripOpen(true)}
+                  onSelectTab={selectMobileTab}
+                  publicId={publicId ?? ''}
+                  tripName={tripQuery.data.name}
+                />
+              ) : null}
+              {!isMobileViewport ? (
               <aside
                 ref={sidebarPanelRef}
                 className={[
@@ -3349,8 +3406,10 @@ export function TripWorkspacePage() {
                   </Link>
                 </div>
               </aside>
+              ) : null}
 
               <div className={styles.planningColumn}>
+                {!isMobileViewport ? (
                 <header className={styles.topNav}>
                   <div className={styles.brandCluster}>
                     <Link to="/trips" className={styles.brandMark}>
@@ -3382,6 +3441,7 @@ export function TripWorkspacePage() {
                     </div>
                   )}
                 </header>
+                ) : null}
                 {claimSuccessMessage && (
                   <p className={styles.inlineSuccess} role="status">
                     {claimSuccessMessage}
@@ -3570,6 +3630,7 @@ export function TripWorkspacePage() {
               </section>
               </div>
 
+              {!isMobileViewport || mobileTab === 'map' ? (
               <aside
                 className={`${styles.panel} ${styles.mapPanel}`}
                 aria-labelledby="map-panel-title"
@@ -3812,6 +3873,7 @@ export function TripWorkspacePage() {
                   viewportFitKey={viewportFitKey}
                 />
               </aside>
+              ) : null}
             </section>
             <DragOverlay dropAnimation={null}>
               {dragOverlayActivity ? (

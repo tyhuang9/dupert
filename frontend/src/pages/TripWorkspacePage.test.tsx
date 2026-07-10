@@ -483,6 +483,37 @@ function renderWorkspace(path: string) {
   )
 }
 
+function mockViewport(isMobile: boolean) {
+  const listeners = new Set<(event: MediaQueryListEvent) => void>()
+  const matchMedia = vi.fn((query: string) => ({
+    addEventListener: (_: string, listener: (event: MediaQueryListEvent) => void) => {
+      listeners.add(listener)
+    },
+    addListener: (listener: (event: MediaQueryListEvent) => void) => {
+      listeners.add(listener)
+    },
+    dispatchEvent: (event: Event) => {
+      listeners.forEach((listener) => listener(event as MediaQueryListEvent))
+      return true
+    },
+    matches: isMobile,
+    media: query,
+    onchange: null,
+    removeEventListener: (_: string, listener: (event: MediaQueryListEvent) => void) => {
+      listeners.delete(listener)
+    },
+    removeListener: (listener: (event: MediaQueryListEvent) => void) => {
+      listeners.delete(listener)
+    },
+  }) as MediaQueryList)
+
+  Object.defineProperty(window, 'matchMedia', {
+    configurable: true,
+    value: matchMedia,
+    writable: true,
+  })
+}
+
 function triggerDragEnd(activeId: string, overId: string | null) {
   if (!dndMockState.onDragEnd) {
     throw new Error('DndContext onDragEnd handler was not registered')
@@ -561,6 +592,7 @@ function domRect({
 
 beforeEach(() => {
   vi.stubEnv('VITE_GOOGLE_MAPS_API_KEY', 'gmaps.test')
+  mockViewport(false)
   apiMock = new MockAdapter(apiClient)
   queryClient = new QueryClient({
     defaultOptions: {
@@ -641,9 +673,42 @@ afterEach(() => {
   queryClient.clear()
   useAuthStore.getState().clearSession()
   vi.unstubAllEnvs()
+  vi.unstubAllGlobals()
 })
 
 describe('<TripWorkspacePage>', () => {
+  it('uses the mobile bottom bar and mounts the map only for the Map tab', async () => {
+    mockViewport(true)
+    mockWorkspace()
+
+    renderWorkspace('/trips/abc234def567/d/2026-05-03')
+
+    await screen.findByRole('heading', { level: 1, name: /tokyo 2026/i })
+    expect(screen.queryByRole('button', { name: /^pin sidebar$/i })).not.toBeInTheDocument()
+    expect(screen.queryByTestId('trip-map')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^plan$/i })).toHaveAttribute('aria-current', 'page')
+
+    await userEvent.click(screen.getByRole('button', { name: /^map$/i }))
+    expect(await screen.findByTestId('trip-map')).toBeInTheDocument()
+    expect(screen.getAllByTestId('trip-map')).toHaveLength(1)
+
+    await userEvent.click(screen.getByRole('button', { name: /^timeline$/i }))
+    expect(screen.queryByTestId('trip-map')).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /full trip timeline/i })).toBeInTheDocument()
+
+    const menuButton = screen.getByRole('button', { name: /open trip menu/i })
+    await userEvent.click(menuButton)
+    expect(screen.getByRole('dialog', { name: /tokyo 2026/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /share trip/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /trip settings/i })).toBeInTheDocument()
+
+    fireEvent.keyDown(window, { key: 'Escape' })
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: /tokyo 2026/i })).not.toBeInTheDocument()
+      expect(menuButton).toHaveFocus()
+    })
+  })
+
   it('renders workspace shell when trip is loaded', async () => {
     mockWorkspace()
 
