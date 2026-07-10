@@ -8,12 +8,14 @@ import {
 import {
   acceptGuestShareLink,
   acceptShareLink,
+  claimGuestSession,
   createShareLink,
   listTripMembers,
   listShareLinks,
   renameShareLink,
   revokeShareLink,
 } from '../api/share'
+import { tripKeys } from './useTrips'
 import type {
   AcceptGuestShareLinkRequest,
   AcceptGuestShareLinkResponse,
@@ -24,6 +26,7 @@ import type {
   ShareLink,
   TripMember,
 } from '../types/share'
+import type { Trip } from '../types/trip'
 
 export const shareKeys = {
   all: ['share-links'] as const,
@@ -33,6 +36,10 @@ export const shareKeys = {
 
 function upsertShareLink(existing: ShareLink[] | undefined, link: ShareLink): ShareLink[] {
   return [link, ...(existing ?? []).filter((item) => item.id !== link.id)]
+}
+
+function upsertTrip(existing: Trip[] | undefined, trip: Trip): Trip[] {
+  return [trip, ...(existing ?? []).filter((item) => item.publicId !== trip.publicId)]
 }
 
 export function useShareLinks(
@@ -117,8 +124,16 @@ export function useAcceptShareLink(): UseMutationResult<
   Error,
   string
 > {
+  const queryClient = useQueryClient()
+
   return useMutation({
     mutationFn: acceptShareLink,
+    onSuccess: (accepted) => {
+      void queryClient.invalidateQueries({ queryKey: tripKeys.lists() })
+      void queryClient.invalidateQueries({
+        queryKey: tripKeys.detail(accepted.publicId),
+      })
+    },
   })
 }
 
@@ -129,5 +144,20 @@ export function useAcceptGuestShareLink(): UseMutationResult<
 > {
   return useMutation({
     mutationFn: ({ token, body }) => acceptGuestShareLink(token, body),
+  })
+}
+
+export function useClaimGuestSession(): UseMutationResult<Trip, Error, void> {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: claimGuestSession,
+    onSuccess: (trip) => {
+      queryClient.setQueryData(tripKeys.detail(trip.publicId), trip)
+      queryClient.setQueryData<Trip[]>(tripKeys.lists(), (existing) =>
+        upsertTrip(existing, trip),
+      )
+      void queryClient.invalidateQueries({ queryKey: tripKeys.lists() })
+    },
   })
 }

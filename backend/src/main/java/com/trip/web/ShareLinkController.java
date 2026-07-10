@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -25,6 +26,7 @@ import com.trip.web.dto.share.CreateShareLinkRequest;
 import com.trip.web.dto.share.CreateShareLinkResponse;
 import com.trip.web.dto.share.RenameShareLinkRequest;
 import com.trip.web.dto.share.ShareLinkResponse;
+import com.trip.web.dto.trip.TripResponse;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Pattern;
@@ -101,5 +103,16 @@ public class ShareLinkController {
             shareLinkService.acceptForGuest(token, body.displayName());
         guestSessionCookie.addToResponse(response, accepted.rawGuestToken());
         return ResponseEntity.ok(accepted.response());
+    }
+
+    @PostMapping("/api/guest-session/claim")
+    public ResponseEntity<TripResponse> claimGuestSession(
+            @CookieValue(name = GuestSessionCookie.COOKIE_NAME, required = false) String rawGuestToken,
+            Authentication authentication,
+            HttpServletResponse response) {
+        Long userId = AuthenticationActors.requireUserId(authentication);
+        TripResponse trip = shareLinkService.claimGuestSession(rawGuestToken, userId);
+        guestSessionCookie.clearOnResponse(response);
+        return ResponseEntity.ok(trip);
     }
 }

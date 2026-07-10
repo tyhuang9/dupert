@@ -31,11 +31,14 @@ export function useTrips(): UseQueryResult<Trip[]> {
   })
 }
 
-export function useTrip(publicId: string | undefined): UseQueryResult<Trip> {
+export function useTrip(
+  publicId: string | undefined,
+  options: { enabled?: boolean } = {},
+): UseQueryResult<Trip> {
   return useQuery({
     queryKey: tripKeys.detail(publicId ?? ''),
     queryFn: () => getTrip(publicId as string),
-    enabled: Boolean(publicId),
+    enabled: Boolean(publicId) && (options.enabled ?? true),
   })
 }
 

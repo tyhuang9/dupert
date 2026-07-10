@@ -6,6 +6,7 @@ import type { PropsWithChildren, ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { apiClient } from '../api/client'
+import { useAuthStore } from '../auth/authStore'
 import type { Activity } from '../types/activity'
 import type { Trip } from '../types/trip'
 import {
@@ -466,7 +467,7 @@ function mockWorkspace(
 function renderWorkspace(path: string) {
   function LocationProbe() {
     const location = useLocation()
-    return <div data-testid="current-location">{location.pathname}</div>
+    return <div data-testid="current-location">{location.pathname}{location.search}</div>
   }
 
   return render(
@@ -638,6 +639,7 @@ beforeEach(() => {
 afterEach(() => {
   apiMock.restore()
   queryClient.clear()
+  useAuthStore.getState().clearSession()
   vi.unstubAllEnvs()
 })
 
@@ -673,6 +675,77 @@ describe('<TripWorkspacePage>', () => {
     expect(screen.queryByLabelText(/^title$/i)).not.toBeInTheDocument()
     expect(screen.queryByLabelText(/day note/i)).not.toBeInTheDocument()
     expect(screen.queryByLabelText(/selected day summary/i)).not.toBeInTheDocument()
+  })
+
+  it('shows guest users links to save the trip after signing in or creating an account', async () => {
+    mockWorkspace()
+
+    renderWorkspace('/trips/abc234def567')
+
+    await waitFor(() => {
+      expect(screen.getByTestId('current-location')).toHaveTextContent('/trips/abc234def567/d/2026-05-01')
+    })
+
+    const expectedReturn = encodeURIComponent('/trips/abc234def567/d/2026-05-01?claimGuest=1')
+    expect(screen.getByRole('link', { name: /sign in to save/i })).toHaveAttribute(
+      'href',
+      `/login?return=${expectedReturn}`,
+    )
+    expect(screen.getByRole('link', { name: /create account/i })).toHaveAttribute(
+      'href',
+      `/register?return=${expectedReturn}`,
+    )
+  })
+
+  it('claims a guest trip before loading it for an authenticated user', async () => {
+    const claimedTrip = { ...SAMPLE_TRIP, role: 'VIEWER' as const }
+    useAuthStore.getState().setSession({
+      accessToken: 'jwt-access-token',
+      expiresInSeconds: 900,
+      user: {
+        id: 200,
+        email: 'bob@example.com',
+        displayName: 'Bob',
+        emailVerified: true,
+      },
+    })
+    apiMock.onPost('/guest-session/claim').reply(200, claimedTrip)
+    apiMock.onGet('/trips/abc234def567').reply(200, claimedTrip)
+    apiMock.onGet('/trips/abc234def567/activities').reply(200, [])
+
+    renderWorkspace('/trips/abc234def567?claimGuest=1')
+
+    await waitFor(() => {
+      expect(apiMock.history.post.some((request) => request.url === '/guest-session/claim')).toBe(true)
+    })
+    await screen.findByText(/trip saved to my trips/i)
+    await waitFor(() => {
+      expect(screen.getByTestId('current-location')).toHaveTextContent('/trips/abc234def567/d/2026-05-01')
+    })
+
+    expect(screen.queryByRole('link', { name: /sign in to save/i })).not.toBeInTheDocument()
+    expect(queryClient.getQueryData(['trips', 'list'])).toEqual([claimedTrip])
+    expect(queryClient.getQueryData(['trips', 'detail', 'abc234def567'])).toEqual(claimedTrip)
+  })
+
+  it('shows a generic error when claiming a guest trip fails', async () => {
+    useAuthStore.getState().setSession({
+      accessToken: 'jwt-access-token',
+      expiresInSeconds: 900,
+      user: {
+        id: 200,
+        email: 'bob@example.com',
+        displayName: 'Bob',
+        emailVerified: true,
+      },
+    })
+    apiMock.onPost('/guest-session/claim').reply(404, { error: 'not_found' })
+
+    renderWorkspace('/trips/abc234def567?claimGuest=1')
+
+    expect(await screen.findByRole('heading', { name: /could not save trip/i })).toBeInTheDocument()
+    expect(screen.getByText(/link may have expired/i)).toBeInTheDocument()
+    expect(apiMock.history.get).toHaveLength(0)
   })
 
   it('collapses the pinned sidebar when the timeline tab is selected', async () => {

@@ -25,6 +25,7 @@ import com.trip.web.dto.share.AcceptGuestShareLinkResponse;
 import com.trip.web.dto.share.CreateShareLinkRequest;
 import com.trip.web.dto.share.CreateShareLinkResponse;
 import com.trip.web.dto.share.ShareLinkResponse;
+import com.trip.web.dto.trip.TripResponse;
 import com.trip.web.exception.NotFoundException;
 import com.trip.web.exception.ValidationException;
 import com.trip.web.auth.DisplayNameSanitizer;
@@ -145,6 +146,24 @@ public class ShareLinkService {
             new AcceptGuestShareLinkResponse(trip.getPublicId(), link.getRole(), displayName));
     }
 
+    @Transactional
+    public TripResponse claimGuestSession(String rawGuestToken, Long userId) {
+        if (rawGuestToken == null || rawGuestToken.isBlank()) {
+            throw new NotFoundException("guest session not found");
+        }
+        String hash = shareTokenService.sha256Hex(rawGuestToken.trim());
+        GuestSession guestSession = guestSessionRepository.findByTokenHash(hash)
+            .orElseThrow(() -> new NotFoundException("guest session not found"));
+        ShareLink link = shareLinkRepository.findById(guestSession.getShareLinkId())
+            .orElseThrow(() -> new NotFoundException("share link not found for guest session"));
+        requireUsableLink(link);
+        Trip trip = tripRepository.findById(link.getTripId())
+            .orElseThrow(() -> new NotFoundException("trip not found for share link: id=" + link.getId()));
+
+        TripRole effectiveRole = upsertMembership(trip.getId(), userId, link.getRole());
+        return TripResponse.of(trip, effectiveRole);
+    }
+
     private TripRole upsertMembership(Long tripId, Long userId, TripRole invitedRole) {
         return tripMemberRepository.findByIdTripIdAndIdUserId(tripId, userId)
             .map(existing -> {
@@ -164,6 +183,11 @@ public class ShareLinkService {
         String hash = shareTokenService.sha256Hex(rawToken);
         ShareLink link = shareLinkRepository.findByTokenHash(hash)
             .orElseThrow(() -> new NotFoundException("share link not found"));
+        requireUsableLink(link);
+        return link;
+    }
+
+    private static void requireUsableLink(ShareLink link) {
         OffsetDateTime now = OffsetDateTime.now();
         if (link.getRevokedAt() != null) {
             throw new NotFoundException("share link revoked: id=" + link.getId());
@@ -171,7 +195,6 @@ public class ShareLinkService {
         if (link.getExpiresAt() != null && !link.getExpiresAt().isAfter(now)) {
             throw new NotFoundException("share link expired: id=" + link.getId());
         }
-        return link;
     }
 
     private ShareLink findLinkOnTrip(Long linkId, Long tripId) {

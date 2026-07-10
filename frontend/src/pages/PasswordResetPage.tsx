@@ -1,4 +1,4 @@
-import { useId, useState, type FormEvent } from 'react'
+import { useEffect, useId, useState, type FormEvent } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { confirmPasswordReset } from '../api/auth'
 import { parseApiError } from '../api/errors'
@@ -8,23 +8,34 @@ import styles from './AuthForm.module.css'
 export default function PasswordResetPage() {
   usePageTitle('Reset password - Dupert')
 
-  const [searchParams] = useSearchParams()
-  const initialToken = searchParams.get('token') ?? searchParams.get('code') ?? ''
-  const [token, setToken] = useState(initialToken)
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [token] = useState(() => searchParams.get('token') ?? searchParams.get('code') ?? '')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const tokenId = useId()
   const passwordId = useId()
   const confirmPasswordId = useId()
+  const hasResetToken = token.trim().length > 0
+
+  useEffect(() => {
+    if (!searchParams.has('token') && !searchParams.has('code')) return
+    const nextParams = new URLSearchParams(searchParams)
+    nextParams.delete('token')
+    nextParams.delete('code')
+    setSearchParams(nextParams, { replace: true })
+  }, [searchParams, setSearchParams])
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (isSubmitting) return
     setErrorMessage(null)
     setSuccessMessage(null)
+    if (!hasResetToken) {
+      setErrorMessage('This reset link is missing or invalid. Request a new password reset link.')
+      return
+    }
     if (password !== confirmPassword) {
       setErrorMessage('New passwords do not match.')
       return
@@ -46,11 +57,19 @@ export default function PasswordResetPage() {
     <main id="main" className={styles.shell}>
       <div className={styles.card}>
         <h1 className={styles.title}>Reset password</h1>
-        <p className={styles.subtitle}>Enter the code from your email and choose a new password.</p>
+        <p className={styles.subtitle}>Choose a new password for your account.</p>
 
         {successMessage && (
           <div className={styles.bannerSuccess} role="status">
             {successMessage}
+          </div>
+        )}
+        {!hasResetToken && !successMessage && (
+          <div className={styles.banner} role="alert">
+            <span className={styles.bannerIcon} aria-hidden="true">
+              !
+            </span>
+            <span>This reset link is missing or invalid. Request a new password reset link.</span>
           </div>
         )}
         {errorMessage && (
@@ -63,18 +82,6 @@ export default function PasswordResetPage() {
         )}
 
         <form className={styles.form} onSubmit={onSubmit} noValidate>
-          <label className={styles.field} htmlFor={tokenId}>
-            <span className={styles.label}>Reset code</span>
-            <input
-              id={tokenId}
-              className={styles.input}
-              autoComplete="one-time-code"
-              value={token}
-              onChange={(event) => setToken(event.target.value)}
-              required
-              disabled={isSubmitting}
-            />
-          </label>
           <label className={styles.field} htmlFor={passwordId}>
             <span className={styles.label}>New password</span>
             <input
@@ -101,7 +108,7 @@ export default function PasswordResetPage() {
               disabled={isSubmitting}
             />
           </label>
-          <button className={styles.submit} type="submit" disabled={isSubmitting}>
+          <button className={styles.submit} type="submit" disabled={isSubmitting || !hasResetToken}>
             {isSubmitting ? 'Resetting...' : 'Reset password'}
           </button>
         </form>
