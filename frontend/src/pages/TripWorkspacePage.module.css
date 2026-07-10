@@ -2676,3 +2676,49 @@
   }
 
 }
+
+@media (max-width: 820px) {
+  .workspaceShellMobileMap .mapOverlayStack {
+    top: calc(64px + var(--space-3));
+    left: var(--space-3);
+    width: min(34rem, calc(100% - var(--space-6)));
+  }
+
+  .workspaceShellMobileMap .mapRouteOverlay {
+    top: calc(64px + var(--space-3));
+    right: var(--space-3);
+    max-width: calc(100% - var(--space-6));
+  }
+
+  .workspaceShellMobileMap .mapChrome {
+    flex-wrap: wrap;
+  }
+
+  .workspaceShellMobileMap .mapStyleStrip {
+    max-width: min(15rem, calc(100vw - var(--space-6)));
+  }
+
+  .workspaceShellMobileMap .mapStyleMenu {
+    left: auto;
+    right: 0;
+    width: min(22rem, calc(100vw - var(--space-6)));
+    max-height: min(32rem, calc(100dvh - 9rem));
+  }
+
+  .workspaceShellMobileMap .placeDetailCard {
+    right: 0;
+    bottom: calc(64px + env(safe-area-inset-bottom));
+    left: 0;
+    z-index: 14;
+    width: 100%;
+    max-height: min(54dvh, 34rem);
+    border-right: 0;
+    border-bottom: 0;
+    border-left: 0;
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  }
+
+  .workspaceShellMobileMap .placeDetailCardRaised {
+    bottom: calc(64px + env(safe-area-inset-bottom) + var(--map-search-results-height));
+  }
+}
