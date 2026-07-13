@@ -73,6 +73,11 @@ afterEach(() => {
 })
 
 describe('<RegisterPage>', () => {
+  it('shows a page shell while auth restoration is pending', () => {
+    renderRegister(makeAuth({ isInitializing: true }))
+    expect(screen.getByRole('heading', { name: /preparing your trip planner/i })).toBeInTheDocument()
+  })
+
   it('renders the email, password, and display name fields', () => {
     renderRegister(makeAuth())
     expect(screen.getByLabelText(/email/i)).toBeInTheDocument()

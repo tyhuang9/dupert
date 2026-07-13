@@ -30,12 +30,14 @@ import {
   useMemo,
   useRef,
   useState,
+  useContext,
   type CSSProperties,
   type FormEvent,
   type ReactNode,
 } from 'react'
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useIsAuthenticated } from '../auth/authStore'
+import { AuthContext } from '../auth/authContextValue'
 import {
   AlertTriangle,
   BedDouble,
@@ -95,6 +97,7 @@ import { ActivityForm } from '../components/ActivityForm'
 import { ActivityList } from '../components/ActivityList'
 import { MapSearchResultsShelf } from '../components/MapSearchResultsShelf'
 import { PlaceSearch } from '../components/PlaceSearch'
+import { GoogleMapsProvider } from '../components/GoogleMapsProvider'
 import { TripDateRangePicker } from '../components/TripDateRangePicker'
 import {
   fetchGooglePlaceById,
@@ -1680,11 +1683,15 @@ export function TripWorkspacePage() {
   const [isMobileDayPickerOpen, setIsMobileDayPickerOpen] = useState(false)
   const [mobileMoveActivity, setMobileMoveActivity] = useState<Activity | null>(null)
   const isMobileViewport = useMediaQuery('(max-width: 820px)')
+  // Public share routes are rendered under AuthProvider in the app, but keeping
+  // this optional preserves the component's standalone test and preview usage.
+  const isInitializing = useContext(AuthContext)?.isInitializing ?? false
   const claimGuestSessionMutation = useClaimGuestSession()
   const shouldClaimGuestSession = isAuthenticated && searchParams.get('claimGuest') === '1'
   const queryPublicId = shouldClaimGuestSession ? undefined : publicId
-  const tripQuery = useTrip(queryPublicId, { enabled: !shouldClaimGuestSession })
-  const activitiesQuery = useActivities(queryPublicId)
+  const isWorkspaceQueryEnabled = !isInitializing && !shouldClaimGuestSession
+  const tripQuery = useTrip(queryPublicId, { enabled: isWorkspaceQueryEnabled })
+  const activitiesQuery = useActivities(queryPublicId, { enabled: isWorkspaceQueryEnabled })
   const selectedDay = tripQuery.data
     ? day && dayInRange(day, tripQuery.data.startDate, tripQuery.data.endDate)
       ? day
@@ -3909,6 +3916,7 @@ export function TripWorkspacePage() {
                     }
                   />
                 )}
+                <GoogleMapsProvider>
                 <TripMap
                   activities={mapActivities}
                   activityMarkerColors={workspaceMode === 'timeline' ? timelineActivityMarkerColors : undefined}
@@ -3937,6 +3945,7 @@ export function TripWorkspacePage() {
                   onViewportContextChange={setMapViewportContext}
                   viewportFitKey={viewportFitKey}
                 />
+                </GoogleMapsProvider>
               </aside>
               ) : null}
             </section>
