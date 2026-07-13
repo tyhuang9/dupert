@@ -322,6 +322,32 @@ describe('<TripMap>', () => {
     expect(geocodeMock.geocodeDestination).not.toHaveBeenCalled()
   })
 
+  it('renders one route summary in a supplied mobile overlay host', async () => {
+    const routeSummaryHost = document.createElement('div')
+    document.body.append(routeSummaryHost)
+
+    try {
+      render(
+        <TripMap
+          activities={ACTIVITIES}
+          fallbackActivities={[]}
+          destination="Tokyo"
+          routeSummaryClassName="mobile-route-summary"
+          routeSummaryContainer={routeSummaryHost}
+        />,
+      )
+
+      await waitFor(() => {
+        expect(routeSummaryHost).toHaveTextContent('12 min total · 2.4 km')
+      })
+
+      expect(routeSummaryHost.querySelector('.mobile-route-summary')).toBeInTheDocument()
+      expect(document.body.querySelectorAll('[aria-live="polite"]')).toHaveLength(1)
+    } finally {
+      routeSummaryHost.remove()
+    }
+  })
+
   it('shows only the hovered or tapped route leg duration', async () => {
     const user = userEvent.setup()
     render(<TripMap activities={ACTIVITIES} fallbackActivities={[]} destination="Tokyo" />)

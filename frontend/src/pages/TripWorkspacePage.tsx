@@ -1633,6 +1633,7 @@ export function TripWorkspacePage() {
   const [collapsedTimelineDays, setCollapsedTimelineDays] = useState<Set<string>>(() => new Set())
   const [mapStyle, setMapStyle] = useState<MapStyleId>('roadmap')
   const [routesEnabled, setRoutesEnabled] = useState(true)
+  const [mapRouteSummaryHost, setMapRouteSummaryHost] = useState<HTMLDivElement | null>(null)
   const [mapViewportContext, setMapViewportContext] = useState<MapViewportContext | null>(null)
   const [mapLocationTarget, setMapLocationTarget] = useState<MapLocationTarget | null>(null)
   const [mapSearchValue, setMapSearchValue] = useState('')
@@ -3752,86 +3753,91 @@ export function TripWorkspacePage() {
                 className={`${styles.panel} ${styles.mapPanel}`}
                 aria-labelledby="map-panel-title"
               >
-                <div className={styles.mapRouteOverlay}>
-                  {routeControlsVisible && (
-                    <div className={styles.mapChrome} aria-label="Map route controls">
-                      <label className={styles.routeToggle}>
-                        <input
-                          type="checkbox"
-                          checked={routesEnabled}
-                          onChange={(event) => setRoutesEnabled(event.currentTarget.checked)}
-                        />
-                        <span className={styles.routeToggleControl} aria-hidden="true">
-                          <Route size={14} />
-                        </span>
-                        <span>Routes</span>
-                      </label>
-                      {routeMapsExport.url ? (
-                        <a
-                          className={styles.exportDayButton}
-                          href={routeMapsExport.url}
-                          target="_blank"
-                          rel="noreferrer"
-                          title={
-                            routeMapsExport.truncated
-                              ? `Opens ${routeMapsExport.exportedStopCount} of ${routeMapsExport.totalMappedStopCount} mapped stops in Google Maps`
-                              : `Open this ${routeExportScopeLabel} in Google Maps`
-                          }
-                        >
-                          <ExternalLink size={15} aria-hidden="true" />
-                          {routeExportButtonLabel}
-                        </a>
-                      ) : (
-                        <button
-                          type="button"
-                          className={styles.exportDayButton}
-                          disabled
-                          title={routeMapsExport.disabledReason ?? undefined}
-                        >
-                          <ExternalLink size={15} aria-hidden="true" />
-                          {routeExportButtonLabel}
-                        </button>
-                      )}
-                    </div>
-                  )}
-                  <MapStyleControl
-                    mapStyle={mapStyle}
-                    onMapStyleChange={setMapStyle}
-                  />
-                </div>
-                <div className={styles.mapOverlayStack}>
-                  <div className={styles.mapSearchAndStyle}>
-                    {canEditTrip && (
-                      <div
-                        id="map-search-panel"
-                        className={styles.mapSearchOverlay}
-                        aria-busy={isMapSearchSubmitting}
-                      >
-                        <PlaceSearch
-                          contextLabel={
-                            mapLocationTarget
-                              ? `Updating location for ${mapLocationTarget.activityTitle}`
-                              : undefined
-                          }
-                          focusKey={mapSearchFocusKey}
-                          searchValue={mapSearchValue}
-                          searchOptions={placeSearchOptions}
-                          onPlacePreview={(place) => {
-                            setMapSearchPreview(place)
-                            setCoordinateMapMarker(null)
-                            setSelectedMapClickedPlace(null)
-                            setSelectedMapClickedActivityId(null)
-                          }}
-                          onPlaceSelect={handleMapPlaceSuggestionSelect}
-                          onSearchSubmit={handleMapSearchSubmit}
-                          onSearchValueChange={handleMapSearchValueChange}
-                        />
+                <div className={styles.mapOverlayLayout}>
+                  <div className={styles.mapRouteOverlay}>
+                    {routeControlsVisible && (
+                      <div className={styles.mapChrome} aria-label="Map route controls">
+                        <label className={styles.routeToggle}>
+                          <input
+                            type="checkbox"
+                            checked={routesEnabled}
+                            onChange={(event) => setRoutesEnabled(event.currentTarget.checked)}
+                          />
+                          <span className={styles.routeToggleControl} aria-hidden="true">
+                            <Route size={14} />
+                          </span>
+                          <span>Routes</span>
+                        </label>
+                        {routeMapsExport.url ? (
+                          <a
+                            className={styles.exportDayButton}
+                            href={routeMapsExport.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            title={
+                              routeMapsExport.truncated
+                                ? `Opens ${routeMapsExport.exportedStopCount} of ${routeMapsExport.totalMappedStopCount} mapped stops in Google Maps`
+                                : `Open this ${routeExportScopeLabel} in Google Maps`
+                            }
+                          >
+                            <ExternalLink size={15} aria-hidden="true" />
+                            {routeExportButtonLabel}
+                          </a>
+                        ) : (
+                          <button
+                            type="button"
+                            className={styles.exportDayButton}
+                            disabled
+                            title={routeMapsExport.disabledReason ?? undefined}
+                          >
+                            <ExternalLink size={15} aria-hidden="true" />
+                            {routeExportButtonLabel}
+                          </button>
+                        )}
                       </div>
                     )}
+                    <MapStyleControl
+                      mapStyle={mapStyle}
+                      onMapStyleChange={setMapStyle}
+                    />
                   </div>
-                  <h2 id="map-panel-title" className="sr-only">Map</h2>
-                </div>
-                {canEditTrip && mapDetailPlace && (
+                  <div
+                    ref={isMobileViewport ? setMapRouteSummaryHost : undefined}
+                    className={styles.mapRouteSummaryHost}
+                  />
+                  <div className={styles.mapOverlayStack}>
+                    <div className={styles.mapSearchAndStyle}>
+                      {canEditTrip && (
+                        <div
+                          id="map-search-panel"
+                          className={styles.mapSearchOverlay}
+                          aria-busy={isMapSearchSubmitting}
+                        >
+                          <PlaceSearch
+                            contextLabel={
+                              mapLocationTarget
+                                ? `Updating location for ${mapLocationTarget.activityTitle}`
+                                : undefined
+                            }
+                            focusKey={mapSearchFocusKey}
+                            searchValue={mapSearchValue}
+                            searchOptions={placeSearchOptions}
+                            onPlacePreview={(place) => {
+                              setMapSearchPreview(place)
+                              setCoordinateMapMarker(null)
+                              setSelectedMapClickedPlace(null)
+                              setSelectedMapClickedActivityId(null)
+                            }}
+                            onPlaceSelect={handleMapPlaceSuggestionSelect}
+                            onSearchSubmit={handleMapSearchSubmit}
+                            onSearchValueChange={handleMapSearchValueChange}
+                          />
+                        </div>
+                      )}
+                    </div>
+                    <h2 id="map-panel-title" className="sr-only">Map</h2>
+                  </div>
+                  {canEditTrip && mapDetailPlace && (
                   <section
                     className={[
                       styles.placeDetailCard,
@@ -4002,6 +4008,7 @@ export function TripWorkspacePage() {
                     }
                   />
                 )}
+                </div>
                 <TripMap
                   activities={mapActivities}
                   activityMarkerColors={workspaceMode === 'timeline' ? timelineActivityMarkerColors : undefined}
@@ -4028,6 +4035,8 @@ export function TripWorkspacePage() {
                   onSearchResultRemove={handleMapSearchResultRemove}
                   onSearchResultSelect={handleMapSearchResultSelect}
                   onViewportContextChange={setMapViewportContext}
+                  routeSummaryClassName={isMobileViewport ? styles.mapRouteSummary : undefined}
+                  routeSummaryContainer={isMobileViewport ? mapRouteSummaryHost : undefined}
                   viewportFitKey={viewportFitKey}
                 />
               </aside>

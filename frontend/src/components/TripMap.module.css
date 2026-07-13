@@ -257,7 +257,15 @@
   }
 
   .routeSummary {
-    display: none;
+    top: calc(var(--space-3) + 88px);
+    right: var(--space-3);
+    width: min(var(--map-route-summary-width, 12rem), calc(100% - var(--space-6)));
+  }
+}
+
+@media (max-width: 520px) {
+  .routeSummary {
+    top: calc(var(--space-3) + 132px);
   }
 }
 

@@ -237,10 +237,11 @@ describe('TripWorkspacePage layout scroll contract', () => {
     const mobileHeaderBlock = mobileHeaderBlocks[mobileHeaderBlocks.length - 1] ?? ''
     const mobileHeroBlock = heroBlocks[heroBlocks.length - 1] ?? ''
 
-    expect(mobileShelfBlock).toMatch(
-      /bottom:\s*calc\(64px \+ env\(safe-area-inset-bottom\)\)/,
-    )
-    expect(mobileShelfBlock).toMatch(/max-height:\s*min\(46dvh,\s*30rem\)/)
+    expect(mobileShelfBlock).toMatch(/position:\s*static/)
+    expect(mobileShelfBlock).toMatch(/flex:\s*0 1 auto/)
+    expect(mobileShelfBlock).toMatch(/min-height:\s*0/)
+    expect(mobileShelfBlock).toMatch(/max-height:\s*min\(46dvh,\s*100%\)/)
+    expect(mobileShelfBlock).toMatch(/margin-top:\s*auto/)
     expect(mobileShelfBlock).toMatch(/grid-template-rows:\s*auto minmax\(0,\s*1fr\)/)
     expect(mobileListBlock).toMatch(/flex-direction:\s*column/)
     expect(mobileListBlock).toMatch(/overflow-x:\s*hidden/)
@@ -257,24 +258,45 @@ describe('TripWorkspacePage layout scroll contract', () => {
     expect(mobileHeroBlock).toMatch(/display:\s*block/)
   })
 
-  it('stacks mobile map chrome above search without a duplicate route summary', () => {
-    const mobileMapPanelBlocks = cssBlocks(workspaceCss, '.workspaceShellMobileMap .mapPanel')
+  it('uses a bounded mobile map overlay flow for chrome, route feedback, search, and results', () => {
+    const mobileOverlayLayoutBlocks = cssBlocks(
+      workspaceCss,
+      '.workspaceShellMobileMap .mapOverlayLayout',
+    )
     const mobileSearchBlocks = cssBlocks(workspaceCss, '.workspaceShellMobileMap .mapOverlayStack')
     const mobileRouteOverlayBlocks = cssBlocks(workspaceCss, '.workspaceShellMobileMap .mapRouteOverlay')
-    const mobileRouteSummaryBlocks = cssBlocks(tripMapCss, '.routeSummary')
-    const mobileMapPanelBlock = mobileMapPanelBlocks[mobileMapPanelBlocks.length - 1] ?? ''
+    const mobileRouteSummaryBlocks = cssBlocks(workspaceCss, '.workspaceShellMobileMap .mapRouteSummary')
+    const mobileShelfBlocks = cssBlocks(searchShelfCss, '.shelf')
+    const mobileOverlayLayoutBlock = mobileOverlayLayoutBlocks[mobileOverlayLayoutBlocks.length - 1] ?? ''
     const mobileSearchBlock = mobileSearchBlocks[mobileSearchBlocks.length - 1] ?? ''
     const mobileRouteOverlayBlock = mobileRouteOverlayBlocks[mobileRouteOverlayBlocks.length - 1] ?? ''
     const mobileRouteSummaryBlock = mobileRouteSummaryBlocks[mobileRouteSummaryBlocks.length - 1] ?? ''
+    const mobileShelfBlock = mobileShelfBlocks[mobileShelfBlocks.length - 1] ?? ''
 
-    expect(mobileMapPanelBlock).toMatch(/--map-mobile-chrome-height:\s*9\.25rem/)
-    expect(mobileSearchBlock).toMatch(
-      /top:\s*calc\(64px \+ var\(--space-3\) \+ var\(--map-mobile-chrome-height\)\)/,
+    expect(mobileOverlayLayoutBlock).toMatch(/position:\s*absolute/)
+    expect(mobileOverlayLayoutBlock).toMatch(/top:\s*calc\(64px \+ var\(--space-3\)\)/)
+    expect(mobileOverlayLayoutBlock).toMatch(
+      /bottom:\s*calc\(64px \+ env\(safe-area-inset-bottom\)\)/,
     )
-    expect(mobileRouteOverlayBlock).toMatch(/left:\s*var\(--space-3\)/)
-    expect(mobileRouteOverlayBlock).toMatch(/right:\s*auto/)
+    expect(mobileOverlayLayoutBlock).toMatch(/min-height:\s*0/)
+    expect(mobileOverlayLayoutBlock).toMatch(/display:\s*flex/)
+    expect(mobileOverlayLayoutBlock).toMatch(/flex-direction:\s*column/)
+    expect(mobileOverlayLayoutBlock).toMatch(/pointer-events:\s*none/)
+    expect(workspaceCss).toMatch(
+      /\.workspaceShellMobileMap \.mapOverlayLayout > \*\s*\{[^}]*pointer-events:\s*auto/s,
+    )
+    expect(mobileRouteOverlayBlock).toMatch(/position:\s*static/)
+    expect(mobileRouteOverlayBlock).toMatch(/margin:\s*0 var\(--space-3\)/)
     expect(mobileRouteOverlayBlock).toMatch(/justify-items:\s*start/)
-    expect(mobileRouteSummaryBlock).toMatch(/display:\s*none/)
+    expect(mobileRouteSummaryBlock).toMatch(/position:\s*static/)
+    expect(mobileRouteSummaryBlock).toMatch(/min-height:\s*42px/)
+    expect(mobileSearchBlock).toMatch(/position:\s*static/)
+    expect(mobileSearchBlock).toMatch(/margin:\s*0 var\(--space-3\)/)
+    expect(mobileShelfBlock).toMatch(/position:\s*static/)
+    expect(mobileShelfBlock).toMatch(/margin-top:\s*auto/)
+    expect(workspaceCss).not.toMatch(/--map-mobile-/)
+    expect(workspaceCss).not.toMatch(/:has\(/)
+    expect(cssBlocks(tripMapCss, '.routeSummary').join('\n')).not.toMatch(/display:\s*none/)
   })
 
   it('keeps compact editable fields on token-based surfaces in dark mode', () => {
