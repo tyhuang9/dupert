@@ -54,6 +54,8 @@ export function MobileWorkspaceChrome({
 }: Readonly<MobileWorkspaceChromeProps>) {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const menuTriggerRef = useRef<HTMLButtonElement>(null)
+  const drawerRef = useRef<HTMLElement>(null)
+  const closeButtonRef = useRef<HTMLButtonElement>(null)
 
   const closeMenu = useCallback(() => {
     setIsMenuOpen(false)
@@ -67,12 +69,48 @@ export function MobileWorkspaceChrome({
       if (event.key === 'Escape') {
         event.preventDefault()
         closeMenu()
+        return
+      }
+
+      if (event.key !== 'Tab') return
+
+      const drawer = drawerRef.current
+      if (!drawer) return
+
+      const focusableElements = Array.from(
+        drawer.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ),
+      )
+
+      if (focusableElements.length === 0) return
+
+      const firstElement = focusableElements[0]
+      const lastElement = focusableElements[focusableElements.length - 1]
+      const activeElement = document.activeElement
+
+      if (event.shiftKey && (activeElement === firstElement || !drawer.contains(activeElement))) {
+        event.preventDefault()
+        lastElement.focus()
+      } else if (!event.shiftKey && (activeElement === lastElement || !drawer.contains(activeElement))) {
+        event.preventDefault()
+        firstElement.focus()
       }
     }
 
     window.addEventListener('keydown', onKeyDown)
-    return () => window.removeEventListener('keydown', onKeyDown)
+    const focusFrame = window.requestAnimationFrame(() => closeButtonRef.current?.focus())
+
+    return () => {
+      window.removeEventListener('keydown', onKeyDown)
+      window.cancelAnimationFrame(focusFrame)
+    }
   }, [closeMenu, isMenuOpen])
+
+  const handleMenuAction = useCallback((action: () => void) => {
+    setIsMenuOpen(false)
+    action()
+  }, [])
 
   return (
     <>
@@ -95,6 +133,7 @@ export function MobileWorkspaceChrome({
             className={styles.menuButton}
             aria-expanded={isMenuOpen}
             aria-haspopup="dialog"
+            aria-controls="mobile-trip-menu"
             aria-label="Open trip menu"
             onClick={() => setIsMenuOpen((current) => !current)}
           >
@@ -106,7 +145,9 @@ export function MobileWorkspaceChrome({
       {isMenuOpen ? (
         <div className={styles.menuBackdrop} onMouseDown={closeMenu}>
           <section
-            className={styles.menuSheet}
+            ref={drawerRef}
+            id="mobile-trip-menu"
+            className={styles.menuDrawer}
             role="dialog"
             aria-modal="true"
             aria-labelledby="mobile-trip-menu-title"
@@ -119,6 +160,7 @@ export function MobileWorkspaceChrome({
               </div>
               <button
                 type="button"
+                ref={closeButtonRef}
                 className={styles.closeButton}
                 aria-label="Close trip menu"
                 onClick={closeMenu}
@@ -140,10 +182,7 @@ export function MobileWorkspaceChrome({
               {canEditTrip ? (
                 <button
                   type="button"
-                  onClick={() => {
-                    setIsMenuOpen(false)
-                    onOpenShare()
-                  }}
+                  onClick={() => handleMenuAction(onOpenShare)}
                 >
                   <Share2 size={18} aria-hidden="true" />
                   Share trip
@@ -152,10 +191,7 @@ export function MobileWorkspaceChrome({
               {canEditTrip ? (
                 <button
                   type="button"
-                  onClick={() => {
-                    setIsMenuOpen(false)
-                    onOpenSettings()
-                  }}
+                  onClick={() => handleMenuAction(onOpenSettings)}
                 >
                   <Settings size={18} aria-hidden="true" />
                   Trip settings

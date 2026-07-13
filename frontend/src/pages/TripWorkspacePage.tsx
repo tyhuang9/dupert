@@ -82,7 +82,6 @@ import {
   useRenameShareLink,
   useRevokeShareLink,
   useShareLinks,
-  useTripMembers,
 } from '../hooks/useShareLinks'
 import { usePageTitle } from '../utils/usePageTitle'
 import styles from './TripWorkspacePage.module.css'
@@ -1369,7 +1368,6 @@ function ShareTripModal({
   publicId: string
   tripName: string
 }) {
-  const membersQuery = useTripMembers(publicId)
   const shareLinksQuery = useShareLinks(publicId)
   const createMutation = useCreateShareLink()
   const renameMutation = useRenameShareLink()
@@ -1452,29 +1450,6 @@ function ShareTripModal({
               {clipboardError ?? parseApiError(modalError).topMessage}
             </p>
           )}
-
-          <section className={styles.modalSection} aria-labelledby="share-members-title">
-            <h3 id="share-members-title">Members</h3>
-            {membersQuery.isLoading ? (
-              <p className={styles.modalState}>Loading members...</p>
-            ) : membersQuery.isError ? (
-              <p className={styles.modalError} role="alert">
-                {parseApiError(membersQuery.error).topMessage}
-              </p>
-            ) : (
-              <ul className={styles.modalList}>
-                {(membersQuery.data ?? []).map((member) => (
-                  <li key={member.userId} className={styles.modalListItem}>
-                    <div>
-                      <strong>{member.displayName}</strong>
-                      <span>{member.email}</span>
-                    </div>
-                    <small>{member.role.toLowerCase()}</small>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
 
           <section className={styles.modalSection} aria-labelledby="create-share-link-title">
             <h3 id="create-share-link-title">Create link</h3>
