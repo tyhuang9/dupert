@@ -28,6 +28,7 @@ import {
   googleMapsMapId,
   googleRoutesFailureMessage,
 } from '../utils/googleMapsAccess'
+import { markPerformance } from '../performance/timing'
 import {
   createPlaceDetailsTraceId,
   logPlaceDetailsTiming,
@@ -778,6 +779,7 @@ function TripMapContent({
       bounds,
     })
   }, [map, onViewportContextChange])
+  const mapReadyReportedRef = useRef(false)
 
   const handleMapClick = useCallback((event: MapMouseEvent) => {
     const clickedAtMs = placeDetailsNowMs()
@@ -958,7 +960,13 @@ function TripMapContent({
           streetViewControl={false}
           zoomControl={false}
           gestureHandling="greedy"
-          onTilesLoaded={reportViewportContext}
+          onTilesLoaded={() => {
+            reportViewportContext()
+            if (!mapReadyReportedRef.current) {
+              mapReadyReportedRef.current = true
+              markPerformance('map-ready')
+            }
+          }}
           onCameraChanged={(event: MapCameraChangedEvent) => {
             onViewportContextChange?.({
               center: {

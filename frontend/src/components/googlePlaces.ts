@@ -5,6 +5,7 @@ import {
   placeDetailsElapsedMs,
   placeDetailsNowMs,
 } from '../utils/placeDetailsTiming'
+import { markPerformance } from '../performance/timing'
 
 export const GOOGLE_PLACES_SEARCH_RESULT_LIMIT = 10
 
@@ -637,6 +638,7 @@ export async function fetchGooglePlaceDetails({
       stale: response.stale,
       traceId: traceId?.trim() || null,
     })
+    markPerformance('place-details-ready')
     return response.details
   })
 

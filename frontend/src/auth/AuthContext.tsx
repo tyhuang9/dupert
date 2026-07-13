@@ -10,6 +10,7 @@ import * as authApi from '../api/auth'
 import { refreshSession } from '../api/client'
 import { useAuthStore, useIsAuthenticated, useUser } from './authStore'
 import { AuthContext, type AuthContextValue } from './authContextValue'
+import { markPerformance } from '../performance/timing'
 import type {
   EmailVerificationResendRequest,
   LoginRequest,
@@ -88,6 +89,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
         if (!cancelledRef.current) setIsInitializing(false)
       })
   }, [setSession])
+
+  useEffect(() => {
+    if (!isInitializing) {
+      markPerformance('auth-restored')
+    }
+  }, [isInitializing])
 
   // Real-unmount guard: flip cancel only on a true unmount. StrictMode
   // dev double-invokes ALL effects (mount → cleanup → mount); resetting
