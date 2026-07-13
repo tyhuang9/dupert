@@ -1862,13 +1862,15 @@ export function TripWorkspacePage() {
   const visibleMapTimelineActivities = useMemo(
     () =>
       scheduledTimelineActivities.filter(
-        (activity) => activity.dayDate != null && !hiddenMapDayDates.has(activity.dayDate),
+        (activity) =>
+          activity.dayDate != null &&
+          (!isMobileViewport || !hiddenMapDayDates.has(activity.dayDate)),
       ),
-    [hiddenMapDayDates, scheduledTimelineActivities],
+    [hiddenMapDayDates, isMobileViewport, scheduledTimelineActivities],
   )
   const mapTimelineVisibilityKey = useMemo(
-    () => Array.from(hiddenMapDayDates).sort().join(','),
-    [hiddenMapDayDates],
+    () => (isMobileViewport ? Array.from(hiddenMapDayDates).sort().join(',') : ''),
+    [hiddenMapDayDates, isMobileViewport],
   )
   const mapActivities = workspaceMode === 'timeline'
     ? visibleMapTimelineActivities
