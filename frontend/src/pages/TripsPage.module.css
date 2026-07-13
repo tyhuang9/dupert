@@ -959,7 +959,8 @@
   .shell {
     width: min(100% - var(--space-4), 56rem);
     margin: 0 auto;
-    padding-block: var(--space-6);
+    padding-top: calc(var(--space-6) + env(safe-area-inset-top));
+    padding-bottom: calc(var(--space-6) + env(safe-area-inset-bottom));
   }
 
   .header {
@@ -1018,5 +1019,151 @@
 
   .form {
     padding: var(--space-4);
+  }
+
+  /* The compact header owns only the page title and account menu. */
+  .header.mobileHeader {
+    position: relative;
+    flex-direction: row;
+    align-items: flex-start;
+    gap: var(--space-3);
+    margin-bottom: var(--space-4);
+    padding-bottom: 0;
+    border-bottom: 0;
+  }
+
+  .mobileHeaderCopy {
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+
+  .mobileHeader .subheading {
+    display: none;
+  }
+
+  .accountMenu {
+    position: relative;
+    flex: 0 0 auto;
+  }
+
+  .accountMenuTrigger {
+    width: 44px;
+    min-width: 44px;
+    height: 44px;
+    min-height: 44px;
+    display: inline-grid;
+    place-items: center;
+    padding: 0;
+    border: 1px solid var(--color-surface-border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    color: var(--color-text);
+    box-shadow: var(--shadow-sm);
+    cursor: pointer;
+    transition:
+      background-color var(--transition-base),
+      border-color var(--transition-base),
+      box-shadow var(--transition-base);
+  }
+
+  .accountMenuTrigger:hover,
+  .accountMenuTrigger[aria-expanded='true'] {
+    border-color: var(--color-border-strong);
+    background: var(--color-surface-2);
+  }
+
+  .accountMenuPanel {
+    position: absolute;
+    top: calc(100% + var(--space-2));
+    right: 0;
+    z-index: 10;
+    width: min(15rem, calc(100vw - (var(--space-4) * 2)));
+    display: grid;
+    gap: var(--space-1);
+    padding: var(--space-2);
+    border: 1px solid var(--color-surface-border);
+    border-radius: var(--radius-md);
+    background: var(--color-floating-surface);
+    box-shadow: var(--shadow-lg);
+  }
+
+  .accountMenuItem {
+    width: 100%;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: var(--space-2);
+    padding: 0 var(--space-3);
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--color-text);
+    font: inherit;
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .accountMenuItem:hover {
+    background: var(--color-surface-2);
+  }
+
+  .accountMenuItemDanger {
+    color: var(--color-danger-fg);
+  }
+
+  .accountMenuItemDanger:hover {
+    background: var(--color-danger-bg);
+  }
+
+  .tripListHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    margin-top: var(--space-1);
+  }
+
+  .tripListEyebrow {
+    margin: 0;
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    line-height: var(--line-height-tight);
+    text-transform: uppercase;
+  }
+
+  .tripListAction {
+    width: auto;
+    min-height: 44px;
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    padding: 0 var(--space-3);
+    border: 1px solid var(--color-primary);
+    border-radius: var(--radius-md);
+    background: var(--color-primary);
+    color: var(--color-primary-fg);
+    font-size: var(--font-size-sm);
+    font-weight: 700;
+    text-decoration: none;
+  }
+
+  .tripListAction:hover {
+    border-color: var(--color-primary-hover);
+    background: var(--color-primary-hover);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .accountMenuTrigger:focus-visible,
+  .accountMenuItem:focus-visible,
+  .tripListAction:focus-visible {
+    outline: var(--focus-ring-width) solid var(--focus-ring-color);
+    outline-offset: var(--focus-ring-offset);
   }
 }
