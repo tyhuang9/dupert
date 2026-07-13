@@ -388,12 +388,19 @@ public class ActivityService {
     }
 
     private static ActivityResponse buildActivityResponse(Activity activity, AttributionNames attributionNames) {
-        String createdByName = activity.getCreatedByUserId() != null
-            ? attributionNames.userDisplayNames().get(activity.getCreatedByUserId())
-            : attributionNames.guestDisplayNames().get(activity.getCreatedByGuestSessionId());
-        String updatedByName = activity.getUpdatedByUserId() != null
-            ? attributionNames.userDisplayNames().get(activity.getUpdatedByUserId())
-            : attributionNames.guestDisplayNames().get(activity.getUpdatedByGuestSessionId());
+        String createdByName = null;
+        if (activity.getCreatedByUserId() != null) {
+            createdByName = attributionNames.userDisplayNames().get(activity.getCreatedByUserId());
+        } else if (activity.getCreatedByGuestSessionId() != null) {
+            createdByName = attributionNames.guestDisplayNames().get(activity.getCreatedByGuestSessionId());
+        }
+
+        String updatedByName = null;
+        if (activity.getUpdatedByUserId() != null) {
+            updatedByName = attributionNames.userDisplayNames().get(activity.getUpdatedByUserId());
+        } else if (activity.getUpdatedByGuestSessionId() != null) {
+            updatedByName = attributionNames.guestDisplayNames().get(activity.getUpdatedByGuestSessionId());
+        }
         return ActivityResponse.of(activity, createdByName, updatedByName);
     }
 
