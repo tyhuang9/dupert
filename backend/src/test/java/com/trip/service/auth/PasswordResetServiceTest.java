@@ -15,7 +15,9 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
 import java.util.HexFormat;
+import java.util.List;
 import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -25,6 +27,9 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.transaction.support.SimpleTransactionStatus;
+import org.springframework.transaction.support.TransactionCallback;
+import org.springframework.transaction.support.TransactionOperations;
 
 import com.trip.domain.PasswordResetToken;
 import com.trip.domain.User;
@@ -133,6 +138,69 @@ class PasswordResetServiceTest {
     }
 
     @Test
+    void requestResetKeepsTokenUsableWhenProviderFailureIsAmbiguous() {
+        User user = userWith(42L, "alice@example.com", "Alice");
+        when(userRepository.findByEmailIgnoreCase("alice@example.com"))
+            .thenReturn(Optional.of(user));
+        when(passwordResetTokenRepository.findByTokenHash(anyString())).thenReturn(Optional.empty());
+        when(passwordResetTokenRepository.save(any(PasswordResetToken.class)))
+            .thenAnswer(invocation -> invocation.getArgument(0));
+        doThrow(AuthEmailDeliveryException.brevoStatus(
+            "password_reset", 503, "provider unavailable"))
+            .when(emailSender)
+            .sendPasswordReset(any());
+
+        service.requestReset("alice@example.com");
+
+        ArgumentCaptor<PasswordResetToken> tokenCaptor =
+            ArgumentCaptor.forClass(PasswordResetToken.class);
+        verify(passwordResetTokenRepository).save(tokenCaptor.capture());
+        assertThat(tokenCaptor.getValue().getRevokedAt()).isNull();
+    }
+
+    @Test
+    void requestResetKeepsTokenUsableWhenProviderTimesOut() {
+        User user = userWith(42L, "alice@example.com", "Alice");
+        when(userRepository.findByEmailIgnoreCase("alice@example.com"))
+            .thenReturn(Optional.of(user));
+        when(passwordResetTokenRepository.findByTokenHash(anyString())).thenReturn(Optional.empty());
+        when(passwordResetTokenRepository.save(any(PasswordResetToken.class)))
+            .thenAnswer(invocation -> invocation.getArgument(0));
+        doThrow(AuthEmailDeliveryException.brevoIo(
+            "password_reset", new java.net.http.HttpTimeoutException("provider timeout")))
+            .when(emailSender)
+            .sendPasswordReset(any());
+
+        service.requestReset("alice@example.com");
+
+        ArgumentCaptor<PasswordResetToken> tokenCaptor =
+            ArgumentCaptor.forClass(PasswordResetToken.class);
+        verify(passwordResetTokenRepository).save(tokenCaptor.capture());
+        assertThat(tokenCaptor.getValue().getRevokedAt()).isNull();
+    }
+
+    @Test
+    void requestResetCommitsTokenBeforeSynchronousProviderCall() {
+        List<String> events = new ArrayList<>();
+        service = serviceWith(transactionRunner(events));
+        User user = userWith(42L, "alice@example.com", "Alice");
+        when(userRepository.findByEmailIgnoreCase("alice@example.com"))
+            .thenReturn(Optional.of(user));
+        when(passwordResetTokenRepository.findByTokenHash(anyString())).thenReturn(Optional.empty());
+        when(passwordResetTokenRepository.save(any(PasswordResetToken.class)))
+            .thenAnswer(invocation -> invocation.getArgument(0));
+        org.mockito.Mockito.doAnswer(invocation -> {
+            events.add("provider:send");
+            return null;
+        }).when(emailSender).sendPasswordReset(any());
+
+        service.requestReset("alice@example.com");
+
+        assertThat(events).containsSubsequence(
+            "database:begin", "database:commit", "outside:begin", "provider:send", "outside:complete");
+    }
+
+    @Test
     void confirmResetUpdatesPasswordRevokesRefreshTokensAndConsumesToken() {
         PasswordResetToken resetToken = new PasswordResetToken(
             42L, sha256Hex(RAW_TOKEN), OffsetDateTime.now().plusMinutes(30));
@@ -179,6 +247,37 @@ class PasswordResetServiceTest {
             throw new RuntimeException(e);
         }
         return user;
+    }
+
+    private PasswordResetService serviceWith(AuthEmailTransactionRunner transactionRunner) {
+        return new PasswordResetService(
+            passwordResetTokenRepository,
+            userRepository,
+            passwordEncoder,
+            refreshTokenService,
+            emailSender,
+            new SecureRandom(new byte[] { 1, 2, 3, 4 }),
+            transactionRunner);
+    }
+
+    private static AuthEmailTransactionRunner transactionRunner(List<String> events) {
+        return new AuthEmailTransactionRunner(
+            recordingTransactions(events, "database"),
+            recordingTransactions(events, "outside"));
+    }
+
+    private static TransactionOperations recordingTransactions(List<String> events, String name) {
+        return new TransactionOperations() {
+            @Override
+            public <T> T execute(TransactionCallback<T> action) {
+                events.add(name + ":begin");
+                try {
+                    return action.doInTransaction(new SimpleTransactionStatus());
+                } finally {
+                    events.add(name + ("database".equals(name) ? ":commit" : ":complete"));
+                }
+            }
+        };
     }
 
     private static String sha256Hex(String input) {
