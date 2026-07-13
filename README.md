@@ -198,6 +198,10 @@ dupert/
 | Variable | Used by | Description |
 |---|---|---|
 | `DATABASE_URL` | backend | Neon (or any Postgres) connection string |
+| `DB_POOL_MAX_SIZE` | backend | Hikari maximum connections for one backend instance; default `4` |
+| `DB_POOL_MIN_IDLE` | backend | Hikari minimum idle connections; default `0` so Neon can sleep |
+| `DB_CONNECTION_TIMEOUT_MS` | backend | Hikari acquisition timeout; default `10000` ms |
+| `DB_VALIDATION_TIMEOUT_MS` | backend | Hikari validation timeout; default `3000` ms |
 | `SPRING_PROFILES_ACTIVE` | backend | Use `local` for local development and `prod` on Render |
 | `JWT_SECRET` | backend | 32 random bytes (hex) for signing access tokens |
 | `LOG_EMAIL_PEPPER` | backend | 16 random bytes (hex) for hashing emails in logs |
@@ -233,11 +237,21 @@ APP_COOKIES_SAME_SITE=None
 SECURE_HSTS_ENABLED=true
 APP_PUBLIC_FRONTEND_URL=https://<frontend-origin>
 SIGNUP_ENABLED=false
+DB_POOL_MAX_SIZE=4
+DB_POOL_MIN_IDLE=0
+DB_CONNECTION_TIMEOUT_MS=10000
+DB_VALIDATION_TIMEOUT_MS=3000
 ```
 
 `SPRING_PROFILES_ACTIVE=prod` loads `application-prod.yml`, which sets secure cookies, `SameSite=None`, and HSTS. Keep `APP_COOKIES_SECURE=true`, `APP_COOKIES_SAME_SITE=None` for split-origin deployments, and `SECURE_HSTS_ENABLED=true` explicit on Render as a deployment guard against missing or overridden profile config.
 
 `APP_TRUST_PROXY=true` is required on Render because the backend is behind Render's proxy and rate limiting must use the trusted forwarded client IP. `ALLOWED_ORIGINS` must be the exact frontend browser origin with no wildcard and no trailing slash. `APP_PUBLIC_FRONTEND_URL` must be the same frontend origin used for auth email and reset links.
+
+Use Neon's direct database endpoint with this one Hikari pool; do not layer the
+Neon pooled endpoint over it for a single Render instance. Keep Render and Neon
+in the same, or nearest available, region. The defaults cap the pool at four
+connections, retire idle connections after five minutes, and do not send Hikari
+keepalives, allowing Neon to scale down while the application is idle.
 
 If production signup is enabled, set `SIGNUP_ENABLED=true` only after also configuring:
 
