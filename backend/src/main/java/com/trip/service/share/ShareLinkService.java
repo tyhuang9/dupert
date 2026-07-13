@@ -79,7 +79,6 @@ public class ShareLinkService {
         ShareLink link = new ShareLink(
             resolved.trip().getId(),
             token.hash(),
-            token.raw(),
             request.role(),
             normalizeLinkNameOrDefault(request.name()),
             request.allowAnonymous(),
@@ -88,14 +87,14 @@ public class ShareLinkService {
         ShareLink saved = shareLinkRepository.save(link);
         tripEventPublisher.publishAfterCommit(
             resolved.trip().getId(), TripEvent.shareLinksChanged(publicId));
-        return CreateShareLinkResponse.of(saved, token.raw(), shareUrl(token.raw()));
+        return CreateShareLinkResponse.of(saved, shareUrl(token.raw()));
     }
 
     @Transactional(readOnly = true)
     public List<ShareLinkResponse> list(String publicId, Long userId) {
         ResolvedTrip resolved = tripAccessGuard.resolveForUserAtLeast(publicId, userId, TripRole.EDITOR);
-        return shareLinkRepository.findAllByTripIdOrderByCreatedAtDesc(resolved.trip().getId()).stream()
-            .map(link -> ShareLinkResponse.of(link, shareUrlForStoredToken(link)))
+        return shareLinkRepository.findSummariesByTripId(resolved.trip().getId()).stream()
+            .map(ShareLinkResponse::of)
             .toList();
     }
 
@@ -116,7 +115,7 @@ public class ShareLinkService {
         ShareLink saved = shareLinkRepository.save(link);
         tripEventPublisher.publishAfterCommit(
             resolved.trip().getId(), TripEvent.shareLinksChanged(publicId));
-        return ShareLinkResponse.of(saved, shareUrlForStoredToken(saved));
+        return ShareLinkResponse.of(saved);
     }
 
     @Transactional
@@ -270,14 +269,6 @@ public class ShareLinkService {
             trimmedOrigin = trimmedOrigin.substring(0, trimmedOrigin.length() - 1);
         }
         return trimmedOrigin + "/share/" + rawToken;
-    }
-
-    private String shareUrlForStoredToken(ShareLink link) {
-        String rawToken = link.getToken();
-        if (rawToken == null || rawToken.isBlank()) {
-            return null;
-        }
-        return shareUrl(rawToken);
     }
 
     private static String shareUrlOrigin(AppProperties appProperties) {

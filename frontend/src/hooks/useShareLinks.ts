@@ -38,6 +38,18 @@ function upsertShareLink(existing: ShareLink[] | undefined, link: ShareLink): Sh
   return [link, ...(existing ?? []).filter((item) => item.id !== link.id)]
 }
 
+function shareLinkSummary(link: CreatedShareLink): ShareLink {
+  return {
+    id: link.id,
+    name: link.name,
+    role: link.role,
+    allowAnonymous: link.allowAnonymous,
+    createdAt: link.createdAt,
+    expiresAt: link.expiresAt,
+    revokedAt: link.revokedAt,
+  }
+}
+
 function upsertTrip(existing: Trip[] | undefined, trip: Trip): Trip[] {
   return [trip, ...(existing ?? []).filter((item) => item.publicId !== trip.publicId)]
 }
@@ -74,7 +86,7 @@ export function useCreateShareLink(): UseMutationResult<
     onSuccess: (link, { publicId }) => {
       queryClient.setQueryData<ShareLink[]>(
         shareKeys.forTrip(publicId),
-        (existing) => upsertShareLink(existing, link),
+        (existing) => upsertShareLink(existing, shareLinkSummary(link)),
       )
     },
   })

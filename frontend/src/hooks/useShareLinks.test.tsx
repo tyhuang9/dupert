@@ -25,14 +25,12 @@ const EXISTING_LINK: ShareLink = {
   createdAt: '2026-05-22T16:00:00Z',
   expiresAt: null,
   revokedAt: null,
-  shareUrl: 'https://app.example.com/share/old-token',
 }
 
 const CREATED_LINK = {
   ...EXISTING_LINK,
   name: 'Fresh invite',
   allowAnonymous: true,
-  token: 'fresh-token',
   shareUrl: 'https://app.example.com/share/fresh-token',
 }
 
@@ -89,7 +87,15 @@ describe('useShareLinks', () => {
     })
 
     expect(queryClient.getQueryData(shareKeys.forTrip('abc234def567'))).toEqual([
-      CREATED_LINK,
+      {
+        id: CREATED_LINK.id,
+        name: CREATED_LINK.name,
+        role: CREATED_LINK.role,
+        allowAnonymous: CREATED_LINK.allowAnonymous,
+        createdAt: CREATED_LINK.createdAt,
+        expiresAt: CREATED_LINK.expiresAt,
+        revokedAt: CREATED_LINK.revokedAt,
+      },
     ])
   })
 

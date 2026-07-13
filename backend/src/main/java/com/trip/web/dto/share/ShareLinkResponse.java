@@ -4,6 +4,7 @@ import java.time.OffsetDateTime;
 
 import com.trip.domain.ShareLink;
 import com.trip.domain.TripRole;
+import com.trip.repo.ShareLinkSummary;
 
 public record ShareLinkResponse(
     long id,
@@ -12,15 +13,10 @@ public record ShareLinkResponse(
     boolean allowAnonymous,
     OffsetDateTime createdAt,
     OffsetDateTime expiresAt,
-    OffsetDateTime revokedAt,
-    String shareUrl
+    OffsetDateTime revokedAt
 ) {
 
     public static ShareLinkResponse of(ShareLink link) {
-        return of(link, null);
-    }
-
-    public static ShareLinkResponse of(ShareLink link, String shareUrl) {
         return new ShareLinkResponse(
             link.getId(),
             link.getRole(),
@@ -28,8 +24,19 @@ public record ShareLinkResponse(
             link.isAllowAnonymous(),
             link.getCreatedAt(),
             link.getExpiresAt(),
-            link.getRevokedAt(),
-            shareUrl
+            link.getRevokedAt()
+        );
+    }
+
+    public static ShareLinkResponse of(ShareLinkSummary link) {
+        return new ShareLinkResponse(
+            link.id(),
+            link.role(),
+            link.name(),
+            link.allowAnonymous(),
+            link.createdAt(),
+            link.expiresAt(),
+            link.revokedAt()
         );
     }
 }

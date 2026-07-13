@@ -24,7 +24,6 @@ const SHARE_LINK: ShareLink = {
 
 const CREATED_LINK: CreatedShareLink = {
   ...SHARE_LINK,
-  token: 'raw-token',
   shareUrl: 'http://localhost:3000/share/raw-token',
 }
 

@@ -766,6 +766,56 @@ describe('<TripWorkspacePage>', () => {
     expect(screen.queryByLabelText(/selected day summary/i)).not.toBeInTheDocument()
   })
 
+  it('keeps reusable URLs out of listed share links while showing a newly created URL once', async () => {
+    mockWorkspace()
+    apiMock.onGet('/trips/abc234def567/members').reply(200, [
+      {
+        userId: 42,
+        email: 'alice@example.com',
+        displayName: 'Alice',
+        role: 'OWNER',
+      },
+    ])
+    apiMock.onGet('/trips/abc234def567/share-links').reply(200, [
+      {
+        id: 7,
+        name: 'Existing invite',
+        role: 'EDITOR',
+        allowAnonymous: false,
+        createdAt: '2026-05-22T16:00:00Z',
+        expiresAt: null,
+        revokedAt: null,
+      },
+    ])
+    apiMock.onPost('/trips/abc234def567/share-links').reply(201, {
+      id: 8,
+      name: 'Trip invite',
+      role: 'EDITOR',
+      allowAnonymous: false,
+      createdAt: '2026-05-22T16:00:00Z',
+      expiresAt: null,
+      revokedAt: null,
+      shareUrl: 'https://app.example.com/share/new-token',
+    })
+
+    renderWorkspace('/trips/abc234def567')
+
+    await screen.findByRole('heading', { level: 1, name: /tokyo 2026/i })
+    await userEvent.click(screen.getByRole('button', { name: /share trip/i }))
+
+    expect(await screen.findByDisplayValue('Existing invite')).toBeInTheDocument()
+    expect(screen.getByText(/URLs are shown only when a link is created/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /copy url/i })).toBeDisabled()
+
+    await userEvent.click(screen.getByRole('button', { name: /^create link$/i }))
+
+    expect(await screen.findByDisplayValue('https://app.example.com/share/new-token')).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: /copy url/i })).toHaveLength(2)
+    expect(screen.getAllByRole('button', { name: /copy url/i }).some(
+      (button) => !button.hasAttribute('disabled'),
+    )).toBe(true)
+  })
+
   it('shows guest users links to save the trip after signing in or creating an account', async () => {
     mockWorkspace()
 

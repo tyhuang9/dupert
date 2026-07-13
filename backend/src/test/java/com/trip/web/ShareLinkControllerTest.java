@@ -43,6 +43,7 @@ import com.trip.repo.GuestSessionRepository;
 import com.trip.repo.PasswordResetTokenRepository;
 import com.trip.repo.RefreshTokenRepository;
 import com.trip.repo.ShareLinkRepository;
+import com.trip.repo.ShareLinkSummary;
 import com.trip.repo.TripMemberRepository;
 import com.trip.repo.TripRepository;
 import com.trip.repo.UserRepository;
@@ -130,7 +131,7 @@ class ShareLinkControllerTest {
     }
 
     @Test
-    void createReturnsRawTokenAndShareUrlAndPersistsCopyableToken() throws Exception {
+    void createReturnsOneTimeShareUrlAndPersistsOnlyTokenHash() throws Exception {
         when(shareLinkRepository.save(any(ShareLink.class))).thenAnswer(invocation -> {
             ShareLink saved = invocation.getArgument(0);
             ReflectionIds.setId(saved, 501L);
@@ -149,7 +150,7 @@ class ShareLinkControllerTest {
             .andExpect(jsonPath("$.role").value("EDITOR"))
             .andExpect(jsonPath("$.name").value("Planning crew"))
             .andExpect(jsonPath("$.allowAnonymous").value(false))
-            .andExpect(jsonPath("$.token").isString())
+            .andExpect(jsonPath("$.token").doesNotExist())
             .andExpect(jsonPath("$.shareUrl").value(org.hamcrest.Matchers.startsWith(
                 "https://app.example.com/share/")));
 
@@ -161,9 +162,6 @@ class ShareLinkControllerTest {
         assertThat(saved.getValue().getName()).isEqualTo("Planning crew");
         assertThat(saved.getValue().isAllowAnonymous()).isFalse();
         assertThat(saved.getValue().getTokenHash()).hasSize(64);
-        assertThat(saved.getValue().getToken()).isNotBlank();
-        assertThat(saved.getValue().getTokenHash())
-            .isEqualTo(shareTokenService.sha256Hex(saved.getValue().getToken()));
         assertThat(saved.getValue().getTokenHash()).doesNotContain("http", "share");
         verify(tripEventPublisher).publishAfterCommit(eq(TRIP_PK), argThat(event ->
             event.type().equals("share-links.changed")
@@ -203,14 +201,10 @@ class ShareLinkControllerTest {
     }
 
     @Test
-    void listReturnsShareUrlsWithoutRawTokens() throws Exception {
-        ShareLink editorLink = link(501L, TRIP_PK, shareTokenService.sha256Hex(RAW_TOKEN),
-            RAW_TOKEN, TripRole.EDITOR, false, ALICE_ID, null);
-        ShareLink guestLink = link(502L, TRIP_PK, shareTokenService.sha256Hex(RATE_LIMIT_TOKEN),
-            RATE_LIMIT_TOKEN, TripRole.VIEWER, true, ALICE_ID, null);
-        editorLink.setName("Editors");
-        when(shareLinkRepository.findAllByTripIdOrderByCreatedAtDesc(TRIP_PK))
-            .thenReturn(List.of(editorLink, guestLink));
+    void listReturnsMetadataOnlyWithoutReusableUrls() throws Exception {
+        when(shareLinkRepository.findSummariesByTripId(TRIP_PK)).thenReturn(List.of(
+            summary(501L, TripRole.EDITOR, "Editors", false, null),
+            summary(502L, TripRole.VIEWER, ShareLink.DEFAULT_NAME, true, null)));
 
         mvc.perform(get("/api/trips/" + TRIP_PUBLIC_ID + "/share-links")
                 .header("Authorization", bearerFor(ALICE_ID)))
@@ -220,12 +214,14 @@ class ShareLinkControllerTest {
             .andExpect(jsonPath("$[0].name").value("Editors"))
             .andExpect(jsonPath("$[0].allowAnonymous").value(false))
             .andExpect(jsonPath("$[0].token").doesNotExist())
-            .andExpect(jsonPath("$[0].shareUrl").value("https://app.example.com/share/" + RAW_TOKEN))
+            .andExpect(jsonPath("$[0].tokenHash").doesNotExist())
+            .andExpect(jsonPath("$[0].shareUrl").doesNotExist())
             .andExpect(jsonPath("$[1].id").value(502))
             .andExpect(jsonPath("$[1].name").value("Shared link"))
             .andExpect(jsonPath("$[1].allowAnonymous").value(true))
             .andExpect(jsonPath("$[1].token").doesNotExist())
-            .andExpect(jsonPath("$[1].shareUrl").value("https://app.example.com/share/" + RATE_LIMIT_TOKEN));
+            .andExpect(jsonPath("$[1].tokenHash").doesNotExist())
+            .andExpect(jsonPath("$[1].shareUrl").doesNotExist());
     }
 
     @Test
@@ -618,15 +614,21 @@ class ShareLinkControllerTest {
     private static ShareLink link(long id, long tripId, String tokenHash, TripRole role,
                                   boolean allowAnonymous, long createdBy,
                                   OffsetDateTime expiresAt) {
-        return link(id, tripId, tokenHash, null, role, allowAnonymous, createdBy, expiresAt);
-    }
-
-    private static ShareLink link(long id, long tripId, String tokenHash, String token, TripRole role,
-                                  boolean allowAnonymous, long createdBy,
-                                  OffsetDateTime expiresAt) {
         ShareLink link = new ShareLink(
-            tripId, tokenHash, token, role, ShareLink.DEFAULT_NAME, allowAnonymous, createdBy, expiresAt);
+            tripId, tokenHash, role, ShareLink.DEFAULT_NAME, allowAnonymous, createdBy, expiresAt);
         ReflectionIds.setId(link, id);
         return link;
+    }
+
+    private static ShareLinkSummary summary(long id, TripRole role, String name,
+                                            boolean allowAnonymous, OffsetDateTime expiresAt) {
+        return new ShareLinkSummary(
+            id,
+            role,
+            name,
+            allowAnonymous,
+            OffsetDateTime.parse("2026-05-22T16:00:00Z"),
+            expiresAt,
+            null);
     }
 }

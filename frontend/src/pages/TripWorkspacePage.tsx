@@ -1417,13 +1417,13 @@ function ShareTripModal({
     })
   }
 
-  const handleCopyShareLink = async (link: ShareLink) => {
-    const shareUrl = link.shareUrl ?? knownShareUrls[link.id]
+  const handleCopyShareLink = async (linkId: number) => {
+    const shareUrl = knownShareUrls[linkId]
     if (!shareUrl) return
     try {
       await copyTextToClipboard(shareUrl)
       setClipboardError(null)
-      setCopiedLinkId(link.id)
+      setCopiedLinkId(linkId)
     } catch {
       setCopiedLinkId(null)
       setClipboardError('Clipboard access is unavailable in this browser context.')
@@ -1536,7 +1536,7 @@ function ShareTripModal({
             ) : activeLinks.length > 0 ? (
               <ul className={styles.shareLinkList}>
                 {activeLinks.map((link) => {
-                  const shareUrl = link.shareUrl ?? knownShareUrls[link.id] ?? ''
+                  const shareUrl = knownShareUrls[link.id] ?? ''
                   const savingName = renameMutation.isPending && renameMutation.variables?.linkId === link.id
                   return (
                     <li key={link.id} className={styles.shareLinkItem}>
@@ -1567,7 +1567,9 @@ function ShareTripModal({
                           aria-label={`${defaultShareLinkName(link)} URL`}
                         />
                       ) : (
-                        <p className={styles.itemMeta}>URL unavailable for this older link.</p>
+                        <p className={styles.itemMeta}>
+                          URLs are shown only when a link is created. Create a replacement to get a new URL.
+                        </p>
                       )}
                       <div className={styles.inlineActions}>
                         <button
@@ -1582,7 +1584,7 @@ function ShareTripModal({
                         <button
                           type="button"
                           className={styles.secondaryAction}
-                          onClick={() => void handleCopyShareLink(link)}
+                          onClick={() => void handleCopyShareLink(link.id)}
                           disabled={!shareUrl}
                         >
                           {copiedLinkId === link.id ? (
