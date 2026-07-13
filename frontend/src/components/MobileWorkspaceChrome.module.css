@@ -124,8 +124,12 @@
     border-bottom: 1px solid var(--color-surface-border);
   }
 
+  .menuHeader > div {
+    min-width: 0;
+  }
+
   .menuHeader h2 {
-    max-width: min(22rem, 74vw);
+    max-width: 100%;
     margin: var(--space-1) 0 0;
     overflow: hidden;
     color: var(--color-text);
@@ -137,6 +141,7 @@
 
   .menuActions {
     display: grid;
+    align-content: start;
     overflow-y: auto;
     padding: var(--space-2) var(--space-3) calc(var(--space-4) + env(safe-area-inset-bottom));
   }
