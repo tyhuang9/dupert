@@ -11,20 +11,14 @@ import java.util.Base64;
 import java.util.HexFormat;
 import java.util.Locale;
 import java.util.Optional;
-import java.util.concurrent.Executor;
-import java.util.concurrent.RejectedExecutionException;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Profile;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionCallback;
-import org.springframework.transaction.support.SimpleTransactionStatus;
-import org.springframework.transaction.support.TransactionOperations;
 
 import com.trip.domain.EmailVerificationToken;
 import com.trip.domain.User;
@@ -52,17 +46,15 @@ public class EmailVerificationService implements EmailVerificationOperations {
     private final AuthEmailSender emailSender;
     private final SecureRandom random;
     private final Clock clock;
-    private final Executor emailVerificationExecutor;
-    private final TransactionOperations transactionOperations;
+    private final AuthEmailTransactionRunner transactionRunner;
 
     @Autowired
     public EmailVerificationService(EmailVerificationTokenRepository tokenRepository,
                                     UserRepository userRepository,
                                     AuthEmailSender emailSender,
-                                    @Qualifier("emailVerificationExecutor") Executor emailVerificationExecutor,
-                                    TransactionOperations transactionOperations) {
+                                    AuthEmailTransactionRunner transactionRunner) {
         this(tokenRepository, userRepository, emailSender, new SecureRandom(), Clock.systemUTC(),
-            emailVerificationExecutor, transactionOperations);
+            transactionRunner);
     }
 
     EmailVerificationService(EmailVerificationTokenRepository tokenRepository,
@@ -70,8 +62,8 @@ public class EmailVerificationService implements EmailVerificationOperations {
                              AuthEmailSender emailSender,
                              SecureRandom random,
                              Clock clock) {
-        this(tokenRepository, userRepository, emailSender, random, clock, Runnable::run,
-            testTransactionOperations());
+        this(tokenRepository, userRepository, emailSender, random, clock,
+            new AuthEmailTransactionRunner());
     }
 
     EmailVerificationService(EmailVerificationTokenRepository tokenRepository,
@@ -79,33 +71,25 @@ public class EmailVerificationService implements EmailVerificationOperations {
                              AuthEmailSender emailSender,
                              SecureRandom random,
                              Clock clock,
-                             Executor emailVerificationExecutor,
-                             TransactionOperations transactionOperations) {
+                             AuthEmailTransactionRunner transactionRunner) {
         this.tokenRepository = tokenRepository;
         this.userRepository = userRepository;
         this.emailSender = emailSender;
         this.random = random;
         this.clock = clock;
-        this.emailVerificationExecutor = emailVerificationExecutor;
-        this.transactionOperations = transactionOperations;
-    }
-
-    private static TransactionOperations testTransactionOperations() {
-        return new TransactionOperations() {
-            @Override
-            public <T> T execute(TransactionCallback<T> action) {
-                return action.doInTransaction(new SimpleTransactionStatus());
-            }
-        };
+        this.transactionRunner = transactionRunner;
     }
 
     @Override
     public void queueInitialVerification(long userId, String returnPath) {
         String safeReturnPath = SafeReturnPath.normalize(returnPath);
         try {
-            emailVerificationExecutor.execute(() -> sendInitialVerificationAsync(userId, safeReturnPath));
-        } catch (RejectedExecutionException e) {
-            log.warn("Initial email verification queue rejected userId={} token=<redacted>", userId);
+            PreparedEmailVerification prepared = transactionRunner.inNewTransaction(
+                status -> prepareInitialVerification(userId, safeReturnPath));
+            sendPreparedVerification(prepared);
+        } catch (RuntimeException e) {
+            log.warn("Initial email verification delivery failed userId={} exception={} token=<redacted>",
+                userId, e.getClass().getSimpleName());
         }
     }
 
@@ -113,53 +97,48 @@ public class EmailVerificationService implements EmailVerificationOperations {
         queueInitialVerification(userId, null);
     }
 
-    private void sendInitialVerificationAsync(long userId, String returnPath) {
-        try {
-            transactionOperations.execute(status -> {
-                sendInitialVerificationInTransaction(userId, returnPath);
-                return null;
-            });
-        } catch (RuntimeException e) {
-            log.warn("Initial email verification worker failed userId={} exception={} token=<redacted>",
-                userId, e.getClass().getSimpleName());
-        }
-    }
-
-    private void sendInitialVerificationInTransaction(long userId, String returnPath) {
+    private PreparedEmailVerification prepareInitialVerification(long userId, String returnPath) {
         Optional<User> maybeUser = userRepository.findById(userId);
         if (maybeUser.isEmpty()) {
             log.info("Initial email verification send skipped userId={} reason=user_not_found", userId);
-            return;
+            return null;
         }
 
         User user = maybeUser.get();
         if (user.isEmailVerified()) {
             log.info("Initial email verification send skipped userId={} reason=already_verified",
                 user.getId());
-            return;
+            return null;
         }
         log.info("Initial email verification send requested userId={} recipientDomain={}",
             user.getId(), emailDomain(user.getEmail()));
-        createAndSend(user, false, returnPath);
+        return createToken(user, returnPath);
     }
 
-    @Transactional
     @Override
     public void resend(String email, String returnPath) {
         String normalizedEmail = EmailNormalizer.normalize(email);
         String safeReturnPath = SafeReturnPath.normalize(returnPath);
         String recipientDomain = emailDomain(normalizedEmail);
         log.info("Email verification resend requested recipientDomain={}", recipientDomain);
+        PreparedEmailVerification prepared = transactionRunner.inNewTransaction(
+            status -> prepareResend(normalizedEmail, safeReturnPath, recipientDomain));
+        sendPreparedVerification(prepared);
+    }
+
+    private PreparedEmailVerification prepareResend(String normalizedEmail,
+                                                     String safeReturnPath,
+                                                     String recipientDomain) {
         Optional<User> maybeUser = userRepository.findByEmailIgnoreCase(normalizedEmail);
         if (maybeUser.isEmpty()) {
             log.info("Email verification resend skipped reason=user_not_found recipientDomain={}",
                 recipientDomain);
-            return;
+            return null;
         }
         if (maybeUser.get().isEmailVerified()) {
             log.info("Email verification resend skipped reason=already_verified userId={} recipientDomain={}",
                 maybeUser.get().getId(), recipientDomain);
-            return;
+            return null;
         }
 
         User user = maybeUser.get();
@@ -173,7 +152,7 @@ public class EmailVerificationService implements EmailVerificationOperations {
                 user.getId(),
                 recipientDomain,
                 latest.get().getCreatedAt().plus(RESEND_COOLDOWN));
-            return;
+            return null;
         }
 
         long sentToday = tokenRepository.countByUserIdAndCreatedAtAfter(
@@ -182,10 +161,10 @@ public class EmailVerificationService implements EmailVerificationOperations {
             log.info(
                 "Email verification resend skipped reason=daily_cap userId={} recipientDomain={} sentToday={} dailyCap={}",
                 user.getId(), recipientDomain, sentToday, RESEND_DAILY_CAP);
-            return;
+            return null;
         }
 
-        createAndSend(user, false, safeReturnPath);
+        return createToken(user, safeReturnPath);
     }
 
     public void resend(String email) {
@@ -224,7 +203,7 @@ public class EmailVerificationService implements EmailVerificationOperations {
         }
     }
 
-    private void createAndSend(User user, boolean propagateFailure, String returnPath) {
+    private PreparedEmailVerification createToken(User user, String returnPath) {
         OffsetDateTime now = now();
         String recipientDomain = emailDomain(user.getEmail());
         tokenRepository.revokeActiveForUser(user.getId(), now);
@@ -233,46 +212,75 @@ public class EmailVerificationService implements EmailVerificationOperations {
             user.getId(), generated.hash(), now.plus(VERIFICATION_TOKEN_TTL));
         EmailVerificationToken saved = tokenRepository.save(token);
         log.info(
-            "Email verification token created userId={} recipientDomain={} expiresAt={} propagateFailure={} token=<redacted>",
-            user.getId(), recipientDomain, saved.getExpiresAt(), propagateFailure);
+            "Email verification token created userId={} recipientDomain={} expiresAt={} token=<redacted>",
+            user.getId(), recipientDomain, saved.getExpiresAt());
+        return new PreparedEmailVerification(
+            user.getId(),
+            recipientDomain,
+            saved,
+            new EmailVerificationEmail(
+                user.getEmail(),
+                generated.raw(),
+                saved.getExpiresAt(),
+                SafeReturnPath.normalize(returnPath)));
+    }
+
+    private void sendPreparedVerification(PreparedEmailVerification prepared) {
+        if (prepared == null) {
+            return;
+        }
+        boolean revoked = false;
         try {
-            emailSender.sendEmailVerification(
-                new EmailVerificationEmail(
-                    user.getEmail(),
-                    generated.raw(),
-                    saved.getExpiresAt(),
-                    SafeReturnPath.normalize(returnPath)));
+            transactionRunner.outsideTransaction(status -> {
+                emailSender.sendEmailVerification(prepared.email());
+                return null;
+            });
             log.info(
                 "Email verification email send completed userId={} recipientDomain={} expiresAt={} token=<redacted>",
-                user.getId(), recipientDomain, saved.getExpiresAt());
+                prepared.userId(), prepared.recipientDomain(), prepared.email().expiresAt());
         } catch (RuntimeException e) {
-            saved.revoke(now());
-            tokenRepository.save(saved);
-            logEmailFailure("Email verification sender failed", user.getId(), recipientDomain, e);
-            if (propagateFailure) {
-                throw e;
+            if (isExplicitProviderRejection(e)) {
+                transactionRunner.inNewTransaction(status -> {
+                    prepared.token().revoke(now());
+                    tokenRepository.save(prepared.token());
+                    return null;
+                });
+                revoked = true;
             }
+            logEmailFailure(
+                "Email verification sender failed",
+                prepared.userId(),
+                prepared.recipientDomain(),
+                e,
+                revoked);
         }
     }
 
     private void logEmailFailure(String message,
                                  long userId,
                                  String recipientDomain,
-                                 RuntimeException exception) {
+                                 RuntimeException exception,
+                                 boolean revoked) {
         if (exception instanceof AuthEmailDeliveryException delivery) {
             log.warn(
-                "{} for userId={} recipientDomain={} provider={} operation={} status={} providerBody={} tokenRevoked=true token=<redacted>",
+                "{} for userId={} recipientDomain={} provider={} operation={} status={} providerBody={} tokenRevoked={} token=<redacted>",
                 message,
                 userId,
                 recipientDomain,
                 delivery.provider(),
                 delivery.operation(),
                 delivery.statusCode(),
-                delivery.providerResponseBody());
+                delivery.providerResponseBody(),
+                revoked);
             return;
         }
-        log.warn("{} for userId={} recipientDomain={} exception={} tokenRevoked=true token=<redacted>",
-            message, userId, recipientDomain, exception.getClass().getSimpleName());
+        log.warn("{} for userId={} recipientDomain={} exception={} tokenRevoked={} token=<redacted>",
+            message, userId, recipientDomain, exception.getClass().getSimpleName(), revoked);
+    }
+
+    private static boolean isExplicitProviderRejection(RuntimeException exception) {
+        return exception instanceof AuthEmailDeliveryException delivery
+            && delivery.isExplicitProviderRejection();
     }
 
     private GeneratedToken generateUniqueToken() {
@@ -322,5 +330,11 @@ public class EmailVerificationService implements EmailVerificationOperations {
     }
 
     private record GeneratedToken(String raw, String hash) {
+    }
+
+    private record PreparedEmailVerification(long userId,
+                                             String recipientDomain,
+                                             EmailVerificationToken token,
+                                             EmailVerificationEmail email) {
     }
 }
