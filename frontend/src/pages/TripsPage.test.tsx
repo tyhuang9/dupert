@@ -161,6 +161,25 @@ function renderNewTrip() {
   )
 }
 
+function mockViewport(isMobile: boolean) {
+  const matchMedia = vi.fn((query: string) => ({
+    matches: isMobile && query === '(max-width: 640px)',
+    media: query,
+    onchange: null,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    dispatchEvent: vi.fn(() => false),
+  }) as MediaQueryList)
+
+  Object.defineProperty(window, 'matchMedia', {
+    configurable: true,
+    value: matchMedia,
+    writable: true,
+  })
+}
+
 async function navigateDatePickerToMay2026() {
   for (let index = 0; index < 12; index += 1) {
     if (screen.queryByRole('heading', { name: /may 2026/i })) return
@@ -183,6 +202,7 @@ async function selectMayTripDates(startDay: number, endDay: number) {
 
 beforeEach(() => {
   vi.stubEnv('VITE_GOOGLE_MAPS_API_KEY', 'gmaps.test')
+  mockViewport(false)
   window.localStorage.clear()
   searchBoxState.props = null
   apiMock = new MockAdapter(apiClient)
@@ -265,6 +285,80 @@ describe('<TripsPage>', () => {
       screen.getByRole('link', { name: /open coastal reset/i }),
     ).toBeInTheDocument()
     expect(screen.getByText(/showing 3 of 3 trips/i)).toBeInTheDocument()
+  })
+
+  it('keeps desktop header actions unchanged', async () => {
+    apiMock.onGet('/trips').reply(200, [SAMPLE_TRIP])
+
+    renderTrips()
+
+    expect(await screen.findByRole('link', { name: /^new trip$/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^account$/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^sign out$/i })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /open account menu/i })).not.toBeInTheDocument()
+  })
+
+  it('uses an accessible mobile account menu and restores focus after Escape', async () => {
+    mockViewport(true)
+    apiMock.onGet('/trips').reply(200, [SAMPLE_TRIP])
+    const user = userEvent.setup()
+
+    renderTrips()
+
+    await screen.findByRole('link', { name: /open tokyo 2026/i })
+    const trigger = screen.getByRole('button', { name: /open account menu/i })
+    expect(screen.queryByRole('button', { name: /^account$/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^sign out$/i })).not.toBeInTheDocument()
+
+    trigger.focus()
+    await user.keyboard('{Enter}')
+    const menu = await screen.findByRole('menu', { name: /account options/i })
+    expect(trigger).toHaveAttribute('aria-expanded', 'true')
+    await waitFor(() => {
+      expect(within(menu).getByRole('menuitem', { name: /^account$/i })).toHaveFocus()
+    })
+
+    await user.keyboard('{Escape}')
+    await waitFor(() => {
+      expect(screen.queryByRole('menu', { name: /account options/i })).not.toBeInTheDocument()
+      expect(trigger).toHaveFocus()
+    })
+
+    await user.click(trigger)
+    await user.click(await screen.findByRole('menuitem', { name: /^account$/i }))
+    expect(screen.getByRole('dialog', { name: /account settings/i })).toBeInTheDocument()
+  })
+
+  it('places New Trip beside the mobile trip-list context', async () => {
+    mockViewport(true)
+    apiMock.onGet('/trips').reply(200, [SAMPLE_TRIP])
+    const user = userEvent.setup()
+
+    renderTrips()
+
+    const listHeading = await screen.findByRole('heading', { name: /^your trips$/i })
+    const newTrip = screen.getByRole('link', { name: /^new trip$/i })
+    expect(listHeading.parentElement).toContainElement(newTrip)
+
+    await user.click(newTrip)
+    expect(screen.getByTestId('new-trip')).toBeInTheDocument()
+  })
+
+  it('signs out from the mobile account menu', async () => {
+    mockViewport(true)
+    apiMock.onGet('/trips').reply(200, [])
+    const auth = makeAuth()
+    const user = userEvent.setup()
+
+    renderTrips(auth)
+
+    await user.click(await screen.findByRole('button', { name: /open account menu/i }))
+    await user.click(await screen.findByRole('menuitem', { name: /^sign out$/i }))
+
+    expect(auth.logout).toHaveBeenCalledTimes(1)
+    await waitFor(() => {
+      expect(screen.getByTestId('login')).toBeInTheDocument()
+    })
   })
 
   it('deletes owner trips from the navigator', async () => {

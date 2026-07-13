@@ -34,6 +34,23 @@ describe('TripsPage layout contract', () => {
     expect(shellBlock).toMatch(/padding-block:\s*var\(--space-8\)/)
     expect(shellBlock).not.toMatch(/margin:\s*var\(--space-/)
     expect(mobileBlock).toMatch(/\.shell\s*\{[^}]*margin:\s*0 auto/s)
-    expect(mobileBlock).toMatch(/\.shell\s*\{[^}]*padding-block:\s*var\(--space-6\)/s)
+    expect(mobileBlock).toMatch(
+      /\.shell\s*\{[^}]*padding-top:\s*calc\(var\(--space-6\) \+ env\(safe-area-inset-top\)\)/s,
+    )
+    expect(mobileBlock).toMatch(
+      /\.shell\s*\{[^}]*padding-bottom:\s*calc\(var\(--space-6\) \+ env\(safe-area-inset-bottom\)\)/s,
+    )
+  })
+
+  it('keeps the mobile account menu and trip-list action touch-sized', () => {
+    const accountTriggerBlock = cssBlocks(tripsCss, '.accountMenuTrigger')[0] ?? ''
+    const accountItemBlock = cssBlocks(tripsCss, '.accountMenuItem')[0] ?? ''
+    const listActionBlock = cssBlocks(tripsCss, '.tripListAction')[0] ?? ''
+
+    expect(accountTriggerBlock).toMatch(/width:\s*44px/)
+    expect(accountTriggerBlock).toMatch(/min-height:\s*44px/)
+    expect(accountItemBlock).toMatch(/min-height:\s*44px/)
+    expect(listActionBlock).toMatch(/min-height:\s*44px/)
+    expect(tripsCss).toMatch(/\.accountMenuPanel\s*\{[\s\S]*position:\s*absolute/)
   })
 })
