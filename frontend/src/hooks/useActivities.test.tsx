@@ -157,6 +157,26 @@ describe('useActivities', () => {
     expect(queryClient.getQueryData(activityKeys.list('abc234def567'))).toEqual([])
   })
 
+  it('rolls back an optimistic deletion when the request fails', async () => {
+    queryClient.setQueryData(activityKeys.list('abc234def567'), [SAMPLE_ACTIVITY])
+    apiMock.onDelete('/trips/abc234def567/activities/10').reply(500)
+
+    const remove = renderHook(() => useDeleteActivity(), { wrapper })
+
+    await expect(
+      act(async () => {
+        await remove.result.current.mutateAsync({
+          publicId: 'abc234def567',
+          activityId: 10,
+        })
+      }),
+    ).rejects.toThrow()
+
+    expect(queryClient.getQueryData(activityKeys.list('abc234def567'))).toEqual([
+      SAMPLE_ACTIVITY,
+    ])
+  })
+
   it('optimistically creates an idea without a dayDate query parameter', async () => {
     const ideaResponse = withoutDayDate(IDEA_ACTIVITY)
 

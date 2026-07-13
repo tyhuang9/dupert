@@ -1697,7 +1697,10 @@ export function TripWorkspacePage() {
   const reorderActivitiesMutation = useReorderActivities()
   const reorderIdeasMutation = useReorderIdeas()
   const moveActivityMutation = useMoveActivity()
-  useTripStream(queryPublicId, { bufferActivityEvents: isDraggingActivity })
+  useTripStream(queryPublicId, {
+    bufferActivityEvents: isDraggingActivity,
+    enabled: tripQuery.isSuccess,
+  })
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: { distance: 8 },

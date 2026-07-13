@@ -269,17 +269,25 @@ export function useUpdateActivity(): UseMutationResult<
 export function useDeleteActivity(): UseMutationResult<
   void,
   Error,
-  { publicId: string; activityId: number }
+  { publicId: string; activityId: number },
+  { previousActivities: Activity[] | undefined }
 > {
   const queryClient = useQueryClient()
 
   return useMutation({
     mutationFn: ({ publicId, activityId }) =>
       deleteActivity(publicId, activityId),
-    onSuccess: (_unused, variables) => {
-      queryClient.setQueryData<Activity[]>(activityKeys.list(variables.publicId), (existing) =>
-        existing?.filter((activity) => activity.id !== variables.activityId) ?? existing,
+    onMutate: async ({ publicId, activityId }) => {
+      await queryClient.cancelQueries({ queryKey: activityKeys.list(publicId) })
+      const previousActivities =
+        queryClient.getQueryData<Activity[]>(activityKeys.list(publicId))
+      queryClient.setQueryData<Activity[]>(activityKeys.list(publicId), (existing) =>
+        existing?.filter((activity) => activity.id !== activityId) ?? existing,
       )
+      return { previousActivities }
+    },
+    onError: (_error, { publicId }, context) => {
+      queryClient.setQueryData(activityKeys.list(publicId), context?.previousActivities)
     },
   })
 }

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { EventStreamContentType, fetchEventSource } from '@microsoft/fetch-event-source'
 import { useQueryClient } from '@tanstack/react-query'
 import { useAuthStore, useAccessToken } from '../auth/authStore'
@@ -18,15 +18,31 @@ export interface TripStreamEvent {
 
 interface UseTripStreamOptions {
   bufferActivityEvents?: boolean
+  enabled?: boolean
 }
 
-const STREAM_RETRY_DELAY_MS = 5_000
+const ACTIVITY_INVALIDATION_DEBOUNCE_MS = 200
+const INITIAL_RETRY_DELAY_MS = 1_000
+const MAX_RETRY_DELAY_MS = 30_000
 
 class FatalTripStreamError extends Error {
 }
 
 function isActivityEvent(event: TripStreamEvent): boolean {
   return event.type.startsWith('activity.') || event.type === 'day.reordered'
+}
+
+function documentIsVisible(): boolean {
+  return typeof document === 'undefined' || document.visibilityState !== 'hidden'
+}
+
+function retryDelayWithJitter(attempt: number): number {
+  const exponentialDelay = Math.min(
+    MAX_RETRY_DELAY_MS,
+    INITIAL_RETRY_DELAY_MS * 2 ** Math.min(attempt, 5),
+  )
+  const jitter = 0.5 + Math.random()
+  return Math.min(MAX_RETRY_DELAY_MS, Math.round(exponentialDelay * jitter))
 }
 
 function parseTripStreamEvent(data: string): TripStreamEvent | null {
@@ -47,24 +63,69 @@ export function useTripStream(
   const accessToken = useAccessToken()
   const queryClient = useQueryClient()
   const bufferActivityEvents = options.bufferActivityEvents ?? false
+  const enabled = options.enabled ?? true
+  const [isVisible, setIsVisible] = useState(documentIsVisible)
   const bufferActivityEventsRef = useRef(bufferActivityEvents)
-  const bufferedEventsRef = useRef<TripStreamEvent[]>([])
+  const bufferedActivityInvalidationRef = useRef(false)
+  const activityInvalidationTimerRef = useRef<number | null>(null)
+  const retryAttemptRef = useRef(0)
+  const resyncAfterVisibilityRef = useRef(false)
+
+  const invalidateActivities = useCallback((streamPublicId: string) => {
+    void queryClient.invalidateQueries({ queryKey: activityKeys.list(streamPublicId) })
+  }, [queryClient])
+
+  const scheduleActivityInvalidation = useCallback((streamPublicId: string) => {
+    if (activityInvalidationTimerRef.current !== null) {
+      window.clearTimeout(activityInvalidationTimerRef.current)
+    }
+    activityInvalidationTimerRef.current = window.setTimeout(() => {
+      activityInvalidationTimerRef.current = null
+      invalidateActivities(streamPublicId)
+    }, ACTIVITY_INVALIDATION_DEBOUNCE_MS)
+  }, [invalidateActivities])
+
+  const resynchronize = useCallback((streamPublicId: string) => {
+    void queryClient.invalidateQueries({ queryKey: shareKeys.forTrip(streamPublicId) })
+    void queryClient.invalidateQueries({ queryKey: shareKeys.members(streamPublicId) })
+    void queryClient.invalidateQueries({ queryKey: tripKeys.detail(streamPublicId) })
+    scheduleActivityInvalidation(streamPublicId)
+  }, [queryClient, scheduleActivityInvalidation])
+
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      const visible = documentIsVisible()
+      if (visible && !isVisible) {
+        resyncAfterVisibilityRef.current = true
+      }
+      setIsVisible(visible)
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
+  }, [isVisible])
+
+  useEffect(() => {
+    return () => {
+      if (activityInvalidationTimerRef.current !== null) {
+        window.clearTimeout(activityInvalidationTimerRef.current)
+        activityInvalidationTimerRef.current = null
+      }
+    }
+  }, [publicId])
 
   useEffect(() => {
     bufferActivityEventsRef.current = bufferActivityEvents
-    if (bufferActivityEvents || !publicId || bufferedEventsRef.current.length === 0) {
+    if (bufferActivityEvents || !publicId || !bufferedActivityInvalidationRef.current) {
       return
     }
 
-    const events = bufferedEventsRef.current
-    bufferedEventsRef.current = []
-    for (const event of events) {
-      invalidateForEvent(queryClient, publicId, event)
-    }
-  }, [bufferActivityEvents, publicId, queryClient])
+    bufferedActivityInvalidationRef.current = false
+    scheduleActivityInvalidation(publicId)
+  }, [bufferActivityEvents, publicId, scheduleActivityInvalidation])
 
   useEffect(() => {
-    if (!publicId) return
+    if (!publicId || !enabled || !isVisible) return
 
     const streamPublicId = publicId
     const controller = new AbortController()
@@ -83,38 +144,54 @@ export function useTripStream(
         {
           credentials: 'include',
           headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-          openWhenHidden: true,
+          openWhenHidden: false,
           signal: controller.signal,
           onopen: async (response) => {
             assertStreamResponse(response)
+            retryAttemptRef.current = 0
+            if (resyncAfterVisibilityRef.current) {
+              resyncAfterVisibilityRef.current = false
+              resynchronize(streamPublicId)
+            }
           },
           onerror: (error) => {
             if (error instanceof FatalTripStreamError) {
               throw error
             }
-            return STREAM_RETRY_DELAY_MS
+            const delay = retryDelayWithJitter(retryAttemptRef.current)
+            retryAttemptRef.current += 1
+            return delay
           },
           onmessage: (message) => {
             if (message.event === 'connected') return
             const event = parseTripStreamEvent(message.data)
             if (!event || event.publicId !== streamPublicId) return
-            if (bufferActivityEventsRef.current && isActivityEvent(event)) {
-              bufferedEventsRef.current.push(event)
+
+            if (isActivityEvent(event)) {
+              if (bufferActivityEventsRef.current) {
+                bufferedActivityInvalidationRef.current = true
+                return
+              }
+              scheduleActivityInvalidation(streamPublicId)
               return
             }
-            invalidateForEvent(queryClient, streamPublicId, event)
+
+            if (event.type === 'share-links.changed') {
+              invalidateShareState(queryClient, streamPublicId)
+              scheduleActivityInvalidation(streamPublicId)
+            }
           },
         },
       )
     }
 
     void connect().catch(() => {
-      // Fatal stream setup failures are intentionally not retried here. The next
-      // token or route change will create a fresh connection attempt.
+      // Access errors are fatal. A route, token, or successful trip query change
+      // is the next valid opportunity to create another stream.
     })
 
     return () => controller.abort()
-  }, [accessToken, publicId, queryClient])
+  }, [accessToken, enabled, isVisible, publicId, queryClient, resynchronize, scheduleActivityInvalidation])
 }
 
 async function refreshedStaleUserToken(signal: AbortSignal): Promise<boolean> {
@@ -134,7 +211,10 @@ async function refreshedStaleUserToken(signal: AbortSignal): Promise<boolean> {
 
 function assertStreamResponse(response: Response): void {
   if (!response.ok) {
-    throw new FatalTripStreamError(`Trip stream returned HTTP ${response.status}`)
+    if ([401, 403, 404].includes(response.status)) {
+      throw new FatalTripStreamError(`Trip stream returned HTTP ${response.status}`)
+    }
+    throw new Error(`Trip stream returned HTTP ${response.status}`)
   }
 
   const contentType = response.headers.get('content-type')
@@ -145,20 +225,11 @@ function assertStreamResponse(response: Response): void {
   }
 }
 
-function invalidateForEvent(
+function invalidateShareState(
   queryClient: ReturnType<typeof useQueryClient>,
   publicId: string,
-  event: TripStreamEvent,
 ) {
-  if (isActivityEvent(event)) {
-    void queryClient.invalidateQueries({ queryKey: activityKeys.list(publicId) })
-    return
-  }
-
-  if (event.type === 'share-links.changed') {
-    void queryClient.invalidateQueries({ queryKey: shareKeys.forTrip(publicId) })
-    void queryClient.invalidateQueries({ queryKey: shareKeys.members(publicId) })
-    void queryClient.invalidateQueries({ queryKey: tripKeys.detail(publicId) })
-    void queryClient.invalidateQueries({ queryKey: activityKeys.list(publicId) })
-  }
+  void queryClient.invalidateQueries({ queryKey: shareKeys.forTrip(publicId) })
+  void queryClient.invalidateQueries({ queryKey: shareKeys.members(publicId) })
+  void queryClient.invalidateQueries({ queryKey: tripKeys.detail(publicId) })
 }
