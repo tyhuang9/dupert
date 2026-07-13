@@ -737,6 +737,54 @@ describe('<TripWorkspacePage>', () => {
     })
   })
 
+  it('keeps one mobile day date, a labelled activity action, and day navigation', async () => {
+    mockViewport(true)
+    mockWorkspace()
+
+    renderWorkspace('/trips/abc234def567/d/2026-05-01')
+
+    expect(await screen.findByRole('heading', { level: 2, name: /^day plan$/i })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { level: 2, name: /friday, may 1/i })).not.toBeInTheDocument()
+
+    const dayPicker = screen.getByRole('button', {
+      name: /choose trip day: friday, may 1/i,
+    })
+    expect(dayPicker).toHaveTextContent('Friday, May 1')
+
+    const addActivity = within(dayPicker.parentElement as HTMLElement).getByRole('button', {
+      name: /^add activity$/i,
+    })
+    expect(addActivity).toHaveTextContent('Add Activity')
+    addActivity.focus()
+    await userEvent.keyboard('{Enter}')
+    await waitFor(() => {
+      expect(screen.getByRole('textbox', { name: /activity name/i })).toHaveFocus()
+    })
+
+    dayPicker.focus()
+    await userEvent.keyboard('{Enter}')
+    expect(screen.getByRole('dialog', { name: /choose a trip day/i })).toBeInTheDocument()
+    await userEvent.click(screen.getByTitle('2026-05-02 (0 activities)'))
+    await waitFor(() => {
+      expect(screen.getByTestId('current-location')).toHaveTextContent('/trips/abc234def567/d/2026-05-02')
+      expect(screen.getByRole('button', { name: /choose trip day: saturday, may 2/i })).toBeInTheDocument()
+    })
+  })
+
+  it('keeps the desktop day heading and compact add action', async () => {
+    mockWorkspace()
+
+    renderWorkspace('/trips/abc234def567/d/2026-05-01')
+
+    expect(await screen.findByRole('heading', { level: 2, name: /friday, may 1/i })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { level: 2, name: /^day plan$/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /choose trip day/i })).not.toBeInTheDocument()
+
+    const addActivity = screen.getAllByRole('button', { name: /^add activity$/i })[0]
+    expect(addActivity).not.toHaveTextContent('Add Activity')
+    expect(addActivity.querySelector('svg')).toBeInTheDocument()
+  })
+
   it('keeps share-link management in Share trip, not its member list', async () => {
     mockViewport(true)
     mockWorkspace()
@@ -1462,8 +1510,8 @@ describe('<TripWorkspacePage>', () => {
     await userEvent.click(dayTwoToggle)
     expect(dayTwoToggle).toHaveAttribute('aria-expanded', 'false')
     expect(within(fullTimeline).queryByRole('button', { name: /^tokyo tower/i })).not.toBeInTheDocument()
-    expect(selectedMapActivities.queryByText('Tokyo Tower')).not.toBeInTheDocument()
-    expect(routeMapActivities.queryByText('Tokyo Tower')).not.toBeInTheDocument()
+    expect(selectedMapActivities.getByText('Tokyo Tower')).toBeInTheDocument()
+    expect(routeMapActivities.getByText('Tokyo Tower')).toBeInTheDocument()
 
     await userEvent.click(dayTwoToggle)
     expect(dayTwoToggle).toHaveAttribute('aria-expanded', 'true')
@@ -1474,6 +1522,69 @@ describe('<TripWorkspacePage>', () => {
     expect(screen.getByRole('heading', { name: /full trip timeline/i })).toBeInTheDocument()
     expect(within(screen.getByLabelText(/selected map place/i)).getByRole('heading', {
       name: /tokyo tower/i,
+    })).toBeInTheDocument()
+  })
+
+  it('toggles scheduled days on the mobile map without collapsing the timeline', async () => {
+    mockViewport(true)
+    const dayOneActivity = {
+      ...SAMPLE_ACTIVITY,
+      placeId: 'google.tsukiji',
+      placeName: 'Tsukiji sushi',
+      address: 'Tsukiji, Chuo City, Tokyo',
+      lat: 35.6654,
+      lng: 139.7707,
+    }
+    const dayTwoActivity = {
+      ...SAMPLE_ACTIVITY,
+      id: 22,
+      dayDate: '2026-05-02',
+      title: 'Tokyo Tower',
+      lat: 35.6586,
+      lng: 139.7454,
+      orderIndex: 0,
+    }
+    mockWorkspace([dayOneActivity, dayTwoActivity])
+
+    renderWorkspace('/trips/abc234def567/d/2026-05-01')
+
+    await userEvent.click(await screen.findByRole('button', { name: /^timeline$/i }))
+    const fullTimeline = screen.getByLabelText(/trip days timeline/i)
+    await userEvent.click(within(fullTimeline).getByRole('button', { name: /^tokyo tower/i }))
+
+    const selectedMapActivities = within(await screen.findByTestId('selected-map-activities'))
+    const routeMapActivities = within(screen.getByTestId('route-map-activities'))
+    expect(selectedMapActivities.getByText('Tsukiji sushi')).toBeInTheDocument()
+    expect(selectedMapActivities.getByText('Tokyo Tower')).toBeInTheDocument()
+    expect(routeMapActivities.getByText('Tokyo Tower')).toBeInTheDocument()
+    expect(screen.getByLabelText(/selected map place/i)).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: /open trip menu/i }))
+    expect(screen.getByRole('heading', { name: /^map days$/i })).toBeInTheDocument()
+    const dayTwoVisibility = screen.getByRole('button', {
+      name: /saturday, may 2.*1 activity/i,
+    })
+    expect(dayTwoVisibility).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: /show all days/i })).toBeDisabled()
+
+    await userEvent.click(dayTwoVisibility)
+    expect(screen.getByRole('button', {
+      name: /saturday, may 2.*1 activity/i,
+    })).toHaveAttribute('aria-pressed', 'false')
+    expect(selectedMapActivities.queryByText('Tokyo Tower')).not.toBeInTheDocument()
+    expect(routeMapActivities.queryByText('Tokyo Tower')).not.toBeInTheDocument()
+    expect(selectedMapActivities.getByText('Tsukiji sushi')).toBeInTheDocument()
+    expect(screen.queryByLabelText(/selected map place/i)).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /show all days/i })).toBeEnabled()
+
+    await userEvent.click(screen.getByRole('button', { name: /show all days/i }))
+    expect(selectedMapActivities.getByText('Tokyo Tower')).toBeInTheDocument()
+    expect(routeMapActivities.getByText('Tokyo Tower')).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: /close trip menu/i }))
+    await userEvent.click(screen.getByRole('button', { name: /^timeline$/i }))
+    expect(within(screen.getByLabelText(/trip days timeline/i)).getByRole('button', {
+      name: /^tokyo tower/i,
     })).toBeInTheDocument()
   })
 

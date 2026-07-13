@@ -90,6 +90,7 @@ import { markPerformance } from '../performance/timing'
 import styles from './TripWorkspacePage.module.css'
 import {
   MobileWorkspaceChrome,
+  type MobileMapDayVisibilityModel,
   type MobileWorkspaceTab,
 } from '../components/MobileWorkspaceChrome'
 import { ActivityCard } from '../components/ActivityCard'
@@ -1619,6 +1620,7 @@ export function TripWorkspacePage() {
   const [sidebarPinned, setSidebarPinned] = useState(false)
   const [sidebarCollapsedAfterTabClick, setSidebarCollapsedAfterTabClick] = useState(false)
   const [collapsedTimelineDays, setCollapsedTimelineDays] = useState<Set<string>>(() => new Set())
+  const [hiddenMapDayDates, setHiddenMapDayDates] = useState<Set<string>>(() => new Set())
   const [mapStyle, setMapStyle] = useState<MapStyleId>('roadmap')
   const [routesEnabled, setRoutesEnabled] = useState(true)
   const [mapRouteSummaryHost, setMapRouteSummaryHost] = useState<HTMLDivElement | null>(null)
@@ -1887,15 +1889,21 @@ export function TripWorkspacePage() {
       ),
     [fullTimelineActivities, tripDaySet],
   )
-  const visibleTimelineActivities = useMemo(
+  const visibleMapTimelineActivities = useMemo(
     () =>
       scheduledTimelineActivities.filter(
-        (activity) => activity.dayDate != null && !collapsedTimelineDays.has(activity.dayDate),
+        (activity) =>
+          activity.dayDate != null &&
+          (!isMobileViewport || !hiddenMapDayDates.has(activity.dayDate)),
       ),
-    [collapsedTimelineDays, scheduledTimelineActivities],
+    [hiddenMapDayDates, isMobileViewport, scheduledTimelineActivities],
+  )
+  const mapTimelineVisibilityKey = useMemo(
+    () => (isMobileViewport ? Array.from(hiddenMapDayDates).sort().join(',') : ''),
+    [hiddenMapDayDates, isMobileViewport],
   )
   const mapActivities = workspaceMode === 'timeline'
-    ? visibleTimelineActivities
+    ? visibleMapTimelineActivities
     : workspaceMode === 'ideas'
       ? ideasActivities
       : dayActivities
@@ -1903,7 +1911,7 @@ export function TripWorkspacePage() {
   const viewportFitKey = [
     workspaceMode,
     workspaceMode === 'timeline'
-      ? 'timeline'
+      ? `timeline:${mapTimelineVisibilityKey}`
       : workspaceMode === 'ideas'
         ? 'ideas'
         : selectedDay ?? 'none',
@@ -1925,10 +1933,10 @@ export function TripWorkspacePage() {
     hasFiniteCoordinates,
   ).length
   const routeControlActivities = useMemo(() => {
-    if (workspaceMode === 'timeline') return visibleTimelineActivities
+    if (workspaceMode === 'timeline') return visibleMapTimelineActivities
     if (workspaceMode === 'days') return dayActivities
     return []
-  }, [dayActivities, visibleTimelineActivities, workspaceMode])
+  }, [dayActivities, visibleMapTimelineActivities, workspaceMode])
   const routeControlsVisible = workspaceMode === 'days' || workspaceMode === 'timeline'
   const routeExportScopeLabel = workspaceMode === 'timeline' ? 'timeline' : 'day'
   const routeExportButtonLabel = workspaceMode === 'timeline' ? 'Export Timeline' : 'Export Day'
@@ -3001,7 +3009,6 @@ export function TripWorkspacePage() {
   }
 
   const handleToggleTimelineDayCollapsed = (dayDate: string) => {
-    const collapsing = !collapsedTimelineDays.has(dayDate)
     setCollapsedTimelineDays((current) => {
       const next = new Set(current)
       if (next.has(dayDate)) {
@@ -3011,24 +3018,47 @@ export function TripWorkspacePage() {
       }
       return next
     })
+  }
 
-    if (collapsing) {
-      const hiddenActivityIds = new Set(
-        timelineGroups
-          .find((group) => group.dayDate === dayDate)
-          ?.activities.map((activity) => activity.id) ?? [],
-      )
-      if (
-        (activeActivityId !== null && hiddenActivityIds.has(activeActivityId)) ||
-        (hoveredActivityId !== null && hiddenActivityIds.has(hoveredActivityId))
-      ) {
-        setActiveActivityId(null)
-        setHoveredActivityId(null)
+  const handleToggleMapDayVisibility = (dayDate: string) => {
+    const hidingDay = !hiddenMapDayDates.has(dayDate)
+    setHiddenMapDayDates((current) => {
+      const next = new Set(current)
+      if (next.has(dayDate)) {
+        next.delete(dayDate)
+      } else {
+        next.add(dayDate)
       }
-      if (focusedActivityId !== null && hiddenActivityIds.has(focusedActivityId)) {
-        setFocusedActivityId(null)
-      }
+      return next
+    })
+
+    if (!hidingDay) return
+
+    const hiddenActivityIds = new Set(
+      timelineGroups
+        .find((group) => group.dayDate === dayDate)
+        ?.activities.map((activity) => activity.id) ?? [],
+    )
+    if (
+      (activeActivityId !== null && hiddenActivityIds.has(activeActivityId)) ||
+      (hoveredActivityId !== null && hiddenActivityIds.has(hoveredActivityId))
+    ) {
+      setActiveActivityId(null)
+      setHoveredActivityId(null)
     }
+    if (focusedActivityId !== null && hiddenActivityIds.has(focusedActivityId)) {
+      setFocusedActivityId(null)
+    }
+    if (
+      selectedMapClickedActivityId !== null &&
+      hiddenActivityIds.has(selectedMapClickedActivityId)
+    ) {
+      clearMapSelection()
+    }
+  }
+
+  const handleShowAllMapDays = () => {
+    setHiddenMapDayDates(new Set())
   }
 
   const handleScheduleIdeaForSelectedDay = (activity: Activity) => {
@@ -3250,6 +3280,19 @@ export function TripWorkspacePage() {
     }
   }
 
+  const mobileMapDayVisibility: MobileMapDayVisibilityModel | undefined =
+    isMobileViewport && mobileTab === 'map' && workspaceMode === 'timeline'
+      ? {
+          days: timelineGroups.map((group) => ({
+            id: group.dayDate,
+            isVisible: !hiddenMapDayDates.has(group.dayDate),
+            label: `${formatReadableDate(group.dayDate)} · ${pluralize(group.activities.length, 'activity')}`,
+          })),
+          onShowAllDays: handleShowAllMapDays,
+          onToggleDay: handleToggleMapDayVisibility,
+        }
+      : undefined
+
   return (
     <main id="main" className={styles.shell}>
       {shouldClaimGuestSession && !claimGuestSessionMutation.isError ? (
@@ -3342,6 +3385,7 @@ export function TripWorkspacePage() {
                     </Link>
                   ) : undefined}
                   isAuthenticated={isAuthenticated}
+                  mapDayVisibility={mobileMapDayVisibility}
                   onOpenSettings={openTripSettings}
                   onOpenShare={() => setIsShareTripOpen(true)}
                   onSelectTab={selectMobileTab}
@@ -3528,7 +3572,9 @@ export function TripWorkspacePage() {
                 aria-labelledby="timeline-panel-title"
                 tabIndex={-1}
               >
-                <div className={styles.timelineHeader}>
+                <div
+                  className={`${styles.timelineHeader}${isMobileViewport && workspaceMode === 'days' ? ` ${styles.mobileDayPlanHeader}` : ''}`}
+                >
                   <div>
                     <p className={styles.panelKicker}>
                       {workspaceMode === 'days' && selectedDayIndex > 0
@@ -3542,7 +3588,9 @@ export function TripWorkspacePage() {
                         ? 'Full Trip Timeline'
                         : workspaceMode === 'ideas'
                           ? 'Ideas'
-                          : formatReadableDate(selectedDay)}
+                          : isMobileViewport
+                            ? 'Day plan'
+                            : formatReadableDate(selectedDay)}
                     </h2>
                     <p className={styles.panelDescription}>
                       {workspaceMode === 'timeline'
@@ -3552,13 +3600,15 @@ export function TripWorkspacePage() {
                           : `${tripQuery.data.destination || 'Destination TBD'} · ${pluralize(dayActivities.length, 'activity', 'activities')} scheduled today · ${selectedDayMappedCount} mapped`}
                     </p>
                   </div>
-                  <div className={styles.timelineHeaderActions}>
+                  <div
+                    className={`${styles.timelineHeaderActions}${isMobileViewport && workspaceMode === 'days' ? ` ${styles.mobileDayPlanActions}` : ''}`}
+                  >
                     {isMobileViewport && workspaceMode === 'days' ? (
                       <button
                         type="button"
                         className={styles.mobileDayPickerTrigger}
                         onClick={openMobileDayPicker}
-                        aria-label="Choose trip day"
+                        aria-label={`Choose trip day: ${formatReadableDate(selectedDay)}`}
                       >
                         <CalendarDays size={17} aria-hidden="true" />
                         <span>{formatReadableDate(selectedDay)}</span>
@@ -3574,11 +3624,12 @@ export function TripWorkspacePage() {
                     {canEditTrip && workspaceMode !== 'timeline' && (
                       <button
                         type="button"
-                        className={styles.addActivityButton}
+                        className={`${styles.addActivityButton}${isMobileViewport && workspaceMode === 'days' ? ` ${styles.mobileDayPlanAddActivity}` : ''}`}
                         onClick={workspaceMode === 'ideas' ? openIdeaComposer : openActivityComposer}
                         aria-label={workspaceMode === 'ideas' ? 'Add Idea' : 'Add Activity'}
                       >
                         <Plus size={16} aria-hidden="true" />
+                        {isMobileViewport && workspaceMode === 'days' ? <span>Add Activity</span> : null}
                       </button>
                     )}
                   </div>
