@@ -78,6 +78,22 @@ describe('TripWorkspacePage layout scroll contract', () => {
     }
   })
 
+  it('keeps the mobile day-plan controls touch-sized and inside a wrapping header row', () => {
+    const dayPlanActionBlock = cssBlocks(workspaceCss, '.mobileDayPlanAddActivity').find((block) =>
+      /min-height:\s*44px/.test(block),
+    ) ?? ''
+
+    expect(dayPlanActionBlock).toMatch(/width:\s*auto/)
+    expect(dayPlanActionBlock).toMatch(/height:\s*44px/)
+    expect(dayPlanActionBlock).toMatch(/min-height:\s*44px/)
+    expect(workspaceCss).toMatch(
+      /\.workspaceShellMobile \.timelineHeader\.mobileDayPlanHeader\s*\{\s*flex-wrap:\s*wrap/s,
+    )
+    expect(workspaceCss).toMatch(
+      /\.workspaceShellMobile \.timelineHeaderActions\.mobileDayPlanActions\s*\{\s*width:\s*100%[\s\S]*flex:\s*1 0 100%/,
+    )
+  })
+
   it('keeps full-trip timeline groups and entries visually seamless', () => {
     const fullTimelineBlock = cssBlocks(workspaceCss, '.fullTimeline')[0] ?? ''
     const dayGroupBlock = cssBlocks(workspaceCss, '.timelineDayGroup')[0] ?? ''
