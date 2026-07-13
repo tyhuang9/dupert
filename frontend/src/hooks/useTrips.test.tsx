@@ -26,6 +26,7 @@ const SAMPLE_TRIP: Trip = {
   imageUrl: null,
   createdAt: '2026-05-22T16:00:00Z',
   role: 'OWNER',
+  version: 0,
 }
 
 function wrapper({ children }: PropsWithChildren) {
