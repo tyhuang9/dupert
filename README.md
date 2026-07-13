@@ -261,6 +261,26 @@ APP_EMAIL_FROM_EMAIL=no-reply@your-verified-domain.example
 APP_EMAIL_FROM_NAME=Dupert
 ```
 
+### Liveness monitoring and keep-warm contract
+
+Use the public liveness endpoint for process monitoring and keep-warm requests:
+
+```text
+GET https://<backend-origin>/actuator/health/liveness
+```
+
+The endpoint returns HTTP `200` with `{"status":"UP"}` when the application process is alive. Its health group explicitly contains only Spring's `livenessState`; it does not query Neon or depend on Google Maps, Brevo, or future external-provider health indicators. It is intentionally not a readiness or end-to-end availability check. Use `/actuator/health` or a separate authenticated smoke test when dependency health or user-visible behavior must be monitored.
+
+Any external keep-warm monitor must use this contract:
+
+- Send an unauthenticated `GET` to `/actuator/health/liveness` every 10 minutes.
+- Follow HTTPS redirects and treat only a `2xx` response as success.
+- Do not attach application cookies, bearer tokens, or query parameters.
+- Alert on repeated failures; choose the monitor timeout from measured cold-start latency rather than using an aggressive application timeout.
+- Keep only one primary keep-warm schedule after its configuration and successful checks have been verified, to avoid duplicate traffic.
+
+The repository's `.github/workflows/keep-alive.yml` currently implements the same 10-minute schedule. Set its `KEEP_ALIVE_URL` repository secret to the full liveness URL above. Leave this workflow enabled until a replacement external monitor has been configured and verified; a documented URL alone is not proof that a replacement is active.
+
 ## Brevo email setup
 
 Production signup and password-reset email use Brevo transactional email. The `local` and `test` profiles use the local logging sender instead, so they log/skip auth email delivery and do not call Brevo. The `dev` and `prod` profiles use Brevo. For local end-to-end Brevo testing, use `SPRING_PROFILES_ACTIVE=dev`; `prod` also enables production cookie/HSTS settings and is not the right localhost profile.
@@ -301,7 +321,7 @@ If password reset or verification emails are not arriving in `dev`/`prod`, verif
 - Access tokens stay in memory; refresh tokens and guest-session tokens are opaque `HttpOnly` cookies.
 - Production-like backend starts require `app.cookies.secure=true`, `APP_PUBLIC_FRONTEND_URL`, and `secure.hsts.enabled=true`; the `prod` profile sets secure cookies, `SameSite=None`, and HSTS.
 - Render should run with `SPRING_PROFILES_ACTIVE=prod`, `APP_TRUST_PROXY=true`, `APP_COOKIES_SECURE=true`, `APP_COOKIES_SAME_SITE=None` for split-origin frontend/backend deployments, `SECURE_HSTS_ENABLED=true`, an exact `ALLOWED_ORIGINS` value, and `APP_PUBLIC_FRONTEND_URL` set to the real frontend origin.
-- Public actuator exposure is limited to `/actuator/health` and `/actuator/health/**`; `/actuator/info` is not publicly exposed.
+- Public actuator exposure is limited to `/actuator/health` and `/actuator/health/**`; `/actuator/info` is not publicly exposed. Keep-warm monitoring uses `/actuator/health/liveness`, whose explicit group excludes database and external-provider checks.
 - Responses larger than 2 KB are compressed for JSON and text content. SSE uses
   `text/event-stream`, which is deliberately excluded so events are not buffered.
 - Production registration creates an unverified user, sends one Brevo verification email, and withholds auth tokens until verification. The local profile creates verified users immediately and sends no email.

@@ -107,6 +107,12 @@ management:
     health:
       probes:
         enabled: true
+      group:
+        # A keep-warm probe must answer whether this JVM is alive without waking
+        # Neon or coupling liveness to Google/Brevo availability. Keep the group
+        # explicit so future HealthIndicator beans are not added accidentally.
+        liveness:
+          include: livenessState
       show-details: never
   health:
     defaults:
