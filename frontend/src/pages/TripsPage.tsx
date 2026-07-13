@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   CalendarDays,
   LogOut,
@@ -24,6 +24,7 @@ import parisCard from '../assets/trips/paris-card.webp'
 import tokyoCard from '../assets/trips/tokyo-card.webp'
 import { selectTripVisualKey, type TripVisualKey } from '../utils/tripVisuals'
 import { usePageTitle } from '../utils/usePageTitle'
+import { markPerformance } from '../performance/timing'
 import styles from './TripsPage.module.css'
 
 type RoleFilter = 'ALL' | TripRole
@@ -115,6 +116,12 @@ export function TripsPage() {
   const tripsQuery = useTrips()
   const deleteTripMutation = useDeleteTrip()
   const trips = useMemo(() => tripsQuery.data ?? [], [tripsQuery.data])
+
+  useEffect(() => {
+    if (tripsQuery.isSuccess) {
+      markPerformance('trips-ready')
+    }
+  }, [tripsQuery.isSuccess])
 
   const visibleTrips = useMemo(
     () =>

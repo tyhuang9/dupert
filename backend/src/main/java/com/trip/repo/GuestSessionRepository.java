@@ -1,8 +1,12 @@
 package com.trip.repo;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import com.trip.domain.GuestSession;
 
@@ -20,4 +24,10 @@ public interface GuestSessionRepository extends JpaRepository<GuestSession, Long
     Optional<GuestSession> findById(Long id);
 
     Optional<GuestSession> findByTokenHash(String tokenHash);
+
+    /**
+     * Loads only the public attribution fields needed by an activity list.
+     */
+    @Query("SELECT new com.trip.repo.IdDisplayName(g.id, g.displayName) FROM GuestSession g WHERE g.id IN :ids")
+    List<IdDisplayName> findDisplayNamesByIdIn(@Param("ids") Collection<Long> ids);
 }

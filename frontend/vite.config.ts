@@ -9,6 +9,9 @@ export default defineConfig({
     react(),
     babel({ presets: [reactCompilerPreset()] }),
   ],
+  build: {
+    manifest: true,
+  },
   server: {
     port: 3000,
     strictPort: true,

@@ -2,17 +2,24 @@ package com.trip.service.activity;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.trip.domain.Activity;
 import com.trip.domain.User;
+import com.trip.domain.Trip;
 import com.trip.repo.ActivityRepository;
+import com.trip.repo.IdDisplayName;
+import com.trip.repo.TripRepository;
 import com.trip.repo.UserRepository;
 import com.trip.service.trip.ResolvedTrip;
 import com.trip.service.trip.TripActor;
@@ -53,17 +60,20 @@ public class ActivityService {
     static final long MAX_REORDER_REQUEST_SIZE = 500L;
 
     private final ActivityRepository activityRepository;
+    private final TripRepository tripRepository;
     private final UserRepository userRepository;
     private final GuestSessionRepository guestSessionRepository;
     private final TripAccessGuard tripAccessGuard;
     private final TripEventPublisher tripEventPublisher;
 
     public ActivityService(ActivityRepository activityRepository,
+                           TripRepository tripRepository,
                            UserRepository userRepository,
                            GuestSessionRepository guestSessionRepository,
                            TripAccessGuard tripAccessGuard,
                            TripEventPublisher tripEventPublisher) {
         this.activityRepository = activityRepository;
+        this.tripRepository = tripRepository;
         this.userRepository = userRepository;
         this.guestSessionRepository = guestSessionRepository;
         this.tripAccessGuard = tripAccessGuard;
@@ -91,7 +101,8 @@ public class ActivityService {
     @Transactional
     public ActivityResponse createActivity(String publicId, TripActor actor, LocalDate dayDate,
                                            CreateActivityRequest request) {
-        ResolvedTrip resolved = tripAccessGuard.resolveForActorAtLeast(publicId, actor, TripRole.EDITOR);
+        ResolvedTrip resolved = lockTripForActivityWrite(
+            tripAccessGuard.resolveForActorAtLeast(publicId, actor, TripRole.EDITOR));
         Long tripId = resolved.trip().getId();
 
         validateActivityBucketDay(dayDate, resolved);
@@ -149,9 +160,10 @@ public class ActivityService {
             tripId,
             resolved.trip().getStartDate(),
             resolved.trip().getEndDate());
+        AttributionNames attributionNames = loadAttributionNames(activities);
 
         return activities.stream()
-            .map(a -> buildActivityResponse(a))
+            .map(activity -> buildActivityResponse(activity, attributionNames))
             .toList();
     }
 
@@ -286,7 +298,8 @@ public class ActivityService {
 
     @Transactional
     public void deleteActivity(Long activityId, TripActor actor, String publicId) {
-        ResolvedTrip resolved = tripAccessGuard.resolveForActorAtLeast(publicId, actor, TripRole.EDITOR);
+        ResolvedTrip resolved = lockTripForActivityWrite(
+            tripAccessGuard.resolveForActorAtLeast(publicId, actor, TripRole.EDITOR));
 
         Activity activity = activityRepository.findById(activityId)
             .orElseThrow(() -> new NotFoundException("activity not found: id=" + activityId));
@@ -296,7 +309,15 @@ public class ActivityService {
                 "activity does not belong to this trip: activityId=" + activityId);
         }
 
+        List<Activity> remainingActivities = activitiesForBucket(
+            resolved.trip().getId(), activity.getDayDate()).stream()
+            .filter(candidate -> !candidate.getId().equals(activityId))
+            .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
+
         activityRepository.delete(activity);
+        // Release the removed position before assigning the remaining final positions.
+        activityRepository.flush();
+        reindexBuckets(List.of(new ActivityBucket(activity.getDayDate(), remainingActivities)), actor, resolved);
         tripEventPublisher.publishAfterCommit(
             resolved.trip().getId(),
             TripEvent.activityDeleted(publicId, activity.getId(), activity.getDayDate()));
@@ -332,6 +353,55 @@ public class ActivityService {
     }
 
     /**
+     * Resolves every actor referenced by an activity list in two bounded, narrow queries
+     * (one for users and one for guests), instead of looking up up to two actors per row.
+     */
+    private AttributionNames loadAttributionNames(List<Activity> activities) {
+        Set<Long> userIds = new HashSet<>();
+        Set<Long> guestSessionIds = new HashSet<>();
+        for (Activity activity : activities) {
+            addIfPresent(userIds, activity.getCreatedByUserId());
+            addIfPresent(userIds, activity.getUpdatedByUserId());
+            addIfPresent(guestSessionIds, activity.getCreatedByGuestSessionId());
+            addIfPresent(guestSessionIds, activity.getUpdatedByGuestSessionId());
+        }
+
+        return new AttributionNames(
+            displayNamesById(userIds, userRepository::findDisplayNamesByIdIn),
+            displayNamesById(guestSessionIds, guestSessionRepository::findDisplayNamesByIdIn));
+    }
+
+    private static void addIfPresent(Set<Long> ids, Long id) {
+        if (id != null) {
+            ids.add(id);
+        }
+    }
+
+    private static Map<Long, String> displayNamesById(
+        Set<Long> ids, Function<Set<Long>, List<IdDisplayName>> displayNameLookup) {
+        if (ids.isEmpty()) {
+            return Map.of();
+        }
+        return displayNameLookup.apply(ids).stream()
+            .collect(Collectors.toMap(IdDisplayName::id, IdDisplayName::displayName, (first, ignored) -> first,
+                HashMap::new));
+    }
+
+    private static ActivityResponse buildActivityResponse(Activity activity, AttributionNames attributionNames) {
+        String createdByName = activity.getCreatedByUserId() != null
+            ? attributionNames.userDisplayNames().get(activity.getCreatedByUserId())
+            : attributionNames.guestDisplayNames().get(activity.getCreatedByGuestSessionId());
+        String updatedByName = activity.getUpdatedByUserId() != null
+            ? attributionNames.userDisplayNames().get(activity.getUpdatedByUserId())
+            : attributionNames.guestDisplayNames().get(activity.getUpdatedByGuestSessionId());
+        return ActivityResponse.of(activity, createdByName, updatedByName);
+    }
+
+    private record AttributionNames(Map<Long, String> userDisplayNames,
+                                    Map<Long, String> guestDisplayNames) {
+    }
+
+    /**
      * Reorder activities within a single day. The provided list of activity IDs defines
      * the desired order; activities are assigned new {@code order_index} values (0, 1, 2, ...)
      * atomically.
@@ -360,7 +430,8 @@ public class ActivityService {
     @Transactional
     public void reorderActivitiesForDay(String publicId, LocalDate dayDate, TripActor actor,
                                         ReorderActivitiesRequest request) {
-        ResolvedTrip resolved = tripAccessGuard.resolveForActorAtLeast(publicId, actor, TripRole.EDITOR);
+        ResolvedTrip resolved = lockTripForActivityWrite(
+            tripAccessGuard.resolveForActorAtLeast(publicId, actor, TripRole.EDITOR));
         validateActivityBucketDay(dayDate, resolved);
         reorderActivitiesInBucket(publicId, dayDate, actor, resolved, request);
     }
@@ -375,7 +446,8 @@ public class ActivityService {
 
     @Transactional
     public void reorderIdeas(String publicId, TripActor actor, ReorderActivitiesRequest request) {
-        ResolvedTrip resolved = tripAccessGuard.resolveForActorAtLeast(publicId, actor, TripRole.EDITOR);
+        ResolvedTrip resolved = lockTripForActivityWrite(
+            tripAccessGuard.resolveForActorAtLeast(publicId, actor, TripRole.EDITOR));
         reorderActivitiesInBucket(publicId, null, actor, resolved, request);
     }
 
@@ -404,23 +476,17 @@ public class ActivityService {
             }
         }
 
-        int nextIndex = 0;
+        List<Activity> reorderedActivities = new ArrayList<>(currentActivities.size());
         for (Long id : requestedIds) {
-            Activity activity = activityById.get(id);
-            activity.setOrderIndex(nextIndex);
-            attributeUpdated(activity, actor, resolved);
-            activityRepository.save(activity);
-            nextIndex++;
+            reorderedActivities.add(activityById.get(id));
         }
 
         for (Activity activity : currentActivities) {
             if (!uniqueRequestedIds.contains(activity.getId())) {
-                activity.setOrderIndex(nextIndex);
-                attributeUpdated(activity, actor, resolved);
-                activityRepository.save(activity);
-                nextIndex++;
+                reorderedActivities.add(activity);
             }
         }
+        reindexBuckets(List.of(new ActivityBucket(dayDate, reorderedActivities)), actor, resolved);
         tripEventPublisher.publishAfterCommit(
             tripId, TripEvent.dayReordered(publicId, dayDate));
     }
@@ -448,13 +514,46 @@ public class ActivityService {
             : activityRepository.findMaxOrderIndexForDay(tripId, dayDate);
     }
 
-    private void reindexAndSave(List<Activity> activities, TripActor actor, ResolvedTrip resolved) {
-        for (int index = 0; index < activities.size(); index++) {
-            Activity activity = activities.get(index);
-            activity.setOrderIndex(index);
-            attributeUpdated(activity, actor, resolved);
-            activityRepository.save(activity);
+    /**
+     * Reindexes complete buckets in two database-visible phases. The migration establishes
+     * non-negative canonical positions, so the distinct negative staging positions cannot
+     * collide with existing rows. Flushing before final positions makes the partial unique
+     * indexes safe regardless of Hibernate's update ordering.
+     */
+    private void reindexBuckets(List<ActivityBucket> buckets, TripActor actor, ResolvedTrip resolved) {
+        if (buckets.stream().allMatch(bucket -> bucket.activities().isEmpty())) {
+            return;
         }
+
+        for (ActivityBucket bucket : buckets) {
+            for (int index = 0; index < bucket.activities().size(); index++) {
+                Activity activity = bucket.activities().get(index);
+                activity.setDayDate(bucket.dayDate());
+                activity.setOrderIndex(-(index + 1));
+                attributeUpdated(activity, actor, resolved);
+                activityRepository.save(activity);
+            }
+        }
+        activityRepository.flush();
+
+        for (ActivityBucket bucket : buckets) {
+            for (int index = 0; index < bucket.activities().size(); index++) {
+                Activity activity = bucket.activities().get(index);
+                activity.setDayDate(bucket.dayDate());
+                activity.setOrderIndex(index);
+                attributeUpdated(activity, actor, resolved);
+                activityRepository.save(activity);
+            }
+        }
+    }
+
+    private ResolvedTrip lockTripForActivityWrite(ResolvedTrip resolved) {
+        Trip lockedTrip = tripRepository.findByIdForUpdate(resolved.trip().getId())
+            .orElseThrow(() -> new NotFoundException("trip not found: id=" + resolved.trip().getId()));
+        return new ResolvedTrip(lockedTrip, resolved.role(), resolved.guestSessionId());
+    }
+
+    private record ActivityBucket(LocalDate dayDate, List<Activity> activities) {
     }
 
     private static String bucketDescription(LocalDate dayDate) {
@@ -485,7 +584,8 @@ public class ActivityService {
     @Transactional
     public ActivityResponse moveActivity(Long activityId, TripActor actor, String publicId,
                                          MoveActivityRequest request) {
-        ResolvedTrip resolved = tripAccessGuard.resolveForActorAtLeast(publicId, actor, TripRole.EDITOR);
+        ResolvedTrip resolved = lockTripForActivityWrite(
+            tripAccessGuard.resolveForActorAtLeast(publicId, actor, TripRole.EDITOR));
         Long tripId = resolved.trip().getId();
 
         validateActivityBucketDay(request.dayDate(), resolved);
@@ -507,22 +607,21 @@ public class ActivityService {
             .filter(a -> !a.getId().equals(activityId))
             .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
 
-        if (!Objects.equals(sourceDayDate, destDayDate)) {
-            reindexAndSave(sourceActivities, actor, resolved);
-        }
-
         List<Activity> destActivities = Objects.equals(sourceDayDate, destDayDate)
             ? sourceActivities
             : activitiesForBucket(tripId, destDayDate).stream()
                 .filter(a -> !a.getId().equals(activityId))
                 .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
         int insertionIndex = Math.max(0, Math.min(targetIndex, destActivities.size()));
-        activity.setDayDate(destDayDate);
         destActivities.add(insertionIndex, activity);
-        reindexAndSave(destActivities, actor, resolved);
+        List<ActivityBucket> buckets = Objects.equals(sourceDayDate, destDayDate)
+            ? List.of(new ActivityBucket(destDayDate, destActivities))
+            : List.of(
+                new ActivityBucket(sourceDayDate, sourceActivities),
+                new ActivityBucket(destDayDate, destActivities));
+        reindexBuckets(buckets, actor, resolved);
 
-        attributeUpdated(activity, actor, resolved);
-        Activity updated = activityRepository.save(activity);
+        Activity updated = activity;
         tripEventPublisher.publishAfterCommit(
             tripId, TripEvent.activityMoved(publicId, updated.getId(), updated.getDayDate()));
 

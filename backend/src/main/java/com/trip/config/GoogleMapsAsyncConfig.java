@@ -8,15 +8,15 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
 @Configuration
-public class AuthAsyncConfig {
+public class GoogleMapsAsyncConfig {
 
-    @Bean(name = "emailVerificationExecutor")
-    public Executor emailVerificationExecutor() {
+    @Bean(name = "googlePhotoExecutor")
+    public Executor googlePhotoExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        executor.setThreadNamePrefix("email-verification-");
-        executor.setCorePoolSize(1);
-        executor.setMaxPoolSize(2);
-        executor.setQueueCapacity(100);
+        executor.setThreadNamePrefix("google-photo-");
+        executor.setCorePoolSize(3);
+        executor.setMaxPoolSize(3);
+        executor.setQueueCapacity(30);
         executor.setRejectedExecutionHandler(new ThreadPoolExecutor.AbortPolicy());
         executor.initialize();
         return executor;

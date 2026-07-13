@@ -40,15 +40,17 @@ public class PasswordResetService {
     private final RefreshTokenService refreshTokenService;
     private final AuthEmailSender emailSender;
     private final SecureRandom random;
+    private final AuthEmailTransactionRunner transactionRunner;
 
     @Autowired
     public PasswordResetService(PasswordResetTokenRepository passwordResetTokenRepository,
                                 UserRepository userRepository,
                                 PasswordEncoder passwordEncoder,
                                 RefreshTokenService refreshTokenService,
-                                AuthEmailSender emailSender) {
+                                AuthEmailSender emailSender,
+                                AuthEmailTransactionRunner transactionRunner) {
         this(passwordResetTokenRepository, userRepository, passwordEncoder, refreshTokenService,
-            emailSender, new SecureRandom());
+            emailSender, new SecureRandom(), transactionRunner);
     }
 
     PasswordResetService(PasswordResetTokenRepository passwordResetTokenRepository,
@@ -57,63 +59,104 @@ public class PasswordResetService {
                          RefreshTokenService refreshTokenService,
                          AuthEmailSender emailSender,
                          SecureRandom random) {
+        this(passwordResetTokenRepository, userRepository, passwordEncoder, refreshTokenService,
+            emailSender, random, new AuthEmailTransactionRunner());
+    }
+
+    PasswordResetService(PasswordResetTokenRepository passwordResetTokenRepository,
+                         UserRepository userRepository,
+                         PasswordEncoder passwordEncoder,
+                         RefreshTokenService refreshTokenService,
+                         AuthEmailSender emailSender,
+                         SecureRandom random,
+                         AuthEmailTransactionRunner transactionRunner) {
         this.passwordResetTokenRepository = passwordResetTokenRepository;
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.refreshTokenService = refreshTokenService;
         this.emailSender = emailSender;
         this.random = random;
+        this.transactionRunner = transactionRunner;
     }
 
-    @Transactional
     public void requestReset(String email) {
         String normalizedEmail = EmailNormalizer.normalize(email);
         String recipientDomain = emailDomain(normalizedEmail);
         log.info("Password reset request received recipientDomain={}", recipientDomain);
+        PreparedPasswordReset prepared = transactionRunner.inNewTransaction(
+            status -> createResetToken(normalizedEmail, recipientDomain));
+        if (prepared == null) {
+            return;
+        }
+
+        boolean revoked = false;
+        try {
+            transactionRunner.outsideTransaction(status -> {
+                emailSender.sendPasswordReset(prepared.email());
+                return null;
+            });
+            log.info("Password reset email send completed userId={} recipientDomain={} expiresAt={} token=<redacted>",
+                prepared.userId(), recipientDomain, prepared.email().expiresAt());
+        } catch (RuntimeException e) {
+            if (isExplicitProviderRejection(e)) {
+                transactionRunner.inNewTransaction(status -> {
+                    prepared.token().revoke(OffsetDateTime.now());
+                    passwordResetTokenRepository.save(prepared.token());
+                    return null;
+                });
+                revoked = true;
+            }
+            logEmailFailure(prepared.userId(), recipientDomain, e, revoked);
+        }
+    }
+
+    private PreparedPasswordReset createResetToken(String normalizedEmail, String recipientDomain) {
         Optional<User> maybeUser = userRepository.findByEmailIgnoreCase(normalizedEmail);
         if (maybeUser.isEmpty()) {
             log.info("Password reset request completed without email recipientDomain={} matched=false",
                 recipientDomain);
-            return;
+            return null;
         }
 
         User user = maybeUser.get();
         OffsetDateTime now = OffsetDateTime.now();
         passwordResetTokenRepository.revokeActiveForUser(user.getId(), now);
         GeneratedToken generated = generateUniqueToken();
-        PasswordResetToken resetToken = new PasswordResetToken(
-            user.getId(), generated.hash(), now.plus(RESET_TOKEN_TTL));
-        PasswordResetToken saved = passwordResetTokenRepository.save(resetToken);
+        PasswordResetToken saved = passwordResetTokenRepository.save(new PasswordResetToken(
+            user.getId(), generated.hash(), now.plus(RESET_TOKEN_TTL)));
         log.info(
             "Password reset token created userId={} recipientDomain={} expiresAt={} token=<redacted>",
             user.getId(), recipientDomain, saved.getExpiresAt());
-        try {
-            emailSender.sendPasswordReset(
-                new PasswordResetEmail(user.getEmail(), generated.raw(), saved.getExpiresAt()));
-            log.info("Password reset email send completed userId={} recipientDomain={} expiresAt={} token=<redacted>",
-                user.getId(), recipientDomain, saved.getExpiresAt());
-        } catch (RuntimeException e) {
-            saved.revoke(OffsetDateTime.now());
-            passwordResetTokenRepository.save(saved);
-            logEmailFailure(user.getId(), recipientDomain, e);
-        }
+        return new PreparedPasswordReset(
+            user.getId(),
+            saved,
+            new PasswordResetEmail(user.getEmail(), generated.raw(), saved.getExpiresAt()));
     }
 
-    private void logEmailFailure(long userId, String recipientDomain, RuntimeException exception) {
+    private void logEmailFailure(long userId,
+                                 String recipientDomain,
+                                 RuntimeException exception,
+                                 boolean revoked) {
         if (exception instanceof AuthEmailDeliveryException delivery) {
             log.warn(
-                "Password reset email sender failed for userId={} recipientDomain={} provider={} operation={} status={} providerBody={} tokenRevoked=true token=<redacted>",
+                "Password reset email sender failed for userId={} recipientDomain={} provider={} operation={} status={} providerBody={} tokenRevoked={} token=<redacted>",
                 userId,
                 recipientDomain,
                 delivery.provider(),
                 delivery.operation(),
                 delivery.statusCode(),
-                delivery.providerResponseBody());
+                delivery.providerResponseBody(),
+                revoked);
             return;
         }
         log.warn(
-            "Password reset email sender failed for userId={} recipientDomain={} exception={} tokenRevoked=true token=<redacted>",
-            userId, recipientDomain, exception.getClass().getSimpleName());
+            "Password reset email sender failed for userId={} recipientDomain={} exception={} tokenRevoked={} token=<redacted>",
+            userId, recipientDomain, exception.getClass().getSimpleName(), revoked);
+    }
+
+    private static boolean isExplicitProviderRejection(RuntimeException exception) {
+        return exception instanceof AuthEmailDeliveryException delivery
+            && delivery.isExplicitProviderRejection();
     }
 
     @Transactional
@@ -179,5 +222,10 @@ public class PasswordResetService {
     }
 
     private record GeneratedToken(String raw, String hash) {
+    }
+
+    private record PreparedPasswordReset(long userId,
+                                         PasswordResetToken token,
+                                         PasswordResetEmail email) {
     }
 }

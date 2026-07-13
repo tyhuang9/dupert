@@ -32,12 +32,22 @@ function wrapper({ children }: PropsWithChildren) {
   )
 }
 
-function streamOptions() {
-  return fetchEventSourceMock.mock.calls[0][1] as FetchEventSourceInit & {
+function streamOptions(callIndex = fetchEventSourceMock.mock.calls.length - 1) {
+  return fetchEventSourceMock.mock.calls[callIndex][1] as FetchEventSourceInit & {
     credentials: RequestCredentials
     headers?: Record<string, string>
+    signal: AbortSignal
+    onopen: (response: Response) => Promise<void>
     onmessage: (message: { data: string; event: string }) => void
   }
+}
+
+function setDocumentVisibility(visibilityState: DocumentVisibilityState) {
+  Object.defineProperty(document, 'visibilityState', {
+    configurable: true,
+    value: visibilityState,
+  })
+  document.dispatchEvent(new Event('visibilitychange'))
 }
 
 function tripEvent(type: string, overrides: Record<string, unknown> = {}) {
@@ -61,7 +71,10 @@ afterEach(() => {
   cleanup()
   queryClient.clear()
   useAuthStore.getState().clearSession()
+  setDocumentVisibility('visible')
+  vi.restoreAllMocks()
   vi.clearAllMocks()
+  vi.useRealTimers()
 })
 
 describe('useTripStream', () => {
@@ -85,6 +98,13 @@ describe('useTripStream', () => {
     expect(fetchEventSourceMock.mock.calls[0][0]).toBe('/api/trips/abc234def567/stream')
     expect(streamOptions().credentials).toBe('include')
     expect(streamOptions().headers).toEqual({ Authorization: 'Bearer live-token' })
+    expect(streamOptions().openWhenHidden).toBe(false)
+  })
+
+  it('does not open a stream until trip access succeeds', () => {
+    renderHook(() => useTripStream('abc234def567', { enabled: false }), { wrapper })
+
+    expect(fetchEventSourceMock).not.toHaveBeenCalled()
   })
 
   it('refreshes an expired signed-in user token before connecting', async () => {
@@ -133,7 +153,7 @@ describe('useTripStream', () => {
     expect(streamOptions().headers).toEqual({ Authorization: 'Bearer fresh-token' })
   })
 
-  it('does not retry HTTP stream setup failures', async () => {
+  it('does not retry forbidden stream setup failures', async () => {
     renderHook(() => useTripStream('abc234def567'), { wrapper })
 
     await waitFor(() => {
@@ -144,7 +164,7 @@ describe('useTripStream', () => {
     try {
       await streamOptions().onopen?.(
         new Response(JSON.stringify({ error: 'internal_error' }), {
-          status: 500,
+          status: 403,
           headers: { 'content-type': 'application/json' },
         }),
       )
@@ -154,21 +174,23 @@ describe('useTripStream', () => {
 
     expect(streamError).toBeInstanceOf(Error)
     expect(() => streamOptions().onerror?.(streamError)).toThrow(
-      'Trip stream returned HTTP 500',
+      'Trip stream returned HTTP 403',
     )
   })
 
-  it('retries dropped streams after a bounded delay', async () => {
+  it('retries dropped streams with exponential backoff and jitter', async () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0.5)
     renderHook(() => useTripStream('abc234def567'), { wrapper })
 
     await waitFor(() => {
       expect(fetchEventSourceMock).toHaveBeenCalled()
     })
 
-    expect(streamOptions().onerror?.(new Error('network lost'))).toBe(5000)
+    expect(streamOptions().onerror?.(new Error('network lost'))).toBe(1000)
+    expect(streamOptions().onerror?.(new Error('network lost'))).toBe(2000)
   })
 
-  it('invalidates activity queries for activity events', async () => {
+  it('coalesces activity query invalidation for a realtime burst', async () => {
     const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries')
     renderHook(() => useTripStream('abc234def567'), { wrapper })
 
@@ -181,8 +203,16 @@ describe('useTripStream', () => {
         event: 'trip-event',
         data: JSON.stringify(tripEvent('activity.updated', { activityId: 10 })),
       })
+      streamOptions().onmessage({
+        event: 'trip-event',
+        data: JSON.stringify(tripEvent('activity.created', { activityId: 11 })),
+      })
     })
 
+    expect(invalidateSpy).not.toHaveBeenCalled()
+    await waitFor(() => {
+      expect(invalidateSpy).toHaveBeenCalledTimes(1)
+    })
     expect(invalidateSpy).toHaveBeenCalledWith({
       queryKey: activityKeys.list('abc234def567'),
     })
@@ -241,8 +271,47 @@ describe('useTripStream', () => {
     expect(invalidateSpy).toHaveBeenCalledWith({
       queryKey: tripKeys.detail('abc234def567'),
     })
+    await waitFor(() => {
+      expect(invalidateSpy).toHaveBeenCalledWith({
+        queryKey: activityKeys.list('abc234def567'),
+      })
+    })
+  })
+
+  it('closes while hidden and resynchronizes once after reconnecting', async () => {
+    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries')
+    renderHook(() => useTripStream('abc234def567'), { wrapper })
+
+    await waitFor(() => {
+      expect(fetchEventSourceMock).toHaveBeenCalledTimes(1)
+    })
+    const firstSignal = streamOptions().signal
+
+    act(() => {
+      setDocumentVisibility('hidden')
+    })
+    expect(firstSignal.aborted).toBe(true)
+
+    act(() => {
+      setDocumentVisibility('visible')
+    })
+    await waitFor(() => {
+      expect(fetchEventSourceMock).toHaveBeenCalledTimes(2)
+    })
+
+    await act(async () => {
+      await streamOptions().onopen(
+        new Response('', { headers: { 'content-type': 'text/event-stream' } }),
+      )
+    })
+
     expect(invalidateSpy).toHaveBeenCalledWith({
-      queryKey: activityKeys.list('abc234def567'),
+      queryKey: tripKeys.detail('abc234def567'),
+    })
+    await waitFor(() => {
+      expect(invalidateSpy).toHaveBeenCalledWith({
+        queryKey: activityKeys.list('abc234def567'),
+      })
     })
   })
 })
