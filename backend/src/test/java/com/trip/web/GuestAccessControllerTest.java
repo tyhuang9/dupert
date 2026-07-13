@@ -112,6 +112,7 @@ class GuestAccessControllerTest {
         shareLink = link(TripRole.VIEWER);
 
         when(tripRepository.findByPublicId(TRIP_PUBLIC_ID)).thenReturn(Optional.of(trip));
+        when(tripRepository.findByIdForUpdate(TRIP_PK)).thenReturn(Optional.of(trip));
         when(guestSessionRepository.findByTokenHash(shareTokenService.sha256Hex(RAW_GUEST_TOKEN)))
             .thenReturn(Optional.of(guestSession));
         when(guestSessionRepository.findById(GUEST_ID)).thenReturn(Optional.of(guestSession));
