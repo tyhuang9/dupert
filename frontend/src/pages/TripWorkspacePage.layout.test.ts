@@ -213,9 +213,9 @@ describe('TripWorkspacePage layout scroll contract', () => {
       /right:\s*calc\(var\(--space-4\) \+ var\(--map-route-controls-width,\s*15\.25rem\) \+ var\(--space-2\)\)/,
     )
     expect(routeSummaryBlock).toMatch(/width:\s*min\(var\(--map-route-summary-width,\s*12rem\)/)
-    expect(routeSummaryBlock).toMatch(/height:\s*42px/)
+    expect(routeSummaryBlock).not.toMatch(/(?:^|\n)\s*height:\s*42px/)
     expect(routeSummaryBlock).toMatch(/min-height:\s*42px/)
-    expect(routeSummaryBlock).toMatch(/padding:\s*0 var\(--space-3\)/)
+    expect(routeSummaryBlock).toMatch(/padding:\s*var\(--space-1\) var\(--space-3\)/)
     expect(shelfBlock).toMatch(/right:\s*var\(--space-4\)/)
     expect(shelfBlock).not.toMatch(/right:\s*calc/)
   })
@@ -250,6 +250,10 @@ describe('TripWorkspacePage layout scroll contract', () => {
     expect(mobileCloseBlock).toMatch(/width:\s*44px/)
     expect(mobileCloseBlock).toMatch(/height:\s*44px/)
     expect(mobileDetailCardBlock).toMatch(/top:\s*auto/)
+    expect(mobileDetailCardBlock).toMatch(/bottom:\s*0/)
+    expect(mobileDetailCardBlock).not.toMatch(
+      /bottom:\s*calc\(64px \+ env\(safe-area-inset-bottom\)\)/,
+    )
     expect(mobileDetailCardBlock).toMatch(/width:\s*100%/)
     expect(mobileDetailCardBlock).toMatch(
       /grid-template-rows:\s*auto auto minmax\(0,\s*1fr\)/,
@@ -290,13 +294,20 @@ describe('TripWorkspacePage layout scroll contract', () => {
     expect(mobileRouteOverlayBlock).toMatch(/justify-items:\s*start/)
     expect(mobileRouteSummaryBlock).toMatch(/position:\s*static/)
     expect(mobileRouteSummaryBlock).toMatch(/min-height:\s*42px/)
+    expect(mobileRouteSummaryBlock).not.toMatch(/(?:^|\n)\s*height:\s*42px/)
     expect(mobileSearchBlock).toMatch(/position:\s*static/)
     expect(mobileSearchBlock).toMatch(/margin:\s*0 var\(--space-3\)/)
     expect(mobileShelfBlock).toMatch(/position:\s*static/)
     expect(mobileShelfBlock).toMatch(/margin-top:\s*auto/)
     expect(workspaceCss).not.toMatch(/--map-mobile-/)
     expect(workspaceCss).not.toMatch(/:has\(/)
-    expect(cssBlocks(tripMapCss, '.routeSummary').join('\n')).not.toMatch(/display:\s*none/)
+    const routeSummaryCss = cssBlocks(tripMapCss, '.routeSummary').join('\n')
+    expect(routeSummaryCss).not.toMatch(/display:\s*none/)
+    expect(routeSummaryCss).not.toMatch(/(?:^|\n)\s*height:\s*42px/)
+    expect(routeSummaryCss).toMatch(/min-height:\s*42px/)
+    expect(tripMapCss).toMatch(
+      /\.routeSummary strong\s*\{[^}]*overflow-wrap:\s*anywhere[^}]*white-space:\s*normal/s,
+    )
   })
 
   it('keeps compact editable fields on token-based surfaces in dark mode', () => {

@@ -2739,7 +2739,6 @@ export function TripWorkspacePage() {
     mapSearchRequestIdRef.current = requestId
     mapSearchPhotoHydrationKeysRef.current.clear()
     setIsMapSearchSubmitting(true)
-    focusMapPanel()
     try {
       const page = await fetchGooglePlaceTextSearch({
         includePhoto: false,
