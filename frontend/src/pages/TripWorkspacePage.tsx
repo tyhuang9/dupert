@@ -1633,6 +1633,7 @@ export function TripWorkspacePage() {
   const [collapsedTimelineDays, setCollapsedTimelineDays] = useState<Set<string>>(() => new Set())
   const [mapStyle, setMapStyle] = useState<MapStyleId>('roadmap')
   const [routesEnabled, setRoutesEnabled] = useState(true)
+  const [mapRouteSummaryHost, setMapRouteSummaryHost] = useState<HTMLDivElement | null>(null)
   const [mapViewportContext, setMapViewportContext] = useState<MapViewportContext | null>(null)
   const [mapLocationTarget, setMapLocationTarget] = useState<MapLocationTarget | null>(null)
   const [mapSearchValue, setMapSearchValue] = useState('')
@@ -1645,6 +1646,7 @@ export function TripWorkspacePage() {
   )
   const [mapSearchNextPageToken, setMapSearchNextPageToken] = useState<string | null>(null)
   const [mapSearchQuery, setMapSearchQuery] = useState<string | null>(null)
+  const [mapSearchResultFocusId, setMapSearchResultFocusId] = useState<string | null>(null)
   const [selectedMapSearchResult, setSelectedMapSearchResult] =
     useState<PlaceSelection | null>(null)
   const [selectedMapClickedPlace, setSelectedMapClickedPlace] = useState<PlaceSelection | null>(null)
@@ -1655,6 +1657,7 @@ export function TripWorkspacePage() {
   const mapSearchRequestIdRef = useRef(0)
   const mapPlaceDetailsRequestIdRef = useRef(0)
   const mapSearchPhotoHydrationKeysRef = useRef<Set<string>>(new Set())
+  const mapPlaceDetailHeadingRef = useRef<HTMLHeadingElement | null>(null)
   const sidebarPanelRef = useRef<HTMLElement | null>(null)
   const dragStartPointerRef = useRef<PointerCoordinates | null>(null)
   const dragStartActivityCardRectRef = useRef<DragRect | null>(null)
@@ -2033,6 +2036,11 @@ export function TripWorkspacePage() {
     [mapCenterLat, mapCenterLng, mapViewportRectangle, placeSearchOptions],
   )
   const concretePlaceDraft = hasSelectedMapLocation(placeDraft) ? placeDraft : null
+  const mobileSearchSheetActive =
+    isMobileViewport &&
+    mapSearchQuery !== null &&
+    pendingMapPlace === null &&
+    selectedMapSearchResult === null
   const mapPreviewPlace =
     pendingMapPlace ??
     selectedMapClickedPlace ??
@@ -2043,7 +2051,7 @@ export function TripWorkspacePage() {
     pendingMapPlace ??
     selectedMapSearchResult ??
     selectedMapClickedPlace ??
-    concretePlaceDraft ??
+    (mobileSearchSheetActive ? null : concretePlaceDraft) ??
     mapSearchPreview
   const mapDetailSelectedDayHours = mapDetailPlace
     ? selectedDayHours(mapDetailPlace, selectedDay)
@@ -2051,6 +2059,7 @@ export function TripWorkspacePage() {
   const mapDetailDirectionsUrl = mapDetailPlace ? directionsUrlForPlace(mapDetailPlace) : null
   const mapDetailGoogleMapsUrl = mapDetailPlace ? googleMapsUrlForPlace(mapDetailPlace) : null
   const mapDetailRating = mapDetailPlace ? formatPlaceRating(mapDetailPlace) : null
+  const mapDetailFocusId = mapDetailPlace ? placeStableId(mapDetailPlace) : null
   const isMapDetailLoading = Boolean(mapDetailPlace?.isLoadingDetails)
   const canAddMapDetailPlace =
     !isMapDetailLoading && (
@@ -2095,6 +2104,14 @@ export function TripWorkspacePage() {
     return () => window.cancelAnimationFrame(frame)
   }, [mapDetailPlace])
 
+  useEffect(() => {
+    if (!isMobileViewport || !mapDetailFocusId) return undefined
+    const frame = window.requestAnimationFrame(() => {
+      mapPlaceDetailHeadingRef.current?.focus()
+    })
+    return () => window.cancelAnimationFrame(frame)
+  }, [isMobileViewport, mapDetailFocusId])
+
   const clearMapSearchState = () => {
     mapSearchRequestIdRef.current += 1
     mapPlaceDetailsRequestIdRef.current += 1
@@ -2104,6 +2121,7 @@ export function TripWorkspacePage() {
     setHiddenMapSearchResultIds(new Set<string>())
     setMapSearchNextPageToken(null)
     setMapSearchQuery(null)
+    setMapSearchResultFocusId(null)
     setSelectedMapSearchResult(null)
     setSelectedMapClickedPlace(null)
     setSelectedMapClickedActivityId(null)
@@ -2121,10 +2139,14 @@ export function TripWorkspacePage() {
     setHiddenMapSearchResultIds(new Set<string>())
     setMapSearchNextPageToken(null)
     setMapSearchQuery(null)
+    setMapSearchResultFocusId(null)
     setMapSearchPreview(null)
     setHoveredMapSearchResultId(null)
     setIsMapSearchSubmitting(false)
     setIsMapSearchLoadingMore(false)
+    if (isMobileViewport) {
+      setMapSearchFocusKey((current) => current + 1)
+    }
   }
 
   const clearPlaceDraft = () => {
@@ -2717,7 +2739,6 @@ export function TripWorkspacePage() {
     mapSearchRequestIdRef.current = requestId
     mapSearchPhotoHydrationKeysRef.current.clear()
     setIsMapSearchSubmitting(true)
-    focusMapPanel()
     try {
       const page = await fetchGooglePlaceTextSearch({
         includePhoto: false,
@@ -2727,6 +2748,14 @@ export function TripWorkspacePage() {
       })
       if (mapSearchRequestIdRef.current !== requestId) return
       const places = page.places.map(googlePlaceToPlaceSelection)
+      if (isMobileViewport) {
+        mapPlaceDetailsRequestIdRef.current += 1
+        setSelectedMapSearchResult(null)
+        setSelectedMapClickedPlace(null)
+        setSelectedMapClickedActivityId(null)
+        setPendingMapPlace(null)
+        setMapSearchResultFocusId(places[0] ? placeStableId(places[0]) : null)
+      }
       setMapSearchResults(places)
       setHiddenMapSearchResultIds(new Set<string>())
       setMapSearchNextPageToken(page.nextPageToken)
@@ -2735,6 +2764,11 @@ export function TripWorkspacePage() {
       setMapSearchPreview(null)
       setCoordinateMapMarker(null)
       hydrateMapSearchResultPhotos(places, requestId)
+    } catch (error) {
+      if (mapSearchRequestIdRef.current === requestId && isMobileViewport) {
+        setMapSearchFocusKey((current) => current + 1)
+      }
+      throw error
     } finally {
       if (mapSearchRequestIdRef.current === requestId) {
         setIsMapSearchSubmitting(false)
@@ -2842,6 +2876,7 @@ export function TripWorkspacePage() {
 
   const handleMapSearchResultSelect = async (place: PlaceSelection) => {
     const selectedPlaceId = placeStableId(place)
+    setMapSearchResultFocusId(selectedPlaceId)
     const requestId = mapPlaceDetailsRequestIdRef.current + 1
     mapPlaceDetailsRequestIdRef.current = requestId
     setHiddenMapSearchResultIds((current) => {
@@ -2987,6 +3022,23 @@ export function TripWorkspacePage() {
     setSelectedMapClickedActivityId(null)
     setPendingMapPlace(null)
     setMapLocationTarget(null)
+    setIsMapSearchSubmitting(false)
+  }
+
+  const returnToMapSearchResults = () => {
+    mapPlaceDetailsRequestIdRef.current += 1
+    setMapSearchPreview(null)
+    setCoordinateMapMarker(null)
+    setSelectedMapSearchResult(null)
+    setSelectedMapClickedPlace(null)
+    setSelectedMapClickedActivityId(null)
+    setPendingMapPlace(null)
+    setIsMapSearchSubmitting(false)
+  }
+
+  const closeMapPlaceDetails = () => {
+    clearMapSelection()
+    closeMapSearchResults()
   }
 
   const handleActiveActivityChange = (activityId: number | null) => {
@@ -3700,107 +3752,147 @@ export function TripWorkspacePage() {
                 className={`${styles.panel} ${styles.mapPanel}`}
                 aria-labelledby="map-panel-title"
               >
-                <div className={styles.mapRouteOverlay}>
-                  {routeControlsVisible && (
-                    <div className={styles.mapChrome} aria-label="Map route controls">
-                      <label className={styles.routeToggle}>
-                        <input
-                          type="checkbox"
-                          checked={routesEnabled}
-                          onChange={(event) => setRoutesEnabled(event.currentTarget.checked)}
-                        />
-                        <span className={styles.routeToggleControl} aria-hidden="true">
-                          <Route size={14} />
-                        </span>
-                        <span>Routes</span>
-                      </label>
-                      {routeMapsExport.url ? (
-                        <a
-                          className={styles.exportDayButton}
-                          href={routeMapsExport.url}
-                          target="_blank"
-                          rel="noreferrer"
-                          title={
-                            routeMapsExport.truncated
-                              ? `Opens ${routeMapsExport.exportedStopCount} of ${routeMapsExport.totalMappedStopCount} mapped stops in Google Maps`
-                              : `Open this ${routeExportScopeLabel} in Google Maps`
-                          }
-                        >
-                          <ExternalLink size={15} aria-hidden="true" />
-                          {routeExportButtonLabel}
-                        </a>
-                      ) : (
-                        <button
-                          type="button"
-                          className={styles.exportDayButton}
-                          disabled
-                          title={routeMapsExport.disabledReason ?? undefined}
-                        >
-                          <ExternalLink size={15} aria-hidden="true" />
-                          {routeExportButtonLabel}
-                        </button>
-                      )}
-                    </div>
-                  )}
-                  <MapStyleControl
-                    mapStyle={mapStyle}
-                    onMapStyleChange={setMapStyle}
-                  />
-                </div>
-                <div className={styles.mapOverlayStack}>
-                  <div className={styles.mapSearchAndStyle}>
-                    {canEditTrip && (
-                      <div
-                        id="map-search-panel"
-                        className={styles.mapSearchOverlay}
-                        aria-busy={isMapSearchSubmitting}
-                      >
-                        <PlaceSearch
-                          contextLabel={
-                            mapLocationTarget
-                              ? `Updating location for ${mapLocationTarget.activityTitle}`
-                              : undefined
-                          }
-                          focusKey={mapSearchFocusKey}
-                          searchValue={mapSearchValue}
-                          searchOptions={placeSearchOptions}
-                          onPlacePreview={(place) => {
-                            setMapSearchPreview(place)
-                            setCoordinateMapMarker(null)
-                            setSelectedMapClickedPlace(null)
-                            setSelectedMapClickedActivityId(null)
-                          }}
-                          onPlaceSelect={handleMapPlaceSuggestionSelect}
-                          onSearchSubmit={handleMapSearchSubmit}
-                          onSearchValueChange={handleMapSearchValueChange}
-                        />
+                <div className={styles.mapOverlayLayout}>
+                  <div className={styles.mapRouteOverlay}>
+                    {routeControlsVisible && (
+                      <div className={styles.mapChrome} aria-label="Map route controls">
+                        <label className={styles.routeToggle}>
+                          <input
+                            type="checkbox"
+                            checked={routesEnabled}
+                            onChange={(event) => setRoutesEnabled(event.currentTarget.checked)}
+                          />
+                          <span className={styles.routeToggleControl} aria-hidden="true">
+                            <Route size={14} />
+                          </span>
+                          <span>Routes</span>
+                        </label>
+                        {routeMapsExport.url ? (
+                          <a
+                            className={styles.exportDayButton}
+                            href={routeMapsExport.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            title={
+                              routeMapsExport.truncated
+                                ? `Opens ${routeMapsExport.exportedStopCount} of ${routeMapsExport.totalMappedStopCount} mapped stops in Google Maps`
+                                : `Open this ${routeExportScopeLabel} in Google Maps`
+                            }
+                          >
+                            <ExternalLink size={15} aria-hidden="true" />
+                            {routeExportButtonLabel}
+                          </a>
+                        ) : (
+                          <button
+                            type="button"
+                            className={styles.exportDayButton}
+                            disabled
+                            title={routeMapsExport.disabledReason ?? undefined}
+                          >
+                            <ExternalLink size={15} aria-hidden="true" />
+                            {routeExportButtonLabel}
+                          </button>
+                        )}
                       </div>
                     )}
+                    <MapStyleControl
+                      mapStyle={mapStyle}
+                      onMapStyleChange={setMapStyle}
+                    />
                   </div>
-                  <h2 id="map-panel-title" className="sr-only">Map</h2>
-                </div>
-                {canEditTrip && mapDetailPlace && (
+                  <div
+                    ref={isMobileViewport ? setMapRouteSummaryHost : undefined}
+                    className={styles.mapRouteSummaryHost}
+                  />
+                  <div className={styles.mapOverlayStack}>
+                    <div className={styles.mapSearchAndStyle}>
+                      {canEditTrip && (
+                        <div
+                          id="map-search-panel"
+                          className={styles.mapSearchOverlay}
+                          aria-busy={isMapSearchSubmitting}
+                        >
+                          <PlaceSearch
+                            contextLabel={
+                              mapLocationTarget
+                                ? `Updating location for ${mapLocationTarget.activityTitle}`
+                                : undefined
+                            }
+                            focusKey={mapSearchFocusKey}
+                            searchValue={mapSearchValue}
+                            searchOptions={placeSearchOptions}
+                            onPlacePreview={(place) => {
+                              setMapSearchPreview(place)
+                              setCoordinateMapMarker(null)
+                              setSelectedMapClickedPlace(null)
+                              setSelectedMapClickedActivityId(null)
+                            }}
+                            onPlaceSelect={handleMapPlaceSuggestionSelect}
+                            onSearchSubmit={handleMapSearchSubmit}
+                            onSearchValueChange={handleMapSearchValueChange}
+                          />
+                        </div>
+                      )}
+                    </div>
+                    <h2 id="map-panel-title" className="sr-only">Map</h2>
+                  </div>
+                  {canEditTrip && mapDetailPlace && (
                   <section
                     className={[
                       styles.placeDetailCard,
-                      mapSearchResults.length > 0 ? styles.placeDetailCardRaised : '',
+                      !isMobileViewport && mapSearchResults.length > 0
+                        ? styles.placeDetailCardRaised
+                        : '',
                     ].filter(Boolean).join(' ')}
-                    aria-label="Selected map place"
+                    aria-labelledby="map-place-detail-title map-place-detail-label"
                   >
+                    <span id="map-place-detail-label" className="sr-only">Selected map place</span>
+                    {isMobileViewport && (
+                      <div className={styles.placeDetailMobileHeader}>
+                        {mapSearchResults.length > 0 ? (
+                          <button
+                            type="button"
+                            className={styles.placeDetailBack}
+                            onClick={returnToMapSearchResults}
+                          >
+                            <ChevronLeft size={18} aria-hidden="true" />
+                            Back to results
+                          </button>
+                        ) : (
+                          <span />
+                        )}
+                        <button
+                          type="button"
+                          className={styles.placeDetailMobileClose}
+                          onClick={closeMapPlaceDetails}
+                          aria-label="Close place details"
+                        >
+                          <X size={18} aria-hidden="true" />
+                        </button>
+                      </div>
+                    )}
                     <div className={styles.placeHero}>
                       <PlaceThumbnail place={mapDetailPlace} />
-                      <button
-                        type="button"
-                        className={styles.placeDetailClose}
-                        onClick={clearMapSelection}
-                        aria-label="Close place details"
-                      >
-                        <X size={16} aria-hidden="true" />
-                      </button>
+                      {!isMobileViewport && (
+                        <button
+                          type="button"
+                          className={styles.placeDetailClose}
+                          onClick={clearMapSelection}
+                          aria-label="Close place details"
+                        >
+                          <X size={16} aria-hidden="true" />
+                        </button>
+                      )}
                     </div>
                     <div className={styles.placeDetailBody}>
                       <div className={styles.placeDetailHeader}>
-                        <h3>{placeDisplayName(mapDetailPlace)}</h3>
+                        <h3
+                          id="map-place-detail-title"
+                          ref={mapPlaceDetailHeadingRef}
+                          tabIndex={-1}
+                        >
+                          {placeDisplayName(mapDetailPlace)}
+                        </h3>
                       </div>
                       {isMapDetailLoading && (
                         <div className={styles.placeDetailLoading} role="status" aria-live="polite">
@@ -3863,6 +3955,7 @@ export function TripWorkspacePage() {
                             title="Directions"
                           >
                             <Navigation size={15} aria-hidden="true" />
+                            <span className={styles.placeActionLabel}>Directions</span>
                           </a>
                         )}
                         {mapDetailGoogleMapsUrl && (
@@ -3875,6 +3968,7 @@ export function TripWorkspacePage() {
                             title="Open in Google Maps"
                           >
                             <ExternalLink size={15} aria-hidden="true" />
+                            <span className={styles.placeActionLabel}>Google Maps</span>
                           </a>
                         )}
                         {!isMapDetailLoading && mapDetailPlace.websiteUri && (
@@ -3887,15 +3981,19 @@ export function TripWorkspacePage() {
                             title="Website"
                           >
                             <Globe size={15} aria-hidden="true" />
+                            <span className={styles.placeActionLabel}>Website</span>
                           </a>
                         )}
                       </div>
                     </div>
                   </section>
                 )}
-                {canEditTrip && (
+                {canEditTrip && (!isMobileViewport || !mapDetailPlace) && (
                   <MapSearchResultsShelf
+                    emptyQuery={mapSearchQuery}
+                    focusPlaceId={mapSearchResultFocusId}
                     hasMore={Boolean(mapSearchNextPageToken)}
+                    isMobile={isMobileViewport}
                     loadingMore={isMapSearchLoadingMore}
                     onHoverChange={setHoveredMapSearchResultId}
                     onLoadMore={() => {
@@ -3909,6 +4007,7 @@ export function TripWorkspacePage() {
                     }
                   />
                 )}
+                </div>
                 <TripMap
                   activities={mapActivities}
                   activityMarkerColors={workspaceMode === 'timeline' ? timelineActivityMarkerColors : undefined}
@@ -3935,6 +4034,8 @@ export function TripWorkspacePage() {
                   onSearchResultRemove={handleMapSearchResultRemove}
                   onSearchResultSelect={handleMapSearchResultSelect}
                   onViewportContextChange={setMapViewportContext}
+                  routeSummaryClassName={isMobileViewport ? styles.mapRouteSummary : undefined}
+                  routeSummaryContainer={isMobileViewport ? mapRouteSummaryHost : undefined}
                   viewportFitKey={viewportFitKey}
                 />
               </aside>

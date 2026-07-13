@@ -63,6 +63,8 @@ interface TripMapProps {
   onSearchResultRemove?: (place: MapSearchPlace) => void
   onSearchResultSelect?: (place: MapSearchPlace) => void
   onViewportContextChange?: (context: MapViewportContext) => void
+  routeSummaryClassName?: string
+  routeSummaryContainer?: HTMLElement | null
 }
 
 export type MapStyleId = 'roadmap' | 'terrain' | 'satellite' | 'hybrid'
@@ -525,6 +527,8 @@ function TripMapContent({
   onSearchResultRemove,
   onSearchResultSelect,
   onViewportContextChange,
+  routeSummaryClassName,
+  routeSummaryContainer,
 }: TripMapProps) {
   const mapId = googleMapsMapId()
   const map = useMap('trip-map')
@@ -936,6 +940,18 @@ function TripMapContent({
     window.requestAnimationFrame(reportViewportContext)
   }, [focusedActivityDisplayStop, focusedActivityKey, map, reportViewportContext])
 
+  const routeSummary = currentRoute ? (
+    <div className={[styles.routeSummary, routeSummaryClassName].filter(Boolean).join(' ')} aria-live="polite">
+      <div className={styles.routeSummaryHeader}>
+        <Route size={15} aria-hidden="true" />
+        <span>Selected-day route</span>
+      </div>
+      <strong>
+        {formatTravelTime(currentRoute.duration)} total · {(currentRoute.distance / 1000).toFixed(1)} km
+      </strong>
+    </div>
+  ) : null
+
   return (
     <div className={styles.mapShell}>
       <div
@@ -1153,17 +1169,11 @@ function TripMapContent({
           </div>
         </div>
       )}
-      {currentRoute && (
-        <div className={styles.routeSummary} aria-live="polite">
-          <div className={styles.routeSummaryHeader}>
-            <Route size={15} aria-hidden="true" />
-            <span>Selected-day route</span>
-          </div>
-          <strong>
-            {formatTravelTime(currentRoute.duration)} total · {(currentRoute.distance / 1000).toFixed(1)} km
-          </strong>
-        </div>
-      )}
+      {routeSummaryContainer === undefined
+        ? routeSummary
+        : routeSummary && routeSummaryContainer
+          ? createPortal(routeSummary, routeSummaryContainer)
+          : null}
     </div>
   )
 }
