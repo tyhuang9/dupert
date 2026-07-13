@@ -2,10 +2,14 @@ package com.trip.service.activity;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -13,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.trip.domain.Activity;
 import com.trip.domain.User;
 import com.trip.repo.ActivityRepository;
+import com.trip.repo.IdDisplayName;
 import com.trip.repo.UserRepository;
 import com.trip.service.trip.ResolvedTrip;
 import com.trip.service.trip.TripActor;
@@ -149,9 +154,10 @@ public class ActivityService {
             tripId,
             resolved.trip().getStartDate(),
             resolved.trip().getEndDate());
+        AttributionNames attributionNames = loadAttributionNames(activities);
 
         return activities.stream()
-            .map(a -> buildActivityResponse(a))
+            .map(activity -> buildActivityResponse(activity, attributionNames))
             .toList();
     }
 
@@ -329,6 +335,55 @@ public class ActivityService {
         }
 
         return ActivityResponse.of(activity, createdByName, updatedByName);
+    }
+
+    /**
+     * Resolves every actor referenced by an activity list in two bounded, narrow queries
+     * (one for users and one for guests), instead of looking up up to two actors per row.
+     */
+    private AttributionNames loadAttributionNames(List<Activity> activities) {
+        Set<Long> userIds = new HashSet<>();
+        Set<Long> guestSessionIds = new HashSet<>();
+        for (Activity activity : activities) {
+            addIfPresent(userIds, activity.getCreatedByUserId());
+            addIfPresent(userIds, activity.getUpdatedByUserId());
+            addIfPresent(guestSessionIds, activity.getCreatedByGuestSessionId());
+            addIfPresent(guestSessionIds, activity.getUpdatedByGuestSessionId());
+        }
+
+        return new AttributionNames(
+            displayNamesById(userIds, userRepository::findDisplayNamesByIdIn),
+            displayNamesById(guestSessionIds, guestSessionRepository::findDisplayNamesByIdIn));
+    }
+
+    private static void addIfPresent(Set<Long> ids, Long id) {
+        if (id != null) {
+            ids.add(id);
+        }
+    }
+
+    private static Map<Long, String> displayNamesById(
+        Set<Long> ids, Function<Set<Long>, List<IdDisplayName>> displayNameLookup) {
+        if (ids.isEmpty()) {
+            return Map.of();
+        }
+        return displayNameLookup.apply(ids).stream()
+            .collect(Collectors.toMap(IdDisplayName::id, IdDisplayName::displayName, (first, ignored) -> first,
+                HashMap::new));
+    }
+
+    private static ActivityResponse buildActivityResponse(Activity activity, AttributionNames attributionNames) {
+        String createdByName = activity.getCreatedByUserId() != null
+            ? attributionNames.userDisplayNames().get(activity.getCreatedByUserId())
+            : attributionNames.guestDisplayNames().get(activity.getCreatedByGuestSessionId());
+        String updatedByName = activity.getUpdatedByUserId() != null
+            ? attributionNames.userDisplayNames().get(activity.getUpdatedByUserId())
+            : attributionNames.guestDisplayNames().get(activity.getUpdatedByGuestSessionId());
+        return ActivityResponse.of(activity, createdByName, updatedByName);
+    }
+
+    private record AttributionNames(Map<Long, String> userDisplayNames,
+                                    Map<Long, String> guestDisplayNames) {
     }
 
     /**

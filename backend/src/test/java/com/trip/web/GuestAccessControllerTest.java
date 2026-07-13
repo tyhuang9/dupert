@@ -35,6 +35,7 @@ import com.trip.domain.TripMember;
 import com.trip.domain.TripRole;
 import com.trip.repo.ActivityRepository;
 import com.trip.repo.GuestSessionRepository;
+import com.trip.repo.IdDisplayName;
 import com.trip.repo.PasswordResetTokenRepository;
 import com.trip.repo.RefreshTokenRepository;
 import com.trip.repo.ShareLinkRepository;
@@ -114,6 +115,8 @@ class GuestAccessControllerTest {
         when(guestSessionRepository.findByTokenHash(shareTokenService.sha256Hex(RAW_GUEST_TOKEN)))
             .thenReturn(Optional.of(guestSession));
         when(guestSessionRepository.findById(GUEST_ID)).thenReturn(Optional.of(guestSession));
+        when(guestSessionRepository.findDisplayNamesByIdIn(any()))
+            .thenReturn(List.of(new IdDisplayName(GUEST_ID, "Guest Alice")));
         when(shareLinkRepository.findById(SHARE_LINK_ID)).thenReturn(Optional.of(shareLink));
     }
 
