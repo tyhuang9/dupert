@@ -97,6 +97,7 @@ import { ActivityCard } from '../components/ActivityCard'
 import { ActivityForm } from '../components/ActivityForm'
 import { ActivityList } from '../components/ActivityList'
 import { MapSearchResultsShelf } from '../components/MapSearchResultsShelf'
+import { createMapSearchThumbnailSession } from '../components/mapSearchThumbnailSession'
 import { PlaceSearch } from '../components/PlaceSearch'
 import { GoogleMapsProvider } from '../components/GoogleMapsProvider'
 import { TripDateRangePicker } from '../components/TripDateRangePicker'
@@ -221,6 +222,18 @@ interface CalendarCell {
 }
 
 type WorkspaceMode = 'days' | 'ideas' | 'timeline'
+
+type MapTextSearchSession = Readonly<{
+  options: GooglePlaceTextSearchOptions | undefined
+  query: string
+}>
+
+function snapshotMapTextSearchOptions(
+  options: GooglePlaceTextSearchOptions | undefined,
+): GooglePlaceTextSearchOptions | undefined {
+  if (!options) return undefined
+  return JSON.parse(JSON.stringify(options)) as GooglePlaceTextSearchOptions
+}
 type ShareRole = CreateShareLinkRequest['role']
 type PointerCoordinates = { x: number; y: number }
 
@@ -1644,7 +1657,10 @@ export function TripWorkspacePage() {
   const [hoveredMapSearchResultId, setHoveredMapSearchResultId] = useState<string | null>(null)
   const [isMapSearchSubmitting, setIsMapSearchSubmitting] = useState(false)
   const [isMapSearchLoadingMore, setIsMapSearchLoadingMore] = useState(false)
+  const [mapSearchLoadMoreError, setMapSearchLoadMoreError] = useState(false)
+  const [mapSearchThumbnailSession] = useState(() => createMapSearchThumbnailSession())
   const mapSearchRequestIdRef = useRef(0)
+  const mapTextSearchSessionRef = useRef<MapTextSearchSession | null>(null)
   const mapPlaceDetailsRequestIdRef = useRef(0)
   const mapPlaceDetailHeadingRef = useRef<HTMLHeadingElement | null>(null)
   const sidebarPanelRef = useRef<HTMLElement | null>(null)
@@ -2022,11 +2038,10 @@ export function TripWorkspacePage() {
     [mapCenterLat, mapCenterLng, mapViewportRectangle],
   )
   const buildMapTextSearchOptions = useCallback(
-    (query: string, pageToken?: string | null): GooglePlaceTextSearchOptions | undefined => {
+    (query: string): GooglePlaceTextSearchOptions | undefined => {
       const categoryType = googlePlaceCategoryTypeForQuery(query)
       const baseOptions: GooglePlaceTextSearchOptions = {
         language: 'en',
-        pageToken,
         rankPreference: 'RELEVANCE',
       }
       if (mapCenterLat !== undefined && mapCenterLng !== undefined) {
@@ -2127,6 +2142,7 @@ export function TripWorkspacePage() {
 
   const clearMapSearchState = () => {
     mapSearchRequestIdRef.current += 1
+    mapTextSearchSessionRef.current = null
     mapPlaceDetailsRequestIdRef.current += 1
     setMapSearchValue('')
     setMapSearchResults([])
@@ -2141,10 +2157,12 @@ export function TripWorkspacePage() {
     setHoveredMapSearchResultId(null)
     setIsMapSearchSubmitting(false)
     setIsMapSearchLoadingMore(false)
+    setMapSearchLoadMoreError(false)
   }
 
   const closeMapSearchResults = () => {
     mapSearchRequestIdRef.current += 1
+    mapTextSearchSessionRef.current = null
     setMapSearchValue('')
     setMapSearchResults([])
     setHiddenMapSearchResultIds(new Set<string>())
@@ -2155,6 +2173,7 @@ export function TripWorkspacePage() {
     setHoveredMapSearchResultId(null)
     setIsMapSearchSubmitting(false)
     setIsMapSearchLoadingMore(false)
+    setMapSearchLoadMoreError(false)
     if (isMobileViewport) {
       setMapSearchFocusKey((current) => current + 1)
     }
@@ -2654,6 +2673,8 @@ export function TripWorkspacePage() {
   }
 
   const handleMapPlaceSuggestionSelect = (place: PlaceSelection) => {
+    mapTextSearchSessionRef.current = null
+    setMapSearchLoadMoreError(false)
     if (mapLocationTarget) {
       void handleMapPlaceSelect(place)
       focusMapPanel()
@@ -2696,11 +2717,17 @@ export function TripWorkspacePage() {
     }
     const requestId = mapSearchRequestIdRef.current + 1
     mapSearchRequestIdRef.current = requestId
+    const searchSession: MapTextSearchSession = {
+      options: snapshotMapTextSearchOptions(buildMapTextSearchOptions(trimmedQuery)),
+      query: trimmedQuery,
+    }
+    mapTextSearchSessionRef.current = searchSession
+    setMapSearchLoadMoreError(false)
     setIsMapSearchSubmitting(true)
     try {
       const page = await fetchGooglePlaceTextSearch({
         includePhoto: false,
-        options: buildMapTextSearchOptions(trimmedQuery),
+        options: searchSession.options,
         pageSize: MAP_SEARCH_PAGE_SIZE,
         query: trimmedQuery,
       })
@@ -2725,6 +2752,9 @@ export function TripWorkspacePage() {
       if (mapSearchRequestIdRef.current === requestId && isMobileViewport) {
         setMapSearchFocusKey((current) => current + 1)
       }
+      if (mapSearchRequestIdRef.current === requestId) {
+        mapTextSearchSessionRef.current = null
+      }
       throw error
     } finally {
       if (mapSearchRequestIdRef.current === requestId) {
@@ -2737,13 +2767,18 @@ export function TripWorkspacePage() {
     if (!mapSearchNextPageToken || !mapSearchQuery || isMapSearchLoadingMore) return
 
     const requestId = mapSearchRequestIdRef.current
-    const query = mapSearchQuery
+    const searchSession = mapTextSearchSessionRef.current
+    if (!searchSession || searchSession.query !== mapSearchQuery) return
+    const query = searchSession.query
     const pageToken = mapSearchNextPageToken
     setIsMapSearchLoadingMore(true)
     try {
       const page = await fetchGooglePlaceTextSearch({
         includePhoto: false,
-        options: buildMapTextSearchOptions(query, pageToken),
+        options: {
+          ...searchSession.options,
+          pageToken,
+        },
         pageSize: MAP_SEARCH_PAGE_SIZE,
         query,
       })
@@ -2751,6 +2786,11 @@ export function TripWorkspacePage() {
       const nextPlaces = page.places.map(googlePlaceToPlaceSelection)
       setMapSearchResults((current) => appendUniquePlaces(current, nextPlaces))
       setMapSearchNextPageToken(page.nextPageToken)
+      setMapSearchLoadMoreError(false)
+    } catch {
+      if (mapSearchRequestIdRef.current === requestId && mapSearchQuery === query) {
+        setMapSearchLoadMoreError(true)
+      }
     } finally {
       if (mapSearchRequestIdRef.current === requestId) {
         setIsMapSearchLoadingMore(false)
@@ -4016,9 +4056,14 @@ export function TripWorkspacePage() {
                     focusPlaceId={mapSearchResultFocusId}
                     hasMore={Boolean(mapSearchNextPageToken)}
                     isMobile={isMobileViewport}
+                    loadMoreError={mapSearchLoadMoreError}
                     loadingMore={isMapSearchLoadingMore}
                     onHoverChange={setHoveredMapSearchResultId}
                     onLoadMore={() => {
+                      void handleLoadMoreMapSearchResults()
+                    }}
+                    onRetryLoadMore={() => {
+                      setMapSearchLoadMoreError(false)
                       void handleLoadMoreMapSearchResults()
                     }}
                     onClose={closeMapSearchResults}
@@ -4027,6 +4072,7 @@ export function TripWorkspacePage() {
                     selectedPlaceId={
                       selectedMapSearchResult ? placeStableId(selectedMapSearchResult) : null
                     }
+                    thumbnailSession={mapSearchThumbnailSession}
                   />
                 )}
                 </div>

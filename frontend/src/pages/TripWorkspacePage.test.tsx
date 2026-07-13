@@ -220,6 +220,16 @@ vi.mock('../components/TripMap', () => ({
       </button>
       <button
         type="button"
+        onClick={() => onViewportContextChange?.({
+          bounds: { north: 36.2, south: 36.1, east: 140.3, west: 140.2 },
+          center: { lng: 140.25, lat: 36.15 },
+          zoom: 11,
+        })}
+      >
+        Mock move map viewport
+      </button>
+      <button
+        type="button"
         onClick={() => onMapPlaceClick?.({
           clickedAtIso: '2026-06-30T12:00:00.000Z',
           clickedAtMs: 100,
@@ -2278,6 +2288,7 @@ describe('<TripWorkspacePage>', () => {
     renderWorkspace('/trips/abc234def567/d/2026-05-01')
 
     await screen.findByTestId('trip-map')
+    await userEvent.click(screen.getByRole('button', { name: /mock viewport center/i }))
     await userEvent.click(screen.getByRole('button', { name: /mock type ramen search/i }))
     expect(screen.getByTestId('place-search-value')).toHaveTextContent('ramen')
     await userEvent.click(screen.getByRole('button', { name: /mock submit place search/i }))
@@ -2297,7 +2308,16 @@ describe('<TripWorkspacePage>', () => {
     const mapSearchResults = screen.getByLabelText(/map search results/i)
     expect(within(mapSearchResults).getByRole('button', { name: /ramen street/i })).toBeInTheDocument()
     expect(within(mapSearchResults).queryByRole('img', { name: /ramen street/i })).not.toBeInTheDocument()
-    expect(googlePlacesMockState.imageUrlFromGooglePhotoName).not.toHaveBeenCalled()
+    await waitFor(() => {
+      expect(googlePlacesMockState.imageUrlFromGooglePhotoName).toHaveBeenCalledWith({
+        maxHeightPx: 240,
+        maxWidthPx: 320,
+        photoName: 'places/google.ramen-street/photos/main',
+      })
+    })
+
+    const initialSearchOptions = googlePlacesMockState.fetchGooglePlaceTextSearch.mock.calls[0]?.[0].options
+    await userEvent.click(screen.getByRole('button', { name: /mock move map viewport/i }))
 
     const searchResultPlaces = screen.getByLabelText(/search result places/i)
     Object.defineProperties(searchResultPlaces, {
@@ -2308,11 +2328,10 @@ describe('<TripWorkspacePage>', () => {
     await waitFor(() => {
       expect(googlePlacesMockState.fetchGooglePlaceTextSearch).toHaveBeenLastCalledWith({
         includePhoto: false,
-        options: expect.objectContaining({
-          language: 'en',
+        options: {
+          ...initialSearchOptions,
           pageToken: 'next-page',
-          rankPreference: 'RELEVANCE',
-        }),
+        },
         pageSize: 10,
         query: 'ramen',
       })
@@ -2379,6 +2398,86 @@ describe('<TripWorkspacePage>', () => {
     expect(screen.getByTestId('search-map-results')).toBeEmptyDOMElement()
     expect(screen.getByTestId('place-search-value')).toHaveTextContent('')
     expect(screen.queryByLabelText(/selected map place/i)).not.toBeInTheDocument()
+  })
+
+  it('keeps loaded search results and requires explicit retry after pagination fails', async () => {
+    mockWorkspace()
+    const ramenPlace = {
+      businessStatus: 'OPERATIONAL',
+      currentOpeningHours: null,
+      displayName: 'Ramen Street',
+      formattedAddress: '1 Chome Marunouchi, Tokyo',
+      googleMapsUri: null,
+      id: 'google.ramen-street',
+      lat: 35.6812,
+      lng: 139.7671,
+      photoName: null,
+      photoUrl: null,
+      primaryType: 'restaurant',
+      primaryTypeDisplayName: 'Restaurant',
+      priceLevel: null,
+      rating: 4.4,
+      regularOpeningHours: null,
+      reviews: [],
+      text: 'Ramen Street, 1 Chome Marunouchi, Tokyo',
+      types: ['restaurant'],
+      userRatingCount: 1200,
+      websiteUri: null,
+    }
+    googlePlacesMockState.fetchGooglePlaceTextSearch
+      .mockResolvedValueOnce({ nextPageToken: 'retry-page', places: [ramenPlace] })
+      .mockRejectedValueOnce(new Error('Google Places returned 400'))
+      .mockResolvedValueOnce({
+        nextPageToken: null,
+        places: [{
+          ...ramenPlace,
+          displayName: 'Udon Alley',
+          formattedAddress: '2 Chome Marunouchi, Tokyo',
+          id: 'google.udon-alley',
+          text: 'Udon Alley, 2 Chome Marunouchi, Tokyo',
+        }],
+      })
+
+    renderWorkspace('/trips/abc234def567/d/2026-05-01')
+    await screen.findByTestId('trip-map')
+    await userEvent.click(screen.getByRole('button', { name: /mock type ramen search/i }))
+    await userEvent.click(screen.getByRole('button', { name: /mock submit place search/i }))
+
+    const results = await screen.findByLabelText(/search result places/i)
+    const initialSearchOptions = googlePlacesMockState.fetchGooglePlaceTextSearch.mock.calls[0]?.[0].options
+    Object.defineProperties(results, {
+      clientWidth: { configurable: true, value: 900 },
+      scrollLeft: { configurable: true, value: 850, writable: true },
+      scrollWidth: { configurable: true, value: 1000 },
+    })
+    fireEvent.scroll(results)
+
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent(/couldn’t load more places/i)
+    expect(within(screen.getByLabelText(/map search results/i)).getByText('Ramen Street'))
+      .toBeInTheDocument()
+    expect(googlePlacesMockState.fetchGooglePlaceTextSearch).toHaveBeenCalledTimes(2)
+
+    fireEvent.scroll(results)
+    fireEvent.scroll(results)
+    expect(googlePlacesMockState.fetchGooglePlaceTextSearch).toHaveBeenCalledTimes(2)
+
+    await userEvent.click(within(alert).getByRole('button', { name: /^retry$/i }))
+    await waitFor(() => {
+      expect(googlePlacesMockState.fetchGooglePlaceTextSearch).toHaveBeenCalledTimes(3)
+      expect(within(screen.getByLabelText(/map search results/i)).getByText('Udon Alley'))
+        .toBeInTheDocument()
+    })
+    expect(screen.queryByText(/couldn’t load more places/i)).not.toBeInTheDocument()
+    expect(googlePlacesMockState.fetchGooglePlaceTextSearch).toHaveBeenLastCalledWith({
+      includePhoto: false,
+      options: {
+        ...initialSearchOptions,
+        pageToken: 'retry-page',
+      },
+      pageSize: 10,
+      query: 'ramen',
+    })
   })
 
   it('keeps mobile search results and place details as exclusive sheets', async () => {

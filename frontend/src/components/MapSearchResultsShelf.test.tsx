@@ -1,9 +1,18 @@
-import { fireEvent, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ComponentProps } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { PlaceSelection } from '../types/place'
 import { MapSearchResultsShelf } from './MapSearchResultsShelf'
+import { createMapSearchThumbnailSession } from './mapSearchThumbnailSession'
+
+const googlePlacesMockState = vi.hoisted(() => ({
+  imageUrlFromGooglePhotoName: vi.fn(),
+}))
+
+vi.mock('./googlePlaces', () => ({
+  imageUrlFromGooglePhotoName: googlePlacesMockState.imageUrlFromGooglePhotoName,
+}))
 
 const PLACES: PlaceSelection[] = [
   {
@@ -94,6 +103,8 @@ function setVerticalScrollableMetrics(element: HTMLElement, metrics: {
 }
 
 beforeEach(() => {
+  googlePlacesMockState.imageUrlFromGooglePhotoName.mockReset()
+  googlePlacesMockState.imageUrlFromGooglePhotoName.mockResolvedValue(null)
   Object.defineProperty(window, 'requestAnimationFrame', {
     configurable: true,
     value: (callback: FrameRequestCallback) => {
@@ -116,6 +127,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.restoreAllMocks()
+  vi.unstubAllGlobals()
 })
 
 describe('<MapSearchResultsShelf>', () => {
@@ -188,6 +200,167 @@ describe('<MapSearchResultsShelf>', () => {
     fireEvent.scroll(list)
 
     expect(onLoadMore).toHaveBeenCalledTimes(1)
+  })
+
+  it('blocks automatic load-more after an error and retries only from the alert action', async () => {
+    const onLoadMore = vi.fn()
+    const onRetryLoadMore = vi.fn()
+    renderShelf({
+      hasMore: true,
+      loadMoreError: true,
+      onLoadMore,
+      onRetryLoadMore,
+    })
+
+    const list = screen.getByLabelText(/search result places/i)
+    setScrollableMetrics(list, { clientWidth: 300, scrollLeft: 620, scrollWidth: 900 })
+    fireEvent.scroll(list)
+    fireEvent.scroll(list)
+
+    expect(onLoadMore).not.toHaveBeenCalled()
+    expect(screen.getByRole('alert')).toHaveTextContent(/couldn’t load more places/i)
+
+    await userEvent.click(screen.getByRole('button', { name: /^retry$/i }))
+
+    expect(onRetryLoadMore).toHaveBeenCalledTimes(1)
+    expect(onLoadMore).not.toHaveBeenCalled()
+  })
+
+  it('hydrates only visible thumbnails with deduplication, bounded concurrency, and fallbacks', async () => {
+    let observerCallback: IntersectionObserverCallback | null = null
+    const observedElements: Element[] = []
+    class MockIntersectionObserver {
+      disconnect = vi.fn()
+      observe = vi.fn((element: Element) => observedElements.push(element))
+      takeRecords = vi.fn(() => [])
+      unobserve = vi.fn()
+
+      constructor(callback: IntersectionObserverCallback) {
+        observerCallback = callback
+      }
+    }
+    vi.stubGlobal('IntersectionObserver', MockIntersectionObserver)
+
+    const pending: Array<(url: string | null) => void> = []
+    googlePlacesMockState.imageUrlFromGooglePhotoName.mockImplementation(
+      () => new Promise<string | null>((resolve) => pending.push(resolve)),
+    )
+    const photoPlaces = Array.from({ length: 7 }, (_, index): PlaceSelection => ({
+      ...PLACES[index % PLACES.length],
+      placeId: `google.photo-${index}`,
+      placeName: `Photo place ${index}`,
+      photoName: `places/photo-${index === 6 ? 0 : index}/photos/main`,
+      title: `Photo place ${index}`,
+    }))
+
+    renderShelf({ places: photoPlaces })
+
+    expect(googlePlacesMockState.imageUrlFromGooglePhotoName).not.toHaveBeenCalled()
+    expect(observedElements).toHaveLength(7)
+
+    act(() => {
+      observerCallback?.(
+        observedElements.map((target) => ({ isIntersecting: true, target }) as IntersectionObserverEntry),
+        {} as IntersectionObserver,
+      )
+    })
+
+    await waitFor(() => {
+      expect(googlePlacesMockState.imageUrlFromGooglePhotoName).toHaveBeenCalledTimes(4)
+    })
+    expect(googlePlacesMockState.imageUrlFromGooglePhotoName.mock.calls.map(([options]) => options.photoName))
+      .toEqual([
+        'places/photo-0/photos/main',
+        'places/photo-1/photos/main',
+        'places/photo-2/photos/main',
+        'places/photo-3/photos/main',
+      ])
+
+    await act(async () => {
+      pending[0]?.('https://example.com/photo-0.webp')
+      pending[1]?.(null)
+      pending[2]?.('https://example.com/photo-2.webp')
+      pending[3]?.('https://example.com/photo-3.webp')
+      await Promise.resolve()
+    })
+    await waitFor(() => {
+      expect(googlePlacesMockState.imageUrlFromGooglePhotoName).toHaveBeenCalledTimes(6)
+    })
+
+    await act(async () => {
+      pending[4]?.('https://example.com/photo-4.webp')
+      pending[5]?.('https://example.com/photo-5.webp')
+      await Promise.resolve()
+    })
+
+    const loadedCard = screen.getByRole('button', { name: /photo place 0/i })
+    const duplicateCard = screen.getByRole('button', { name: /photo place 6/i })
+    const missingCard = screen.getByRole('button', { name: /photo place 1/i })
+    expect(loadedCard.querySelector('[data-thumbnail-state]')).toHaveAttribute(
+      'data-thumbnail-state',
+      'image',
+    )
+    expect(duplicateCard.querySelector('[data-thumbnail-state]')).toHaveAttribute(
+      'data-thumbnail-state',
+      'image',
+    )
+    expect(missingCard.querySelector('[data-thumbnail-state]')).toHaveAttribute(
+      'data-thumbnail-state',
+      'fallback',
+    )
+
+    const loadedImage = loadedCard.querySelector('img')
+    expect(loadedImage).not.toBeNull()
+    fireEvent.error(loadedImage as HTMLImageElement)
+    expect(loadedCard.querySelector('[data-thumbnail-state]')).toHaveAttribute(
+      'data-thumbnail-state',
+      'fallback',
+    )
+  })
+
+  it('reuses the workspace thumbnail session after the shelf remounts', async () => {
+    googlePlacesMockState.imageUrlFromGooglePhotoName.mockResolvedValue(
+      'https://example.com/breakfast.webp',
+    )
+    const thumbnailSession = createMapSearchThumbnailSession()
+    const place = {
+      ...PLACES[0],
+      photoName: 'places/breakfast/photos/main',
+    }
+
+    const firstRender = renderShelf({ places: [place], thumbnailSession })
+    await waitFor(() => {
+      expect(googlePlacesMockState.imageUrlFromGooglePhotoName).toHaveBeenCalledTimes(1)
+      expect(document.querySelector('img')).toHaveAttribute(
+        'src',
+        'https://example.com/breakfast.webp',
+      )
+    })
+    firstRender.unmount()
+
+    renderShelf({ places: [place], thumbnailSession })
+    await waitFor(() => {
+      expect(document.querySelector('img')).toHaveAttribute(
+        'src',
+        'https://example.com/breakfast.webp',
+      )
+    })
+    expect(googlePlacesMockState.imageUrlFromGooglePhotoName).toHaveBeenCalledTimes(1)
+  })
+
+  it('settles a rejected thumbnail request to the MapPin fallback', async () => {
+    googlePlacesMockState.imageUrlFromGooglePhotoName.mockRejectedValue(new Error('photo failed'))
+    const place = {
+      ...PLACES[0],
+      photoName: 'places/rejected/photos/main',
+    }
+
+    renderShelf({ places: [place] })
+
+    await waitFor(() => {
+      expect(document.querySelector('[data-thumbnail-state="fallback"]')).toBeInTheDocument()
+    })
+    expect(document.querySelector('img')).not.toBeInTheDocument()
   })
 
   it('uses native vertical scrolling without carousel controls on mobile', () => {
