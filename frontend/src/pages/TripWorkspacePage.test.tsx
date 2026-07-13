@@ -2035,10 +2035,6 @@ describe('<TripWorkspacePage>', () => {
 
   it('submits map search, maps returned places, and shows selected place details', async () => {
     mockWorkspace()
-    let resolveSearchThumbnail!: (url: string) => void
-    googlePlacesMockState.imageUrlFromGooglePhotoName.mockReturnValueOnce(new Promise((resolve) => {
-      resolveSearchThumbnail = resolve
-    }))
     googlePlacesMockState.fetchGooglePlaceTextSearch.mockResolvedValueOnce({
       nextPageToken: 'next-page',
       places: [{
@@ -2143,21 +2139,7 @@ describe('<TripWorkspacePage>', () => {
     const mapSearchResults = screen.getByLabelText(/map search results/i)
     expect(within(mapSearchResults).getByRole('button', { name: /ramen street/i })).toBeInTheDocument()
     expect(within(mapSearchResults).queryByRole('img', { name: /ramen street/i })).not.toBeInTheDocument()
-    await waitFor(() => {
-      expect(googlePlacesMockState.imageUrlFromGooglePhotoName).toHaveBeenCalledWith({
-        maxHeightPx: 240,
-        maxWidthPx: 320,
-        photoName: 'places/google.ramen-street/photos/main',
-      })
-    })
-
-    resolveSearchThumbnail('https://example.com/ramen-street-thumb.webp')
-    await waitFor(() => {
-      expect(within(mapSearchResults).getByRole('img', { name: /ramen street/i })).toHaveAttribute(
-        'src',
-        'https://example.com/ramen-street-thumb.webp',
-      )
-    })
+    expect(googlePlacesMockState.imageUrlFromGooglePhotoName).not.toHaveBeenCalled()
 
     const searchResultPlaces = screen.getByLabelText(/search result places/i)
     Object.defineProperties(searchResultPlaces, {

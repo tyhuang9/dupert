@@ -1,10 +1,32 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { act, fireEvent, render as renderBase, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { PropsWithChildren, ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { getDrivingDirections } from '../api/googleMapsRoute'
 import type { Activity } from '../types/activity'
 import { TripMap } from './TripMap'
+
+function createTestQueryClient() {
+  return new QueryClient({
+    defaultOptions: {
+      queries: { retry: false },
+    },
+  })
+}
+
+function render(ui: ReactNode, queryClient = createTestQueryClient()) {
+  const result = renderBase(
+    <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>,
+  )
+  return {
+    ...result,
+    queryClient,
+    rerender: (nextUi: ReactNode) => result.rerender(
+      <QueryClientProvider client={queryClient}>{nextUi}</QueryClientProvider>,
+    ),
+  }
+}
 
 const geocodeMock = vi.hoisted(() => ({
   geocodeDestination: vi.fn(),
@@ -317,7 +339,7 @@ describe('<TripMap>', () => {
       )
     })
     expect(screen.queryByText('12 min')).not.toBeInTheDocument()
-    expect(screen.getByText('12 min total · 2.4 km')).toBeInTheDocument()
+    expect(await screen.findByText('12 min total · 2.4 km')).toBeInTheDocument()
     expect(screen.getByTestId('route-layer')).toHaveAttribute('data-path-length', '3')
     expect(geocodeMock.geocodeDestination).not.toHaveBeenCalled()
   })
@@ -329,7 +351,7 @@ describe('<TripMap>', () => {
     await waitFor(() => {
       expect(directionsMock).toHaveBeenCalledTimes(1)
     })
-    const routeLayer = screen.getByTestId('route-layer')
+    const routeLayer = await screen.findByTestId('route-layer')
 
     expect(screen.queryByText('12 min')).not.toBeInTheDocument()
     await user.hover(routeLayer)
@@ -364,7 +386,7 @@ describe('<TripMap>', () => {
     await waitFor(() => {
       expect(directionsMock).toHaveBeenCalledTimes(1)
     })
-    expect(screen.getByTestId('route-layer')).toHaveAttribute('data-path-length', '2')
+    expect(await screen.findByTestId('route-layer')).toHaveAttribute('data-path-length', '2')
     expect(screen.getByText('12 min total · 2.4 km')).toBeInTheDocument()
     expect(screen.queryByText('12 min')).not.toBeInTheDocument()
   })
@@ -387,7 +409,7 @@ describe('<TripMap>', () => {
     await waitFor(() => {
       expect(directionsMock).toHaveBeenCalledTimes(1)
     })
-    expect(screen.getByTestId('route-layer')).toHaveAttribute('data-path-length', '2')
+    expect(await screen.findByTestId('route-layer')).toHaveAttribute('data-path-length', '2')
     expect(screen.getByText('12 min total · 2.4 km')).toBeInTheDocument()
   })
 
@@ -610,7 +632,7 @@ describe('<TripMap>', () => {
     await waitFor(() => {
       expect(directionsMock).toHaveBeenCalledTimes(1)
     })
-    expect(screen.getByTestId('route-layer')).toBeInTheDocument()
+    expect(await screen.findByTestId('route-layer')).toBeInTheDocument()
 
     rerender(
       <TripMap
@@ -636,6 +658,27 @@ describe('<TripMap>', () => {
     )
 
     expect(screen.getByTestId('route-layer')).toBeInTheDocument()
+    expect(directionsMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps route results in React Query when the map unmounts and remounts', async () => {
+    const queryClient = createTestQueryClient()
+    const firstRender = render(
+      <TripMap activities={ACTIVITIES} fallbackActivities={[]} destination="Tokyo" />,
+      queryClient,
+    )
+
+    await waitFor(() => {
+      expect(directionsMock).toHaveBeenCalledTimes(1)
+    })
+    firstRender.unmount()
+
+    render(
+      <TripMap activities={ACTIVITIES} fallbackActivities={[]} destination="Tokyo" />,
+      queryClient,
+    )
+
+    expect(await screen.findByTestId('route-layer')).toBeInTheDocument()
     expect(directionsMock).toHaveBeenCalledTimes(1)
   })
 

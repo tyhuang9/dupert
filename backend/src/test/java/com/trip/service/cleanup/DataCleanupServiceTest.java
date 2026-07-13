@@ -3,6 +3,7 @@ package com.trip.service.cleanup;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.times;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -38,6 +39,9 @@ class DataCleanupServiceTest {
     @Mock
     RefreshTokenRepository refreshTokenRepository;
 
+    @Mock
+    ProviderCacheCleanupService providerCacheCleanupService;
+
     DataCleanupService service;
 
     @BeforeEach
@@ -47,6 +51,7 @@ class DataCleanupServiceTest {
             emailVerificationTokenRepository,
             passwordResetTokenRepository,
             refreshTokenRepository,
+            providerCacheCleanupService,
             Clock.fixed(NOW.toInstant(), ZoneOffset.UTC));
     }
 
@@ -61,5 +66,16 @@ class DataCleanupServiceTest {
         verify(emailVerificationTokenRepository).deleteInactiveBefore(eq(tokenCutoff));
         verify(passwordResetTokenRepository).deleteInactiveBefore(eq(tokenCutoff));
         verify(refreshTokenRepository).deleteInactiveBefore(eq(tokenCutoff));
+    }
+
+    @Test
+    void deleteExpiredProviderCacheRowsRetainsSevenDaysOfStaleFallbackAndCapsTheRun() {
+        when(providerCacheCleanupService.deleteExpiredBatch(org.mockito.ArgumentMatchers.any()))
+            .thenReturn(ProviderCacheCleanupService.DELETE_BATCH_SIZE);
+
+        service.deleteExpiredProviderCacheRows();
+
+        OffsetDateTime cutoff = NOW.minus(DataCleanupService.PROVIDER_CACHE_STALE_FALLBACK_RETENTION);
+        verify(providerCacheCleanupService, times(10)).deleteExpiredBatch(eq(cutoff));
     }
 }

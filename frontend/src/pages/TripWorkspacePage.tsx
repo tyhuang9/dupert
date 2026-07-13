@@ -104,7 +104,6 @@ import {
   fetchGooglePlaceById,
   fetchGooglePlaceTextSearch,
   googlePlaceCategoryTypeForQuery,
-  imageUrlFromGooglePhotoName,
   type GooglePlaceTextSearchOptions,
 } from '../components/googlePlaces'
 import { googlePlaceToPlaceSelection } from '../components/placeSelection'
@@ -164,8 +163,6 @@ function pluralize(count: number, singular: string, plural = `${singular}s`): st
 }
 
 const MAP_SEARCH_PAGE_SIZE = 10
-const MAP_SEARCH_THUMBNAIL_HEIGHT = 240
-const MAP_SEARCH_THUMBNAIL_WIDTH = 320
 const GOOGLE_MAPS_DIRECTIONS_URL = 'https://www.google.com/maps/dir/'
 const GOOGLE_MAPS_MAX_WAYPOINTS = 9
 const GOOGLE_MAPS_MAX_DIRECTIONS_URL_LENGTH = 2048
@@ -1670,7 +1667,6 @@ export function TripWorkspacePage() {
   const [isMapSearchLoadingMore, setIsMapSearchLoadingMore] = useState(false)
   const mapSearchRequestIdRef = useRef(0)
   const mapPlaceDetailsRequestIdRef = useRef(0)
-  const mapSearchPhotoHydrationKeysRef = useRef<Set<string>>(new Set())
   const sidebarPanelRef = useRef<HTMLElement | null>(null)
   const dragStartPointerRef = useRef<PointerCoordinates | null>(null)
   const dragStartActivityCardRectRef = useRef<DragRect | null>(null)
@@ -2132,7 +2128,6 @@ export function TripWorkspacePage() {
   const clearMapSearchState = () => {
     mapSearchRequestIdRef.current += 1
     mapPlaceDetailsRequestIdRef.current += 1
-    mapSearchPhotoHydrationKeysRef.current.clear()
     setMapSearchValue('')
     setMapSearchResults([])
     setHiddenMapSearchResultIds(new Set<string>())
@@ -2149,7 +2144,6 @@ export function TripWorkspacePage() {
 
   const closeMapSearchResults = () => {
     mapSearchRequestIdRef.current += 1
-    mapSearchPhotoHydrationKeysRef.current.clear()
     setMapSearchValue('')
     setMapSearchResults([])
     setHiddenMapSearchResultIds(new Set<string>())
@@ -2689,58 +2683,6 @@ export function TripWorkspacePage() {
     }
   }
 
-  const hydrateMapSearchResultPhotos = (
-    places: PlaceSelection[],
-    requestId: number,
-  ) => {
-    const hydratablePlaces = places.filter((place) => {
-      if (place.photoUrl || !place.photoName) return false
-      const hydrationKey = `${requestId}:${placeStableId(place)}`
-      if (mapSearchPhotoHydrationKeysRef.current.has(hydrationKey)) return false
-      mapSearchPhotoHydrationKeysRef.current.add(hydrationKey)
-      return true
-    })
-    if (hydratablePlaces.length === 0) return
-
-    void Promise.all(
-      hydratablePlaces.map(async (place) => ({
-        photoUrl: await imageUrlFromGooglePhotoName({
-          maxHeightPx: MAP_SEARCH_THUMBNAIL_HEIGHT,
-          maxWidthPx: MAP_SEARCH_THUMBNAIL_WIDTH,
-          photoName: place.photoName,
-        }),
-        stableId: placeStableId(place),
-      })),
-    ).then((hydratedPhotos) => {
-      if (mapSearchRequestIdRef.current !== requestId) return
-      const photoUrlByStableId = new Map(
-        hydratedPhotos
-          .filter((hydratedPhoto): hydratedPhoto is { stableId: string; photoUrl: string } =>
-            Boolean(hydratedPhoto.photoUrl),
-          )
-          .map((hydratedPhoto) => [hydratedPhoto.stableId, hydratedPhoto.photoUrl]),
-      )
-      if (photoUrlByStableId.size === 0) return
-
-      setMapSearchResults((current) =>
-        current.map((place) => {
-          const photoUrl = photoUrlByStableId.get(placeStableId(place))
-          return photoUrl && !place.photoUrl ? { ...place, photoUrl } : place
-        }),
-      )
-      setSelectedMapSearchResult((current) => {
-        if (!current || current.photoUrl) return current
-        const photoUrl = photoUrlByStableId.get(placeStableId(current))
-        return photoUrl ? { ...current, photoUrl } : current
-      })
-      setPendingMapPlace((current) => {
-        if (!current || current.photoUrl) return current
-        const photoUrl = photoUrlByStableId.get(placeStableId(current))
-        return photoUrl ? { ...current, photoUrl } : current
-      })
-    })
-  }
-
   const handleMapSearchSubmit = async (query: string) => {
     const trimmedQuery = query.trim()
     if (!trimmedQuery) {
@@ -2749,7 +2691,6 @@ export function TripWorkspacePage() {
     }
     const requestId = mapSearchRequestIdRef.current + 1
     mapSearchRequestIdRef.current = requestId
-    mapSearchPhotoHydrationKeysRef.current.clear()
     setIsMapSearchSubmitting(true)
     focusMapPanel()
     try {
@@ -2768,7 +2709,6 @@ export function TripWorkspacePage() {
       setHoveredMapSearchResultId(null)
       setMapSearchPreview(null)
       setCoordinateMapMarker(null)
-      hydrateMapSearchResultPhotos(places, requestId)
     } finally {
       if (mapSearchRequestIdRef.current === requestId) {
         setIsMapSearchSubmitting(false)
@@ -2794,7 +2734,6 @@ export function TripWorkspacePage() {
       const nextPlaces = page.places.map(googlePlaceToPlaceSelection)
       setMapSearchResults((current) => appendUniquePlaces(current, nextPlaces))
       setMapSearchNextPageToken(page.nextPageToken)
-      hydrateMapSearchResultPhotos(nextPlaces, requestId)
     } finally {
       if (mapSearchRequestIdRef.current === requestId) {
         setIsMapSearchLoadingMore(false)
