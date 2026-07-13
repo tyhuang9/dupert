@@ -288,6 +288,8 @@ If password reset or verification emails are not arriving in `dev`/`prod`, verif
 - Production-like backend starts require `app.cookies.secure=true`, `APP_PUBLIC_FRONTEND_URL`, and `secure.hsts.enabled=true`; the `prod` profile sets secure cookies, `SameSite=None`, and HSTS.
 - Render should run with `SPRING_PROFILES_ACTIVE=prod`, `APP_TRUST_PROXY=true`, `APP_COOKIES_SECURE=true`, `APP_COOKIES_SAME_SITE=None` for split-origin frontend/backend deployments, `SECURE_HSTS_ENABLED=true`, an exact `ALLOWED_ORIGINS` value, and `APP_PUBLIC_FRONTEND_URL` set to the real frontend origin.
 - Public actuator exposure is limited to `/actuator/health` and `/actuator/health/**`; `/actuator/info` is not publicly exposed.
+- Responses larger than 2 KB are compressed for JSON and text content. SSE uses
+  `text/event-stream`, which is deliberately excluded so events are not buffered.
 - Production registration creates an unverified user, sends one Brevo verification email, and withholds auth tokens until verification. The local profile creates verified users immediately and sends no email.
 - Public auth/share endpoints are rate limited in memory. This is fine for a small deployment, but limits reset on backend restart and are weaker against distributed abuse.
 - `/api/dev/**` endpoints are registered only under `SPRING_PROFILES_ACTIVE=local` and operate only on `@test.local` accounts.
