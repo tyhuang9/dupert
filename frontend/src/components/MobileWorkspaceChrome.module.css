@@ -115,6 +115,7 @@
   }
 
   .menuHeader {
+    min-width: 0;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -126,6 +127,10 @@
 
   .menuHeader > div {
     min-width: 0;
+  }
+
+  .menuHeader .closeButton {
+    flex: 0 0 44px;
   }
 
   .menuHeader h2 {
@@ -140,6 +145,7 @@
   }
 
   .menuActions {
+    min-width: 0;
     display: grid;
     align-content: start;
     overflow-y: auto;
