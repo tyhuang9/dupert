@@ -417,6 +417,7 @@ const SAMPLE_TRIP: Trip = {
   imageUrl: null,
   createdAt: '2026-05-22T16:00:00Z',
   role: 'OWNER',
+  version: 0,
 }
 
 const SAMPLE_ACTIVITY: Activity = {
@@ -2580,8 +2581,51 @@ describe('<TripWorkspacePage>', () => {
       imageUrl: 'https://example.com/kyoto.jpg',
       startDate: '2026-05-02',
       endDate: '2026-05-03',
+      expectedVersion: 0,
     })
     expect(await screen.findByRole('heading', { level: 2, name: /sunday, may 3/i })).toBeInTheDocument()
+  })
+
+  it('keeps the settings draft and reloads the trip after an edit conflict', async () => {
+    const latestTrip = { ...SAMPLE_TRIP, name: 'Edited elsewhere', version: 1 }
+    apiMock.onGet('/trips/abc234def567').replyOnce(200, SAMPLE_TRIP)
+    apiMock.onGet('/trips/abc234def567').reply(200, latestTrip)
+    apiMock.onGet('/trips/abc234def567/activities').reply(200, [])
+    apiMock.onPatch('/trips/abc234def567').replyOnce(409, { error: 'edit_conflict' })
+    apiMock.onPatch('/trips/abc234def567').reply((config) => [
+      200,
+      { ...latestTrip, name: JSON.parse(config.data as string).name, version: 2 },
+    ])
+
+    renderWorkspace('/trips/abc234def567')
+
+    await userEvent.click(await screen.findByRole('button', { name: /^settings$/i }))
+    const nameInput = screen.getByLabelText(/trip name/i)
+    await userEvent.clear(nameInput)
+    await userEvent.type(nameInput, 'Keep my draft')
+    await userEvent.click(screen.getByRole('button', { name: /save changes/i }))
+
+    expect(await screen.findByText(/latest details were reloaded/i)).toBeInTheDocument()
+    expect(nameInput).toHaveValue('Keep my draft')
+    await waitFor(() => {
+      expect(apiMock.history.get.filter((request) => request.url === '/trips/abc234def567'))
+        .toHaveLength(2)
+    })
+    expect(JSON.parse(apiMock.history.patch[0].data as string)).toMatchObject({
+      name: 'Keep my draft',
+      expectedVersion: 0,
+    })
+
+    await userEvent.click(screen.getByRole('button', { name: /save changes/i }))
+
+    await waitFor(() => {
+      expect(apiMock.history.patch).toHaveLength(2)
+    })
+    expect(JSON.parse(apiMock.history.patch[1].data as string)).toMatchObject({
+      name: 'Keep my draft',
+      expectedVersion: 1,
+    })
+    expect(screen.queryByRole('dialog', { name: /trip settings/i })).not.toBeInTheDocument()
   })
 
   it('shows 404 state for inaccessible or unknown trip', async () => {

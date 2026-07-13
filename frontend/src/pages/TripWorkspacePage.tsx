@@ -65,7 +65,7 @@ import {
   Utensils,
   X,
 } from 'lucide-react'
-import { parseApiError } from '../api/errors'
+import { apiErrorCode, parseApiError } from '../api/errors'
 import { useTrip, useUpdateTrip } from '../hooks/useTrips'
 import {
   useActivities,
@@ -1185,6 +1185,7 @@ function IdeasRailTab({
 
 interface TripSettingsModalProps {
   activities: Activity[]
+  conflictNotice: boolean
   error: unknown
   onClose: () => void
   onSave: (payload: UpdateTripRequest) => Promise<void>
@@ -1194,6 +1195,7 @@ interface TripSettingsModalProps {
 
 function TripSettingsModal({
   activities,
+  conflictNotice,
   error,
   onClose,
   onSave,
@@ -1220,7 +1222,8 @@ function TripSettingsModal({
   )
   const dateError =
     startDate && endDate && startDate > endDate ? 'Start date must be before end date.' : null
-  const apiErrorMessage = error ? parseApiError(error).topMessage : null
+  const apiErrorMessage =
+    error && apiErrorCode(error) !== 'edit_conflict' ? parseApiError(error).topMessage : null
   const settingsErrorMessage = formError || dateError || apiErrorMessage
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
@@ -1334,6 +1337,13 @@ function TripSettingsModal({
               <AlertTriangle size={15} aria-hidden="true" />
               {pluralize(hiddenActivities.length, 'activity', 'activities')} will be outside the
               visible trip date range after saving.
+            </p>
+          )}
+          {conflictNotice && (
+            <p className={styles.warningText} role="status">
+              <AlertTriangle size={15} aria-hidden="true" />
+              This trip changed elsewhere. The latest details were reloaded; your edits are still
+              here. Review them, then save again to reapply them.
             </p>
           )}
           {settingsErrorMessage && (
@@ -1713,6 +1723,7 @@ export function TripWorkspacePage() {
   const createActivityMutation = useCreateActivity()
   const updateActivityMutation = useUpdateActivity()
   const updateTripMutation = useUpdateTrip()
+  const [tripEditConflict, setTripEditConflict] = useState(false)
   const deleteActivityMutation = useDeleteActivity()
   const reorderActivitiesMutation = useReorderActivities()
   const reorderIdeasMutation = useReorderIdeas()
@@ -3196,9 +3207,32 @@ export function TripWorkspacePage() {
     resetDraggingActivityState()
   }
 
+  const openTripSettings = () => {
+    setTripEditConflict(false)
+    setIsTripSettingsOpen(true)
+  }
+
+  const closeTripSettings = () => {
+    setTripEditConflict(false)
+    setIsTripSettingsOpen(false)
+  }
+
   const handleSaveTripSettings = async (payload: UpdateTripRequest) => {
     if (!publicId || !tripQuery.data) return
-    const updatedTrip = await updateTripMutation.mutateAsync({ publicId, body: payload })
+    setTripEditConflict(false)
+    let updatedTrip: Trip
+    try {
+      updatedTrip = await updateTripMutation.mutateAsync({
+        publicId,
+        body: { ...payload, expectedVersion: tripQuery.data.version },
+      })
+    } catch (error) {
+      if (apiErrorCode(error) === 'edit_conflict') {
+        setTripEditConflict(true)
+        await tripQuery.refetch()
+      }
+      throw error
+    }
     const nextDay = nearestTripDay(selectedDay, updatedTrip.startDate, updatedTrip.endDate)
     setIsTripSettingsOpen(false)
     setExpandedActivityId(null)
@@ -3339,7 +3373,7 @@ export function TripWorkspacePage() {
                     </Link>
                   ) : undefined}
                   isAuthenticated={isAuthenticated}
-                  onOpenSettings={() => setIsTripSettingsOpen(true)}
+                  onOpenSettings={openTripSettings}
                   onOpenShare={() => setIsShareTripOpen(true)}
                   onSelectTab={selectMobileTab}
                   publicId={publicId ?? ''}
@@ -3450,7 +3484,7 @@ export function TripWorkspacePage() {
                       <button
                         type="button"
                         className={styles.sidebarAction}
-                        onClick={() => setIsTripSettingsOpen(true)}
+                        onClick={openTripSettings}
                       >
                         <span className={styles.railIcon}>
                           <Settings size={18} aria-hidden="true" />
@@ -4032,8 +4066,9 @@ export function TripWorkspacePage() {
           {isTripSettingsOpen && (
             <TripSettingsModal
               activities={allActivities}
+              conflictNotice={tripEditConflict}
               error={updateTripMutation.error}
-              onClose={() => setIsTripSettingsOpen(false)}
+              onClose={closeTripSettings}
               onSave={handleSaveTripSettings}
               saving={updateTripMutation.isPending}
               trip={tripQuery.data}

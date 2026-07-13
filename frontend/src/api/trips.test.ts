@@ -21,6 +21,7 @@ const SAMPLE_TRIP: Trip = {
   imageUrl: null,
   createdAt: '2026-05-22T16:00:00Z',
   role: 'OWNER',
+  version: 0,
 }
 
 beforeEach(() => {
@@ -71,12 +72,16 @@ describe('trip api', () => {
   it('updates a trip', async () => {
     apiMock.onPatch('/trips/abc234def567').reply((config) => [
       200,
-      { ...SAMPLE_TRIP, name: JSON.parse(config.data as string).name },
+      { ...SAMPLE_TRIP, name: JSON.parse(config.data as string).name, version: 5 },
     ])
 
     await expect(
-      updateTrip('abc234def567', { name: 'Tokyo and Kyoto' }),
-    ).resolves.toMatchObject({ name: 'Tokyo and Kyoto' })
+      updateTrip('abc234def567', { name: 'Tokyo and Kyoto', expectedVersion: 4 }),
+    ).resolves.toMatchObject({ name: 'Tokyo and Kyoto', version: 5 })
+    expect(JSON.parse(apiMock.history.patch[0].data as string)).toEqual({
+      name: 'Tokyo and Kyoto',
+      expectedVersion: 4,
+    })
   })
 
   it('deletes a trip', async () => {
