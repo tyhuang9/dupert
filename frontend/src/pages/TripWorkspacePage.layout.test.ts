@@ -257,6 +257,26 @@ describe('TripWorkspacePage layout scroll contract', () => {
     expect(mobileHeroBlock).toMatch(/display:\s*block/)
   })
 
+  it('stacks mobile map chrome above search without a duplicate route summary', () => {
+    const mobileMapPanelBlocks = cssBlocks(workspaceCss, '.workspaceShellMobileMap .mapPanel')
+    const mobileSearchBlocks = cssBlocks(workspaceCss, '.workspaceShellMobileMap .mapOverlayStack')
+    const mobileRouteOverlayBlocks = cssBlocks(workspaceCss, '.workspaceShellMobileMap .mapRouteOverlay')
+    const mobileRouteSummaryBlocks = cssBlocks(tripMapCss, '.routeSummary')
+    const mobileMapPanelBlock = mobileMapPanelBlocks[mobileMapPanelBlocks.length - 1] ?? ''
+    const mobileSearchBlock = mobileSearchBlocks[mobileSearchBlocks.length - 1] ?? ''
+    const mobileRouteOverlayBlock = mobileRouteOverlayBlocks[mobileRouteOverlayBlocks.length - 1] ?? ''
+    const mobileRouteSummaryBlock = mobileRouteSummaryBlocks[mobileRouteSummaryBlocks.length - 1] ?? ''
+
+    expect(mobileMapPanelBlock).toMatch(/--map-mobile-chrome-height:\s*9\.25rem/)
+    expect(mobileSearchBlock).toMatch(
+      /top:\s*calc\(64px \+ var\(--space-3\) \+ var\(--map-mobile-chrome-height\)\)/,
+    )
+    expect(mobileRouteOverlayBlock).toMatch(/left:\s*var\(--space-3\)/)
+    expect(mobileRouteOverlayBlock).toMatch(/right:\s*auto/)
+    expect(mobileRouteOverlayBlock).toMatch(/justify-items:\s*start/)
+    expect(mobileRouteSummaryBlock).toMatch(/display:\s*none/)
+  })
+
   it('keeps compact editable fields on token-based surfaces in dark mode', () => {
     expect(activityFormCss).not.toContain('#f3f5fb')
     expect(activityFormCss).toMatch(

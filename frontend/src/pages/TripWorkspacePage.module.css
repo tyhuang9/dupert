@@ -2691,20 +2691,27 @@
 }
 
 @media (max-width: 820px) {
+  .workspaceShellMobileMap .mapPanel {
+    --map-mobile-chrome-height: 9.25rem;
+  }
+
   .workspaceShellMobileMap .mapOverlayStack {
-    top: calc(64px + var(--space-3));
+    top: calc(64px + var(--space-3) + var(--map-mobile-chrome-height));
     left: var(--space-3);
     width: min(34rem, calc(100% - var(--space-6)));
   }
 
   .workspaceShellMobileMap .mapRouteOverlay {
     top: calc(64px + var(--space-3));
-    right: var(--space-3);
+    right: auto;
+    left: var(--space-3);
     max-width: calc(100% - var(--space-6));
+    justify-items: start;
   }
 
   .workspaceShellMobileMap .mapChrome {
     flex-wrap: wrap;
+    justify-content: flex-start;
   }
 
   .workspaceShellMobileMap .mapStyleStrip {
