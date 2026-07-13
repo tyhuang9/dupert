@@ -98,20 +98,18 @@
   .menuBackdrop {
     position: fixed;
     inset: 0;
-    display: flex;
-    align-items: flex-end;
     background: rgb(26 33 31 / 42%);
     z-index: 1000;
   }
 
-  .menuSheet {
-    width: 100%;
-    max-height: min(78dvh, 34rem);
+  .menuDrawer {
+    width: min(86vw, 26rem);
+    height: 100dvh;
     display: grid;
     grid-template-rows: auto minmax(0, 1fr);
-    overflow: auto;
+    overflow: hidden;
     border: 1px solid var(--color-surface-border);
-    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
     background: var(--color-surface);
     box-shadow: var(--shadow-lg);
   }
@@ -121,7 +119,8 @@
     align-items: center;
     justify-content: space-between;
     gap: var(--space-3);
-    padding: var(--space-5) var(--space-4) var(--space-3);
+    padding: calc(var(--space-5) + env(safe-area-inset-top)) var(--space-4) var(--space-3)
+      calc(var(--space-4) + env(safe-area-inset-left));
     border-bottom: 1px solid var(--color-surface-border);
   }
 
@@ -138,6 +137,7 @@
 
   .menuActions {
     display: grid;
+    overflow-y: auto;
     padding: var(--space-2) var(--space-3) calc(var(--space-4) + env(safe-area-inset-bottom));
   }
 
