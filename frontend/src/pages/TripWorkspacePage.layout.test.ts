@@ -220,6 +220,43 @@ describe('TripWorkspacePage layout scroll contract', () => {
     expect(shelfBlock).not.toMatch(/right:\s*calc/)
   })
 
+  it('uses a safe-area-aware vertical results sheet and full-width detail sheet on mobile', () => {
+    const shelfBlocks = cssBlocks(searchShelfCss, '.shelf')
+    const listBlocks = cssBlocks(searchShelfCss, '.list')
+    const closeBlocks = cssBlocks(searchShelfCss, '.closeButton')
+    const detailCardBlocks = cssBlocks(workspaceCss, '.workspaceShellMobileMap .placeDetailCard')
+    const mobileHeaderBlocks = cssBlocks(
+      workspaceCss,
+      '.workspaceShellMobileMap .placeDetailMobileHeader',
+    )
+    const heroBlocks = cssBlocks(workspaceCss, '.workspaceShellMobileMap .placeHero')
+    const mobileShelfBlock = shelfBlocks[shelfBlocks.length - 1] ?? ''
+    const mobileListBlock = listBlocks[listBlocks.length - 1] ?? ''
+    const mobileCloseBlock = closeBlocks[closeBlocks.length - 1] ?? ''
+    const mobileDetailCardBlock = detailCardBlocks[detailCardBlocks.length - 1] ?? ''
+    const mobileHeaderBlock = mobileHeaderBlocks[mobileHeaderBlocks.length - 1] ?? ''
+    const mobileHeroBlock = heroBlocks[heroBlocks.length - 1] ?? ''
+
+    expect(mobileShelfBlock).toMatch(
+      /bottom:\s*calc\(64px \+ env\(safe-area-inset-bottom\)\)/,
+    )
+    expect(mobileShelfBlock).toMatch(/max-height:\s*min\(46dvh,\s*30rem\)/)
+    expect(mobileShelfBlock).toMatch(/grid-template-rows:\s*auto minmax\(0,\s*1fr\)/)
+    expect(mobileListBlock).toMatch(/flex-direction:\s*column/)
+    expect(mobileListBlock).toMatch(/overflow-x:\s*hidden/)
+    expect(mobileListBlock).toMatch(/overflow-y:\s*auto/)
+    expect(mobileListBlock).toMatch(/touch-action:\s*pan-y/)
+    expect(mobileCloseBlock).toMatch(/width:\s*44px/)
+    expect(mobileCloseBlock).toMatch(/height:\s*44px/)
+    expect(mobileDetailCardBlock).toMatch(/top:\s*auto/)
+    expect(mobileDetailCardBlock).toMatch(/width:\s*100%/)
+    expect(mobileDetailCardBlock).toMatch(
+      /grid-template-rows:\s*auto auto minmax\(0,\s*1fr\)/,
+    )
+    expect(mobileHeaderBlock).toMatch(/min-height:\s*52px/)
+    expect(mobileHeroBlock).toMatch(/display:\s*block/)
+  })
+
   it('keeps compact editable fields on token-based surfaces in dark mode', () => {
     expect(activityFormCss).not.toContain('#f3f5fb')
     expect(activityFormCss).toMatch(
