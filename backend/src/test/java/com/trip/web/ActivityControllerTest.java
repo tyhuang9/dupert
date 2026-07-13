@@ -37,6 +37,7 @@ import com.trip.domain.TripRole;
 import com.trip.domain.User;
 import com.trip.repo.ActivityRepository;
 import com.trip.repo.GuestSessionRepository;
+import com.trip.repo.IdDisplayName;
 import com.trip.repo.PasswordResetTokenRepository;
 import com.trip.repo.RefreshTokenRepository;
 import com.trip.repo.ShareLinkRepository;
@@ -104,6 +105,8 @@ class ActivityControllerTest {
         when(tripMemberRepository.findByIdTripIdAndIdUserId(TRIP_PK, ALICE_ID))
             .thenReturn(Optional.of(new TripMember(TRIP_PK, ALICE_ID, TripRole.OWNER)));
         when(userRepository.findById(ALICE_ID)).thenReturn(Optional.of(user(ALICE_ID, "Alice")));
+        when(userRepository.findDisplayNamesByIdIn(any()))
+            .thenReturn(List.of(new IdDisplayName(ALICE_ID, "Alice")));
     }
 
     @Test
