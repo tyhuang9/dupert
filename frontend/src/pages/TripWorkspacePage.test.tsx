@@ -466,7 +466,6 @@ const ACTIVE_SHARE_LINK: ShareLink = {
   createdAt: '2026-05-22T16:00:00Z',
   expiresAt: null,
   revokedAt: null,
-  shareUrl: 'https://dupert.test/share/token-7',
 }
 
 function Providers({ children }: PropsWithChildren) {
