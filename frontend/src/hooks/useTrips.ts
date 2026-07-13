@@ -35,10 +35,16 @@ export function useTrip(
   publicId: string | undefined,
   options: { enabled?: boolean } = {},
 ): UseQueryResult<Trip> {
+  const queryClient = useQueryClient()
+  const listState = queryClient.getQueryState<Trip[]>(tripKeys.lists())
   return useQuery({
     queryKey: tripKeys.detail(publicId ?? ''),
     queryFn: () => getTrip(publicId as string),
     enabled: Boolean(publicId) && (options.enabled ?? true),
+    initialData: () => queryClient
+      .getQueryData<Trip[]>(tripKeys.lists())
+      ?.find((trip) => trip.publicId === publicId),
+    initialDataUpdatedAt: listState?.dataUpdatedAt,
   })
 }
 

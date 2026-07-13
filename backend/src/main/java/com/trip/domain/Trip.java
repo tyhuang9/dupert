@@ -10,6 +10,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 
 @Entity
 @Table(name = "trips")
@@ -42,6 +43,10 @@ public class Trip {
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
+
+    @Version
+    @Column(name = "version", nullable = false)
+    private long version;
 
     protected Trip() {
         // JPA
@@ -115,6 +120,10 @@ public class Trip {
 
     public OffsetDateTime getCreatedAt() {
         return createdAt;
+    }
+
+    public long getVersion() {
+        return version;
     }
 
     @PrePersist

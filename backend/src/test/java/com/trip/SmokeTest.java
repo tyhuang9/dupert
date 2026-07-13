@@ -1,5 +1,6 @@
 package com.trip;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -13,6 +14,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.actuate.health.HealthEndpointGroup;
+import org.springframework.boot.actuate.health.HealthEndpointGroups;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
@@ -45,6 +48,9 @@ class SmokeTest {
 
     @Autowired
     MockMvc mvc;
+
+    @Autowired
+    HealthEndpointGroups healthEndpointGroups;
 
     // The chunk-2b @Service annotations on JwtService and RefreshTokenService pull
     // UserRepository and RefreshTokenRepository into the bean graph. The test profile
@@ -82,6 +88,24 @@ class SmokeTest {
         mvc.perform(get("/actuator/health"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.status").exists());
+    }
+
+    @Test
+    void livenessEndpointIsPublicAndReturns200() throws Exception {
+        mvc.perform(get("/actuator/health/liveness"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status").value("UP"));
+    }
+
+    @Test
+    void livenessGroupExcludesDatabaseAndExternalProviders() {
+        HealthEndpointGroup liveness = healthEndpointGroups.get("liveness");
+
+        assertThat(liveness).isNotNull();
+        assertThat(liveness.isMember("livenessState")).isTrue();
+        assertThat(liveness.isMember("db")).isFalse();
+        assertThat(liveness.isMember("googleMaps")).isFalse();
+        assertThat(liveness.isMember("brevo")).isFalse();
     }
 
     @Test

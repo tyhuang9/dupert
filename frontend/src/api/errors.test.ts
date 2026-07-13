@@ -51,6 +51,12 @@ describe('parseApiError', () => {
     expect(result.fieldErrors.email).toMatch(/already exists/i)
   })
 
+  it('maps edit_conflict (409) to a reload-and-reapply message', () => {
+    const result = parseApiError(makeAxiosError(409, { error: 'edit_conflict' }))
+    expect(result.topMessage).toMatch(/changed elsewhere/i)
+    expect(result.code).toBe('edit_conflict')
+  })
+
   it('maps rate_limited (429) to a banner', () => {
     const result = parseApiError(
       makeAxiosError(429, { error: 'rate_limited' }),

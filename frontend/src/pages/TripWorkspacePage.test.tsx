@@ -434,6 +434,7 @@ const SAMPLE_TRIP: Trip = {
   imageUrl: null,
   createdAt: '2026-05-22T16:00:00Z',
   role: 'OWNER',
+  version: 0,
 }
 
 const SAMPLE_ACTIVITY: Activity = {
@@ -812,6 +813,56 @@ describe('<TripWorkspacePage>', () => {
     expect(screen.queryByLabelText(/^title$/i)).not.toBeInTheDocument()
     expect(screen.queryByLabelText(/day note/i)).not.toBeInTheDocument()
     expect(screen.queryByLabelText(/selected day summary/i)).not.toBeInTheDocument()
+  })
+
+  it('keeps reusable URLs out of listed share links while showing a newly created URL once', async () => {
+    mockWorkspace()
+    apiMock.onGet('/trips/abc234def567/members').reply(200, [
+      {
+        userId: 42,
+        email: 'alice@example.com',
+        displayName: 'Alice',
+        role: 'OWNER',
+      },
+    ])
+    apiMock.onGet('/trips/abc234def567/share-links').reply(200, [
+      {
+        id: 7,
+        name: 'Existing invite',
+        role: 'EDITOR',
+        allowAnonymous: false,
+        createdAt: '2026-05-22T16:00:00Z',
+        expiresAt: null,
+        revokedAt: null,
+      },
+    ])
+    apiMock.onPost('/trips/abc234def567/share-links').reply(201, {
+      id: 8,
+      name: 'Trip invite',
+      role: 'EDITOR',
+      allowAnonymous: false,
+      createdAt: '2026-05-22T16:00:00Z',
+      expiresAt: null,
+      revokedAt: null,
+      shareUrl: 'https://app.example.com/share/new-token',
+    })
+
+    renderWorkspace('/trips/abc234def567')
+
+    await screen.findByRole('heading', { level: 1, name: /tokyo 2026/i })
+    await userEvent.click(screen.getByRole('button', { name: /share trip/i }))
+
+    expect(await screen.findByDisplayValue('Existing invite')).toBeInTheDocument()
+    expect(screen.getByText(/URLs are shown only when a link is created/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /copy url/i })).toBeDisabled()
+
+    await userEvent.click(screen.getByRole('button', { name: /^create link$/i }))
+
+    expect(await screen.findByDisplayValue('https://app.example.com/share/new-token')).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: /copy url/i })).toHaveLength(2)
+    expect(screen.getAllByRole('button', { name: /copy url/i }).some(
+      (button) => !button.hasAttribute('disabled'),
+    )).toBe(true)
   })
 
   it('shows guest users links to save the trip after signing in or creating an account', async () => {
@@ -2032,10 +2083,6 @@ describe('<TripWorkspacePage>', () => {
 
   it('submits map search, maps returned places, and shows selected place details', async () => {
     mockWorkspace()
-    let resolveSearchThumbnail!: (url: string) => void
-    googlePlacesMockState.imageUrlFromGooglePhotoName.mockReturnValueOnce(new Promise((resolve) => {
-      resolveSearchThumbnail = resolve
-    }))
     googlePlacesMockState.fetchGooglePlaceTextSearch.mockResolvedValueOnce({
       nextPageToken: 'next-page',
       places: [{
@@ -2139,23 +2186,8 @@ describe('<TripWorkspacePage>', () => {
     expect(within(screen.getByTestId('search-map-results')).getByText('Ramen Street')).toBeInTheDocument()
     const mapSearchResults = screen.getByLabelText(/map search results/i)
     expect(within(mapSearchResults).getByRole('button', { name: /ramen street/i })).toBeInTheDocument()
-    const ramenResult = within(mapSearchResults).getByRole('button', { name: /ramen street/i })
-    expect(ramenResult.querySelector('img')).not.toBeInTheDocument()
-    await waitFor(() => {
-      expect(googlePlacesMockState.imageUrlFromGooglePhotoName).toHaveBeenCalledWith({
-        maxHeightPx: 240,
-        maxWidthPx: 320,
-        photoName: 'places/google.ramen-street/photos/main',
-      })
-    })
-
-    resolveSearchThumbnail('https://example.com/ramen-street-thumb.webp')
-    await waitFor(() => {
-      expect(ramenResult.querySelector('img[alt=""]')).toHaveAttribute(
-        'src',
-        'https://example.com/ramen-street-thumb.webp',
-      )
-    })
+    expect(within(mapSearchResults).queryByRole('img', { name: /ramen street/i })).not.toBeInTheDocument()
+    expect(googlePlacesMockState.imageUrlFromGooglePhotoName).not.toHaveBeenCalled()
 
     const searchResultPlaces = screen.getByLabelText(/search result places/i)
     Object.defineProperties(searchResultPlaces, {
@@ -2846,8 +2878,51 @@ describe('<TripWorkspacePage>', () => {
       imageUrl: 'https://example.com/kyoto.jpg',
       startDate: '2026-05-02',
       endDate: '2026-05-03',
+      expectedVersion: 0,
     })
     expect(await screen.findByRole('heading', { level: 2, name: /sunday, may 3/i })).toBeInTheDocument()
+  })
+
+  it('keeps the settings draft and reloads the trip after an edit conflict', async () => {
+    const latestTrip = { ...SAMPLE_TRIP, name: 'Edited elsewhere', version: 1 }
+    apiMock.onGet('/trips/abc234def567').replyOnce(200, SAMPLE_TRIP)
+    apiMock.onGet('/trips/abc234def567').reply(200, latestTrip)
+    apiMock.onGet('/trips/abc234def567/activities').reply(200, [])
+    apiMock.onPatch('/trips/abc234def567').replyOnce(409, { error: 'edit_conflict' })
+    apiMock.onPatch('/trips/abc234def567').reply((config) => [
+      200,
+      { ...latestTrip, name: JSON.parse(config.data as string).name, version: 2 },
+    ])
+
+    renderWorkspace('/trips/abc234def567')
+
+    await userEvent.click(await screen.findByRole('button', { name: /^settings$/i }))
+    const nameInput = screen.getByLabelText(/trip name/i)
+    await userEvent.clear(nameInput)
+    await userEvent.type(nameInput, 'Keep my draft')
+    await userEvent.click(screen.getByRole('button', { name: /save changes/i }))
+
+    expect(await screen.findByText(/latest details were reloaded/i)).toBeInTheDocument()
+    expect(nameInput).toHaveValue('Keep my draft')
+    await waitFor(() => {
+      expect(apiMock.history.get.filter((request) => request.url === '/trips/abc234def567'))
+        .toHaveLength(2)
+    })
+    expect(JSON.parse(apiMock.history.patch[0].data as string)).toMatchObject({
+      name: 'Keep my draft',
+      expectedVersion: 0,
+    })
+
+    await userEvent.click(screen.getByRole('button', { name: /save changes/i }))
+
+    await waitFor(() => {
+      expect(apiMock.history.patch).toHaveLength(2)
+    })
+    expect(JSON.parse(apiMock.history.patch[1].data as string)).toMatchObject({
+      name: 'Keep my draft',
+      expectedVersion: 1,
+    })
+    expect(screen.queryByRole('dialog', { name: /trip settings/i })).not.toBeInTheDocument()
   })
 
   it('shows 404 state for inaccessible or unknown trip', async () => {

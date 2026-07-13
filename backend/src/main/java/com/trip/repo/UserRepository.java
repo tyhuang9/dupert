@@ -1,6 +1,7 @@
 package com.trip.repo;
 
 import java.time.OffsetDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -39,6 +40,12 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     @Query("SELECT u FROM User u WHERE LOWER(u.email) LIKE CONCAT('%', :suffix) ORDER BY u.email")
     List<User> findByEmailEndingWithIgnoreCaseOrderByEmail(@Param("suffix") String suffix);
+
+    /**
+     * Loads only the public attribution fields needed by an activity list.
+     */
+    @Query("SELECT new com.trip.repo.IdDisplayName(u.id, u.displayName) FROM User u WHERE u.id IN :ids")
+    List<IdDisplayName> findDisplayNamesByIdIn(@Param("ids") Collection<Long> ids);
 
     @Modifying
     @Query("DELETE FROM User u WHERE u.emailVerifiedAt IS NULL AND u.createdAt < :before")

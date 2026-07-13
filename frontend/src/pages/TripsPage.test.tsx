@@ -48,6 +48,7 @@ const SAMPLE_TRIP: Trip = {
   imageUrl: null,
   createdAt: '2026-05-22T16:00:00Z',
   role: 'OWNER',
+  version: 0,
 }
 
 const PARIS_TRIP: Trip = {
@@ -59,6 +60,7 @@ const PARIS_TRIP: Trip = {
   imageUrl: null,
   createdAt: '2026-01-10T16:00:00Z',
   role: 'EDITOR',
+  version: 0,
 }
 
 const COASTAL_TRIP: Trip = {
@@ -70,6 +72,7 @@ const COASTAL_TRIP: Trip = {
   imageUrl: null,
   createdAt: '2026-01-12T16:00:00Z',
   role: 'VIEWER',
+  version: 0,
 }
 
 function makeAuth(overrides: Partial<AuthContextValue> = {}): AuthContextValue {

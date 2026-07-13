@@ -13,11 +13,10 @@ public record CreateShareLinkResponse(
     OffsetDateTime createdAt,
     OffsetDateTime expiresAt,
     OffsetDateTime revokedAt,
-    String token,
     String shareUrl
 ) {
 
-    public static CreateShareLinkResponse of(ShareLink link, String token, String shareUrl) {
+    public static CreateShareLinkResponse of(ShareLink link, String shareUrl) {
         return new CreateShareLinkResponse(
             link.getId(),
             link.getRole(),
@@ -26,7 +25,6 @@ public record CreateShareLinkResponse(
             link.getCreatedAt(),
             link.getExpiresAt(),
             link.getRevokedAt(),
-            token,
             shareUrl
         );
     }

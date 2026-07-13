@@ -30,12 +30,14 @@ import {
   useMemo,
   useRef,
   useState,
+  useContext,
   type CSSProperties,
   type FormEvent,
   type ReactNode,
 } from 'react'
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useIsAuthenticated } from '../auth/authStore'
+import { AuthContext } from '../auth/authContextValue'
 import {
   AlertTriangle,
   BedDouble,
@@ -63,7 +65,7 @@ import {
   Utensils,
   X,
 } from 'lucide-react'
-import { parseApiError } from '../api/errors'
+import { apiErrorCode, parseApiError } from '../api/errors'
 import { useTrip, useUpdateTrip } from '../hooks/useTrips'
 import {
   useActivities,
@@ -84,6 +86,7 @@ import {
   useShareLinks,
 } from '../hooks/useShareLinks'
 import { usePageTitle } from '../utils/usePageTitle'
+import { markPerformance } from '../performance/timing'
 import styles from './TripWorkspacePage.module.css'
 import {
   MobileWorkspaceChrome,
@@ -94,12 +97,12 @@ import { ActivityForm } from '../components/ActivityForm'
 import { ActivityList } from '../components/ActivityList'
 import { MapSearchResultsShelf } from '../components/MapSearchResultsShelf'
 import { PlaceSearch } from '../components/PlaceSearch'
+import { GoogleMapsProvider } from '../components/GoogleMapsProvider'
 import { TripDateRangePicker } from '../components/TripDateRangePicker'
 import {
   fetchGooglePlaceById,
   fetchGooglePlaceTextSearch,
   googlePlaceCategoryTypeForQuery,
-  imageUrlFromGooglePhotoName,
   type GooglePlaceTextSearchOptions,
 } from '../components/googlePlaces'
 import { googlePlaceToPlaceSelection } from '../components/placeSelection'
@@ -159,8 +162,6 @@ function pluralize(count: number, singular: string, plural = `${singular}s`): st
 }
 
 const MAP_SEARCH_PAGE_SIZE = 10
-const MAP_SEARCH_THUMBNAIL_HEIGHT = 240
-const MAP_SEARCH_THUMBNAIL_WIDTH = 320
 const GOOGLE_MAPS_DIRECTIONS_URL = 'https://www.google.com/maps/dir/'
 const GOOGLE_MAPS_MAX_WAYPOINTS = 9
 const GOOGLE_MAPS_MAX_DIRECTIONS_URL_LENGTH = 2048
@@ -1180,6 +1181,7 @@ function IdeasRailTab({
 
 interface TripSettingsModalProps {
   activities: Activity[]
+  conflictNotice: boolean
   error: unknown
   onClose: () => void
   onSave: (payload: UpdateTripRequest) => Promise<void>
@@ -1189,6 +1191,7 @@ interface TripSettingsModalProps {
 
 function TripSettingsModal({
   activities,
+  conflictNotice,
   error,
   onClose,
   onSave,
@@ -1215,7 +1218,8 @@ function TripSettingsModal({
   )
   const dateError =
     startDate && endDate && startDate > endDate ? 'Start date must be before end date.' : null
-  const apiErrorMessage = error ? parseApiError(error).topMessage : null
+  const apiErrorMessage =
+    error && apiErrorCode(error) !== 'edit_conflict' ? parseApiError(error).topMessage : null
   const settingsErrorMessage = formError || dateError || apiErrorMessage
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
@@ -1331,6 +1335,13 @@ function TripSettingsModal({
               visible trip date range after saving.
             </p>
           )}
+          {conflictNotice && (
+            <p className={styles.warningText} role="status">
+              <AlertTriangle size={15} aria-hidden="true" />
+              This trip changed elsewhere. The latest details were reloaded; your edits are still
+              here. Review them, then save again to reapply them.
+            </p>
+          )}
           {settingsErrorMessage && (
             <p className={styles.modalError} role="alert">
               {settingsErrorMessage}
@@ -1411,13 +1422,13 @@ function ShareTripModal({
     })
   }
 
-  const handleCopyShareLink = async (link: ShareLink) => {
-    const shareUrl = link.shareUrl ?? knownShareUrls[link.id]
+  const handleCopyShareLink = async (linkId: number) => {
+    const shareUrl = knownShareUrls[linkId]
     if (!shareUrl) return
     try {
       await copyTextToClipboard(shareUrl)
       setClipboardError(null)
-      setCopiedLinkId(link.id)
+      setCopiedLinkId(linkId)
     } catch {
       setCopiedLinkId(null)
       setClipboardError('Clipboard access is unavailable in this browser context.')
@@ -1507,7 +1518,7 @@ function ShareTripModal({
             ) : activeLinks.length > 0 ? (
               <ul className={styles.shareLinkList}>
                 {activeLinks.map((link) => {
-                  const shareUrl = link.shareUrl ?? knownShareUrls[link.id] ?? ''
+                  const shareUrl = knownShareUrls[link.id] ?? ''
                   const savingName = renameMutation.isPending && renameMutation.variables?.linkId === link.id
                   return (
                     <li key={link.id} className={styles.shareLinkItem}>
@@ -1538,7 +1549,9 @@ function ShareTripModal({
                           aria-label={`${defaultShareLinkName(link)} URL`}
                         />
                       ) : (
-                        <p className={styles.itemMeta}>URL unavailable for this older link.</p>
+                        <p className={styles.itemMeta}>
+                          URLs are shown only when a link is created. Create a replacement to get a new URL.
+                        </p>
                       )}
                       <div className={styles.inlineActions}>
                         <button
@@ -1553,7 +1566,7 @@ function ShareTripModal({
                         <button
                           type="button"
                           className={styles.secondaryAction}
-                          onClick={() => void handleCopyShareLink(link)}
+                          onClick={() => void handleCopyShareLink(link.id)}
                           disabled={!shareUrl}
                         >
                           {copiedLinkId === link.id ? (
@@ -1631,7 +1644,6 @@ export function TripWorkspacePage() {
   const [isMapSearchLoadingMore, setIsMapSearchLoadingMore] = useState(false)
   const mapSearchRequestIdRef = useRef(0)
   const mapPlaceDetailsRequestIdRef = useRef(0)
-  const mapSearchPhotoHydrationKeysRef = useRef<Set<string>>(new Set())
   const mapPlaceDetailHeadingRef = useRef<HTMLHeadingElement | null>(null)
   const sidebarPanelRef = useRef<HTMLElement | null>(null)
   const dragStartPointerRef = useRef<PointerCoordinates | null>(null)
@@ -1658,11 +1670,25 @@ export function TripWorkspacePage() {
   const [isMobileDayPickerOpen, setIsMobileDayPickerOpen] = useState(false)
   const [mobileMoveActivity, setMobileMoveActivity] = useState<Activity | null>(null)
   const isMobileViewport = useMediaQuery('(max-width: 820px)')
+  // Public share routes are rendered under AuthProvider in the app, but keeping
+  // this optional preserves the component's standalone test and preview usage.
+  const isInitializing = useContext(AuthContext)?.isInitializing ?? false
   const claimGuestSessionMutation = useClaimGuestSession()
   const shouldClaimGuestSession = isAuthenticated && searchParams.get('claimGuest') === '1'
   const queryPublicId = shouldClaimGuestSession ? undefined : publicId
-  const tripQuery = useTrip(queryPublicId, { enabled: !shouldClaimGuestSession })
-  const activitiesQuery = useActivities(queryPublicId)
+  const isWorkspaceQueryEnabled = !isInitializing && !shouldClaimGuestSession
+  const tripQuery = useTrip(queryPublicId, { enabled: isWorkspaceQueryEnabled })
+  const activitiesQuery = useActivities(queryPublicId, { enabled: isWorkspaceQueryEnabled })
+  useEffect(() => {
+    if (activitiesQuery.isSuccess) {
+      markPerformance('activities-rendered')
+    }
+  }, [activitiesQuery.isSuccess])
+  useEffect(() => {
+    if (tripQuery.isSuccess && activitiesQuery.isSuccess) {
+      markPerformance('workspace-ready')
+    }
+  }, [activitiesQuery.isSuccess, tripQuery.isSuccess])
   const selectedDay = tripQuery.data
     ? day && dayInRange(day, tripQuery.data.startDate, tripQuery.data.endDate)
       ? day
@@ -1671,11 +1697,15 @@ export function TripWorkspacePage() {
   const createActivityMutation = useCreateActivity()
   const updateActivityMutation = useUpdateActivity()
   const updateTripMutation = useUpdateTrip()
+  const [tripEditConflict, setTripEditConflict] = useState(false)
   const deleteActivityMutation = useDeleteActivity()
   const reorderActivitiesMutation = useReorderActivities()
   const reorderIdeasMutation = useReorderIdeas()
   const moveActivityMutation = useMoveActivity()
-  useTripStream(queryPublicId, { bufferActivityEvents: isDraggingActivity })
+  useTripStream(queryPublicId, {
+    bufferActivityEvents: isDraggingActivity,
+    enabled: tripQuery.isSuccess,
+  })
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: { distance: 8 },
@@ -2090,7 +2120,6 @@ export function TripWorkspacePage() {
   const clearMapSearchState = () => {
     mapSearchRequestIdRef.current += 1
     mapPlaceDetailsRequestIdRef.current += 1
-    mapSearchPhotoHydrationKeysRef.current.clear()
     setMapSearchValue('')
     setMapSearchResults([])
     setHiddenMapSearchResultIds(new Set<string>())
@@ -2108,7 +2137,6 @@ export function TripWorkspacePage() {
 
   const closeMapSearchResults = () => {
     mapSearchRequestIdRef.current += 1
-    mapSearchPhotoHydrationKeysRef.current.clear()
     setMapSearchValue('')
     setMapSearchResults([])
     setHiddenMapSearchResultIds(new Set<string>())
@@ -2652,58 +2680,6 @@ export function TripWorkspacePage() {
     }
   }
 
-  const hydrateMapSearchResultPhotos = (
-    places: PlaceSelection[],
-    requestId: number,
-  ) => {
-    const hydratablePlaces = places.filter((place) => {
-      if (place.photoUrl || !place.photoName) return false
-      const hydrationKey = `${requestId}:${placeStableId(place)}`
-      if (mapSearchPhotoHydrationKeysRef.current.has(hydrationKey)) return false
-      mapSearchPhotoHydrationKeysRef.current.add(hydrationKey)
-      return true
-    })
-    if (hydratablePlaces.length === 0) return
-
-    void Promise.all(
-      hydratablePlaces.map(async (place) => ({
-        photoUrl: await imageUrlFromGooglePhotoName({
-          maxHeightPx: MAP_SEARCH_THUMBNAIL_HEIGHT,
-          maxWidthPx: MAP_SEARCH_THUMBNAIL_WIDTH,
-          photoName: place.photoName,
-        }),
-        stableId: placeStableId(place),
-      })),
-    ).then((hydratedPhotos) => {
-      if (mapSearchRequestIdRef.current !== requestId) return
-      const photoUrlByStableId = new Map(
-        hydratedPhotos
-          .filter((hydratedPhoto): hydratedPhoto is { stableId: string; photoUrl: string } =>
-            Boolean(hydratedPhoto.photoUrl),
-          )
-          .map((hydratedPhoto) => [hydratedPhoto.stableId, hydratedPhoto.photoUrl]),
-      )
-      if (photoUrlByStableId.size === 0) return
-
-      setMapSearchResults((current) =>
-        current.map((place) => {
-          const photoUrl = photoUrlByStableId.get(placeStableId(place))
-          return photoUrl && !place.photoUrl ? { ...place, photoUrl } : place
-        }),
-      )
-      setSelectedMapSearchResult((current) => {
-        if (!current || current.photoUrl) return current
-        const photoUrl = photoUrlByStableId.get(placeStableId(current))
-        return photoUrl ? { ...current, photoUrl } : current
-      })
-      setPendingMapPlace((current) => {
-        if (!current || current.photoUrl) return current
-        const photoUrl = photoUrlByStableId.get(placeStableId(current))
-        return photoUrl ? { ...current, photoUrl } : current
-      })
-    })
-  }
-
   const handleMapSearchSubmit = async (query: string) => {
     const trimmedQuery = query.trim()
     if (!trimmedQuery) {
@@ -2712,7 +2688,6 @@ export function TripWorkspacePage() {
     }
     const requestId = mapSearchRequestIdRef.current + 1
     mapSearchRequestIdRef.current = requestId
-    mapSearchPhotoHydrationKeysRef.current.clear()
     setIsMapSearchSubmitting(true)
     try {
       const page = await fetchGooglePlaceTextSearch({
@@ -2738,7 +2713,6 @@ export function TripWorkspacePage() {
       setHoveredMapSearchResultId(null)
       setMapSearchPreview(null)
       setCoordinateMapMarker(null)
-      hydrateMapSearchResultPhotos(places, requestId)
     } catch (error) {
       if (mapSearchRequestIdRef.current === requestId && isMobileViewport) {
         setMapSearchFocusKey((current) => current + 1)
@@ -2769,7 +2743,6 @@ export function TripWorkspacePage() {
       const nextPlaces = page.places.map(googlePlaceToPlaceSelection)
       setMapSearchResults((current) => appendUniquePlaces(current, nextPlaces))
       setMapSearchNextPageToken(page.nextPageToken)
-      hydrateMapSearchResultPhotos(nextPlaces, requestId)
     } finally {
       if (mapSearchRequestIdRef.current === requestId) {
         setIsMapSearchLoadingMore(false)
@@ -3203,9 +3176,32 @@ export function TripWorkspacePage() {
     resetDraggingActivityState()
   }
 
+  const openTripSettings = () => {
+    setTripEditConflict(false)
+    setIsTripSettingsOpen(true)
+  }
+
+  const closeTripSettings = () => {
+    setTripEditConflict(false)
+    setIsTripSettingsOpen(false)
+  }
+
   const handleSaveTripSettings = async (payload: UpdateTripRequest) => {
     if (!publicId || !tripQuery.data) return
-    const updatedTrip = await updateTripMutation.mutateAsync({ publicId, body: payload })
+    setTripEditConflict(false)
+    let updatedTrip: Trip
+    try {
+      updatedTrip = await updateTripMutation.mutateAsync({
+        publicId,
+        body: { ...payload, expectedVersion: tripQuery.data.version },
+      })
+    } catch (error) {
+      if (apiErrorCode(error) === 'edit_conflict') {
+        setTripEditConflict(true)
+        await tripQuery.refetch()
+      }
+      throw error
+    }
     const nextDay = nearestTripDay(selectedDay, updatedTrip.startDate, updatedTrip.endDate)
     setIsTripSettingsOpen(false)
     setExpandedActivityId(null)
@@ -3346,7 +3342,7 @@ export function TripWorkspacePage() {
                     </Link>
                   ) : undefined}
                   isAuthenticated={isAuthenticated}
-                  onOpenSettings={() => setIsTripSettingsOpen(true)}
+                  onOpenSettings={openTripSettings}
                   onOpenShare={() => setIsShareTripOpen(true)}
                   onSelectTab={selectMobileTab}
                   publicId={publicId ?? ''}
@@ -3457,7 +3453,7 @@ export function TripWorkspacePage() {
                       <button
                         type="button"
                         className={styles.sidebarAction}
-                        onClick={() => setIsTripSettingsOpen(true)}
+                        onClick={openTripSettings}
                       >
                         <span className={styles.railIcon}>
                           <Settings size={18} aria-hidden="true" />
@@ -3983,6 +3979,7 @@ export function TripWorkspacePage() {
                   />
                 )}
                 </div>
+                <GoogleMapsProvider>
                 <TripMap
                   activities={mapActivities}
                   activityMarkerColors={workspaceMode === 'timeline' ? timelineActivityMarkerColors : undefined}
@@ -4013,6 +4010,7 @@ export function TripWorkspacePage() {
                   routeSummaryContainer={isMobileViewport ? mapRouteSummaryHost : undefined}
                   viewportFitKey={viewportFitKey}
                 />
+                </GoogleMapsProvider>
               </aside>
               ) : null}
             </section>
@@ -4086,8 +4084,9 @@ export function TripWorkspacePage() {
           {isTripSettingsOpen && (
             <TripSettingsModal
               activities={allActivities}
+              conflictNotice={tripEditConflict}
               error={updateTripMutation.error}
-              onClose={() => setIsTripSettingsOpen(false)}
+              onClose={closeTripSettings}
               onSave={handleSaveTripSettings}
               saving={updateTripMutation.isPending}
               trip={tripQuery.data}

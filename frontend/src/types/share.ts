@@ -8,7 +8,6 @@ export interface ShareLink {
   createdAt: string
   expiresAt: string | null
   revokedAt: string | null
-  shareUrl?: string | null
 }
 
 export interface CreateShareLinkRequest {
@@ -19,7 +18,6 @@ export interface CreateShareLinkRequest {
 }
 
 export interface CreatedShareLink extends ShareLink {
-  token: string
   shareUrl: string
 }
 

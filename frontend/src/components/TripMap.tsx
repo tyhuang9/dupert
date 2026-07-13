@@ -7,6 +7,7 @@ import {
   type CSSProperties,
   type ReactNode,
 } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { createPortal } from 'react-dom'
 import {
   APILoadingStatus,
@@ -18,7 +19,7 @@ import {
   type MapMouseEvent,
 } from '@vis.gl/react-google-maps'
 import { AlertCircle, LoaderCircle, MapPin, MapPinned, Route } from 'lucide-react'
-import { getDrivingDirections, type AppRoute, type LatLng } from '../api/googleMapsRoute'
+import { getDrivingDirections, type LatLng } from '../api/googleMapsRoute'
 import { geocodeDestination, type DestinationCoordinate } from '../api/googleMapsGeocode'
 import type { Activity } from '../types/activity'
 import type { PlaceSelection } from '../types/place'
@@ -28,6 +29,7 @@ import {
   googleMapsMapId,
   googleRoutesFailureMessage,
 } from '../utils/googleMapsAccess'
+import { markPerformance } from '../performance/timing'
 import {
   createPlaceDetailsTraceId,
   logPlaceDetailsTiming,
@@ -185,6 +187,11 @@ const ACTIVE_ROUTE_STYLE = {
   strokeOpacity: 0.95,
   strokeWeight: 6,
 } as const
+
+const MAP_ROUTE_STALE_TIME_MS = 60 * 60 * 1000
+const MAP_ROUTE_GC_TIME_MS = 60 * 60 * 1000
+const MAP_GEOCODE_STALE_TIME_MS = 30 * 24 * 60 * 60 * 1000
+const MAP_GEOCODE_GC_TIME_MS = 60 * 60 * 1000
 
 function isFiniteCoordinate(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value)
@@ -533,26 +540,7 @@ function TripMapContent({
   const mapId = googleMapsMapId()
   const map = useMap('trip-map')
   const apiLoadingStatus = useApiLoadingStatus()
-  const [directionsState, setDirectionsState] = useState<{
-    error: string | null
-    key: string
-    route: AppRoute | null
-  }>({
-    error: null,
-    key: '',
-    route: null,
-  })
-  const [routeCache, setRouteCache] = useState(() => new globalThis.Map<string, AppRoute | null>())
   const [activeRouteLeg, setActiveRouteLeg] = useState<ActiveRouteLeg | null>(null)
-  const [destinationState, setDestinationState] = useState<{
-    coordinate: DestinationCoordinate | null
-    error: 'not-found' | 'request-failed' | null
-    key: string
-  }>({
-    coordinate: null,
-    error: null,
-    key: '',
-  })
   const lastViewportFitKeyRef = useRef<string | null>(null)
   const selectedMappedActivities = useMemo(
     () =>
@@ -584,8 +572,15 @@ function TripMapContent({
     fallbackMappedActivities.length === 0
       ? destination?.trim() ?? ''
       : ''
-  const destinationCoordinate =
-    destinationState.key === destinationKey ? destinationState.coordinate : null
+  const destinationQuery = useQuery({
+    queryKey: ['maps', 'geocode', destinationKey],
+    queryFn: ({ signal }) => geocodeDestination(destinationKey, signal),
+    enabled: Boolean(destinationKey),
+    staleTime: MAP_GEOCODE_STALE_TIME_MS,
+    gcTime: MAP_GEOCODE_GC_TIME_MS,
+    retry: false,
+  })
+  const destinationCoordinate = destinationQuery.data ?? null
   const previewDisplayStop = useMemo(
     () => previewPlaceToDisplayStop(previewPlace),
     [previewPlace],
@@ -609,10 +604,12 @@ function TripMapContent({
         : null,
     [searchDisplayStops, selectedSearchResultId],
   )
-  const destinationError =
-    destinationState.key === destinationKey ? destinationState.error : null
-  const destinationLoading =
-    Boolean(destinationKey) && destinationState.key !== destinationKey
+  const destinationError = destinationQuery.isError
+    ? 'request-failed'
+    : destinationQuery.isSuccess && destinationCoordinate === null
+      ? 'not-found'
+      : null
+  const destinationLoading = Boolean(destinationKey) && destinationQuery.isLoading
   const baseDisplayStops = useMemo(() => {
     if (selectedMappedActivities.length > 0) {
       return selectedMappedActivities.map((activity, index) =>
@@ -665,14 +662,17 @@ function TripMapContent({
       routeMappedActivities.map((activity) => `${activity.lng},${activity.lat}`).join(';'),
     [routeMappedActivities],
   )
-  const hasCachedRoute = routeKey !== '' && routeCache.has(routeKey)
-  const cachedRoute = hasCachedRoute ? routeCache.get(routeKey) ?? null : null
-  const currentRoute = directionsState.key === routeKey ? directionsState.route : cachedRoute
-  const routeError = directionsState.key === routeKey ? directionsState.error : null
-  const routeLoading =
-    routeMappedActivities.length >= 2 &&
-    directionsState.key !== routeKey &&
-    !hasCachedRoute
+  const routeQuery = useQuery({
+    queryKey: ['maps', 'driving-route', routeKey],
+    queryFn: ({ signal }) => getDrivingDirections(routeMappedActivities, signal),
+    enabled: routeMappedActivities.length >= 2,
+    staleTime: MAP_ROUTE_STALE_TIME_MS,
+    gcTime: MAP_ROUTE_GC_TIME_MS,
+    retry: false,
+  })
+  const currentRoute = routeQuery.data ?? null
+  const routeError = routeQuery.isError ? googleRoutesFailureMessage(routeQuery.error) : null
+  const routeLoading = routeQuery.isLoading
   const mapLoadFailed =
     apiLoadingStatus === APILoadingStatus.FAILED ||
     apiLoadingStatus === APILoadingStatus.AUTH_FAILURE
@@ -782,6 +782,7 @@ function TripMapContent({
       bounds,
     })
   }, [map, onViewportContextChange])
+  const mapReadyReportedRef = useRef(false)
 
   const handleMapClick = useCallback((event: MapMouseEvent) => {
     const clickedAtMs = placeDetailsNowMs()
@@ -801,62 +802,6 @@ function TripMapContent({
     })
     onMapPlaceClick?.({ clickedAtIso, clickedAtMs, location, placeId, traceId })
   }, [onMapPlaceClick])
-
-  useEffect(() => {
-    const controller = new AbortController()
-    if (routeMappedActivities.length < 2) {
-      return () => controller.abort()
-    }
-    if (routeCache.has(routeKey)) {
-      return () => controller.abort()
-    }
-
-    void getDrivingDirections(routeMappedActivities, controller.signal)
-      .then((nextRoute) => {
-        if (controller.signal.aborted) return
-        setRouteCache((current) => {
-          const next = new globalThis.Map(current)
-          next.set(routeKey, nextRoute)
-          return next
-        })
-        setDirectionsState({ error: null, key: routeKey, route: nextRoute })
-      })
-      .catch((error: unknown) => {
-        if (error instanceof DOMException && error.name === 'AbortError') return
-        if (controller.signal.aborted) return
-        setDirectionsState({
-          error: googleRoutesFailureMessage(error),
-          key: routeKey,
-          route: null,
-        })
-      })
-
-    return () => controller.abort()
-  }, [routeCache, routeKey, routeMappedActivities])
-
-  useEffect(() => {
-    const controller = new AbortController()
-    if (!destinationKey || destinationState.key === destinationKey) {
-      return () => controller.abort()
-    }
-
-    void geocodeDestination(destinationKey, controller.signal)
-      .then((coordinate) => {
-        if (controller.signal.aborted) return
-        setDestinationState({
-          coordinate,
-          error: coordinate === null ? 'not-found' : null,
-          key: destinationKey,
-        })
-      })
-      .catch((error: unknown) => {
-        if (error instanceof DOMException && error.name === 'AbortError') return
-        if (controller.signal.aborted) return
-        setDestinationState({ coordinate: null, error: 'request-failed', key: destinationKey })
-      })
-
-    return () => controller.abort()
-  }, [destinationKey, destinationState.key])
 
   useEffect(() => {
     if (!map || baseDisplayStops.length === 0 || !baseDisplayKey) return
@@ -974,7 +919,13 @@ function TripMapContent({
           streetViewControl={false}
           zoomControl={false}
           gestureHandling="greedy"
-          onTilesLoaded={reportViewportContext}
+          onTilesLoaded={() => {
+            reportViewportContext()
+            if (!mapReadyReportedRef.current) {
+              mapReadyReportedRef.current = true
+              markPerformance('map-ready')
+            }
+          }}
           onCameraChanged={(event: MapCameraChangedEvent) => {
             onViewportContextChange?.({
               center: {

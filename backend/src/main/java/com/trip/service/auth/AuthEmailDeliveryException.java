@@ -71,6 +71,15 @@ public class AuthEmailDeliveryException extends RuntimeException {
         return providerResponseBody;
     }
 
+    /**
+     * A 4xx response is a definite provider rejection. Missing statuses (I/O and
+     * timeouts) and 5xx responses are intentionally ambiguous because Brevo may have
+     * accepted the message before the response path failed.
+     */
+    public boolean isExplicitProviderRejection() {
+        return statusCode != null && statusCode >= 400 && statusCode < 500;
+    }
+
     static String sanitizeProviderBody(String responseBody) {
         if (responseBody == null || responseBody.isBlank()) {
             return "";
