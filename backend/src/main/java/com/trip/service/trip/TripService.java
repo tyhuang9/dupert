@@ -8,6 +8,8 @@ import java.util.Map;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import jakarta.persistence.OptimisticLockException;
+
 import com.trip.domain.Trip;
 import com.trip.domain.TripMember;
 import com.trip.domain.TripRole;
@@ -114,6 +116,14 @@ public class TripService {
             tripAccessGuard.resolveForActorAtLeast(publicId, actor, TripRole.EDITOR);
         Trip trip = resolved.trip();
 
+        // expectedVersion is deliberately optional for the initial deployment: clients
+        // with an already-cached pre-revision payload may still update once. New clients
+        // always submit it, which turns a stale form into a deterministic 409 before any
+        // fields are changed. @Version still protects concurrent database writes.
+        if (request.expectedVersion() != null && request.expectedVersion() != trip.getVersion()) {
+            throw new OptimisticLockException("Trip changed since the submitted revision");
+        }
+
         if (request.name() != null) {
             trip.setName(request.name().trim());
         }
@@ -135,7 +145,10 @@ public class TripService {
             trip.setEndDate(mergedEnd);
         }
 
-        Trip saved = tripRepository.save(trip);
+        // Flush before serializing so the response contains JPA's incremented version.
+        // Returning before the flush would hand the client the old revision and make its
+        // next valid edit look stale.
+        Trip saved = tripRepository.saveAndFlush(trip);
         return TripResponse.of(saved, resolved.role());
     }
 

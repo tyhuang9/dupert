@@ -22,12 +22,23 @@ public interface ActivityRepository extends JpaRepository<Activity, Long> {
     /**
      * Find all activities for a specific day of a trip, ordered by {@code order_index}.
      */
-    List<Activity> findByTripIdAndDayDateOrderByOrderIndex(Long tripId, LocalDate dayDate);
+    @Query("""
+        SELECT a FROM Activity a
+        WHERE a.tripId = :tripId AND a.dayDate = :dayDate
+        ORDER BY a.orderIndex, a.id
+        """)
+    List<Activity> findByTripIdAndDayDateOrderByOrderIndex(@Param("tripId") Long tripId,
+                                                             @Param("dayDate") LocalDate dayDate);
 
     /**
      * Find all no-day idea activities for a trip, ordered by {@code order_index}.
      */
-    List<Activity> findByTripIdAndDayDateIsNullOrderByOrderIndex(Long tripId);
+    @Query("""
+        SELECT a FROM Activity a
+        WHERE a.tripId = :tripId AND a.dayDate IS NULL
+        ORDER BY a.orderIndex, a.id
+        """)
+    List<Activity> findByTripIdAndDayDateIsNullOrderByOrderIndex(@Param("tripId") Long tripId);
 
     /**
      * Find all activities for a trip within a date range, ordered by day and then index.
@@ -36,7 +47,7 @@ public interface ActivityRepository extends JpaRepository<Activity, Long> {
         SELECT a FROM Activity a
         WHERE a.tripId = :tripId
           AND (a.dayDate IS NULL OR a.dayDate BETWEEN :startDate AND :endDate)
-        ORDER BY CASE WHEN a.dayDate IS NULL THEN 1 ELSE 0 END, a.dayDate, a.orderIndex
+        ORDER BY CASE WHEN a.dayDate IS NULL THEN 1 ELSE 0 END, a.dayDate, a.orderIndex, a.id
         """)
     List<Activity> findAllVisibleForTrip(@Param("tripId") Long tripId, @Param("startDate") LocalDate startDate, @Param("endDate") LocalDate endDate);
 

@@ -146,6 +146,7 @@ export function GooglePlaceAutocomplete({
     const requestVersion = requestVersionRef.current + 1
     requestVersionRef.current = requestVersion
     let cancelled = false
+    const controller = new AbortController()
 
     const timeout = window.setTimeout(() => {
       const sessionToken = sessionTokenRef.current ?? newSessionToken()
@@ -155,6 +156,7 @@ export function GooglePlaceAutocomplete({
         options,
         query,
         sessionToken,
+        signal: controller.signal,
       })
         .then((nextSuggestions) => {
           if (cancelled || requestVersionRef.current !== requestVersion) return
@@ -163,6 +165,7 @@ export function GooglePlaceAutocomplete({
           onSearchError?.(null)
         })
         .catch((error: unknown) => {
+          if (controller.signal.aborted) return
           if (cancelled || requestVersionRef.current !== requestVersion) return
           setSuggestions([])
           setOpen(false)
@@ -173,6 +176,7 @@ export function GooglePlaceAutocomplete({
     return () => {
       cancelled = true
       window.clearTimeout(timeout)
+      controller.abort()
     }
   }, [onSearchError, options, query, searchFailedMessage])
 

@@ -134,7 +134,8 @@ class TripControllerTest {
             .andExpect(status().isCreated())
             .andExpect(jsonPath("$.publicId").value(TRIP_PUBLIC_ID))
             .andExpect(jsonPath("$.name").value("Tokyo 2026"))
-            .andExpect(jsonPath("$.role").value("OWNER"));
+            .andExpect(jsonPath("$.role").value("OWNER"))
+            .andExpect(jsonPath("$.version").value(0));
 
         verify(tripMemberRepository).save(any(TripMember.class));
     }
@@ -394,13 +395,13 @@ class TripControllerTest {
     // ------------------------------------------------------------------
 
     @Test
-    void patchUpdatesProvidedFieldsAndLeavesOthers() throws Exception {
+    void patchWithoutExpectedVersionRemainsCompatibleDuringInitialRollout() throws Exception {
         Trip t = trip(TRIP_PK, TRIP_PUBLIC_ID, ALICE_ID, "OldName", "OldDest",
             LocalDate.of(2026, 5, 1), LocalDate.of(2026, 5, 5));
         when(tripRepository.findByPublicId(TRIP_PUBLIC_ID)).thenReturn(Optional.of(t));
         when(tripMemberRepository.findByIdTripIdAndIdUserId(TRIP_PK, ALICE_ID))
             .thenReturn(Optional.of(new TripMember(TRIP_PK, ALICE_ID, TripRole.OWNER)));
-        when(tripRepository.save(any(Trip.class))).thenAnswer(i -> i.getArgument(0));
+        when(tripRepository.saveAndFlush(any(Trip.class))).thenAnswer(i -> i.getArgument(0));
 
         mvc.perform(patch("/api/trips/" + TRIP_PUBLIC_ID)
                 .header("Authorization", bearerFor(ALICE_ID))
@@ -410,7 +411,46 @@ class TripControllerTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.name").value("NewName"))
             .andExpect(jsonPath("$.destination").value("OldDest"))
-            .andExpect(jsonPath("$.startDate").value("2026-05-01"));
+            .andExpect(jsonPath("$.startDate").value("2026-05-01"))
+            .andExpect(jsonPath("$.version").value(0));
+    }
+
+    @Test
+    void patchWithMatchingExpectedVersionUpdatesTrip() throws Exception {
+        Trip t = trip(TRIP_PK, TRIP_PUBLIC_ID, ALICE_ID, "OldName", "OldDest",
+            LocalDate.of(2026, 5, 1), LocalDate.of(2026, 5, 5));
+        when(tripRepository.findByPublicId(TRIP_PUBLIC_ID)).thenReturn(Optional.of(t));
+        when(tripMemberRepository.findByIdTripIdAndIdUserId(TRIP_PK, ALICE_ID))
+            .thenReturn(Optional.of(new TripMember(TRIP_PK, ALICE_ID, TripRole.OWNER)));
+        when(tripRepository.saveAndFlush(any(Trip.class))).thenAnswer(i -> i.getArgument(0));
+
+        mvc.perform(patch("/api/trips/" + TRIP_PUBLIC_ID)
+                .header("Authorization", bearerFor(ALICE_ID))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new UpdateTripRequest(
+                    "NewName", null, null, null, null, 0L))))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.name").value("NewName"))
+            .andExpect(jsonPath("$.version").value(0));
+    }
+
+    @Test
+    void patchWithStaleExpectedVersionReturnsEditConflictWithoutWriting() throws Exception {
+        Trip t = trip(TRIP_PK, TRIP_PUBLIC_ID, ALICE_ID, "OldName", "OldDest",
+            LocalDate.of(2026, 5, 1), LocalDate.of(2026, 5, 5));
+        when(tripRepository.findByPublicId(TRIP_PUBLIC_ID)).thenReturn(Optional.of(t));
+        when(tripMemberRepository.findByIdTripIdAndIdUserId(TRIP_PK, ALICE_ID))
+            .thenReturn(Optional.of(new TripMember(TRIP_PK, ALICE_ID, TripRole.OWNER)));
+
+        mvc.perform(patch("/api/trips/" + TRIP_PUBLIC_ID)
+                .header("Authorization", bearerFor(ALICE_ID))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(new UpdateTripRequest(
+                    "NewName", null, null, null, null, 1L))))
+            .andExpect(status().isConflict())
+            .andExpect(jsonPath("$.error").value("edit_conflict"));
+
+        verify(tripRepository, never()).saveAndFlush(any(Trip.class));
     }
 
     @Test
@@ -429,7 +469,7 @@ class TripControllerTest {
             .andExpect(status().isNotFound())
             .andExpect(jsonPath("$.error").value("not_found"));
 
-        verify(tripRepository, never()).save(any(Trip.class));
+        verify(tripRepository, never()).saveAndFlush(any(Trip.class));
     }
 
     @Test

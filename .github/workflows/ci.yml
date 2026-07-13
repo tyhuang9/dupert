@@ -99,6 +99,12 @@ jobs:
         working-directory: frontend
         run: npm run build
 
+      - name: Enforce bundle budgets
+        working-directory: frontend
+        env:
+          BUNDLE_BUDGET_ENFORCE: 'true'
+        run: npm run check:bundle-budget
+
       - name: Audit production dependencies
         working-directory: frontend
         run: npm audit --omit=dev

@@ -18,7 +18,9 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.HexFormat;
+import java.util.List;
 import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -27,6 +29,9 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.transaction.support.SimpleTransactionStatus;
+import org.springframework.transaction.support.TransactionCallback;
+import org.springframework.transaction.support.TransactionOperations;
 
 import com.trip.domain.EmailVerificationToken;
 import com.trip.domain.User;
@@ -114,6 +119,46 @@ class EmailVerificationServiceTest {
         assertThat(revoked.getRevokedAt()).isEqualTo(NOW);
         assertThat(revoked.isUsableAt(NOW)).isFalse();
         verify(tokenRepository).revokeActiveForUser(42L, NOW);
+    }
+
+    @Test
+    void queueInitialVerificationRetainsTokenWhenProviderReturns5xx() {
+        User user = userWith(42L, "alice@example.com", "Alice");
+        when(userRepository.findById(42L)).thenReturn(Optional.of(user));
+        when(tokenRepository.findByTokenHash(anyString())).thenReturn(Optional.empty());
+        when(tokenRepository.save(any(EmailVerificationToken.class)))
+            .thenAnswer(invocation -> invocation.getArgument(0));
+        doThrow(AuthEmailDeliveryException.brevoStatus(
+            "email_verification", 503, "provider unavailable"))
+            .when(emailSender)
+            .sendEmailVerification(any());
+
+        service.queueInitialVerification(42L);
+
+        ArgumentCaptor<EmailVerificationToken> tokenCaptor =
+            ArgumentCaptor.forClass(EmailVerificationToken.class);
+        verify(tokenRepository).save(tokenCaptor.capture());
+        assertThat(tokenCaptor.getValue().getRevokedAt()).isNull();
+    }
+
+    @Test
+    void queueInitialVerificationCommitsTokenBeforeSynchronousProviderCall() {
+        List<String> events = new ArrayList<>();
+        service = serviceWith(transactionRunner(events));
+        User user = userWith(42L, "alice@example.com", "Alice");
+        when(userRepository.findById(42L)).thenReturn(Optional.of(user));
+        when(tokenRepository.findByTokenHash(anyString())).thenReturn(Optional.empty());
+        when(tokenRepository.save(any(EmailVerificationToken.class)))
+            .thenAnswer(invocation -> invocation.getArgument(0));
+        org.mockito.Mockito.doAnswer(invocation -> {
+            events.add("provider:send");
+            return null;
+        }).when(emailSender).sendEmailVerification(any());
+
+        service.queueInitialVerification(42L);
+
+        assertThat(events).containsSubsequence(
+            "database:begin", "database:commit", "outside:begin", "provider:send", "outside:complete");
     }
 
     @Test
@@ -217,6 +262,36 @@ class EmailVerificationServiceTest {
             throw new RuntimeException(e);
         }
         return user;
+    }
+
+    private EmailVerificationService serviceWith(AuthEmailTransactionRunner transactionRunner) {
+        return new EmailVerificationService(
+            tokenRepository,
+            userRepository,
+            emailSender,
+            new SecureRandom(new byte[] { 4, 3, 2, 1 }),
+            Clock.fixed(NOW.toInstant(), ZoneOffset.UTC),
+            transactionRunner);
+    }
+
+    private static AuthEmailTransactionRunner transactionRunner(List<String> events) {
+        return new AuthEmailTransactionRunner(
+            recordingTransactions(events, "database"),
+            recordingTransactions(events, "outside"));
+    }
+
+    private static TransactionOperations recordingTransactions(List<String> events, String name) {
+        return new TransactionOperations() {
+            @Override
+            public <T> T execute(TransactionCallback<T> action) {
+                events.add(name + ":begin");
+                try {
+                    return action.doInTransaction(new SimpleTransactionStatus());
+                } finally {
+                    events.add(name + ("database".equals(name) ? ":commit" : ":complete"));
+                }
+            }
+        };
     }
 
     private static String sha256Hex(String input) {
