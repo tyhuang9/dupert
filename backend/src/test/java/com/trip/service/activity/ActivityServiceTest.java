@@ -25,6 +25,7 @@ import com.trip.domain.TripRole;
 import com.trip.repo.ActivityRepository;
 import com.trip.repo.GuestSessionRepository;
 import com.trip.repo.IdDisplayName;
+import com.trip.repo.TripRepository;
 import com.trip.repo.UserRepository;
 import com.trip.service.realtime.TripEventPublisher;
 import com.trip.service.trip.ReflectionIds;
@@ -45,6 +46,9 @@ class ActivityServiceTest {
     ActivityRepository activityRepository;
 
     @Mock
+    TripRepository tripRepository;
+
+    @Mock
     UserRepository userRepository;
 
     @Mock
@@ -60,7 +64,7 @@ class ActivityServiceTest {
 
     @BeforeEach
     void setUp() {
-        activityService = new ActivityService(activityRepository, userRepository,
+        activityService = new ActivityService(activityRepository, tripRepository, userRepository,
             guestSessionRepository, tripAccessGuard, tripEventPublisher);
         Trip trip = new Trip(TRIP_PUBLIC_ID, 1L, "Tokyo", "Tokyo", START_DATE, END_DATE);
         ReflectionIds.setId(trip, TRIP_ID);
