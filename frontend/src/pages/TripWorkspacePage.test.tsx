@@ -8,6 +8,7 @@ import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { apiClient } from '../api/client'
 import { useAuthStore } from '../auth/authStore'
 import type { Activity } from '../types/activity'
+import type { ShareLink } from '../types/share'
 import type { Trip } from '../types/trip'
 import {
   activityDragId,
@@ -456,6 +457,17 @@ const SAMPLE_ACTIVITY: Activity = {
   version: 0,
 }
 
+const ACTIVE_SHARE_LINK: ShareLink = {
+  id: 7,
+  name: 'Tokyo editor invite',
+  role: 'EDITOR',
+  allowAnonymous: true,
+  createdAt: '2026-05-22T16:00:00Z',
+  expiresAt: null,
+  revokedAt: null,
+  shareUrl: 'https://dupert.test/share/token-7',
+}
+
 function Providers({ children }: PropsWithChildren) {
   return (
     <QueryClientProvider client={queryClient}>
@@ -723,6 +735,26 @@ describe('<TripWorkspacePage>', () => {
       expect(screen.queryByRole('dialog', { name: /tokyo 2026/i })).not.toBeInTheDocument()
       expect(menuButton).toHaveFocus()
     })
+  })
+
+  it('keeps share-link management in Share trip, not its member list', async () => {
+    mockViewport(true)
+    mockWorkspace()
+    apiMock.onGet('/trips/abc234def567/share-links').reply(200, [ACTIVE_SHARE_LINK])
+
+    renderWorkspace('/trips/abc234def567/d/2026-05-03')
+
+    await screen.findByRole('heading', { level: 1, name: /tokyo 2026/i })
+    await userEvent.click(screen.getByRole('button', { name: /open trip menu/i }))
+    await userEvent.click(screen.getByRole('button', { name: /^share trip$/i }))
+
+    const shareDialog = await screen.findByRole('dialog', { name: /^share trip$/i })
+    expect(within(shareDialog).getByRole('heading', { name: /^create link$/i })).toBeInTheDocument()
+    expect(within(shareDialog).getByRole('button', { name: /^rename$/i })).toBeInTheDocument()
+    expect(within(shareDialog).getByRole('button', { name: /copy url/i })).toBeInTheDocument()
+    expect(within(shareDialog).getByRole('button', { name: /^revoke$/i })).toBeInTheDocument()
+    expect(within(shareDialog).queryByRole('heading', { name: /^members$/i })).not.toBeInTheDocument()
+    expect(apiMock.history.get.map(({ url }) => url)).not.toContain('/trips/abc234def567/members')
   })
 
   it('moves a mobile activity through the explicit day-picker action', async () => {
