@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import MockAdapter from 'axios-mock-adapter'
-import type { PropsWithChildren, ReactNode } from 'react'
+import { useEffect, useRef, type PropsWithChildren, type ReactNode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { apiClient } from '../api/client'
@@ -321,6 +321,7 @@ vi.mock('../components/PlaceSearch', () => ({
   }),
   PlaceSearch: ({
     contextLabel,
+    focusKey,
     onPlaceSelect,
     onPlacePreview,
     onSearchSubmit,
@@ -329,6 +330,7 @@ vi.mock('../components/PlaceSearch', () => ({
     searchOptions,
   }: {
     contextLabel?: string
+    focusKey?: number
     onPlaceSelect: (place: Record<string, unknown>) => void
     onPlacePreview?: (place: Record<string, unknown> | null) => void
     onSearchSubmit?: (query: string) => Promise<void> | void
@@ -339,6 +341,14 @@ vi.mock('../components/PlaceSearch', () => ({
       proximity?: { lng: number; lat: number }
     }
   }) => {
+    const inputRef = useRef<HTMLInputElement | null>(null)
+    const previousFocusKeyRef = useRef(focusKey)
+    useEffect(() => {
+      if (previousFocusKeyRef.current !== focusKey) {
+        inputRef.current?.focus()
+      }
+      previousFocusKeyRef.current = focusKey
+    }, [focusKey])
     placeSearchMockState.searchOptions = searchOptions ?? null
     const place = {
       category: 'ACTIVITY',
@@ -353,6 +363,12 @@ vi.mock('../components/PlaceSearch', () => ({
     return (
       <div>
         {contextLabel && <div>{contextLabel}</div>}
+        <input
+          ref={inputRef}
+          aria-label="Map place search"
+          value={searchValue ?? ''}
+          readOnly
+        />
         <div data-testid="place-search-value">{searchValue ?? ''}</div>
         <div data-testid="place-search-proximity">
           {searchOptions?.proximity
@@ -379,7 +395,7 @@ vi.mock('../components/PlaceSearch', () => ({
         <button
           type="button"
           onClick={() => {
-            void onSearchSubmit?.(searchValue || 'ramen')
+            void Promise.resolve(onSearchSubmit?.(searchValue || 'ramen')).catch(() => undefined)
           }}
         >
           Mock submit place search
@@ -387,7 +403,7 @@ vi.mock('../components/PlaceSearch', () => ({
         <button
           type="button"
           onClick={() => {
-            void onSearchSubmit?.('restaurants')
+            void Promise.resolve(onSearchSubmit?.('restaurants')).catch(() => undefined)
           }}
         >
           Mock submit restaurants search
@@ -2221,6 +2237,273 @@ describe('<TripWorkspacePage>', () => {
     expect(screen.getByTestId('search-map-results')).toBeEmptyDOMElement()
     expect(screen.getByTestId('place-search-value')).toHaveTextContent('')
     expect(screen.queryByLabelText(/selected map place/i)).not.toBeInTheDocument()
+  })
+
+  it('keeps mobile search results and place details as exclusive sheets', async () => {
+    mockViewport(true)
+    mockWorkspace()
+    const ramenPlace = {
+      businessStatus: 'OPERATIONAL',
+      currentOpeningHours: null,
+      displayName: 'Ramen Street',
+      formattedAddress: '1 Chome Marunouchi, Tokyo',
+      googleMapsUri: 'https://maps.google.com/?cid=ramen',
+      id: 'google.ramen-street',
+      lat: 35.6812,
+      lng: 139.7671,
+      photoUrl: 'https://example.com/ramen-street.webp',
+      primaryType: 'restaurant',
+      primaryTypeDisplayName: 'Restaurant',
+      rating: 4.4,
+      regularOpeningHours: null,
+      reviews: [],
+      text: 'Ramen Street, 1 Chome Marunouchi, Tokyo',
+      types: ['restaurant'],
+      userRatingCount: 1200,
+      websiteUri: null,
+    }
+    googlePlacesMockState.fetchGooglePlaceTextSearch.mockResolvedValueOnce({
+      nextPageToken: null,
+      places: [ramenPlace],
+    })
+    googlePlacesMockState.fetchGooglePlaceById.mockResolvedValue(ramenPlace)
+
+    renderWorkspace('/trips/abc234def567/d/2026-05-01')
+
+    await userEvent.click(await screen.findByRole('button', { name: /^map$/i }))
+    await screen.findByTestId('trip-map')
+    await userEvent.click(screen.getByRole('button', { name: /mock place search/i }))
+    expect(screen.getByLabelText(/selected map place/i)).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: /mock type ramen search/i }))
+    await userEvent.click(screen.getByRole('button', { name: /mock submit place search/i }))
+
+    const resultsSheet = await screen.findByLabelText(/map search results/i)
+    expect(screen.queryByLabelText(/selected map place/i)).not.toBeInTheDocument()
+    expect(within(resultsSheet).getByText('1 place')).toBeInTheDocument()
+    expect(within(resultsSheet).getByLabelText(/search result places/i)).toHaveAttribute(
+      'data-layout',
+      'vertical',
+    )
+    expect(within(resultsSheet).queryByRole('button', {
+      name: /scroll search results/i,
+    })).not.toBeInTheDocument()
+    const ramenResult = within(resultsSheet).getByRole('button', { name: /ramen street/i })
+    await waitFor(() => {
+      expect(ramenResult).toHaveFocus()
+    })
+
+    await userEvent.click(ramenResult)
+
+    const detailSheet = await screen.findByLabelText(/selected map place/i)
+    expect(screen.queryByLabelText(/map search results/i)).not.toBeInTheDocument()
+    expect(within(detailSheet).getByRole('button', { name: /back to results/i })).toBeInTheDocument()
+    expect(within(detailSheet).getAllByRole('button', { name: /close place details/i })).toHaveLength(1)
+    const detailHeading = within(detailSheet).getByRole('heading', { name: /ramen street/i })
+    await waitFor(() => {
+      expect(detailHeading).toHaveFocus()
+    })
+
+    await userEvent.click(within(detailSheet).getByRole('button', { name: /back to results/i }))
+
+    const restoredResults = await screen.findByLabelText(/map search results/i)
+    expect(screen.queryByLabelText(/selected map place/i)).not.toBeInTheDocument()
+    expect(screen.getByTestId('place-search-value')).toHaveTextContent('ramen')
+    await waitFor(() => {
+      expect(within(restoredResults).getByRole('button', { name: /ramen street/i })).toHaveFocus()
+    })
+
+    await userEvent.click(
+      within(restoredResults).getByRole('button', { name: /ramen street/i }),
+    )
+    const reopenedDetail = await screen.findByLabelText(/selected map place/i)
+    await userEvent.click(
+      within(reopenedDetail).getByRole('button', { name: /close place details/i }),
+    )
+
+    expect(screen.queryByLabelText(/selected map place/i)).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/map search results/i)).not.toBeInTheDocument()
+    expect(screen.getByTestId('place-search-value')).toHaveTextContent('')
+    expect(screen.getByRole('textbox', { name: /map place search/i })).toHaveFocus()
+  })
+
+  it('preserves the active mobile place details when a text search fails', async () => {
+    mockViewport(true)
+    mockWorkspace()
+    googlePlacesMockState.fetchGooglePlaceTextSearch.mockRejectedValueOnce(new Error('search failed'))
+
+    renderWorkspace('/trips/abc234def567/d/2026-05-01')
+
+    await userEvent.click(await screen.findByRole('button', { name: /^map$/i }))
+    await userEvent.click(screen.getByRole('button', { name: /mock place search/i }))
+    const activeDetail = screen.getByLabelText(/selected map place/i)
+    expect(within(activeDetail).getByRole('heading', { name: /tokyo tower/i })).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: /mock type ramen search/i }))
+    await userEvent.click(screen.getByRole('button', { name: /mock submit place search/i }))
+
+    await waitFor(() => {
+      expect(googlePlacesMockState.fetchGooglePlaceTextSearch).toHaveBeenCalledTimes(1)
+      expect(document.getElementById('map-search-panel')).toHaveAttribute('aria-busy', 'false')
+    })
+    expect(within(screen.getByLabelText(/selected map place/i)).getByRole('heading', {
+      name: /tokyo tower/i,
+    })).toBeInTheDocument()
+    expect(screen.queryByLabelText(/map search results/i)).not.toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.getByRole('textbox', { name: /map place search/i })).toHaveFocus()
+    })
+  })
+
+  it('preserves a new activity draft through mobile map search and place selection', async () => {
+    mockViewport(true)
+    mockWorkspace()
+    const ramenPlace = {
+      businessStatus: 'OPERATIONAL',
+      currentOpeningHours: null,
+      displayName: 'Ramen Street',
+      formattedAddress: '1 Chome Marunouchi, Tokyo',
+      googleMapsUri: 'https://maps.google.com/?cid=ramen',
+      id: 'google.ramen-street',
+      lat: 35.6812,
+      lng: 139.7671,
+      photoUrl: null,
+      primaryType: 'restaurant',
+      primaryTypeDisplayName: 'Restaurant',
+      rating: 4.4,
+      regularOpeningHours: null,
+      reviews: [],
+      text: 'Ramen Street, 1 Chome Marunouchi, Tokyo',
+      types: ['restaurant'],
+      userRatingCount: 1200,
+      websiteUri: null,
+    }
+    googlePlacesMockState.fetchGooglePlaceTextSearch.mockResolvedValueOnce({
+      nextPageToken: null,
+      places: [ramenPlace],
+    })
+    googlePlacesMockState.fetchGooglePlaceById.mockResolvedValue(ramenPlace)
+
+    renderWorkspace('/trips/abc234def567/d/2026-05-01')
+
+    await userEvent.click((await screen.findAllByRole('button', { name: /add activity/i }))[0])
+    await userEvent.click(screen.getByRole('button', { name: /category: other/i }))
+    await userEvent.click(screen.getByRole('menuitemradio', { name: /meal/i }))
+    await userEvent.type(screen.getByLabelText(/activity name/i), 'Birthday dinner')
+    await userEvent.type(screen.getByLabelText(/^time$/i), '18:30')
+    await userEvent.click(screen.getByRole('button', { name: /notes & details/i }))
+    await userEvent.type(screen.getByLabelText(/^notes$/i), 'Window table')
+    await userEvent.click(screen.getByRole('button', { name: /add on map/i }))
+
+    await userEvent.click(screen.getByRole('button', { name: /mock type ramen search/i }))
+    await userEvent.click(screen.getByRole('button', { name: /mock submit place search/i }))
+    const resultsSheet = await screen.findByLabelText(/map search results/i)
+    expect(screen.queryByLabelText(/selected map place/i)).not.toBeInTheDocument()
+
+    await userEvent.click(within(resultsSheet).getByRole('button', { name: /ramen street/i }))
+    const detailSheet = await screen.findByLabelText(/selected map place/i)
+    await userEvent.click(within(detailSheet).getByRole('button', { name: /add to trip/i }))
+
+    expect(screen.getByLabelText(/activity name/i)).toHaveValue('Birthday dinner')
+    expect(screen.getByLabelText(/^time$/i)).toHaveValue('18:30')
+    expect(screen.getByLabelText(/^notes$/i)).toHaveValue('Window table')
+    expect(screen.getByRole('button', { name: /category: meal/i })).toBeInTheDocument()
+    expect(screen.getByText('1 Chome Marunouchi, Tokyo')).toBeInTheDocument()
+  })
+
+  it('keeps the mobile activity location target when returning to search results', async () => {
+    mockViewport(true)
+    const placedActivity = {
+      ...SAMPLE_ACTIVITY,
+      placeId: 'google.tsukiji',
+      placeName: 'Tsukiji Outer Market',
+      address: 'Tsukiji, Chuo City, Tokyo',
+      lat: 35.6654,
+      lng: 139.7707,
+    }
+    const ramenPlace = {
+      businessStatus: 'OPERATIONAL',
+      currentOpeningHours: null,
+      displayName: 'Ramen Street',
+      formattedAddress: '1 Chome Marunouchi, Tokyo',
+      googleMapsUri: 'https://maps.google.com/?cid=ramen',
+      id: 'google.ramen-street',
+      lat: 35.6812,
+      lng: 139.7671,
+      photoUrl: null,
+      primaryType: 'restaurant',
+      primaryTypeDisplayName: 'Restaurant',
+      rating: 4.4,
+      regularOpeningHours: null,
+      reviews: [],
+      text: 'Ramen Street, 1 Chome Marunouchi, Tokyo',
+      types: ['restaurant'],
+      userRatingCount: 1200,
+      websiteUri: null,
+    }
+    mockWorkspace([placedActivity])
+    googlePlacesMockState.fetchGooglePlaceTextSearch.mockResolvedValueOnce({
+      nextPageToken: null,
+      places: [ramenPlace],
+    })
+    googlePlacesMockState.fetchGooglePlaceById.mockResolvedValue(ramenPlace)
+
+    renderWorkspace('/trips/abc234def567/d/2026-05-01')
+
+    const activityCard = (await screen.findByRole('heading', {
+      name: /tsukiji sushi/i,
+    })).closest('article')
+    expect(activityCard).not.toBeNull()
+    await userEvent.click(activityCard as HTMLElement)
+    await userEvent.click(screen.getByRole('button', { name: /change on map/i }))
+
+    await screen.findByTestId('trip-map')
+    expect(screen.getByText(/updating location for tsukiji sushi/i)).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: /mock type ramen search/i }))
+    await userEvent.click(screen.getByRole('button', { name: /mock submit place search/i }))
+
+    const resultsSheet = await screen.findByLabelText(/map search results/i)
+    await userEvent.click(within(resultsSheet).getByRole('button', { name: /ramen street/i }))
+    const detailSheet = await screen.findByLabelText(/selected map place/i)
+    expect(within(detailSheet).getByRole('button', { name: /confirm update/i })).toBeInTheDocument()
+
+    await userEvent.click(within(detailSheet).getByRole('button', { name: /back to results/i }))
+    const restoredResults = await screen.findByLabelText(/map search results/i)
+    expect(screen.getByText(/updating location for tsukiji sushi/i)).toBeInTheDocument()
+    await userEvent.click(
+      within(restoredResults).getByRole('button', { name: /ramen street/i }),
+    )
+
+    expect(await within(screen.getByLabelText(/selected map place/i)).findByRole('button', {
+      name: /confirm update/i,
+    })).toBeInTheDocument()
+  })
+
+  it('shows a closable empty-results state after a successful mobile search', async () => {
+    mockViewport(true)
+    mockWorkspace()
+    googlePlacesMockState.fetchGooglePlaceTextSearch.mockResolvedValueOnce({
+      nextPageToken: null,
+      places: [],
+    })
+
+    renderWorkspace('/trips/abc234def567/d/2026-05-01')
+
+    await userEvent.click(await screen.findByRole('button', { name: /^map$/i }))
+    await userEvent.click(screen.getByRole('button', { name: /mock type ramen search/i }))
+    await userEvent.click(screen.getByRole('button', { name: /mock submit place search/i }))
+
+    const resultsSheet = await screen.findByLabelText(/map search results/i)
+    expect(within(resultsSheet).getByRole('status')).toHaveTextContent(/no places found/i)
+    const closeResults = within(resultsSheet).getByRole('button', { name: /close search results/i })
+    await waitFor(() => {
+      expect(closeResults).toHaveFocus()
+    })
+    await userEvent.click(closeResults)
+
+    expect(screen.queryByLabelText(/map search results/i)).not.toBeInTheDocument()
+    expect(screen.getByTestId('place-search-value')).toHaveTextContent('')
+    expect(screen.getByRole('textbox', { name: /map place search/i })).toHaveFocus()
   })
 
   it('clears search results when a concrete place suggestion is selected', async () => {
