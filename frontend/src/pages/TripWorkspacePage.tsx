@@ -3576,7 +3576,9 @@ export function TripWorkspacePage() {
                 aria-labelledby="timeline-panel-title"
                 tabIndex={-1}
               >
-                <div className={styles.timelineHeader}>
+                <div
+                  className={`${styles.timelineHeader}${isMobileViewport && workspaceMode === 'days' ? ` ${styles.mobileDayPlanHeader}` : ''}`}
+                >
                   <div>
                     <p className={styles.panelKicker}>
                       {workspaceMode === 'days' && selectedDayIndex > 0
@@ -3590,7 +3592,9 @@ export function TripWorkspacePage() {
                         ? 'Full Trip Timeline'
                         : workspaceMode === 'ideas'
                           ? 'Ideas'
-                          : formatReadableDate(selectedDay)}
+                          : isMobileViewport
+                            ? 'Day plan'
+                            : formatReadableDate(selectedDay)}
                     </h2>
                     <p className={styles.panelDescription}>
                       {workspaceMode === 'timeline'
@@ -3600,13 +3604,15 @@ export function TripWorkspacePage() {
                           : `${tripQuery.data.destination || 'Destination TBD'} · ${pluralize(dayActivities.length, 'activity', 'activities')} scheduled today · ${selectedDayMappedCount} mapped`}
                     </p>
                   </div>
-                  <div className={styles.timelineHeaderActions}>
+                  <div
+                    className={`${styles.timelineHeaderActions}${isMobileViewport && workspaceMode === 'days' ? ` ${styles.mobileDayPlanActions}` : ''}`}
+                  >
                     {isMobileViewport && workspaceMode === 'days' ? (
                       <button
                         type="button"
                         className={styles.mobileDayPickerTrigger}
                         onClick={openMobileDayPicker}
-                        aria-label="Choose trip day"
+                        aria-label={`Choose trip day: ${formatReadableDate(selectedDay)}`}
                       >
                         <CalendarDays size={17} aria-hidden="true" />
                         <span>{formatReadableDate(selectedDay)}</span>
@@ -3622,11 +3628,12 @@ export function TripWorkspacePage() {
                     {canEditTrip && workspaceMode !== 'timeline' && (
                       <button
                         type="button"
-                        className={styles.addActivityButton}
+                        className={`${styles.addActivityButton}${isMobileViewport && workspaceMode === 'days' ? ` ${styles.mobileDayPlanAddActivity}` : ''}`}
                         onClick={workspaceMode === 'ideas' ? openIdeaComposer : openActivityComposer}
                         aria-label={workspaceMode === 'ideas' ? 'Add Idea' : 'Add Activity'}
                       >
                         <Plus size={16} aria-hidden="true" />
+                        {isMobileViewport && workspaceMode === 'days' ? <span>Add Activity</span> : null}
                       </button>
                     )}
                   </div>

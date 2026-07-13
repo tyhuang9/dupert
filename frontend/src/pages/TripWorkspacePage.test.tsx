@@ -737,6 +737,54 @@ describe('<TripWorkspacePage>', () => {
     })
   })
 
+  it('keeps one mobile day date, a labelled activity action, and day navigation', async () => {
+    mockViewport(true)
+    mockWorkspace()
+
+    renderWorkspace('/trips/abc234def567/d/2026-05-01')
+
+    expect(await screen.findByRole('heading', { level: 2, name: /^day plan$/i })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { level: 2, name: /friday, may 1/i })).not.toBeInTheDocument()
+
+    const dayPicker = screen.getByRole('button', {
+      name: /choose trip day: friday, may 1/i,
+    })
+    expect(dayPicker).toHaveTextContent('Friday, May 1')
+
+    const addActivity = within(dayPicker.parentElement as HTMLElement).getByRole('button', {
+      name: /^add activity$/i,
+    })
+    expect(addActivity).toHaveTextContent('Add Activity')
+    addActivity.focus()
+    await userEvent.keyboard('{Enter}')
+    await waitFor(() => {
+      expect(screen.getByRole('textbox', { name: /activity name/i })).toHaveFocus()
+    })
+
+    dayPicker.focus()
+    await userEvent.keyboard('{Enter}')
+    expect(screen.getByRole('dialog', { name: /choose a trip day/i })).toBeInTheDocument()
+    await userEvent.click(screen.getByTitle('2026-05-02 (0 activities)'))
+    await waitFor(() => {
+      expect(screen.getByTestId('current-location')).toHaveTextContent('/trips/abc234def567/d/2026-05-02')
+      expect(screen.getByRole('button', { name: /choose trip day: saturday, may 2/i })).toBeInTheDocument()
+    })
+  })
+
+  it('keeps the desktop day heading and compact add action', async () => {
+    mockWorkspace()
+
+    renderWorkspace('/trips/abc234def567/d/2026-05-01')
+
+    expect(await screen.findByRole('heading', { level: 2, name: /friday, may 1/i })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { level: 2, name: /^day plan$/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /choose trip day/i })).not.toBeInTheDocument()
+
+    const addActivity = screen.getAllByRole('button', { name: /^add activity$/i })[0]
+    expect(addActivity).not.toHaveTextContent('Add Activity')
+    expect(addActivity.querySelector('svg')).toBeInTheDocument()
+  })
+
   it('keeps share-link management in Share trip, not its member list', async () => {
     mockViewport(true)
     mockWorkspace()

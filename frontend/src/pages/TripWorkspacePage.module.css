@@ -876,6 +876,11 @@
   box-shadow: var(--shadow-sm);
 }
 
+/* Rendered only for the compact day-plan header below the mobile breakpoint. */
+.mobileDayPlanAddActivity {
+  display: none;
+}
+
 .exportDayButton {
   min-height: 40px;
   display: inline-flex;
@@ -2442,6 +2447,43 @@
     gap: var(--space-2);
   }
 
+  .workspaceShellMobile .timelineHeaderActions.mobileDayPlanActions {
+    min-width: 0;
+    flex-wrap: nowrap;
+  }
+
+  .mobileDayPlanAddActivity {
+    width: auto;
+    height: 44px;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    gap: var(--space-2);
+    padding: 0 var(--space-3);
+    border: 1px solid var(--color-primary);
+    border-radius: var(--radius-pill);
+    background: var(--color-primary);
+    color: var(--color-primary-fg);
+    font: inherit;
+    font-size: var(--font-size-xs);
+    font-weight: 800;
+    white-space: nowrap;
+    box-shadow: var(--shadow-sm);
+    cursor: pointer;
+  }
+
+  .mobileDayPlanAddActivity:hover {
+    border-color: var(--color-primary-hover);
+    background: var(--color-primary-hover);
+  }
+
+  .mobileDayPlanAddActivity:focus-visible {
+    outline: var(--focus-ring-width) solid var(--focus-ring-color);
+    outline-offset: var(--focus-ring-offset);
+  }
+
   .workspaceShellMobile .avatarStack {
     display: none;
   }
@@ -2595,6 +2637,24 @@
 
   .placeHero {
     display: none;
+  }
+}
+
+@media (max-width: 560px) {
+  .workspaceShellMobile .timelineHeader.mobileDayPlanHeader {
+    flex-wrap: wrap;
+  }
+
+  .workspaceShellMobile .timelineHeaderActions.mobileDayPlanActions {
+    width: 100%;
+    flex: 1 0 100%;
+    justify-content: space-between;
+  }
+
+  .workspaceShellMobile .mobileDayPlanActions .mobileDayPickerTrigger {
+    min-width: 0;
+    flex: 1 1 auto;
+    max-width: none;
   }
 }
 
