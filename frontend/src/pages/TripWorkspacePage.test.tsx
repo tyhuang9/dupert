@@ -2318,7 +2318,9 @@ describe('<TripWorkspacePage>', () => {
       name: /tokyo tower/i,
     })).toBeInTheDocument()
     expect(screen.queryByLabelText(/map search results/i)).not.toBeInTheDocument()
-    expect(screen.getByRole('textbox', { name: /map place search/i })).toHaveFocus()
+    await waitFor(() => {
+      expect(screen.getByRole('textbox', { name: /map place search/i })).toHaveFocus()
+    })
   })
 
   it('preserves a new activity draft through mobile map search and place selection', async () => {
