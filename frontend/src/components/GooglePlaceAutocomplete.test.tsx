@@ -14,6 +14,7 @@ import {
   fetchGooglePlaceNearLocation,
   fetchGooglePlaceSelection,
   fetchGooglePlaceTextSearch,
+  fetchGooglePlaceSuggestions,
   googlePlaceCategoryTypeForQuery,
   imageUrlFromGooglePhotoName,
   normalizeGooglePlace,
@@ -141,6 +142,7 @@ beforeEach(() => {
 afterEach(() => {
   apiMock.restore()
   __resetGooglePlaceDetailsCacheForTests()
+  vi.useRealTimers()
   vi.unstubAllGlobals()
   vi.clearAllMocks()
 })
@@ -460,6 +462,58 @@ describe('Google place normalization', () => {
     )).toHaveLength(1)
   })
 
+  it('keeps successful place details fresh for 15 minutes and evicts them after one hour', async () => {
+    let now = new Date('2026-07-13T12:00:00Z').valueOf()
+    const nowSpy = vi.spyOn(Date, 'now').mockImplementation(() => now)
+    const prediction: GooglePlacePrediction = {
+      mainText: 'Tokyo Tower',
+      placeId: 'google.tokyo-tower',
+      placeResourceName: 'places/google.tokyo-tower',
+      secondaryText: 'Minato City, Tokyo',
+      text: 'Tokyo Tower, Minato City, Tokyo',
+      types: ['tourist_attraction'],
+    }
+
+    await fetchGooglePlaceSelection({ includePhoto: false, prediction, sessionToken: 'first-session' })
+    await fetchGooglePlaceSelection({ includePhoto: false, prediction, sessionToken: 'second-session' })
+
+    expect(apiMock.history.get.filter((request) =>
+      request.url === '/places/google.tokyo-tower/details',
+    )).toHaveLength(1)
+
+    now = new Date('2026-07-13T12:15:01Z').valueOf()
+    await fetchGooglePlaceSelection({ includePhoto: false, prediction })
+
+    expect(apiMock.history.get.filter((request) =>
+      request.url === '/places/google.tokyo-tower/details',
+    )).toHaveLength(2)
+
+    now = new Date('2026-07-13T13:16:02Z').valueOf()
+    await fetchGooglePlaceSelection({ includePhoto: false, prediction })
+
+    expect(apiMock.history.get.filter((request) =>
+      request.url === '/places/google.tokyo-tower/details',
+    )).toHaveLength(3)
+    nowSpy.mockRestore()
+  })
+
+  it('passes an AbortSignal to autocomplete requests', async () => {
+    const controller = new AbortController()
+    const fetchImpl = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      expect(init?.signal).toBe(controller.signal)
+      return new Response(JSON.stringify({ suggestions: [] }), { status: 200 })
+    })
+
+    await fetchGooglePlaceSuggestions({
+      fetchImpl,
+      query: 'Tokyo',
+      sessionToken: 'session-one',
+      signal: controller.signal,
+    })
+
+    expect(fetchImpl).toHaveBeenCalledOnce()
+  })
+
   it('normalizes Places Photo (New) media URLs to HTTPS only', async () => {
     apiMock.resetHandlers()
     apiMock
@@ -563,7 +617,7 @@ describe('Google place normalization', () => {
     })
 
     const textSearchCall = apiMock.history.post.find((request) => request.url === '/places/text-search')
-    expect(textSearchCall?.params).toEqual({ includePhoto: true })
+    expect(textSearchCall?.params).toEqual({ includePhoto: false })
     expect(requestData(textSearchCall)).toMatchObject({
       pageSize: 10,
       textQuery: 'ramen near tokyo station',

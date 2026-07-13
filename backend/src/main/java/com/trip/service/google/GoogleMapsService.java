@@ -6,8 +6,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.Executor;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -16,6 +15,7 @@ import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 
@@ -32,7 +32,6 @@ import com.trip.repo.GoogleApiCacheRepository;
 @Profile("!test")
 public class GoogleMapsService {
     private static final Logger log = LoggerFactory.getLogger(GoogleMapsService.class);
-    private static final int PHOTO_ENRICHMENT_PARALLELISM = 4;
 
     public static final String AUTOCOMPLETE_FIELD_MASK = String.join(",",
         "suggestions.placePrediction.place",
@@ -131,13 +130,15 @@ public class GoogleMapsService {
     private final GoogleCacheService cacheService;
     private final ObjectMapper objectMapper;
     private final AppProperties appProperties;
+    private final Executor photoExecutor;
 
     @Autowired
     public GoogleMapsService(GoogleMapsClient googleClient,
                              GoogleApiCacheRepository cacheRepository,
                              ObjectMapper objectMapper,
-                             AppProperties appProperties) {
-        this(googleClient, cacheRepository, objectMapper, appProperties, Clock.systemUTC());
+                             AppProperties appProperties,
+                             @Qualifier("googlePhotoExecutor") Executor photoExecutor) {
+        this(googleClient, cacheRepository, objectMapper, appProperties, Clock.systemUTC(), photoExecutor);
     }
 
     GoogleMapsService(GoogleMapsClient googleClient,
@@ -145,10 +146,20 @@ public class GoogleMapsService {
                       ObjectMapper objectMapper,
                       AppProperties appProperties,
                       Clock clock) {
+        this(googleClient, cacheRepository, objectMapper, appProperties, clock, Runnable::run);
+    }
+
+    GoogleMapsService(GoogleMapsClient googleClient,
+                      GoogleApiCacheRepository cacheRepository,
+                      ObjectMapper objectMapper,
+                      AppProperties appProperties,
+                      Clock clock,
+                      Executor photoExecutor) {
         this.googleClient = googleClient;
         this.cacheService = new GoogleCacheService(cacheRepository, objectMapper, clock);
         this.objectMapper = objectMapper;
         this.appProperties = appProperties;
+        this.photoExecutor = photoExecutor;
     }
 
     public JsonNode autocomplete(JsonNode request) {
@@ -216,14 +227,12 @@ public class GoogleMapsService {
         }
         if (enrichablePlaces.isEmpty()) return copy;
 
-        int poolSize = Math.min(PHOTO_ENRICHMENT_PARALLELISM, enrichablePlaces.size());
-        ExecutorService executor = Executors.newFixedThreadPool(poolSize);
         try {
             List<CompletableFuture<PhotoEnrichment>> photoRequests = enrichablePlaces.stream()
                 .map(place -> CompletableFuture.supplyAsync(() -> {
                     String photoUrl = safePhotoUrl(firstPhotoName(place), 1600, 1000);
                     return new PhotoEnrichment(place, photoUrl);
-                }, executor))
+                }, photoExecutor))
                 .toList();
 
             for (CompletableFuture<PhotoEnrichment> photoRequest : photoRequests) {
@@ -236,8 +245,8 @@ public class GoogleMapsService {
                     log.warn("Google photo media enrichment failed: {}", ex.getCause().getClass().getSimpleName());
                 }
             }
-        } finally {
-            executor.shutdown();
+        } catch (RuntimeException ex) {
+            log.warn("Google photo media enrichment could not be scheduled: {}", ex.getClass().getSimpleName());
         }
         return copy;
     }

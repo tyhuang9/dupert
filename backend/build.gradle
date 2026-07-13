@@ -13,9 +13,8 @@ description = 'Dupert backend'
 // CPEs. Keep the managed Log4j 2.x line on the release that fixes the flagged
 // Core/1.x-bridge CVEs until the Spring Boot BOM catches up.
 ext['log4j2.version'] = '2.25.4'
-// Keep Dependency-Check clear of currently flagged Jackson/Tomcat CVEs while
-// staying on Spring Boot 3's compatible dependency lines.
-ext['jackson-bom.version'] = '2.22.0'
+// Keep all Jackson modules on patched BOM 2.22.1; it fixes CVE-2026-54515.
+ext['jackson-bom.version'] = '2.22.1'
 ext['tomcat.version'] = '10.1.56'
 
 java {
@@ -45,7 +44,8 @@ dependencies {
 	// Rate limiting
 	implementation 'com.bucket4j:bucket4j-core:8.10.1'
 
-	runtimeOnly 'org.postgresql:postgresql'
+	// PostgreSQL JDBC 42.7.12 fixes CVE-2026-54291.
+	runtimeOnly 'org.postgresql:postgresql:42.7.12'
 
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testImplementation 'org.springframework.security:spring-security-test'

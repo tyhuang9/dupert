@@ -22,7 +22,8 @@ public record TripResponse(
     LocalDate endDate,
     String imageUrl,
     OffsetDateTime createdAt,
-    TripRole role
+    TripRole role,
+    long version
 ) {
 
     public static TripResponse of(Trip trip, TripRole role) {
@@ -34,7 +35,8 @@ public record TripResponse(
             trip.getEndDate(),
             trip.getImageUrl(),
             trip.getCreatedAt(),
-            role
+            role,
+            trip.getVersion()
         );
     }
 }

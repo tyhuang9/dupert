@@ -20,12 +20,14 @@ interface ActivityListProps {
   freezeDragPreview?: boolean
   readOnly?: boolean
   hideEmptyState?: boolean
+  mobileDragHandle?: boolean
   activeActivityId?: number | null
   expandedActivityId?: number | null
   onActiveActivityChange?: (activityId: number | null) => void
   onAddActivity?: () => void
   onDelete: (activityId: number) => void
   onRequestMapLocation?: (activity: Activity, payload: CreateActivityRequest) => void
+  onMoveToDay?: (activity: Activity) => void
   onScheduleForSelectedDay?: (activity: Activity) => void
   onSubmitEdit: (activity: Activity, payload: CreateActivityRequest) => Promise<void> | void
   onToggleExpand: (activity: Activity) => void
@@ -50,6 +52,7 @@ function SortableActivityCard({
   dragDisabled = false,
   freezeDragPreview = false,
   isLast,
+  mobileDragHandle = false,
   position,
   readOnly = false,
   activeActivityId,
@@ -57,6 +60,7 @@ function SortableActivityCard({
   onActiveActivityChange,
   onDelete,
   onRequestMapLocation,
+  onMoveToDay,
   onScheduleForSelectedDay,
   onSubmitEdit,
   onToggleExpand,
@@ -98,10 +102,12 @@ function SortableActivityCard({
           dragAttributes={attributes}
           dragListeners={listeners}
           expanded={isExpanded}
+          mobileDragHandle={mobileDragHandle}
           readOnly={readOnly}
           onActiveChange={onActiveActivityChange}
           onDelete={onDelete}
           onRequestMapLocation={onRequestMapLocation}
+          onMoveToDay={onMoveToDay}
           onScheduleForSelectedDay={onScheduleForSelectedDay}
           onSubmitEdit={onSubmitEdit}
           onToggleExpand={onToggleExpand}
@@ -121,12 +127,14 @@ export function ActivityList({
   freezeDragPreview = false,
   readOnly = false,
   hideEmptyState = false,
+  mobileDragHandle = false,
   activeActivityId = null,
   expandedActivityId = null,
   onActiveActivityChange,
   onAddActivity,
   onDelete,
   onRequestMapLocation,
+  onMoveToDay,
   onScheduleForSelectedDay,
   onSubmitEdit,
   onToggleExpand,
@@ -172,11 +180,13 @@ export function ActivityList({
             dragDisabled={dragDisabled}
             freezeDragPreview={freezeDragPreview}
             isLast={index === activities.length - 1}
+            mobileDragHandle={mobileDragHandle}
             position={index + 1}
             readOnly={readOnly}
             onActiveActivityChange={onActiveActivityChange}
             onDelete={onDelete}
             onRequestMapLocation={onRequestMapLocation}
+            onMoveToDay={onMoveToDay}
             onScheduleForSelectedDay={onScheduleForSelectedDay}
             onSubmitEdit={onSubmitEdit}
             onToggleExpand={onToggleExpand}

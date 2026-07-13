@@ -66,6 +66,7 @@ describe('<RequireAuth>', () => {
     expect(screen.queryByTestId('protected')).toBeNull()
     expect(screen.queryByTestId('login')).toBeNull()
     expect(document.querySelector('[aria-busy="true"]')).not.toBeNull()
+    expect(screen.getByRole('heading', { name: /preparing your trip planner/i })).toBeInTheDocument()
   })
 
   it('redirects to /login with the return param when unauthenticated', () => {

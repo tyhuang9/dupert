@@ -93,6 +93,11 @@ afterEach(() => {
 })
 
 describe('<LoginPage>', () => {
+  it('shows a page shell while auth restoration is pending', () => {
+    renderLogin(makeAuth({ isInitializing: true }))
+    expect(screen.getByRole('heading', { name: /preparing your trip planner/i })).toBeInTheDocument()
+  })
+
   it('renders the email and password fields with proper labels', () => {
     renderLogin(makeAuth())
     expect(screen.getByLabelText('Email')).toBeInTheDocument()

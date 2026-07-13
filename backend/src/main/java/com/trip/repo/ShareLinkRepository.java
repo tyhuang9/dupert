@@ -21,7 +21,14 @@ public interface ShareLinkRepository extends JpaRepository<ShareLink, Long> {
 
     Optional<ShareLink> findByTokenHash(String tokenHash);
 
-    List<ShareLink> findAllByTripIdOrderByCreatedAtDesc(Long tripId);
+    @Query("""
+        SELECT new com.trip.repo.ShareLinkSummary(
+            sl.id, sl.role, sl.name, sl.allowAnonymous, sl.createdAt, sl.expiresAt, sl.revokedAt)
+        FROM ShareLink sl
+        WHERE sl.tripId = :tripId
+        ORDER BY sl.createdAt DESC, sl.id DESC
+        """)
+    List<ShareLinkSummary> findSummariesByTripId(@Param("tripId") Long tripId);
 
     @Modifying
     @Query("""

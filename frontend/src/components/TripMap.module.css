@@ -131,13 +131,12 @@
   top: var(--space-4);
   right: calc(var(--space-4) + var(--map-route-controls-width, 15.25rem) + var(--space-2));
   width: min(var(--map-route-summary-width, 12rem), calc(100% - var(--space-6)));
-  height: 42px;
   min-height: 42px;
   display: grid;
   align-content: center;
   gap: 0;
   min-width: 0;
-  padding: 0 var(--space-3);
+  padding: var(--space-1) var(--space-3);
   color: var(--color-text);
   line-height: 1.2;
 }
@@ -146,16 +145,18 @@
   color: var(--color-text);
   font-size: var(--font-size-xs);
   line-height: 1.2;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .routeSummaryHeader {
-  display: inline-flex;
+  min-width: 0;
+  display: flex;
   align-items: center;
   gap: var(--space-1);
   color: var(--color-primary-text);
   line-height: 1.2;
-  white-space: nowrap;
+  white-space: normal;
 }
 
 .mapNotice {

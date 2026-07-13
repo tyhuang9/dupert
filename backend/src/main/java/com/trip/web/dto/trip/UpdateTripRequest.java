@@ -3,6 +3,7 @@ package com.trip.web.dto.trip;
 import java.time.LocalDate;
 
 import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
 
 /**
@@ -27,10 +28,17 @@ public record UpdateTripRequest(
 
     @Size(max = 2048)
     @Pattern(regexp = "^(https://[^\\u0000-\\u001F\\u007F]+)?$", message = "must be a valid HTTPS image URL")
-    String imageUrl
+    String imageUrl,
+
+    /**
+     * Revision the client last read. Nullable during the first rollout so cached
+     * clients that predate optimistic locking can still update a trip.
+     */
+    @PositiveOrZero
+    Long expectedVersion
 ) {
     public UpdateTripRequest(String name, String destination, LocalDate startDate,
                              LocalDate endDate) {
-        this(name, destination, startDate, endDate, null);
+        this(name, destination, startDate, endDate, null, null);
     }
 }

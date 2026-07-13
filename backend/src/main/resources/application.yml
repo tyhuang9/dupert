@@ -9,6 +9,16 @@ spring:
     # easiest way is to let the user paste the raw Neon URL and we transform it here.
     url: ${DATABASE_URL:}
     driver-class-name: org.postgresql.Driver
+    hikari:
+      # One free-tier Render instance should leave connection headroom for Neon
+      # maintenance and local tooling. Hikari is provided by Spring Boot's JPA
+      # starter; these values make its production budget explicit.
+      maximum-pool-size: ${DB_POOL_MAX_SIZE:4}
+      minimum-idle: ${DB_POOL_MIN_IDLE:0}
+      connection-timeout: ${DB_CONNECTION_TIMEOUT_MS:10000}
+      validation-timeout: ${DB_VALIDATION_TIMEOUT_MS:3000}
+      idle-timeout: 300000
+      keepalive-time: 0
   jpa:
     open-in-view: false
     hibernate:
@@ -35,6 +45,12 @@ spring:
 
 server:
   port: 8000
+  compression:
+    enabled: true
+    min-response-size: 2KB
+    # Keep SSE out of this allowlist: buffered/compressed event streams delay
+    # realtime delivery and defeat the purpose of a long-lived connection.
+    mime-types: application/json,application/javascript,text/css,text/html,text/javascript,text/plain,text/xml,application/xml,application/xhtml+xml
   error:
     include-message: never
     include-stacktrace: never
@@ -91,6 +107,12 @@ management:
     health:
       probes:
         enabled: true
+      group:
+        # A keep-warm probe must answer whether this JVM is alive without waking
+        # Neon or coupling liveness to Google/Brevo availability. Keep the group
+        # explicit so future HealthIndicator beans are not added accidentally.
+        liveness:
+          include: livenessState
       show-details: never
   health:
     defaults:

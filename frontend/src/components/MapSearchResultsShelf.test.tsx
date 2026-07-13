@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ComponentProps } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -53,7 +53,10 @@ const PLACES: PlaceSelection[] = [
 function renderShelf(overrides: Partial<ComponentProps<typeof MapSearchResultsShelf>> = {}) {
   return render(
     <MapSearchResultsShelf
+      emptyQuery={null}
+      focusPlaceId={null}
       hasMore={false}
+      isMobile={false}
       loadingMore={false}
       onClose={vi.fn()}
       onHoverChange={vi.fn()}
@@ -75,6 +78,18 @@ function setScrollableMetrics(element: HTMLElement, metrics: {
     clientWidth: { configurable: true, value: metrics.clientWidth },
     scrollLeft: { configurable: true, value: metrics.scrollLeft, writable: true },
     scrollWidth: { configurable: true, value: metrics.scrollWidth },
+  })
+}
+
+function setVerticalScrollableMetrics(element: HTMLElement, metrics: {
+  clientHeight: number
+  scrollHeight: number
+  scrollTop: number
+}) {
+  Object.defineProperties(element, {
+    clientHeight: { configurable: true, value: metrics.clientHeight },
+    scrollHeight: { configurable: true, value: metrics.scrollHeight },
+    scrollTop: { configurable: true, value: metrics.scrollTop, writable: true },
   })
 }
 
@@ -140,7 +155,10 @@ describe('<MapSearchResultsShelf>', () => {
     render(
       <div onWheel={parentWheel}>
         <MapSearchResultsShelf
+          emptyQuery={null}
+          focusPlaceId={null}
           hasMore={false}
+          isMobile={false}
           loadingMore={false}
           onClose={vi.fn()}
           onHoverChange={vi.fn()}
@@ -170,5 +188,92 @@ describe('<MapSearchResultsShelf>', () => {
     fireEvent.scroll(list)
 
     expect(onLoadMore).toHaveBeenCalledTimes(1)
+  })
+
+  it('uses native vertical scrolling without carousel controls on mobile', () => {
+    const parentWheel = vi.fn()
+    const onLoadMore = vi.fn()
+    render(
+      <div onWheel={parentWheel}>
+        <MapSearchResultsShelf
+          emptyQuery={null}
+          focusPlaceId={null}
+          hasMore
+          isMobile
+          loadingMore={false}
+          onClose={vi.fn()}
+          onHoverChange={vi.fn()}
+          onLoadMore={onLoadMore}
+          onSelect={vi.fn()}
+          places={PLACES}
+          selectedPlaceId={null}
+        />
+      </div>,
+    )
+
+    const list = screen.getByLabelText(/search result places/i)
+    expect(list).toHaveAttribute('data-layout', 'vertical')
+    expect(screen.queryByRole('button', { name: /scroll search results/i })).not.toBeInTheDocument()
+
+    setScrollableMetrics(list, { clientWidth: 300, scrollLeft: 0, scrollWidth: 900 })
+    setVerticalScrollableMetrics(list, { clientHeight: 300, scrollHeight: 900, scrollTop: 0 })
+    fireEvent.wheel(list, { deltaX: 0, deltaY: 120 })
+
+    expect(list.scrollLeft).toBe(0)
+    expect(parentWheel).not.toHaveBeenCalled()
+
+    list.scrollTop = 620
+    fireEvent.scroll(list)
+    fireEvent.scroll(list)
+    expect(onLoadMore).toHaveBeenCalledTimes(1)
+  })
+
+  it('uses semantic list markup and announces loading state', () => {
+    renderShelf({ loadingMore: true })
+
+    const region = screen.getByRole('region', { name: /map search results/i })
+    const list = within(region).getByRole('list')
+    expect(region).not.toHaveAttribute('aria-busy')
+    expect(list).toHaveAttribute('aria-busy', 'true')
+    expect(within(region).getAllByRole('listitem')).toHaveLength(PLACES.length + 1)
+    expect(within(region).getByRole('status')).toHaveAttribute('aria-atomic', 'true')
+    expect(within(region).getByRole('status')).toHaveTextContent(/loading more places/i)
+    expect(within(region).getByText('Loading more places')).toBeInTheDocument()
+  })
+
+  it('focuses the requested mobile result', () => {
+    renderShelf({ focusPlaceId: 'google.dishoom', isMobile: true })
+
+    const result = screen.getByRole('button', { name: /dishoom covent garden/i })
+    expect(result).toHaveFocus()
+    expect(result).not.toHaveAttribute('aria-pressed')
+    expect(screen.getByRole('status')).toHaveTextContent(/3 places found/i)
+  })
+
+  it('clears a pending carousel scroll update when unmounted', async () => {
+    const clearTimeoutSpy = vi.spyOn(window, 'clearTimeout')
+    const { unmount } = renderShelf({ hasMore: true })
+    const list = screen.getByLabelText(/search result places/i)
+    setScrollableMetrics(list, { clientWidth: 300, scrollLeft: 0, scrollWidth: 900 })
+
+    await userEvent.click(screen.getByRole('button', { name: /scroll search results right/i }))
+    unmount()
+
+    expect(clearTimeoutSpy).toHaveBeenCalled()
+  })
+
+  it('renders a useful empty state only for a completed mobile search', () => {
+    renderShelf({ emptyQuery: 'late-night noodles', isMobile: true, places: [] })
+
+    expect(screen.getByLabelText(/map search results/i)).toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent(/no places found/i)
+    expect(screen.getByRole('status')).toHaveTextContent(/late-night noodles/i)
+    expect(screen.getByRole('button', { name: /close search results/i })).toBeInTheDocument()
+  })
+
+  it('does not change the desktop empty-results behavior', () => {
+    renderShelf({ emptyQuery: 'late-night noodles', isMobile: false, places: [] })
+
+    expect(screen.queryByLabelText(/map search results/i)).not.toBeInTheDocument()
   })
 })

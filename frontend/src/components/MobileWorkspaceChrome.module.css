@@ -1,0 +1,292 @@
+.header,
+.bottomNav {
+  display: none;
+}
+
+@media (max-width: 820px) {
+  .header {
+    position: absolute;
+    inset: 0 0 auto;
+    min-height: 64px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding: var(--space-2) var(--space-4);
+    border-bottom: 1px solid var(--color-surface-border);
+    background: color-mix(in srgb, var(--color-shell) 94%, var(--color-surface));
+    box-shadow: var(--shadow-sm);
+    z-index: 70;
+  }
+
+  .tripSummary,
+  .headerActions,
+  .brand,
+  .menuButton,
+  .closeButton,
+  .bottomNav button,
+  .menuActions a,
+  .menuActions button {
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .tripSummary,
+  .headerActions {
+    min-width: 0;
+    gap: var(--space-2);
+  }
+
+  .brand {
+    flex: 0 0 auto;
+    width: 40px;
+    height: 40px;
+    justify-content: center;
+    border-radius: var(--radius-md);
+    background: var(--color-primary);
+    color: var(--color-primary-fg);
+    text-decoration: none;
+  }
+
+  .brandMark {
+    font-size: var(--font-size-sm);
+    font-weight: 900;
+  }
+
+  .tripTitle {
+    min-width: 0;
+    display: grid;
+    gap: 1px;
+  }
+
+  .tripTitle span,
+  .menuHeader p {
+    margin: 0;
+    color: var(--color-text-subtle);
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .tripTitle strong {
+    overflow: hidden;
+    color: var(--color-text);
+    font-size: var(--font-size-sm);
+    line-height: 1.2;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .headerActions {
+    flex: 0 0 auto;
+  }
+
+  .menuButton,
+  .closeButton {
+    width: 44px;
+    height: 44px;
+    justify-content: center;
+    padding: 0;
+    border: 1px solid var(--color-surface-border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    color: var(--color-text);
+    cursor: pointer;
+  }
+
+  .menuBackdrop {
+    position: fixed;
+    inset: 0;
+    background: rgb(26 33 31 / 42%);
+    z-index: 1000;
+  }
+
+  .menuDrawer {
+    width: min(86vw, 26rem);
+    height: 100dvh;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    overflow: hidden;
+    border: 1px solid var(--color-surface-border);
+    border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
+    background: var(--color-surface);
+    box-shadow: var(--shadow-lg);
+  }
+
+  .menuHeader {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding: calc(var(--space-5) + env(safe-area-inset-top)) var(--space-4) var(--space-3)
+      calc(var(--space-4) + env(safe-area-inset-left));
+    border-bottom: 1px solid var(--color-surface-border);
+  }
+
+  .menuHeader > div {
+    min-width: 0;
+  }
+
+  .menuHeader .closeButton {
+    flex: 0 0 44px;
+  }
+
+  .menuHeader h2 {
+    max-width: 100%;
+    margin: var(--space-1) 0 0;
+    overflow: hidden;
+    color: var(--color-text);
+    font-size: var(--font-size-lg);
+    line-height: var(--line-height-tight);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .menuActions {
+    min-width: 0;
+    display: grid;
+    align-content: start;
+    overflow-y: auto;
+    padding: var(--space-2) var(--space-3) calc(var(--space-4) + env(safe-area-inset-bottom));
+  }
+
+  .menuActions a,
+  .menuActions button {
+    min-height: 48px;
+    gap: var(--space-3);
+    padding: 0 var(--space-3);
+    border: 0;
+    border-radius: var(--radius-md);
+    background: transparent;
+    color: var(--color-text);
+    cursor: pointer;
+    font: inherit;
+    font-size: var(--font-size-sm);
+    font-weight: 700;
+    text-align: left;
+    text-decoration: none;
+  }
+
+  .menuActions a:hover,
+  .menuActions button:hover,
+  .menuButton:hover,
+  .closeButton:hover {
+    background: var(--color-primary-softer);
+    color: var(--color-primary-text);
+  }
+
+  .mapDays {
+    min-width: 0;
+    display: grid;
+    gap: var(--space-3);
+    margin: var(--space-2) 0 0;
+    padding: var(--space-4) var(--space-3) 0;
+    border-top: 1px solid var(--color-surface-border);
+  }
+
+  .mapDaysHeader {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+  }
+
+  .mapDaysHeader h3 {
+    margin: 0;
+    color: var(--color-text);
+    font-size: var(--font-size-sm);
+    line-height: var(--line-height-tight);
+  }
+
+  .menuActions .showAllDaysButton {
+    min-height: 44px;
+    padding: 0 var(--space-2);
+    color: var(--color-primary-text);
+    font-size: var(--font-size-xs);
+    font-weight: 800;
+    white-space: nowrap;
+  }
+
+  .menuActions .showAllDaysButton:disabled {
+    color: var(--color-text-subtle);
+    cursor: not-allowed;
+    opacity: 0.65;
+  }
+
+  .menuActions .showAllDaysButton:disabled:hover {
+    background: transparent;
+  }
+
+  .mapDayToggles {
+    display: grid;
+    gap: var(--space-2);
+  }
+
+  .menuActions .mapDayToggle {
+    min-height: 44px;
+    justify-content: space-between;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--color-surface-border);
+    background: var(--color-surface-2);
+    font-size: var(--font-size-xs);
+  }
+
+  .mapDayToggle span:last-child {
+    flex: 0 0 auto;
+    color: var(--color-text-subtle);
+    font-weight: 700;
+  }
+
+  .menuActions .mapDayToggle[aria-pressed='true'] {
+    border-color: color-mix(in srgb, var(--color-primary) 45%, var(--color-surface-border));
+    background: var(--color-primary-softer);
+    color: var(--color-primary-text);
+  }
+
+  .bottomNav {
+    position: absolute;
+    inset: auto 0 0;
+    min-height: calc(64px + env(safe-area-inset-bottom));
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    padding: var(--space-1) var(--space-2) env(safe-area-inset-bottom);
+    border-top: 1px solid var(--color-surface-border);
+    background: color-mix(in srgb, var(--color-shell) 94%, var(--color-surface));
+    box-shadow: 0 -8px 22px color-mix(in srgb, var(--color-text) 8%, transparent);
+    z-index: 70;
+  }
+
+  .bottomNav button {
+    min-height: 56px;
+    flex-direction: column;
+    justify-content: center;
+    gap: 2px;
+    padding: var(--space-1);
+    border: 0;
+    border-radius: var(--radius-md);
+    background: transparent;
+    color: var(--color-text-subtle);
+    cursor: pointer;
+    font: inherit;
+    font-size: 11px;
+    font-weight: 800;
+  }
+
+  .bottomNav button[aria-current='page'] {
+    background: var(--color-primary-softer);
+    color: var(--color-primary-text);
+  }
+
+  .menuButton:focus-visible,
+  .closeButton:focus-visible,
+  .menuActions a:focus-visible,
+  .menuActions button:focus-visible,
+  .bottomNav button:focus-visible {
+    outline: var(--focus-ring-width) solid var(--focus-ring-color);
+    outline-offset: var(--focus-ring-offset);
+  }
+}

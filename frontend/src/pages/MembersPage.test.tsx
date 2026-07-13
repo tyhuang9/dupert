@@ -5,7 +5,7 @@ import type { PropsWithChildren } from 'react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { apiClient } from '../api/client'
-import type { ShareLink, TripMember } from '../types/share'
+import type { TripMember } from '../types/share'
 import type { Trip } from '../types/trip'
 import MembersPage from './MembersPage'
 
@@ -25,6 +25,7 @@ const TRIP: Trip = {
   imageUrl: null,
   createdAt: '2026-05-22T16:00:00Z',
   role: 'OWNER',
+  version: 0,
 }
 
 const MEMBER: TripMember = {
@@ -32,15 +33,6 @@ const MEMBER: TripMember = {
   email: 'alice@example.com',
   displayName: 'Alice',
   role: 'OWNER',
-}
-
-const SHARE_LINK: ShareLink = {
-  id: 7,
-  role: 'EDITOR',
-  allowAnonymous: true,
-  createdAt: '2026-05-22T16:00:00Z',
-  expiresAt: null,
-  revokedAt: null,
 }
 
 function Providers({ children }: PropsWithChildren) {
@@ -81,7 +73,6 @@ afterEach(() => {
 describe('<MembersPage>', () => {
   it('renders a members retry state instead of an empty state when members fail', async () => {
     apiMock.onGet('/trips/abc234def567/members').reply(500, { error: 'internal_error' })
-    apiMock.onGet('/trips/abc234def567/share-links').reply(200, [SHARE_LINK])
 
     renderMembersPage()
 
@@ -89,13 +80,14 @@ describe('<MembersPage>', () => {
     expect(screen.queryByText('No members found.')).not.toBeInTheDocument()
   })
 
-  it('renders a share-link retry state instead of an empty state when links fail', async () => {
+  it('is a members-only page and never fetches share links', async () => {
     apiMock.onGet('/trips/abc234def567/members').reply(200, [MEMBER])
-    apiMock.onGet('/trips/abc234def567/share-links').reply(500, { error: 'internal_error' })
 
     renderMembersPage()
 
-    expect(await screen.findByRole('button', { name: /retry links/i })).toBeInTheDocument()
-    expect(screen.queryByText('No active links.')).not.toBeInTheDocument()
+    expect(await screen.findByText('Alice')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: /^members$/i })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: /create share link|active links/i })).not.toBeInTheDocument()
+    expect(apiMock.history.get.map(({ url }) => url)).not.toContain('/trips/abc234def567/share-links')
   })
 })

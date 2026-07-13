@@ -46,6 +46,7 @@ const TOP_MESSAGE_BY_CODE: Record<string, string | null> = {
   unauthenticated: 'Your session expired. Please sign in again.',
   forbidden: 'The server blocked this request. Refresh the page and try again.',
   conflict: 'That action conflicts with existing data.',
+  edit_conflict: 'This trip changed elsewhere. Review your edits and save again.',
   invalid_verification_token: 'This verification link is invalid or expired.',
   invalid_date_range: 'Choose a valid date range.',
 }

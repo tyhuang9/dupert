@@ -5,6 +5,7 @@ import {
   placeDetailsElapsedMs,
   placeDetailsNowMs,
 } from '../utils/placeDetailsTiming'
+import { markPerformance } from '../performance/timing'
 
 export const GOOGLE_PLACES_SEARCH_RESULT_LIMIT = 10
 
@@ -36,6 +37,9 @@ export const GOOGLE_PLACE_DETAILS_FIELD_MASK = [
 ].join(',')
 
 type FetchImplementation = typeof fetch
+
+const PLACE_DETAILS_STALE_TIME_MS = 15 * 60 * 1000
+const PLACE_DETAILS_GC_TIME_MS = 60 * 60 * 1000
 
 type AppLatLng = { lat: number; lng: number }
 type GoogleRestLatLng = { latitude: number; longitude: number }
@@ -207,7 +211,15 @@ interface BackendPlaceDetailsResponse {
   details: GooglePlaceDetailsResponse
 }
 
-const backendPlaceDetailsRequests = new Map<string, Promise<GooglePlaceDetailsResponse>>()
+interface PlaceDetailsCacheEntry {
+  data?: GooglePlaceDetailsResponse
+  expiresAt?: number
+  garbageCollectAt?: number
+  garbageCollectionTimer?: ReturnType<typeof globalThis.setTimeout>
+  request?: Promise<GooglePlaceDetailsResponse>
+}
+
+const backendPlaceDetailsCache = new Map<string, PlaceDetailsCacheEntry>()
 
 function canonicalBackendPlaceDetailsFieldMask({
   fields,
@@ -232,7 +244,52 @@ function canonicalBackendPlaceDetailsFieldMask({
 }
 
 export function __resetGooglePlaceDetailsCacheForTests(): void {
-  backendPlaceDetailsRequests.clear()
+  for (const entry of backendPlaceDetailsCache.values()) {
+    if (entry.garbageCollectionTimer !== undefined) {
+      globalThis.clearTimeout(entry.garbageCollectionTimer)
+    }
+  }
+  backendPlaceDetailsCache.clear()
+}
+
+function deletePlaceDetailsCacheEntry(cacheKey: string): void {
+  const entry = backendPlaceDetailsCache.get(cacheKey)
+  if (entry?.garbageCollectionTimer !== undefined) {
+    globalThis.clearTimeout(entry.garbageCollectionTimer)
+  }
+  backendPlaceDetailsCache.delete(cacheKey)
+}
+
+function pruneExpiredPlaceDetailsCache(now: number): void {
+  for (const [cacheKey, entry] of backendPlaceDetailsCache) {
+    if (entry.garbageCollectAt !== undefined && entry.garbageCollectAt <= now) {
+      deletePlaceDetailsCacheEntry(cacheKey)
+    }
+  }
+}
+
+function cachePlaceDetails(
+  cacheKey: string,
+  details: GooglePlaceDetailsResponse,
+  completedAt: number,
+): void {
+  const previous = backendPlaceDetailsCache.get(cacheKey)
+  if (previous?.garbageCollectionTimer !== undefined) {
+    globalThis.clearTimeout(previous.garbageCollectionTimer)
+  }
+  const garbageCollectAt = completedAt + PLACE_DETAILS_GC_TIME_MS
+  const garbageCollectionTimer = globalThis.setTimeout(() => {
+    const current = backendPlaceDetailsCache.get(cacheKey)
+    if (current?.garbageCollectAt !== undefined && current.garbageCollectAt <= Date.now()) {
+      deletePlaceDetailsCacheEntry(cacheKey)
+    }
+  }, PLACE_DETAILS_GC_TIME_MS)
+  backendPlaceDetailsCache.set(cacheKey, {
+    data: details,
+    expiresAt: completedAt + PLACE_DETAILS_STALE_TIME_MS,
+    garbageCollectAt,
+    garbageCollectionTimer,
+  })
 }
 
 const GOOGLE_PLACE_CATEGORY_TYPES = new Map<string, string>([
@@ -388,15 +445,17 @@ async function getBackendJson<T>(
   context: string,
   params?: Record<string, string | boolean | undefined>,
   fetchImpl?: FetchImplementation,
+  signal?: AbortSignal,
 ): Promise<T> {
   if (fetchImpl) {
     const response = await fetchImpl(backendFetchUrl(url, params), {
       credentials: 'include',
+      signal,
     })
     assertOk(response, context)
     return (await response.json()) as T
   }
-  const response = await apiClient.get<T>(url, { params })
+  const response = await apiClient.get<T>(url, { params, signal })
   return response.data
 }
 
@@ -406,6 +465,7 @@ async function postBackendJson<T>(
   context: string,
   params?: Record<string, string | boolean | undefined>,
   fetchImpl?: FetchImplementation,
+  signal?: AbortSignal,
 ): Promise<T> {
   if (fetchImpl) {
     const response = await fetchImpl(backendFetchUrl(url, params), {
@@ -415,11 +475,12 @@ async function postBackendJson<T>(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(body),
+      signal,
     })
     assertOk(response, context)
     return (await response.json()) as T
   }
-  const response = await apiClient.post<T>(url, body, { params })
+  const response = await apiClient.post<T>(url, body, { params, signal })
   return response.data
 }
 
@@ -512,11 +573,13 @@ export async function fetchGooglePlaceSuggestions({
   options,
   query,
   sessionToken,
+  signal,
 }: {
   fetchImpl?: FetchImplementation
   options?: GooglePlaceSearchOptions
   query: string
   sessionToken: string
+  signal?: AbortSignal
 }): Promise<GooglePlaceSuggestion[]> {
   const body = await postBackendJson<GoogleAutocompleteResponse>(
     '/places/autocomplete',
@@ -524,6 +587,7 @@ export async function fetchGooglePlaceSuggestions({
     'Google Places autocomplete',
     undefined,
     fetchImpl,
+    signal,
   )
   return (body.suggestions ?? [])
     .map((suggestion) => ({
@@ -534,7 +598,7 @@ export async function fetchGooglePlaceSuggestions({
 
 export async function fetchGooglePlaceTextSearch({
   fetchImpl,
-  includePhoto = true,
+  includePhoto = false,
   options,
   pageSize = GOOGLE_PLACES_SEARCH_RESULT_LIMIT,
   query,
@@ -594,20 +658,27 @@ export async function fetchGooglePlaceDetails({
   fields,
   fetchImpl,
   sessionToken,
+  signal,
   traceId,
 }: {
   fetchImpl?: FetchImplementation
   includePhoto?: boolean
   placeId: string
   sessionToken?: string | null
+  signal?: AbortSignal
   fields?: string | string[]
   traceId?: string | null
 }): Promise<GooglePlaceDetailsResponse> {
   const fieldMask = canonicalBackendPlaceDetailsFieldMask({ fields, includePhoto })
   const normalizedSessionToken = sessionToken?.trim() || ''
-  const cacheKey = `${placeId}\n${fieldMask}\n${normalizedSessionToken}`
-  const existing = backendPlaceDetailsRequests.get(cacheKey)
-  if (existing) return existing
+  const cacheKey = `${placeId}\n${fieldMask}`
+  const now = Date.now()
+  pruneExpiredPlaceDetailsCache(now)
+  const cached = backendPlaceDetailsCache.get(cacheKey)
+  if (cached?.data && cached.expiresAt !== undefined && cached.expiresAt > now) {
+    return cached.data
+  }
+  if (!signal && cached?.request) return cached.request
 
   const shouldSendFields = fields !== undefined || includePhoto
   const requestStartedAtMs = placeDetailsNowMs()
@@ -627,6 +698,7 @@ export async function fetchGooglePlaceDetails({
       ...(normalizedSessionToken ? { sessionToken: normalizedSessionToken } : {}),
     },
     fetchImpl,
+    signal,
   ).then((response) => {
     logPlaceDetailsTiming('frontend_details_response_received', {
       durationMs: placeDetailsElapsedMs(requestStartedAtMs),
@@ -637,14 +709,25 @@ export async function fetchGooglePlaceDetails({
       stale: response.stale,
       traceId: traceId?.trim() || null,
     })
+    markPerformance('place-details-ready')
     return response.details
   })
 
-  backendPlaceDetailsRequests.set(cacheKey, request)
+  if (!signal) {
+    backendPlaceDetailsCache.set(cacheKey, { ...cached, request })
+  }
   try {
-    return await request
+    const details = await request
+    cachePlaceDetails(cacheKey, details, Date.now())
+    return details
   } catch (error) {
-    backendPlaceDetailsRequests.delete(cacheKey)
+    if (!signal) {
+      if (cached) {
+        backendPlaceDetailsCache.set(cacheKey, cached)
+      } else {
+        deletePlaceDetailsCacheEntry(cacheKey)
+      }
+    }
     throw error
   }
 }

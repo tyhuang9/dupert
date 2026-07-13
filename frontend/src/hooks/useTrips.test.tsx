@@ -26,6 +26,7 @@ const SAMPLE_TRIP: Trip = {
   imageUrl: null,
   createdAt: '2026-05-22T16:00:00Z',
   role: 'OWNER',
+  version: 0,
 }
 
 function wrapper({ children }: PropsWithChildren) {
@@ -77,6 +78,18 @@ describe('useTrips', () => {
     await waitFor(() => {
       expect(result.current.data).toEqual(SAMPLE_TRIP)
     })
+  })
+
+  it('seeds a fresh detail from the trip-list cache without another request', () => {
+    queryClient.setQueryDefaults(tripKeys.detail(SAMPLE_TRIP.publicId), {
+      staleTime: 30_000,
+    })
+    queryClient.setQueryData(tripKeys.lists(), [SAMPLE_TRIP])
+
+    const { result } = renderHook(() => useTrip(SAMPLE_TRIP.publicId), { wrapper })
+
+    expect(result.current.data).toEqual(SAMPLE_TRIP)
+    expect(apiMock.history.get).toHaveLength(0)
   })
 
   it('adds created trips to the list and detail caches', async () => {
