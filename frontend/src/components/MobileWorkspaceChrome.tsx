@@ -16,11 +16,24 @@ import styles from './MobileWorkspaceChrome.module.css'
 
 export type MobileWorkspaceTab = 'plan' | 'map' | 'timeline' | 'ideas'
 
+export interface MobileMapDayVisibility {
+  id: string
+  isVisible: boolean
+  label: string
+}
+
+export interface MobileMapDayVisibilityModel {
+  days: readonly MobileMapDayVisibility[]
+  onShowAllDays: () => void
+  onToggleDay: (dayId: string) => void
+}
+
 interface MobileWorkspaceChromeProps {
   activeTab: MobileWorkspaceTab
   canEditTrip: boolean
   guestActions?: ReactNode
   isAuthenticated: boolean
+  mapDayVisibility?: MobileMapDayVisibilityModel
   onOpenSettings: () => void
   onOpenShare: () => void
   onSelectTab: (tab: MobileWorkspaceTab) => void
@@ -46,6 +59,7 @@ export function MobileWorkspaceChrome({
   canEditTrip,
   guestActions,
   isAuthenticated,
+  mapDayVisibility,
   onOpenSettings,
   onOpenShare,
   onSelectTab,
@@ -111,6 +125,9 @@ export function MobileWorkspaceChrome({
     setIsMenuOpen(false)
     action()
   }, [])
+
+  const mapDayVisibilityModel = mapDayVisibility?.days.length ? mapDayVisibility : undefined
+  const areAllMapDaysVisible = mapDayVisibilityModel?.days.every((day) => day.isVisible) ?? false
 
   return (
     <>
@@ -196,6 +213,35 @@ export function MobileWorkspaceChrome({
                   <Settings size={18} aria-hidden="true" />
                   Trip settings
                 </button>
+              ) : null}
+              {mapDayVisibilityModel ? (
+                <section className={styles.mapDays} aria-labelledby="mobile-map-days-title">
+                  <div className={styles.mapDaysHeader}>
+                    <h3 id="mobile-map-days-title">Map days</h3>
+                    <button
+                      type="button"
+                      className={styles.showAllDaysButton}
+                      disabled={areAllMapDaysVisible}
+                      onClick={mapDayVisibilityModel.onShowAllDays}
+                    >
+                      Show all days
+                    </button>
+                  </div>
+                  <div className={styles.mapDayToggles} aria-label="Map day visibility">
+                    {mapDayVisibilityModel.days.map((day) => (
+                      <button
+                        key={day.id}
+                        type="button"
+                        className={styles.mapDayToggle}
+                        aria-pressed={day.isVisible}
+                        onClick={() => mapDayVisibilityModel.onToggleDay(day.id)}
+                      >
+                        <span>{day.label}</span>
+                        <span aria-hidden="true">{day.isVisible ? 'Shown' : 'Hidden'}</span>
+                      </button>
+                    ))}
+                  </div>
+                </section>
               ) : null}
             </nav>
           </section>
