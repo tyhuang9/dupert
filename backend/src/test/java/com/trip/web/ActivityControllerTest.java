@@ -101,6 +101,7 @@ class ActivityControllerTest {
     void wireDefaults() {
         trip = trip(TRIP_PK, TRIP_PUBLIC_ID, ALICE_ID, "Tokyo 2026", DAY_ONE, DAY_THREE);
         when(tripRepository.findByPublicId(TRIP_PUBLIC_ID)).thenReturn(Optional.of(trip));
+        when(tripRepository.findByIdForUpdate(TRIP_PK)).thenReturn(Optional.of(trip));
         when(tripMemberRepository.findByIdTripIdAndIdUserId(TRIP_PK, ALICE_ID))
             .thenReturn(Optional.of(new TripMember(TRIP_PK, ALICE_ID, TripRole.OWNER)));
         when(userRepository.findById(ALICE_ID)).thenReturn(Optional.of(user(ALICE_ID, "Alice")));
