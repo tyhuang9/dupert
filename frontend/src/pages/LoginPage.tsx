@@ -2,6 +2,7 @@ import { useId, useRef, useState, type FormEvent } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth'
+import { AuthBootstrapShell } from '../auth/AuthBootstrapShell'
 import { useIsAuthenticated } from '../auth/authStore'
 import { apiErrorCode, parseApiError, type ParsedApiError } from '../api/errors'
 import { listTrips } from '../api/trips'
@@ -53,7 +54,7 @@ export function LoginPage() {
   // Withhold the redirect while the silent-refresh probe is in-flight,
   // otherwise a user with a valid refresh cookie sees a brief flash of
   // the login form before being bounced to /trips.
-  if (isInitializing) return null
+  if (isInitializing) return <AuthBootstrapShell />
   if (isAuthenticated) {
     return <Navigate to={returnTo} replace />
   }

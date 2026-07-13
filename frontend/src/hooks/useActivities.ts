@@ -109,11 +109,14 @@ function moveActivityInCache(
 /**
  * Hook: List all activities for a trip.
  */
-export function useActivities(publicId: string | undefined): UseQueryResult<Activity[]> {
+export function useActivities(
+  publicId: string | undefined,
+  options: { enabled?: boolean } = {},
+): UseQueryResult<Activity[]> {
   return useQuery({
     queryKey: activityKeys.list(publicId ?? ''),
     queryFn: () => listActivities(publicId as string),
-    enabled: Boolean(publicId),
+    enabled: Boolean(publicId) && (options.enabled ?? true),
   })
 }
 

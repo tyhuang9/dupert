@@ -8,7 +8,6 @@ import { AppAccessGate } from './access/AppAccessGate.tsx'
 import { AuthProvider } from './auth/AuthContext.tsx'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClient } from './api/queryClient.ts'
-import { GoogleMapsProvider } from './components/GoogleMapsProvider.tsx'
 import { ColorModeProvider } from './theme/ColorModeProvider.tsx'
 import { applyColorMode, readStoredColorMode } from './theme/colorMode.ts'
 import { markPerformance } from './performance/timing.ts'
@@ -23,9 +22,7 @@ createRoot(document.getElementById('root')!).render(
       <QueryClientProvider client={queryClient}>
         <AppAccessGate>
           <AuthProvider>
-            <GoogleMapsProvider>
-              <App />
-            </GoogleMapsProvider>
+            <App />
             <SpeedInsights />
           </AuthProvider>
         </AppAccessGate>

@@ -1,18 +1,25 @@
+import { lazy, Suspense } from 'react'
 import { BrowserRouter, Link, Navigate, Route, Routes } from 'react-router-dom'
 import './App.css'
-import AcceptInvitePage from './pages/AcceptInvitePage'
-import EmailVerificationPage from './pages/EmailVerificationPage'
-import GuestOnboardingPage from './pages/GuestOnboardingPage'
-import LoginPage from './pages/LoginPage'
-import MembersPage from './pages/MembersPage'
-import PasswordResetPage from './pages/PasswordResetPage'
-import RegisterPage from './pages/RegisterPage'
-import TripsPage from './pages/TripsPage'
-import NewTripPage from './pages/NewTripPage'
-import TripWorkspacePage from './pages/TripWorkspacePage'
 import { RequireAuth } from './auth/RequireAuth'
 import { SkipLink } from './components/SkipLink'
 import { RouteAnnouncer } from './components/RouteAnnouncer'
+import { RouteLoadingFallback } from './components/RouteLoadingFallback'
+
+const AcceptInvitePage = lazy(() => import('./pages/AcceptInvitePage'))
+const EmailVerificationPage = lazy(() => import('./pages/EmailVerificationPage').then(({ EmailVerificationPage: Page }) => ({ default: Page })))
+const GuestOnboardingPage = lazy(() => import('./pages/GuestOnboardingPage'))
+const LoginPage = lazy(() => import('./pages/LoginPage').then(({ LoginPage: Page }) => ({ default: Page })))
+const MembersPage = lazy(() => import('./pages/MembersPage'))
+const PasswordResetPage = lazy(() => import('./pages/PasswordResetPage'))
+const RegisterPage = lazy(() => import('./pages/RegisterPage').then(({ RegisterPage: Page }) => ({ default: Page })))
+const TripsPage = lazy(() => import('./pages/TripsPage').then(({ TripsPage: Page }) => ({ default: Page })))
+const NewTripPage = lazy(() => import('./pages/NewTripPage').then(({ NewTripPage: Page }) => ({ default: Page })))
+const TripWorkspacePage = lazy(() => import('./pages/TripWorkspacePage').then(({ TripWorkspacePage: Page }) => ({ default: Page })))
+
+function LazyRoute({ kind, children }: { kind: 'auth' | 'trips' | 'workspace' | 'members'; children: React.ReactNode }) {
+  return <Suspense fallback={<RouteLoadingFallback kind={kind} />}>{children}</Suspense>
+}
 
 /**
  * Router for chunk 2e. Public auth routes (`/login`, `/register`) sit
@@ -53,23 +60,23 @@ export default function App() {
       <RouteAnnouncer />
       <Routes>
         {/* Public routes — auth pages and share-accept landing flows */}
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/register" element={<RegisterPage />} />
-        <Route path="/verify-email" element={<EmailVerificationPage />} />
-        <Route path="/reset-password" element={<PasswordResetPage />} />
-        <Route path="/share/:token" element={<AcceptInvitePage />} />
-        <Route path="/share/:token/guest" element={<GuestOnboardingPage />} />
+        <Route path="/login" element={<LazyRoute kind="auth"><LoginPage /></LazyRoute>} />
+        <Route path="/register" element={<LazyRoute kind="auth"><RegisterPage /></LazyRoute>} />
+        <Route path="/verify-email" element={<LazyRoute kind="auth"><EmailVerificationPage /></LazyRoute>} />
+        <Route path="/reset-password" element={<LazyRoute kind="auth"><PasswordResetPage /></LazyRoute>} />
+        <Route path="/share/:token" element={<LazyRoute kind="auth"><AcceptInvitePage /></LazyRoute>} />
+        <Route path="/share/:token/guest" element={<LazyRoute kind="auth"><GuestOnboardingPage /></LazyRoute>} />
         <Route path="/404" element={<NotFoundPage />} />
         <Route path="/403" element={<ForbiddenPage />} />
-        <Route path="/trips/:publicId" element={<TripWorkspacePage />} />
-        <Route path="/trips/:publicId/d/:day" element={<TripWorkspacePage />} />
+        <Route path="/trips/:publicId" element={<LazyRoute kind="workspace"><TripWorkspacePage /></LazyRoute>} />
+        <Route path="/trips/:publicId/d/:day" element={<LazyRoute kind="workspace"><TripWorkspacePage /></LazyRoute>} />
 
         {/* Authenticated routes — wrapped in RequireAuth */}
         <Route element={<RequireAuth />}>
           <Route path="/" element={<Navigate to="/trips" replace />} />
-          <Route path="/trips" element={<TripsPage />} />
-          <Route path="/trips/new" element={<NewTripPage />} />
-          <Route path="/trips/:publicId/members" element={<MembersPage />} />
+          <Route path="/trips" element={<LazyRoute kind="trips"><TripsPage /></LazyRoute>} />
+          <Route path="/trips/new" element={<LazyRoute kind="trips"><NewTripPage /></LazyRoute>} />
+          <Route path="/trips/:publicId/members" element={<LazyRoute kind="members"><MembersPage /></LazyRoute>} />
         </Route>
 
         {/* Catch-all */}

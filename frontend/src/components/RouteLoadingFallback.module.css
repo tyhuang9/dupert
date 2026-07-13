@@ -1,0 +1,49 @@
+.page {
+  min-height: 100vh;
+  padding: var(--space-8) var(--space-4);
+  background: var(--color-surface-2);
+}
+
+.content {
+  width: min(100%, 72rem);
+  margin: 0 auto;
+  display: grid;
+  gap: var(--space-4);
+}
+
+.line,
+.map {
+  display: block;
+  border-radius: var(--radius-md);
+  background: linear-gradient(90deg, var(--color-surface), var(--color-surface-2), var(--color-surface));
+  background-size: 200% 100%;
+  animation: route-loading-shimmer 1.4s ease-in-out infinite;
+}
+
+.line {
+  width: min(100%, 36rem);
+  height: 1.25rem;
+}
+
+.title {
+  width: min(70%, 24rem);
+  height: 2rem;
+}
+
+.map {
+  width: 100%;
+  min-height: 22rem;
+}
+
+@keyframes route-loading-shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .line,
+  .map {
+    animation: none;
+  }
+}

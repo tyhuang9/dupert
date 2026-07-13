@@ -1,6 +1,7 @@
 import { useId, useMemo, useRef, useState, type FormEvent } from 'react'
 import { Link, Navigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth'
+import { AuthBootstrapShell } from '../auth/AuthBootstrapShell'
 import { useIsAuthenticated } from '../auth/authStore'
 import { parseApiError, type ParsedApiError } from '../api/errors'
 import { safeReturnPath } from '../auth/safeReturnPath'
@@ -122,7 +123,7 @@ export function RegisterPage() {
   const passwordErrorId = `${passwordId}-error`
   const displayNameErrorId = `${displayNameId}-error`
 
-  if (isInitializing) return null
+  if (isInitializing) return <AuthBootstrapShell />
   if (isAuthenticated) {
     return <Navigate to={returnTo} replace />
   }
