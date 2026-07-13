@@ -751,7 +751,9 @@ describe('<TripWorkspacePage>', () => {
     })
     expect(dayPicker).toHaveTextContent('Friday, May 1')
 
-    const addActivity = screen.getAllByRole('button', { name: /^add activity$/i })[0]
+    const addActivity = within(dayPicker.parentElement as HTMLElement).getByRole('button', {
+      name: /^add activity$/i,
+    })
     expect(addActivity).toHaveTextContent('Add Activity')
     addActivity.focus()
     await userEvent.keyboard('{Enter}')
