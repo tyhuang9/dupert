@@ -85,6 +85,7 @@ import {
   useTripMembers,
 } from '../hooks/useShareLinks'
 import { usePageTitle } from '../utils/usePageTitle'
+import { markPerformance } from '../performance/timing'
 import styles from './TripWorkspacePage.module.css'
 import {
   MobileWorkspaceChrome,
@@ -1685,6 +1686,16 @@ export function TripWorkspacePage() {
   const queryPublicId = shouldClaimGuestSession ? undefined : publicId
   const tripQuery = useTrip(queryPublicId, { enabled: !shouldClaimGuestSession })
   const activitiesQuery = useActivities(queryPublicId)
+  useEffect(() => {
+    if (activitiesQuery.isSuccess) {
+      markPerformance('activities-rendered')
+    }
+  }, [activitiesQuery.isSuccess])
+  useEffect(() => {
+    if (tripQuery.isSuccess && activitiesQuery.isSuccess) {
+      markPerformance('workspace-ready')
+    }
+  }, [activitiesQuery.isSuccess, tripQuery.isSuccess])
   const selectedDay = tripQuery.data
     ? day && dayInRange(day, tripQuery.data.startDate, tripQuery.data.endDate)
       ? day
