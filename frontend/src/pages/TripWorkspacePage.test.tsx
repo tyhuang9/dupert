@@ -2700,6 +2700,19 @@ describe('<TripWorkspacePage>', () => {
     expect(screen.queryByLabelText(/map search results/i)).not.toBeInTheDocument()
     expect(within(detailSheet).getByRole('button', { name: /back to results/i })).toBeInTheDocument()
     expect(within(detailSheet).getAllByRole('button', { name: /close place details/i })).toHaveLength(1)
+    const placeImage = within(detailSheet).getByRole('img', { name: /ramen street/i })
+    const hero = placeImage.parentElement?.parentElement
+    expect(hero).toContainElement(within(detailSheet).getByRole('button', { name: /back to results/i }))
+    expect(hero).toContainElement(
+      within(detailSheet).getByRole('button', { name: /close place details/i }),
+    )
+    expect(detailSheet.querySelector('[class*="placeDetailMobileHeader"]')).not.toBeInTheDocument()
+
+    fireEvent.error(placeImage)
+    await waitFor(() => {
+      expect(within(detailSheet).queryByRole('img', { name: /ramen street/i })).not.toBeInTheDocument()
+      expect(detailSheet.querySelector('[data-photo-state="fallback"]')).toBeInTheDocument()
+    })
     const detailHeading = within(detailSheet).getByRole('heading', { name: /ramen street/i })
     await waitFor(() => {
       expect(detailHeading).toHaveFocus()

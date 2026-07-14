@@ -1,9 +1,22 @@
+import { readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { describe, expect, it, vi } from 'vitest'
 import { MobileWorkspaceChrome } from './MobileWorkspaceChrome'
 import styles from './MobileWorkspaceChrome.module.css'
+
+const currentDir = dirname(fileURLToPath(import.meta.url))
+const chromeCss = readFileSync(join(currentDir, 'MobileWorkspaceChrome.module.css'), 'utf8')
+
+function cssBlocks(css: string, selector: string) {
+  const escapedSelector = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  return [...css.matchAll(new RegExp(`${escapedSelector}\\s*\\{([^}]*)\\}`, 'g'))].map(
+    (match) => match[1],
+  )
+}
 
 interface RenderChromeOptions {
   canEditTrip?: boolean
@@ -42,12 +55,12 @@ async function openDrawer() {
 }
 
 describe('<MobileWorkspaceChrome>', () => {
-  it('renders a labelled left drawer dialog and initially focuses its close control', async () => {
+  it('renders a labelled right-aligned popup dialog and initially focuses its close control', async () => {
     renderChrome()
 
-    const { drawer, trigger } = await openDrawer()
+    const { drawer: popup, trigger } = await openDrawer()
 
-    expect(drawer).toHaveClass(styles.menuDrawer)
+    expect(popup).toHaveClass(styles.menuPopup)
     expect(trigger).toHaveAttribute('aria-controls', 'mobile-trip-menu')
     expect(trigger).toHaveAttribute('aria-expanded', 'true')
     await waitFor(() => {
@@ -55,7 +68,7 @@ describe('<MobileWorkspaceChrome>', () => {
     })
   })
 
-  it('traps keyboard focus inside the trip drawer', async () => {
+  it('traps keyboard focus inside the trip popup', async () => {
     const user = userEvent.setup()
     renderChrome()
 
@@ -125,5 +138,25 @@ describe('<MobileWorkspaceChrome>', () => {
     await user.click(trigger)
     await user.click(screen.getByRole('button', { name: /trip settings/i }))
     expect(onOpenSettings).toHaveBeenCalledOnce()
+  })
+
+  it('keeps the menu as a right-aligned, viewport-bounded popup instead of a full-height drawer', () => {
+    const backdropBlock = cssBlocks(chromeCss, '.menuBackdrop')[0] ?? ''
+    const popupBlock = cssBlocks(chromeCss, '.menuPopup')[0] ?? ''
+    const headerBlock = cssBlocks(chromeCss, '.menuHeader')[0] ?? ''
+    const actionsBlock = cssBlocks(chromeCss, '.menuActions')[0] ?? ''
+
+    expect(backdropBlock).toMatch(/background:\s*rgb\(26 33 31 \/ 22%\)/)
+    expect(popupBlock).toMatch(/position:\s*absolute/)
+    expect(popupBlock).toMatch(/--menu-control-top:\s*10px/)
+    expect(popupBlock).toMatch(/top:\s*0/)
+    expect(popupBlock).toMatch(/right:\s*0/)
+    expect(popupBlock).toMatch(/width:\s*min\(22rem,\s*calc\(100vw - var\(--space-6\)\)\)/)
+    expect(popupBlock).toMatch(/max-height:\s*calc\(100dvh - 8rem - var\(--space-4\) - env\(safe-area-inset-bottom\)\)/)
+    expect(popupBlock).toMatch(/border-radius:\s*var\(--radius-xl\)/)
+    expect(popupBlock).toMatch(/overflow:\s*hidden/)
+    expect(popupBlock).not.toMatch(/height:\s*100dvh/)
+    expect(headerBlock).toMatch(/padding:\s*var\(--menu-control-top\) var\(--space-4\) var\(--space-4\)/)
+    expect(actionsBlock).toMatch(/overflow-y:\s*auto/)
   })
 })

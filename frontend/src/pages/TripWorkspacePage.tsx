@@ -840,15 +840,32 @@ function viewportBoundsToRectangle(
   }
 }
 
+function PlaceThumbnailImage({ photoUrl, title }: { photoUrl: string; title: string }) {
+  const [hasImageError, setHasImageError] = useState(false)
+
+  if (hasImageError) {
+    return <MapPin size={20} aria-hidden="true" data-photo-state="fallback" />
+  }
+
+  return (
+    <img
+      src={photoUrl}
+      alt={title}
+      data-photo-state="loaded"
+      onError={() => setHasImageError(true)}
+    />
+  )
+}
+
 function PlaceThumbnail({ place }: { place: PlaceSelection }) {
   const title = placeDisplayName(place)
 
   return (
     <span className={styles.placeThumbnail}>
       {place.photoUrl ? (
-        <img src={place.photoUrl} alt={title} />
+        <PlaceThumbnailImage key={place.photoUrl} photoUrl={place.photoUrl} title={title} />
       ) : (
-        <MapPin size={20} aria-hidden="true" />
+        <MapPin size={20} aria-hidden="true" data-photo-state="fallback" />
       )}
     </span>
   )
@@ -4218,32 +4235,30 @@ export function TripWorkspacePage() {
                     aria-labelledby="map-place-detail-title map-place-detail-label"
                   >
                     <span id="map-place-detail-label" className="sr-only">Selected map place</span>
-                    {isMobileViewport && (
-                      <div className={styles.placeDetailMobileHeader}>
-                        {mapSearchResults.length > 0 ? (
-                          <button
-                            type="button"
-                            className={styles.placeDetailBack}
-                            onClick={returnToMapSearchResults}
-                          >
-                            <ChevronLeft size={18} aria-hidden="true" />
-                            Back to results
-                          </button>
-                        ) : (
-                          <span />
-                        )}
-                        <button
-                          type="button"
-                          className={styles.placeDetailMobileClose}
-                          onClick={closeMapPlaceDetails}
-                          aria-label="Close place details"
-                        >
-                          <X size={18} aria-hidden="true" />
-                        </button>
-                      </div>
-                    )}
                     <div className={styles.placeHero}>
                       <PlaceThumbnail place={mapDetailPlace} />
+                      {isMobileViewport && (
+                        <div className={styles.placeDetailMobileControls}>
+                          {mapSearchResults.length > 0 ? (
+                            <button
+                              type="button"
+                              className={styles.placeDetailBack}
+                              onClick={returnToMapSearchResults}
+                            >
+                              <ChevronLeft size={18} aria-hidden="true" />
+                              Back to results
+                            </button>
+                          ) : null}
+                          <button
+                            type="button"
+                            className={styles.placeDetailMobileClose}
+                            onClick={closeMapPlaceDetails}
+                            aria-label="Close place details"
+                          >
+                            <X size={18} aria-hidden="true" />
+                          </button>
+                        </div>
+                      )}
                       {!isMobileViewport && (
                         <button
                           type="button"

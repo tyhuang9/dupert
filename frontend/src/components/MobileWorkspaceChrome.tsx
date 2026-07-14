@@ -54,7 +54,7 @@ export function MobileWorkspaceChrome({
 }: Readonly<MobileWorkspaceChromeProps>) {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const menuTriggerRef = useRef<HTMLButtonElement>(null)
-  const drawerRef = useRef<HTMLElement>(null)
+  const menuPopupRef = useRef<HTMLElement>(null)
   const closeButtonRef = useRef<HTMLButtonElement>(null)
 
   const closeMenu = useCallback(() => {
@@ -74,11 +74,11 @@ export function MobileWorkspaceChrome({
 
       if (event.key !== 'Tab') return
 
-      const drawer = drawerRef.current
-      if (!drawer) return
+      const menuPopup = menuPopupRef.current
+      if (!menuPopup) return
 
       const focusableElements = Array.from(
-        drawer.querySelectorAll<HTMLElement>(
+        menuPopup.querySelectorAll<HTMLElement>(
           'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])',
         ),
       )
@@ -89,10 +89,10 @@ export function MobileWorkspaceChrome({
       const lastElement = focusableElements[focusableElements.length - 1]
       const activeElement = document.activeElement
 
-      if (event.shiftKey && (activeElement === firstElement || !drawer.contains(activeElement))) {
+      if (event.shiftKey && (activeElement === firstElement || !menuPopup.contains(activeElement))) {
         event.preventDefault()
         lastElement.focus()
-      } else if (!event.shiftKey && (activeElement === lastElement || !drawer.contains(activeElement))) {
+      } else if (!event.shiftKey && (activeElement === lastElement || !menuPopup.contains(activeElement))) {
         event.preventDefault()
         firstElement.focus()
       }
@@ -145,9 +145,9 @@ export function MobileWorkspaceChrome({
       {isMenuOpen ? (
         <div className={styles.menuBackdrop} onMouseDown={closeMenu}>
           <section
-            ref={drawerRef}
+            ref={menuPopupRef}
             id="mobile-trip-menu"
-            className={styles.menuDrawer}
+            className={styles.menuPopup}
             role="dialog"
             aria-modal="true"
             aria-labelledby="mobile-trip-menu-title"
