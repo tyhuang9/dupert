@@ -272,6 +272,24 @@ function installGoogleOverlayMock() {
 
 const directionsMock = vi.mocked(getDrivingDirections)
 
+function testRoute(
+  from: { lat: number; lng: number },
+  to: { lat: number; lng: number },
+  duration = 720,
+  distance = 2400,
+): NonNullable<Awaited<ReturnType<typeof getDrivingDirections>>> {
+  return {
+    distance,
+    duration,
+    legs: [{
+      distance,
+      duration,
+      path: [from, to],
+    }],
+    path: [from, to],
+  }
+}
+
 beforeEach(() => {
   vi.stubEnv('VITE_GOOGLE_MAPS_API_KEY', 'gmaps.test')
   Object.defineProperty(window, 'requestAnimationFrame', {
@@ -368,6 +386,210 @@ describe('<TripMap>', () => {
     } finally {
       routeSummaryHost.remove()
     }
+  })
+
+  it('requests and renders independent routes for each day without cross-day legs', async () => {
+    const dayTwoActivities = [
+      runtimeActivity({
+        id: 20,
+        dayDate: '2026-05-02',
+        title: 'Ferry Building',
+        lat: 35.68,
+        lng: 139.76,
+        orderIndex: 0,
+      }),
+      runtimeActivity({
+        id: 21,
+        dayDate: '2026-05-02',
+        title: 'Museum Stop',
+        lat: 35.69,
+        lng: 139.75,
+        orderIndex: 1,
+      }),
+    ]
+    directionsMock.mockImplementation(async (activities) =>
+      testRoute(activities[0], activities[1]),
+    )
+
+    render(
+      <TripMap
+        activities={[...ACTIVITIES, ...dayTwoActivities]}
+        fallbackActivities={[]}
+        routeActivities={[...ACTIVITIES, ...dayTwoActivities]}
+        destination="Tokyo"
+      />,
+    )
+
+    await waitFor(() => {
+      expect(directionsMock).toHaveBeenCalledTimes(2)
+    })
+    expect(directionsMock).toHaveBeenNthCalledWith(
+      1,
+      ACTIVITIES,
+      expect.any(AbortSignal),
+    )
+    expect(directionsMock).toHaveBeenNthCalledWith(
+      2,
+      dayTwoActivities,
+      expect.any(AbortSignal),
+    )
+    expect(directionsMock).not.toHaveBeenCalledWith(
+      [ACTIVITIES[1], dayTwoActivities[0]],
+      expect.any(AbortSignal),
+    )
+    expect(await screen.findAllByTestId('route-layer')).toHaveLength(2)
+    expect(screen.getByText('24 min total · 4.8 km across 2 days')).toBeInTheDocument()
+    expect(screen.getByText('Visible-days routes')).toBeInTheDocument()
+  })
+
+  it('keeps successful day routes visible when another day route fails', async () => {
+    const dayTwoActivities = [
+      runtimeActivity({
+        id: 20,
+        dayDate: '2026-05-02',
+        lat: 35.68,
+        lng: 139.76,
+        orderIndex: 0,
+      }),
+      runtimeActivity({
+        id: 21,
+        dayDate: '2026-05-02',
+        lat: 35.69,
+        lng: 139.75,
+        orderIndex: 1,
+      }),
+    ]
+    directionsMock.mockImplementation(async (activities) => {
+      if (activities[0].lat === dayTwoActivities[0].lat) {
+        throw {
+          isAxiosError: true,
+          response: {
+            status: 502,
+            data: { error: 'google_maps_unavailable' },
+          },
+        }
+      }
+      return testRoute(activities[0], activities[1])
+    })
+
+    render(
+      <TripMap
+        activities={[...ACTIVITIES, ...dayTwoActivities]}
+        fallbackActivities={[]}
+        routeActivities={[...ACTIVITIES, ...dayTwoActivities]}
+        destination="Tokyo"
+      />,
+    )
+
+    expect(await screen.findByText(/route unavailable/i)).toBeInTheDocument()
+    expect(screen.getByTestId('route-layer')).toBeInTheDocument()
+    expect(screen.getByText('12 min total · 2.4 km across 1 of 2 days')).toBeInTheDocument()
+  })
+
+  it('does not route single-stop, malformed, or unscheduled day groups', async () => {
+    const singleStop = runtimeActivity({
+      id: 20,
+      dayDate: '2026-05-02',
+      lat: 35.68,
+      lng: 139.76,
+    })
+    const validBeforeMalformed = runtimeActivity({
+      id: 30,
+      dayDate: '2026-05-03',
+      lat: 35.7,
+      lng: 139.74,
+    })
+    const malformedStop = runtimeActivity({
+      id: 31,
+      dayDate: '2026-05-03',
+      lat: Number.NaN,
+      lng: 139.75,
+    })
+    const unscheduledStops = [
+      runtimeActivity({ id: 40, dayDate: null, lat: 35.71, lng: 139.73 }),
+      runtimeActivity({ id: 41, dayDate: null, lat: 35.72, lng: 139.72 }),
+    ]
+
+    render(
+      <TripMap
+        activities={ACTIVITIES}
+        fallbackActivities={[]}
+        routeActivities={[
+          ...ACTIVITIES,
+          singleStop,
+          validBeforeMalformed,
+          malformedStop,
+          ...unscheduledStops,
+        ]}
+        destination="Tokyo"
+      />,
+    )
+
+    await waitFor(() => {
+      expect(directionsMock).toHaveBeenCalledTimes(1)
+    })
+    expect(directionsMock).toHaveBeenCalledWith(ACTIVITIES, expect.any(AbortSignal))
+  })
+
+  it('limits route calculation to four concurrent day requests', async () => {
+    let activeRequests = 0
+    let maxActiveRequests = 0
+    let releaseFirstWave = () => {}
+    const firstWaveGate = new Promise<void>((resolve) => {
+      releaseFirstWave = resolve
+    })
+    let requestIndex = 0
+    directionsMock.mockImplementation(async (activities) => {
+      const currentRequestIndex = requestIndex
+      requestIndex += 1
+      activeRequests += 1
+      maxActiveRequests = Math.max(maxActiveRequests, activeRequests)
+      if (currentRequestIndex < 4) await firstWaveGate
+      activeRequests -= 1
+      return testRoute(activities[0], activities[1])
+    })
+    const routeActivities = Array.from({ length: 6 }, (_, dayIndex) => [
+      runtimeActivity({
+        id: 100 + dayIndex * 2,
+        dayDate: `2026-05-${String(dayIndex + 1).padStart(2, '0')}`,
+        lat: 35.6 + dayIndex * 0.01,
+        lng: 139.7 + dayIndex * 0.01,
+        orderIndex: 0,
+      }),
+      runtimeActivity({
+        id: 101 + dayIndex * 2,
+        dayDate: `2026-05-${String(dayIndex + 1).padStart(2, '0')}`,
+        lat: 35.605 + dayIndex * 0.01,
+        lng: 139.705 + dayIndex * 0.01,
+        orderIndex: 1,
+      }),
+    ]).flat()
+
+    render(
+      <TripMap
+        activities={routeActivities}
+        fallbackActivities={[]}
+        routeActivities={routeActivities}
+        destination="Tokyo"
+      />,
+    )
+
+    await waitFor(() => {
+      expect(directionsMock).toHaveBeenCalledTimes(4)
+    })
+    expect(maxActiveRequests).toBe(4)
+
+    await act(async () => {
+      releaseFirstWave()
+      await firstWaveGate
+    })
+
+    await waitFor(() => {
+      expect(directionsMock).toHaveBeenCalledTimes(6)
+    })
+    expect(maxActiveRequests).toBe(4)
+    expect(await screen.findAllByTestId('route-layer')).toHaveLength(6)
+    expect(screen.getByText('1 hr 12 min total · 14.4 km across 6 days')).toBeInTheDocument()
   })
 
   it('shows only the hovered or tapped route leg duration', async () => {
