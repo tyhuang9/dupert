@@ -67,6 +67,7 @@ interface TripMapProps {
   onViewportContextChange?: (context: MapViewportContext) => void
   routeSummaryClassName?: string
   routeSummaryContainer?: HTMLElement | null
+  routeSummaryLabel?: string
 }
 
 export type MapStyleId = 'roadmap' | 'terrain' | 'satellite' | 'hybrid'
@@ -536,6 +537,7 @@ function TripMapContent({
   onViewportContextChange,
   routeSummaryClassName,
   routeSummaryContainer,
+  routeSummaryLabel = 'Selected-day route',
 }: TripMapProps) {
   const mapId = googleMapsMapId()
   const map = useMap('trip-map')
@@ -889,7 +891,7 @@ function TripMapContent({
     <div className={[styles.routeSummary, routeSummaryClassName].filter(Boolean).join(' ')} aria-live="polite">
       <div className={styles.routeSummaryHeader}>
         <Route size={15} aria-hidden="true" />
-        <span>Selected-day route</span>
+        <span>{routeSummaryLabel}</span>
       </div>
       <strong>
         {formatTravelTime(currentRoute.duration)} total · {(currentRoute.distance / 1000).toFixed(1)} km
