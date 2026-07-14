@@ -1945,6 +1945,10 @@ export function TripWorkspacePage() {
     : null
   const visibleActiveActivityId = visibleHoveredActivityId ?? visibleSelectedActivityId
   const selectedDayIndex = selectedDay ? tripDays.indexOf(selectedDay) + 1 : 0
+  const previousTripDay = selectedDayIndex > 1 ? tripDays[selectedDayIndex - 2] : null
+  const nextTripDay = selectedDayIndex > 0 && selectedDayIndex < tripDays.length
+    ? tripDays[selectedDayIndex]
+    : null
   const selectedDayMappedCount = dayActivities.filter(
     hasFiniteCoordinates,
   ).length
@@ -3623,15 +3627,55 @@ export function TripWorkspacePage() {
                             ? 'Unscheduled'
                           : tripQuery.data.name}
                     </p>
-                    <h2 id="timeline-panel-title" className={styles.panelTitle}>
-                      {workspaceMode === 'timeline'
-                        ? 'Full Trip Timeline'
-                        : workspaceMode === 'ideas'
-                          ? 'Ideas'
-                          : isMobileViewport
-                            ? 'Day plan'
+                    {isMobileViewport && workspaceMode === 'days' ? (
+                      <div className={styles.mobileDayNavigator}>
+                        <button
+                          type="button"
+                          className={styles.mobileDayNavigationButton}
+                          aria-label={previousTripDay
+                            ? `Previous day: ${formatReadableDate(previousTripDay)}`
+                            : 'Previous day'}
+                          disabled={!previousTripDay}
+                          onClick={() => {
+                            if (previousTripDay) handleSelectDay(previousTripDay)
+                          }}
+                        >
+                          <ChevronLeft size={18} aria-hidden="true" />
+                        </button>
+                        <h2 id="timeline-panel-title" className={styles.panelTitle}>
+                          <button
+                            type="button"
+                            className={styles.mobileDayPickerHeadingButton}
+                            onClick={openMobileDayPicker}
+                            aria-label={`Choose trip day: ${formatReadableDate(selectedDay)}`}
+                          >
+                            <CalendarDays size={17} aria-hidden="true" />
+                            <span>{formatReadableDate(selectedDay)}</span>
+                          </button>
+                        </h2>
+                        <button
+                          type="button"
+                          className={styles.mobileDayNavigationButton}
+                          aria-label={nextTripDay
+                            ? `Next day: ${formatReadableDate(nextTripDay)}`
+                            : 'Next day'}
+                          disabled={!nextTripDay}
+                          onClick={() => {
+                            if (nextTripDay) handleSelectDay(nextTripDay)
+                          }}
+                        >
+                          <ChevronRight size={18} aria-hidden="true" />
+                        </button>
+                      </div>
+                    ) : (
+                      <h2 id="timeline-panel-title" className={styles.panelTitle}>
+                        {workspaceMode === 'timeline'
+                          ? 'Full Trip Timeline'
+                          : workspaceMode === 'ideas'
+                            ? 'Ideas'
                             : formatReadableDate(selectedDay)}
-                    </h2>
+                      </h2>
+                    )}
                     <p className={styles.panelDescription}>
                       {workspaceMode === 'timeline'
                         ? `${pluralize(scheduledTimelineActivities.length, 'scheduled activity', 'scheduled activities')} across ${pluralize(scheduledTimelineDayCount, 'day')}`
@@ -3643,17 +3687,6 @@ export function TripWorkspacePage() {
                   <div
                     className={`${styles.timelineHeaderActions}${isMobileViewport && workspaceMode === 'days' ? ` ${styles.mobileDayPlanActions}` : ''}`}
                   >
-                    {isMobileViewport && workspaceMode === 'days' ? (
-                      <button
-                        type="button"
-                        className={styles.mobileDayPickerTrigger}
-                        onClick={openMobileDayPicker}
-                        aria-label={`Choose trip day: ${formatReadableDate(selectedDay)}`}
-                      >
-                        <CalendarDays size={17} aria-hidden="true" />
-                        <span>{formatReadableDate(selectedDay)}</span>
-                      </button>
-                    ) : null}
                     <div className={styles.avatarStack} aria-label="Recent collaborators">
                       {collaboratorNames.map((name) => (
                         <span key={name} className={styles.collaboratorAvatar} title={name}>

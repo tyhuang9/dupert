@@ -747,38 +747,70 @@ describe('<TripWorkspacePage>', () => {
     })
   })
 
-  it('keeps one mobile day date, a labelled activity action, and day navigation', async () => {
+  it('uses a bounded mobile day navigator and keeps the labelled activity action', async () => {
     mockViewport(true)
     mockWorkspace()
 
     renderWorkspace('/trips/abc234def567/d/2026-05-01')
 
-    expect(await screen.findByRole('heading', { level: 2, name: /^day plan$/i })).toBeInTheDocument()
-    expect(screen.queryByRole('heading', { level: 2, name: /friday, may 1/i })).not.toBeInTheDocument()
+    const dayHeading = await screen.findByRole('heading', {
+      level: 2,
+      name: /friday, may 1/i,
+    })
+    expect(screen.queryByRole('heading', { level: 2, name: /^day plan$/i })).not.toBeInTheDocument()
+    const dayNavigator = dayHeading.parentElement as HTMLElement
 
-    const dayPicker = screen.getByRole('button', {
+    const dayPicker = within(dayHeading).getByRole('button', {
       name: /choose trip day: friday, may 1/i,
     })
     expect(dayPicker).toHaveTextContent('Friday, May 1')
+    expect(within(dayNavigator).getByRole('button', { name: /previous day/i })).toBeDisabled()
+    const nextDay = within(dayNavigator).getByRole('button', { name: /next day/i })
+    expect(nextDay).toBeEnabled()
 
-    const addActivity = within(dayPicker.parentElement as HTMLElement).getByRole('button', {
-      name: /^add activity$/i,
-    })
+    const addActivity = screen.getByLabelText(/^add activity$/i, { selector: 'button' })
     expect(addActivity).toHaveTextContent('Add Activity')
     addActivity.focus()
     await userEvent.keyboard('{Enter}')
     await waitFor(() => {
       expect(screen.getByRole('textbox', { name: /activity name/i })).toHaveFocus()
     })
+    await userEvent.click(screen.getByRole('button', { name: /^cancel$/i }))
 
-    dayPicker.focus()
-    await userEvent.keyboard('{Enter}')
-    expect(screen.getByRole('dialog', { name: /choose a trip day/i })).toBeInTheDocument()
-    await userEvent.click(screen.getByTitle('2026-05-02 (0 activities)'))
+    await userEvent.click(nextDay)
     await waitFor(() => {
       expect(screen.getByTestId('current-location')).toHaveTextContent('/trips/abc234def567/d/2026-05-02')
-      expect(screen.getByRole('button', { name: /choose trip day: saturday, may 2/i })).toBeInTheDocument()
     })
+    const nextHeading = screen.getByRole('heading', { level: 2, name: /saturday, may 2/i })
+    expect(within(nextHeading.parentElement as HTMLElement).getByRole('button', {
+      name: /previous day/i,
+    })).toBeEnabled()
+
+    const nextDayPicker = within(nextHeading).getByRole('button', {
+      name: /choose trip day: saturday, may 2/i,
+    })
+    await userEvent.click(nextDayPicker)
+    expect(screen.getByRole('dialog', { name: /choose a trip day/i })).toBeInTheDocument()
+    await userEvent.click(screen.getByTitle('2026-05-03 (0 activities)'))
+    await waitFor(() => {
+      expect(screen.getByTestId('current-location')).toHaveTextContent('/trips/abc234def567/d/2026-05-03')
+      expect(screen.getByRole('button', { name: /choose trip day: sunday, may 3/i })).toBeInTheDocument()
+    })
+  })
+
+  it('disables next-day navigation at the end of the trip', async () => {
+    mockViewport(true)
+    mockWorkspace()
+
+    renderWorkspace('/trips/abc234def567/d/2026-05-05')
+
+    const dayHeading = await screen.findByRole('heading', {
+      level: 2,
+      name: /tuesday, may 5/i,
+    })
+    const dayNavigator = dayHeading.parentElement as HTMLElement
+    expect(within(dayNavigator).getByRole('button', { name: /previous day/i })).toBeEnabled()
+    expect(within(dayNavigator).getByRole('button', { name: /next day/i })).toBeDisabled()
   })
 
   it('keeps the desktop day heading and compact add action', async () => {

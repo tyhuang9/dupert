@@ -1032,7 +1032,7 @@
   box-shadow: var(--shadow-soft);
 }
 
-.mobileDayPickerTrigger,
+.mobileDayNavigator,
 .mobileDayPickerBackdrop {
   display: none;
 }
@@ -2488,26 +2488,66 @@
     display: none;
   }
 
-  .mobileDayPickerTrigger {
-    min-height: 44px;
-    display: inline-flex;
+  .mobileDayNavigator {
+    width: min(100%, 22rem);
+    display: grid;
+    grid-template-columns: 44px minmax(0, 1fr) 44px;
     align-items: center;
     gap: var(--space-2);
-    max-width: min(12rem, 48vw);
-    padding: 0 var(--space-3);
-    overflow: hidden;
+  }
+
+  .mobileDayNavigator .panelTitle {
+    min-width: 0;
+    margin: 0;
+  }
+
+  .mobileDayNavigationButton,
+  .mobileDayPickerHeadingButton {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     border: 1px solid var(--color-surface-border);
-    border-radius: var(--radius-pill);
     background: var(--color-surface);
     color: var(--color-primary-text);
     font: inherit;
-    font-size: var(--font-size-xs);
     font-weight: 800;
+    cursor: pointer;
+  }
+
+  .mobileDayNavigationButton {
+    width: 44px;
+    min-height: 44px;
+    padding: 0;
+    border-radius: var(--radius-md);
+  }
+
+  .mobileDayNavigationButton:disabled {
+    color: var(--color-text-subtle);
+    cursor: not-allowed;
+    opacity: 0.46;
+  }
+
+  .mobileDayPickerHeadingButton {
+    width: 100%;
+    min-width: 0;
+    min-height: 44px;
+    gap: var(--space-2);
+    padding: 0 var(--space-3);
+    overflow: hidden;
+    border-radius: var(--radius-pill);
+    font-size: var(--font-size-sm);
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
-  .mobileDayPickerTrigger:focus-visible,
+  .mobileDayPickerHeadingButton span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .mobileDayNavigationButton:focus-visible,
+  .mobileDayPickerHeadingButton:focus-visible,
   .mobileDayPickerClose:focus-visible {
     outline: var(--focus-ring-width) solid var(--focus-ring-color);
     outline-offset: var(--focus-ring-offset);
@@ -2645,16 +2685,15 @@
     flex-wrap: wrap;
   }
 
+  .workspaceShellMobile .mobileDayPlanHeader > div:first-child {
+    width: 100%;
+    flex: 1 0 100%;
+  }
+
   .workspaceShellMobile .timelineHeaderActions.mobileDayPlanActions {
     width: 100%;
     flex: 1 0 100%;
-    justify-content: space-between;
-  }
-
-  .workspaceShellMobile .mobileDayPlanActions .mobileDayPickerTrigger {
-    min-width: 0;
-    flex: 1 1 auto;
-    max-width: none;
+    justify-content: flex-end;
   }
 }
 
