@@ -2120,18 +2120,21 @@ export function TripWorkspacePage() {
     }
     return counts
   }, [scheduledTimelineActivities])
+  const timelineMapHiddenDayDates = isMobileViewport
+    ? hiddenMapDayDates
+    : collapsedTimelineDays
   const visibleMapTimelineActivities = useMemo(
     () =>
       scheduledTimelineActivities.filter(
         (activity) =>
           activity.dayDate != null &&
-          (!isMobileViewport || !hiddenMapDayDates.has(activity.dayDate)),
+          !timelineMapHiddenDayDates.has(activity.dayDate),
       ),
-    [hiddenMapDayDates, isMobileViewport, scheduledTimelineActivities],
+    [scheduledTimelineActivities, timelineMapHiddenDayDates],
   )
   const mapTimelineVisibilityKey = useMemo(
-    () => (isMobileViewport ? Array.from(hiddenMapDayDates).sort().join(',') : ''),
-    [hiddenMapDayDates, isMobileViewport],
+    () => Array.from(timelineMapHiddenDayDates).sort().join(','),
+    [timelineMapHiddenDayDates],
   )
   const hasMobileMapDayScope = isMobileViewport && mobileTab === 'map'
   const mobileMapDayOptions = useMemo(
@@ -2175,6 +2178,11 @@ export function TripWorkspacePage() {
     (activity) => activity.id === hoveredActivityId,
   )
     ? hoveredActivityId
+    : null
+  const visibleFocusedActivityId = mapActivities.some(
+    (activity) => activity.id === focusedActivityId,
+  )
+    ? focusedActivityId
     : null
   const visibleActiveActivityId = visibleHoveredActivityId ?? visibleSelectedActivityId
   const selectedDayIndex = selectedDay ? tripDays.indexOf(selectedDay) + 1 : 0
@@ -3293,32 +3301,7 @@ export function TripWorkspacePage() {
     showTimelineActivityOnMap(activity)
   }
 
-  const handleToggleTimelineDayCollapsed = (dayDate: string) => {
-    setCollapsedTimelineDays((current) => {
-      const next = new Set(current)
-      if (next.has(dayDate)) {
-        next.delete(dayDate)
-      } else {
-        next.add(dayDate)
-      }
-      return next
-    })
-  }
-
-  const handleToggleMapDayVisibility = (dayDate: string) => {
-    const hidingDay = !hiddenMapDayDates.has(dayDate)
-    setRequestedHiddenMapDayDates((current) => {
-      const next = new Set(current)
-      if (next.has(dayDate)) {
-        next.delete(dayDate)
-      } else {
-        next.add(dayDate)
-      }
-      return next
-    })
-
-    if (!hidingDay) return
-
+  const clearMapStateForActivitiesOnDay = (dayDate: string) => {
     const hiddenActivityIds = new Set(
       scheduledTimelineActivities
         .filter((activity) => activity.dayDate === dayDate)
@@ -3340,6 +3323,39 @@ export function TripWorkspacePage() {
     ) {
       clearMapSelection()
     }
+  }
+
+  const handleToggleTimelineDayCollapsed = (dayDate: string) => {
+    const collapsingDay = !collapsedTimelineDays.has(dayDate)
+    setCollapsedTimelineDays((current) => {
+      const next = new Set(current)
+      if (next.has(dayDate)) {
+        next.delete(dayDate)
+      } else {
+        next.add(dayDate)
+      }
+      return next
+    })
+    if (collapsingDay && !isMobileViewport) {
+      clearMapStateForActivitiesOnDay(dayDate)
+    }
+  }
+
+  const handleToggleMapDayVisibility = (dayDate: string) => {
+    const hidingDay = !hiddenMapDayDates.has(dayDate)
+    setRequestedHiddenMapDayDates((current) => {
+      const next = new Set(current)
+      if (next.has(dayDate)) {
+        next.delete(dayDate)
+      } else {
+        next.add(dayDate)
+      }
+      return next
+    })
+
+    if (!hidingDay) return
+
+    clearMapStateForActivitiesOnDay(dayDate)
   }
 
   const handleShowAllMapDays = () => {
@@ -4416,7 +4432,7 @@ export function TripWorkspacePage() {
                   searchResults={visibleMapSearchResults}
                   selectedSearchResultId={selectedMapSearchResult?.placeId ?? null}
                   highlightedSearchResultId={highlightedMapSearchResultId}
-                  focusedActivityId={focusedActivityId}
+                  focusedActivityId={visibleFocusedActivityId}
                   focusedActivityKey={activityFocusKey}
                   onActivityActivate={handleActivityActivate}
                   onActiveActivityChange={handleActiveActivityChange}
