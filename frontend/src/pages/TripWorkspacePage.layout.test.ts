@@ -8,6 +8,7 @@ const workspaceCss = readFileSync(join(currentDir, 'TripWorkspacePage.module.css
 const tripMapCss = readFileSync(join(currentDir, '../components/TripMap.module.css'), 'utf8')
 const activityFormCss = readFileSync(join(currentDir, '../components/ActivityForm.module.css'), 'utf8')
 const activityCardCss = readFileSync(join(currentDir, '../components/ActivityCard.module.css'), 'utf8')
+const activityListCss = readFileSync(join(currentDir, '../components/ActivityList.module.css'), 'utf8')
 const datePickerCss = readFileSync(join(currentDir, '../components/TripDateRangePicker.module.css'), 'utf8')
 const searchShelfCss = readFileSync(join(currentDir, '../components/MapSearchResultsShelf.module.css'), 'utf8')
 
@@ -95,6 +96,22 @@ describe('TripWorkspacePage layout scroll contract', () => {
     const editorActionBlock = cssBlocks(activityCardCss, '.mobileEditorActions button').find((block) =>
       /min-height:\s*44px/.test(block),
     ) ?? ''
+    const mobileHeaderBlock = cssBlocks(
+      workspaceCss,
+      '.workspaceShellMobile .timelineHeader.mobileDayPlanHeader',
+    ).find((block) => /grid-template-areas:/.test(block)) ?? ''
+    const mobileHeaderContentsBlock = cssBlocks(
+      workspaceCss,
+      '.workspaceShellMobile .mobileDayPlanHeader > div:first-child',
+    ).find((block) => /display:\s*contents/.test(block)) ?? ''
+    const mobileHeaderActionsBlock = cssBlocks(
+      workspaceCss,
+      '.workspaceShellMobile .timelineHeaderActions.mobileDayPlanActions',
+    ).find((block) => /grid-area:\s*actions/.test(block)) ?? ''
+    const mobileNavigatorRowBlock = cssBlocks(
+      workspaceCss,
+      '.workspaceShellMobile .mobileDayPlanHeader .mobileDayNavigator',
+    )[0] ?? ''
 
     expect(dayPlanActionBlock).toMatch(/width:\s*auto/)
     expect(dayPlanActionBlock).toMatch(/height:\s*44px/)
@@ -105,15 +122,28 @@ describe('TripWorkspacePage layout scroll contract', () => {
     expect(editActionBlock).toMatch(/width:\s*44px/)
     expect(editActionBlock).toMatch(/min-height:\s*44px/)
     expect(editorActionBlock).toMatch(/min-height:\s*44px/)
-    expect(workspaceCss).toMatch(
-      /\.workspaceShellMobile \.timelineHeader\.mobileDayPlanHeader\s*\{\s*flex-wrap:\s*wrap/s,
+    expect(mobileHeaderBlock).toMatch(/display:\s*grid/)
+    expect(mobileHeaderBlock).toMatch(
+      /grid-template-areas:\s*'kicker actions'\s*'navigator navigator'\s*'summary summary'/,
     )
-    expect(workspaceCss).toMatch(
-      /\.workspaceShellMobile \.timelineHeaderActions\.mobileDayPlanActions\s*\{[^}]*justify-content:\s*flex-end/s,
-    )
-    expect(workspaceCss).toMatch(
-      /\.workspaceShellMobile \.timelineHeaderActions\.mobileDayPlanActions\s*\{\s*width:\s*100%[\s\S]*flex:\s*1 0 100%/,
-    )
+    expect(mobileHeaderBlock).toMatch(/grid-template-columns:\s*minmax\(0,\s*1fr\) auto/)
+    expect(mobileHeaderBlock).toMatch(/gap:\s*var\(--space-2\)/)
+    expect(mobileHeaderContentsBlock).toMatch(/display:\s*contents/)
+    expect(mobileHeaderActionsBlock).toMatch(/grid-area:\s*actions/)
+    expect(mobileHeaderActionsBlock).not.toMatch(/width:\s*100%/)
+    expect(mobileNavigatorRowBlock).toMatch(/grid-area:\s*navigator/)
+    expect(mobileNavigatorRowBlock).toMatch(/width:\s*100%/)
+    expect(cssBlocks(workspaceCss, '.workspaceShellMobile .mobileDayPlanHeader .panelKicker')[0] ?? '')
+      .toMatch(/grid-area:\s*kicker/)
+    expect(cssBlocks(workspaceCss, '.workspaceShellMobile .mobileDayPlanHeader .panelDescription')[0] ?? '')
+      .toMatch(/grid-area:\s*summary/)
+  })
+
+  it('removes sortable containing-block hints from an expanded activity editor', () => {
+    const expandedSlotBlock = cssBlocks(activityListCss, '.expandedItem .cardSlot')[0] ?? ''
+
+    expect(expandedSlotBlock).toMatch(/transform:\s*none/)
+    expect(expandedSlotBlock).toMatch(/will-change:\s*auto/)
   })
 
   it('keeps full-trip timeline groups and entries visually seamless', () => {

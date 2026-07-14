@@ -49,6 +49,13 @@ const dndMockState = vi.hoisted(() => ({
     active: { id: string }
     activatorEvent: Event
   }) => void),
+  sortableTransform: null as null | {
+    x: number
+    y: number
+    scaleX: number
+    scaleY: number
+  },
+  sortableTransition: undefined as string | undefined,
 }))
 
 vi.mock('@dnd-kit/core', () => ({
@@ -119,8 +126,8 @@ vi.mock('@dnd-kit/sortable', () => ({
     },
     setActivatorNodeRef: vi.fn(),
     setNodeRef: vi.fn(),
-    transform: null,
-    transition: undefined,
+    transform: dndMockState.sortableTransform,
+    transition: dndMockState.sortableTransition,
   })),
   verticalListSortingStrategy: {},
 }))
@@ -704,6 +711,8 @@ beforeEach(() => {
   dndMockState.onDragMove = null
   dndMockState.onDragOver = null
   dndMockState.onDragStart = null
+  dndMockState.sortableTransform = null
+  dndMockState.sortableTransition = undefined
 })
 
 afterEach(() => {
@@ -883,6 +892,28 @@ describe('<TripWorkspacePage>', () => {
       expect(apiMock.history.post.some((request) => request.url?.startsWith('/activities/10/move'))).toBe(true)
       expect(screen.getByTestId('current-location')).toHaveTextContent('/trips/abc234def567/d/2026-05-02')
     })
+  })
+
+  it('clears sortable positioning while the mobile activity editor is expanded', async () => {
+    mockViewport(true)
+    dndMockState.sortableTransform = { x: 12, y: 18, scaleX: 1, scaleY: 1 }
+    dndMockState.sortableTransition = 'transform 200ms ease'
+    mockWorkspace([SAMPLE_ACTIVITY])
+
+    renderWorkspace('/trips/abc234def567/d/2026-05-01')
+
+    const collapsedCard = await screen.findByRole('article', { name: /expand tsukiji sushi/i })
+    const collapsedSlot = collapsedCard.parentElement as HTMLElement
+    expect(collapsedSlot.style.transform).toBe('translate3d(12px, 18px, 0)')
+    expect(collapsedSlot.style.transition).toBe('transform 200ms ease')
+
+    await userEvent.click(collapsedCard)
+
+    const expandedCard = screen.getByRole('article', { name: /collapse tsukiji sushi/i })
+    const expandedSlot = expandedCard.parentElement as HTMLElement
+    expect(expandedSlot.style.transform).toBe('')
+    expect(expandedSlot.style.transition).toBe('')
+    expect(screen.getByText(/^edit activity$/i)).toBeInTheDocument()
   })
 
   it('keeps mobile viewer cards free of edit and move actions', async () => {

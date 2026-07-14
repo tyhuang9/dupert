@@ -78,7 +78,10 @@ function SortableActivityCard({
     id: activityDragId(activity.id),
     disabled: readOnly || dragDisabled || isExpanded,
   })
-  const applyTransform = shouldApplySortableTransform({ freezeDragPreview, isDragging })
+  const applyTransform = !isExpanded && shouldApplySortableTransform({
+    freezeDragPreview,
+    isDragging,
+  })
   const style: CSSProperties = {
     transform: sortableTranslateToString(applyTransform ? transform : null),
     transition: applyTransform ? transition : undefined,
