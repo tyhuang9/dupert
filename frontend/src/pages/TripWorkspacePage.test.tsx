@@ -495,6 +495,14 @@ function Providers({ children }: PropsWithChildren) {
 
 type ActivityApiFixture = Activity | Omit<Activity, 'dayDate'>
 
+function createDeferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void
+  const promise = new Promise<T>((nextResolve) => {
+    resolve = nextResolve
+  })
+  return { promise, resolve }
+}
+
 function withoutDayDate(activity: Activity): Omit<Activity, 'dayDate'> {
   const response = { ...activity }
   delete (response as Partial<Activity>).dayDate
@@ -2092,6 +2100,141 @@ describe('<TripWorkspacePage>', () => {
       lat: null,
       lng: null,
     })
+  })
+
+  it('replaces the create composer with the optimistic activity while creation is pending', async () => {
+    const response = createDeferred<[number, Activity]>()
+    const createdActivity = {
+      ...SAMPLE_ACTIVITY,
+      id: 20,
+      title: 'Latency-free activity',
+    }
+    mockWorkspace()
+    apiMock.onPost('/trips/abc234def567/activities?dayDate=2026-05-01')
+      .reply(() => response.promise)
+
+    renderWorkspace('/trips/abc234def567')
+
+    await userEvent.click((await screen.findAllByRole('button', { name: /add activity/i }))[0])
+    await userEvent.type(screen.getByLabelText(/activity name/i), createdActivity.title)
+    await userEvent.click(screen.getByRole('button', { name: /^create activity$/i }))
+
+    await waitFor(() => {
+      expect(screen.getAllByRole('article', { name: /latency-free activity/i })).toHaveLength(1)
+    })
+    expect(screen.queryByLabelText(/activity name/i)).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /saving/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^add activity$/i })).toBeDisabled()
+    expect(screen.getByRole('status')).toHaveTextContent('Creating activity…')
+    await waitFor(() => {
+      expect(document.getElementById('timeline-panel')).toHaveFocus()
+    })
+
+    act(() => response.resolve([201, createdActivity]))
+
+    await waitFor(() => {
+      expect(screen.getAllByRole('article', { name: /latency-free activity/i })).toHaveLength(1)
+      expect(screen.getByRole('button', { name: /^add activity$/i })).toBeEnabled()
+    })
+    expect(screen.queryByLabelText(/activity name/i)).not.toBeInTheDocument()
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+  })
+
+  it('restores the populated composer after a create failure and hides it again on retry', async () => {
+    const failedResponse = createDeferred<[number, { error: string }]>()
+    const retryResponse = createDeferred<[number, Activity]>()
+    const createdActivity = {
+      ...SAMPLE_ACTIVITY,
+      id: 21,
+      category: 'MEAL' as const,
+      title: 'Retry activity',
+    }
+    let attempt = 0
+    mockWorkspace()
+    apiMock.onPost('/trips/abc234def567/activities?dayDate=2026-05-01').reply(() => {
+      attempt += 1
+      return attempt === 1 ? failedResponse.promise : retryResponse.promise
+    })
+
+    renderWorkspace('/trips/abc234def567')
+
+    await userEvent.click((await screen.findAllByRole('button', { name: /add activity/i }))[0])
+    await userEvent.click(screen.getByRole('button', { name: /category: other/i }))
+    await userEvent.click(screen.getByRole('menuitemradio', { name: /meal/i }))
+    await userEvent.type(screen.getByLabelText(/activity name/i), createdActivity.title)
+    await userEvent.click(screen.getByRole('button', { name: /^create activity$/i }))
+
+    await waitFor(() => {
+      expect(screen.getAllByRole('article', { name: /retry activity/i })).toHaveLength(1)
+    })
+    expect(screen.queryByLabelText(/activity name/i)).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /saving/i })).not.toBeInTheDocument()
+
+    act(() => failedResponse.resolve([500, { error: 'create_failed' }]))
+
+    const restoredTitleInput = await screen.findByLabelText(/activity name/i)
+    expect(restoredTitleInput).toHaveValue(createdActivity.title)
+    expect(restoredTitleInput).toHaveFocus()
+    expect(screen.getByRole('button', { name: /category: meal/i })).toBeInTheDocument()
+    expect(screen.queryByRole('article', { name: /retry activity/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('alert')).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: /^create activity$/i }))
+
+    await waitFor(() => {
+      expect(screen.getAllByRole('article', { name: /retry activity/i })).toHaveLength(1)
+    })
+    expect(screen.queryByLabelText(/activity name/i)).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /saving/i })).not.toBeInTheDocument()
+
+    act(() => retryResponse.resolve([201, createdActivity]))
+
+    await waitFor(() => {
+      expect(screen.getAllByRole('article', { name: /retry activity/i })).toHaveLength(1)
+      expect(apiMock.history.post).toHaveLength(2)
+    })
+    expect(screen.queryByLabelText(/activity name/i)).not.toBeInTheDocument()
+  })
+
+  it('keeps the Ideas pending status stable when switching workspaces', async () => {
+    const response = createDeferred<[number, Omit<Activity, 'dayDate'>]>()
+    const createdIdea = withoutDayDate({
+      ...SAMPLE_ACTIVITY,
+      id: 22,
+      dayDate: null,
+      title: 'Save ramen shop',
+    })
+    mockWorkspace()
+    apiMock.onPost('/trips/abc234def567/activities').reply(() => response.promise)
+
+    renderWorkspace('/trips/abc234def567')
+
+    await userEvent.click(await screen.findByRole('button', { name: /^ideas$/i }))
+    await userEvent.click(screen.getAllByRole('button', { name: /^add idea$/i })[0])
+    await userEvent.type(screen.getByLabelText(/activity name/i), createdIdea.title)
+    await userEvent.click(screen.getByRole('button', { name: /^save idea$/i }))
+
+    await waitFor(() => {
+      expect(screen.getAllByRole('article', { name: /save ramen shop/i })).toHaveLength(1)
+    })
+    expect(screen.queryByLabelText(/activity name/i)).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^save idea$/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('Saving idea…')
+
+    await userEvent.click(screen.getByRole('button', { name: /^timeline$/i }))
+
+    expect(screen.getByRole('status')).toHaveTextContent('Saving idea…')
+
+    act(() => response.resolve([201, createdIdea]))
+
+    await waitFor(() => {
+      expect(screen.queryByRole('status')).not.toBeInTheDocument()
+      expect(apiMock.history.post).toHaveLength(1)
+    })
+
+    await userEvent.click(screen.getByRole('button', { name: /^ideas$/i }))
+    expect(screen.getAllByRole('article', { name: /save ramen shop/i })).toHaveLength(1)
+    expect(screen.queryByLabelText(/activity name/i)).not.toBeInTheDocument()
   })
 
   it('creates an activity from a selected Google place', async () => {

@@ -1823,6 +1823,8 @@ export function TripWorkspacePage() {
   const [expandedActivityId, setExpandedActivityId] = useState<number | null>(null)
   const [placeDraft, setPlaceDraft] = useState<PlaceSelection | null>(null)
   const [placeDraftDayDate, setPlaceDraftDayDate] = useState<string | null | undefined>(undefined)
+  const [pendingCreateKind, setPendingCreateKind] = useState<'activity' | 'idea' | null>(null)
+  const isCreateComposerSubmitting = pendingCreateKind !== null
   const [isTripSettingsOpen, setIsTripSettingsOpen] = useState(false)
   const [isShareTripOpen, setIsShareTripOpen] = useState(false)
   const [isDraggingActivity, setIsDraggingActivity] = useState(false)
@@ -2642,6 +2644,7 @@ export function TripWorkspacePage() {
   }
 
   const openActivityComposer = () => {
+    if (isCreateComposerSubmitting) return
     setWorkspaceMode('days')
     setMobileTab('plan')
     setExpandedActivityId(null)
@@ -2662,6 +2665,7 @@ export function TripWorkspacePage() {
   }
 
   const openIdeaComposer = () => {
+    if (isCreateComposerSubmitting) return
     setWorkspaceMode('ideas')
     setMobileTab('ideas')
     setExpandedActivityId(null)
@@ -2788,18 +2792,25 @@ export function TripWorkspacePage() {
   }
 
   const handleCreateActivity = async (payload: CreateActivityRequest) => {
-    if (!publicId) return
+    if (!publicId || isCreateComposerSubmitting) return
     const targetDayDate = placeDraftDayDate === undefined ? selectedDay ?? null : placeDraftDayDate
-    await createActivityMutation.mutateAsync({
-      publicId,
-      dayDate: targetDayDate,
-      body: payload,
-    })
-    clearPlaceDraft()
-    setMapLocationTarget(null)
-    setMapSearchPreview(null)
-    clearMapSearchState()
-    setPendingMapPlace(null)
+    setPlaceDraft((current) => ({ ...(current ?? {}), ...payload }))
+    setPendingCreateKind(targetDayDate === null ? 'idea' : 'activity')
+    focusItineraryPanel()
+    try {
+      await createActivityMutation.mutateAsync({
+        publicId,
+        dayDate: targetDayDate,
+        body: payload,
+      })
+      clearPlaceDraft()
+      setMapLocationTarget(null)
+      setMapSearchPreview(null)
+      clearMapSearchState()
+      setPendingMapPlace(null)
+    } finally {
+      setPendingCreateKind(null)
+    }
   }
 
   const handleUpdateActivity = async (activity: Activity, payload: CreateActivityRequest) => {
@@ -3934,6 +3945,7 @@ export function TripWorkspacePage() {
                         <button
                           type="button"
                           className={styles.addActivityButton}
+                          disabled={isCreateComposerSubmitting}
                           onClick={workspaceMode === 'ideas' ? openIdeaComposer : openActivityComposer}
                           aria-label={workspaceMode === 'ideas' ? 'Add Idea' : 'Add Activity'}
                         >
@@ -3957,6 +3969,11 @@ export function TripWorkspacePage() {
                     {mutationError && (
                       <p className={styles.inlineAlert} role="alert">
                         {parseApiError(mutationError).topMessage}
+                      </p>
+                    )}
+                    {pendingCreateKind && (
+                      <p className="sr-only" role="status">
+                        {pendingCreateKind === 'idea' ? 'Saving idea…' : 'Creating activity…'}
                       </p>
                     )}
                     {workspaceMode === 'days' ? (
@@ -3986,21 +4003,24 @@ export function TripWorkspacePage() {
                           onSubmitEdit={handleUpdateActivity}
                           onToggleExpand={handleToggleActivityExpand}
                         />
-                        {canEditTrip && placeDraft !== null && placeDraftDayDate !== null && (
-                          <div id="activity-composer" className={styles.composer}>
-                            <h3 className="sr-only">Create an activity</h3>
-                            <ActivityForm
-                              autoFocusTitle
-                              key={createFormKey}
-                              initialValues={placeDraft ?? undefined}
-                              onSubmit={handleCreateActivity}
-                              onCancel={clearMapSelection}
-                              onRequestMapLocation={handleRequestNewActivityLocationOnMap}
-                              submitting={createActivityMutation.isPending}
-                              submitLabel="Create Activity"
-                            />
-                          </div>
-                        )}
+                        {canEditTrip &&
+                          placeDraft !== null &&
+                          placeDraftDayDate !== null &&
+                          !isCreateComposerSubmitting && (
+                            <div id="activity-composer" className={styles.composer}>
+                              <h3 className="sr-only">Create an activity</h3>
+                              <ActivityForm
+                                autoFocusTitle
+                                key={createFormKey}
+                                initialValues={placeDraft ?? undefined}
+                                onSubmit={handleCreateActivity}
+                                onCancel={clearMapSelection}
+                                onRequestMapLocation={handleRequestNewActivityLocationOnMap}
+                                submitting={createActivityMutation.isPending}
+                                submitLabel="Create Activity"
+                              />
+                            </div>
+                          )}
                       </>
                     ) : workspaceMode === 'ideas' ? (
                       <IdeasDropTarget
@@ -4035,21 +4055,24 @@ export function TripWorkspacePage() {
                           onSubmitEdit={handleUpdateActivity}
                           onToggleExpand={handleToggleActivityExpand}
                         />
-                        {canEditTrip && placeDraft !== null && placeDraftDayDate === null && (
-                          <div id="ideas-composer" className={styles.composer}>
-                            <h3 className="sr-only">Create an idea</h3>
-                            <ActivityForm
-                              autoFocusTitle
-                              key={createFormKey}
-                              initialValues={placeDraft ?? undefined}
-                              onSubmit={handleCreateActivity}
-                              onCancel={clearMapSelection}
-                              onRequestMapLocation={handleRequestNewActivityLocationOnMap}
-                              submitting={createActivityMutation.isPending}
-                              submitLabel="Save Idea"
-                            />
-                          </div>
-                        )}
+                        {canEditTrip &&
+                          placeDraft !== null &&
+                          placeDraftDayDate === null &&
+                          !isCreateComposerSubmitting && (
+                            <div id="ideas-composer" className={styles.composer}>
+                              <h3 className="sr-only">Create an idea</h3>
+                              <ActivityForm
+                                autoFocusTitle
+                                key={createFormKey}
+                                initialValues={placeDraft ?? undefined}
+                                onSubmit={handleCreateActivity}
+                                onCancel={clearMapSelection}
+                                onRequestMapLocation={handleRequestNewActivityLocationOnMap}
+                                submitting={createActivityMutation.isPending}
+                                submitLabel="Save Idea"
+                              />
+                            </div>
+                          )}
                       </IdeasDropTarget>
                     ) : (
                       <div className={styles.fullTimeline} aria-label="Trip days timeline">
