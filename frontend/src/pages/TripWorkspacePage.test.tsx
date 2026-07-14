@@ -847,7 +847,7 @@ describe('<TripWorkspacePage>', () => {
     expect(apiMock.history.get.map(({ url }) => url)).not.toContain('/trips/abc234def567/members')
   })
 
-  it('moves a mobile activity through the explicit day-picker action', async () => {
+  it('edits and moves a mobile activity through discoverable card actions', async () => {
     mockViewport(true)
     mockWorkspace([SAMPLE_ACTIVITY])
     apiMock.onPost('/activities/10/move?publicId=abc234def567').reply((config) => {
@@ -860,8 +860,22 @@ describe('<TripWorkspacePage>', () => {
 
     renderWorkspace('/trips/abc234def567/d/2026-05-01')
 
-    expect(await screen.findByRole('button', { name: /move to day/i })).toBeInTheDocument()
-    await userEvent.click(screen.getByRole('button', { name: /move to day/i }))
+    await screen.findByRole('button', { name: /edit tsukiji sushi/i })
+    expect(screen.queryByRole('button', { name: /move to day/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /reorder tsukiji sushi/i })).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('article', { name: /expand tsukiji sushi/i }))
+    expect(screen.getByText(/^edit activity$/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^delete$/i })).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: /^done$/i }))
+
+    const editActivity = await screen.findByRole('button', { name: /edit tsukiji sushi/i })
+    await userEvent.click(editActivity)
+    expect(screen.getByText(/^edit activity$/i)).toBeInTheDocument()
+    const changeDay = screen.getByRole('button', { name: /^change day$/i })
+    expect(changeDay).toBeInTheDocument()
+
+    await userEvent.click(changeDay)
     expect(screen.getByRole('dialog', { name: /move tsukiji sushi/i })).toBeInTheDocument()
 
     await userEvent.click(screen.getByTitle('2026-05-02 (0 activities)'))
@@ -869,6 +883,43 @@ describe('<TripWorkspacePage>', () => {
       expect(apiMock.history.post.some((request) => request.url?.startsWith('/activities/10/move'))).toBe(true)
       expect(screen.getByTestId('current-location')).toHaveTextContent('/trips/abc234def567/d/2026-05-02')
     })
+  })
+
+  it('keeps mobile viewer cards free of edit and move actions', async () => {
+    mockViewport(true)
+    mockWorkspace([SAMPLE_ACTIVITY], { ...SAMPLE_TRIP, role: 'VIEWER' })
+
+    renderWorkspace('/trips/abc234def567/d/2026-05-01')
+
+    await screen.findByRole('heading', { level: 2, name: /friday, may 1/i })
+    expect(screen.queryByRole('button', { name: /edit tsukiji sushi/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /move to day/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /change day/i })).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('article', { name: /expand tsukiji sushi/i }))
+    expect(screen.queryByRole('button', { name: /change day/i })).not.toBeInTheDocument()
+  })
+
+  it('preserves the mobile Ideas schedule quick action', async () => {
+    const savedIdea = {
+      ...SAMPLE_ACTIVITY,
+      id: 33,
+      dayDate: null,
+      title: 'Save teamLab',
+      orderIndex: 0,
+    }
+    mockViewport(true)
+    mockWorkspace([savedIdea])
+
+    renderWorkspace('/trips/abc234def567/d/2026-05-01')
+
+    await screen.findByRole('heading', { level: 2, name: /friday, may 1/i })
+    await userEvent.click(screen.getByRole('button', { name: /^ideas$/i }))
+    expect(screen.getByRole('button', { name: /^schedule$/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /edit save teamlab/i })).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: /^schedule$/i }))
+    expect(screen.getByRole('dialog', { name: /move save teamlab/i })).toBeInTheDocument()
   })
 
   it('renders workspace shell when trip is loaded', async () => {

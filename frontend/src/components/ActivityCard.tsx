@@ -11,10 +11,12 @@ import type {
 } from '@dnd-kit/core'
 import {
   BedDouble,
+  CalendarDays,
   Coffee,
   GripVertical,
   Landmark,
   MapPin,
+  Pencil,
   Plane,
   Utensils,
 } from 'lucide-react'
@@ -167,6 +169,7 @@ export function ActivityCard({
   const categoryLabel = getCategoryLabel(activity.category)
   const canDrag = !presentation && !readOnly && !busy && !dragDisabled && !expanded
   const usesMobileDragHandle = canDrag && mobileDragHandle
+  const showsMobileEditAction = mobileDragHandle && !presentation && !readOnly && !expanded
   const cardClassName = [
     styles.card,
     canDrag ? styles.cardDraggable : '',
@@ -269,40 +272,44 @@ export function ActivityCard({
                 </button>
               </div>
             )}
-            {!readOnly && onMoveToDay && activity.dayDate !== null && (
-              <div className={styles.cardQuickActions}>
+          </div>
+          {showsMobileEditAction || usesMobileDragHandle ? (
+            <div className={styles.mobileCardActions}>
+              {showsMobileEditAction ? (
                 <button
                   type="button"
-                  className={styles.cardQuickAction}
+                  className={styles.mobileEditAction}
+                  aria-label={`Edit ${activity.title}`}
+                  disabled={busy}
                   onClick={(event) => {
                     event.stopPropagation()
-                    onMoveToDay(activity)
+                    toggleCard()
                   }}
                 >
-                  Move to day
+                  <Pencil size={17} aria-hidden="true" />
                 </button>
-              </div>
-            )}
-          </div>
-          {usesMobileDragHandle ? (
-            <button
-              ref={dragActivatorRef}
-              type="button"
-              className={styles.dragHandle}
-              {...dragAttributes}
-              aria-label={`Reorder ${activity.title}`}
-              onClick={(event) => event.stopPropagation()}
-              onKeyDown={(event) => {
-                event.stopPropagation()
-                dragListeners?.onKeyDown?.(event)
-              }}
-              onPointerDown={(event) => {
-                event.stopPropagation()
-                dragListeners?.onPointerDown?.(event)
-              }}
-            >
-              <GripVertical size={18} aria-hidden="true" />
-            </button>
+              ) : null}
+              {usesMobileDragHandle ? (
+                <button
+                  ref={dragActivatorRef}
+                  type="button"
+                  className={styles.dragHandle}
+                  {...dragAttributes}
+                  aria-label={`Reorder ${activity.title}`}
+                  onClick={(event) => event.stopPropagation()}
+                  onKeyDown={(event) => {
+                    event.stopPropagation()
+                    dragListeners?.onKeyDown?.(event)
+                  }}
+                  onPointerDown={(event) => {
+                    event.stopPropagation()
+                    dragListeners?.onPointerDown?.(event)
+                  }}
+                >
+                  <GripVertical size={18} aria-hidden="true" />
+                </button>
+              ) : null}
+            </div>
           ) : null}
         </div>
       )}
@@ -312,15 +319,30 @@ export function ActivityCard({
           {mobileDragHandle ? (
             <div className={styles.mobileEditorHeader}>
               <p>Edit activity</p>
-              <button
-                type="button"
-                onClick={(event) => {
-                  event.stopPropagation()
-                  onToggleExpand(activity)
-                }}
-              >
-                Done
-              </button>
+              <div className={styles.mobileEditorActions}>
+                {onMoveToDay && activity.dayDate !== null ? (
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      onMoveToDay(activity)
+                    }}
+                  >
+                    <CalendarDays size={17} aria-hidden="true" />
+                    Change day
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    onToggleExpand(activity)
+                  }}
+                >
+                  Done
+                </button>
+              </div>
             </div>
           ) : null}
           <ActivityForm

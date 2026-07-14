@@ -7,6 +7,7 @@ const currentDir = dirname(fileURLToPath(import.meta.url))
 const workspaceCss = readFileSync(join(currentDir, 'TripWorkspacePage.module.css'), 'utf8')
 const tripMapCss = readFileSync(join(currentDir, '../components/TripMap.module.css'), 'utf8')
 const activityFormCss = readFileSync(join(currentDir, '../components/ActivityForm.module.css'), 'utf8')
+const activityCardCss = readFileSync(join(currentDir, '../components/ActivityCard.module.css'), 'utf8')
 const datePickerCss = readFileSync(join(currentDir, '../components/TripDateRangePicker.module.css'), 'utf8')
 const searchShelfCss = readFileSync(join(currentDir, '../components/MapSearchResultsShelf.module.css'), 'utf8')
 
@@ -78,16 +79,37 @@ describe('TripWorkspacePage layout scroll contract', () => {
     }
   })
 
-  it('keeps the mobile day-plan controls touch-sized and inside a wrapping header row', () => {
+  it('keeps the mobile day navigator and activity actions touch-sized', () => {
     const dayPlanActionBlock = cssBlocks(workspaceCss, '.mobileDayPlanAddActivity').find((block) =>
+      /min-height:\s*44px/.test(block),
+    ) ?? ''
+    const dayNavigationBlock = cssBlocks(workspaceCss, '.mobileDayNavigationButton').find((block) =>
+      /min-height:\s*44px/.test(block),
+    ) ?? ''
+    const dayPickerBlock = cssBlocks(workspaceCss, '.mobileDayPickerHeadingButton').find((block) =>
+      /min-height:\s*44px/.test(block),
+    ) ?? ''
+    const editActionBlock = cssBlocks(activityCardCss, '.mobileEditAction').find((block) =>
+      /min-height:\s*44px/.test(block),
+    ) ?? ''
+    const editorActionBlock = cssBlocks(activityCardCss, '.mobileEditorActions button').find((block) =>
       /min-height:\s*44px/.test(block),
     ) ?? ''
 
     expect(dayPlanActionBlock).toMatch(/width:\s*auto/)
     expect(dayPlanActionBlock).toMatch(/height:\s*44px/)
     expect(dayPlanActionBlock).toMatch(/min-height:\s*44px/)
+    expect(dayNavigationBlock).toMatch(/width:\s*44px/)
+    expect(dayNavigationBlock).toMatch(/min-height:\s*44px/)
+    expect(dayPickerBlock).toMatch(/min-height:\s*44px/)
+    expect(editActionBlock).toMatch(/width:\s*44px/)
+    expect(editActionBlock).toMatch(/min-height:\s*44px/)
+    expect(editorActionBlock).toMatch(/min-height:\s*44px/)
     expect(workspaceCss).toMatch(
       /\.workspaceShellMobile \.timelineHeader\.mobileDayPlanHeader\s*\{\s*flex-wrap:\s*wrap/s,
+    )
+    expect(workspaceCss).toMatch(
+      /\.workspaceShellMobile \.timelineHeaderActions\.mobileDayPlanActions\s*\{[^}]*justify-content:\s*flex-end/s,
     )
     expect(workspaceCss).toMatch(
       /\.workspaceShellMobile \.timelineHeaderActions\.mobileDayPlanActions\s*\{\s*width:\s*100%[\s\S]*flex:\s*1 0 100%/,
