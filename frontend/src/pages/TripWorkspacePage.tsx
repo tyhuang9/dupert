@@ -2311,9 +2311,11 @@ export function TripWorkspacePage() {
     mapSearchQuery !== null &&
     pendingMapPlace === null &&
     selectedMapSearchResult === null
+  const standaloneMapClickedPlace =
+    selectedMapClickedActivityId === null ? selectedMapClickedPlace : null
   const mapPreviewPlace =
     pendingMapPlace ??
-    selectedMapClickedPlace ??
+    standaloneMapClickedPlace ??
     selectedMapSearchResult ??
     mapSearchPreview ??
     concretePlaceDraft
