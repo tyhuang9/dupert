@@ -279,11 +279,14 @@ function groupRouteActivitiesByDay(activities: Activity[]): RouteActivityGroup[]
     groups.set(activity.dayDate, [activity])
   })
 
-  return Array.from(groups, ([dayDate, dayActivities]) => ({
-    activities: dayActivities,
-    dayDate,
-    key: dayActivities.map((activity) => `${activity.lng},${activity.lat}`).join(';'),
-  })).filter((group) => group.activities.length >= 2)
+  return Array.from(groups, ([dayDate, dayActivities]) => {
+    const sortedActivities = sortActivitiesByTripOrder(dayActivities)
+    return {
+      activities: sortedActivities,
+      dayDate,
+      key: sortedActivities.map((activity) => `${activity.lng},${activity.lat}`).join(';'),
+    }
+  }).filter((group) => group.activities.length >= 2)
 }
 
 function normalizeClickedLocation(

@@ -442,6 +442,46 @@ describe('<TripMap>', () => {
     expect(screen.getByText('Visible-days routes')).toBeInTheDocument()
   })
 
+  it('routes each day in itinerary order even when route activities arrive out of order', async () => {
+    const breakfast = runtimeActivity({
+      id: 30,
+      dayDate: '2026-05-03',
+      title: 'Breakfast',
+      startTime: '09:00',
+      lat: 35.7,
+      lng: 139.74,
+      orderIndex: 0,
+    })
+    const museum = runtimeActivity({
+      id: 31,
+      dayDate: '2026-05-03',
+      title: 'Museum',
+      startTime: '11:00',
+      lat: 35.71,
+      lng: 139.75,
+      orderIndex: 1,
+    })
+    directionsMock.mockImplementation(async (activities) =>
+      testRoute(activities[0], activities[1]),
+    )
+
+    render(
+      <TripMap
+        activities={[breakfast, museum]}
+        fallbackActivities={[]}
+        routeActivities={[museum, breakfast]}
+        destination="Tokyo"
+      />,
+    )
+
+    await waitFor(() => {
+      expect(directionsMock).toHaveBeenCalledWith(
+        [breakfast, museum],
+        expect.any(AbortSignal),
+      )
+    })
+  })
+
   it('keeps successful day routes visible when another day route fails', async () => {
     const dayTwoActivities = [
       runtimeActivity({
