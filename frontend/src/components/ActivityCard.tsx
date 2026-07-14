@@ -11,6 +11,7 @@ import type {
 } from '@dnd-kit/core'
 import {
   BedDouble,
+  CalendarDays,
   Coffee,
   GripVertical,
   Landmark,
@@ -269,40 +270,28 @@ export function ActivityCard({
                 </button>
               </div>
             )}
-            {!readOnly && onMoveToDay && activity.dayDate !== null && (
-              <div className={styles.cardQuickActions}>
-                <button
-                  type="button"
-                  className={styles.cardQuickAction}
-                  onClick={(event) => {
-                    event.stopPropagation()
-                    onMoveToDay(activity)
-                  }}
-                >
-                  Move to day
-                </button>
-              </div>
-            )}
           </div>
           {usesMobileDragHandle ? (
-            <button
-              ref={dragActivatorRef}
-              type="button"
-              className={styles.dragHandle}
-              {...dragAttributes}
-              aria-label={`Reorder ${activity.title}`}
-              onClick={(event) => event.stopPropagation()}
-              onKeyDown={(event) => {
-                event.stopPropagation()
-                dragListeners?.onKeyDown?.(event)
-              }}
-              onPointerDown={(event) => {
-                event.stopPropagation()
-                dragListeners?.onPointerDown?.(event)
-              }}
-            >
-              <GripVertical size={18} aria-hidden="true" />
-            </button>
+            <div className={styles.mobileCardActions}>
+              <button
+                ref={dragActivatorRef}
+                type="button"
+                className={styles.dragHandle}
+                {...dragAttributes}
+                aria-label={`Reorder ${activity.title}`}
+                onClick={(event) => event.stopPropagation()}
+                onKeyDown={(event) => {
+                  event.stopPropagation()
+                  dragListeners?.onKeyDown?.(event)
+                }}
+                onPointerDown={(event) => {
+                  event.stopPropagation()
+                  dragListeners?.onPointerDown?.(event)
+                }}
+              >
+                <GripVertical size={18} aria-hidden="true" />
+              </button>
+            </div>
           ) : null}
         </div>
       )}
@@ -312,15 +301,30 @@ export function ActivityCard({
           {mobileDragHandle ? (
             <div className={styles.mobileEditorHeader}>
               <p>Edit activity</p>
-              <button
-                type="button"
-                onClick={(event) => {
-                  event.stopPropagation()
-                  onToggleExpand(activity)
-                }}
-              >
-                Done
-              </button>
+              <div className={styles.mobileEditorActions}>
+                {onMoveToDay && activity.dayDate !== null ? (
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      onMoveToDay(activity)
+                    }}
+                  >
+                    <CalendarDays size={17} aria-hidden="true" />
+                    Change day
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    onToggleExpand(activity)
+                  }}
+                >
+                  Done
+                </button>
+              </div>
             </div>
           ) : null}
           <ActivityForm
