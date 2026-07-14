@@ -351,13 +351,23 @@ describe('TripWorkspacePage layout scroll contract', () => {
       workspaceCss,
       '.workspaceShellMobileMap .mapOverlayLayout',
     )
-    const mobileSearchBlocks = cssBlocks(workspaceCss, '.workspaceShellMobileMap .mapOverlayStack')
-    const mobileRouteOverlayBlocks = cssBlocks(workspaceCss, '.workspaceShellMobileMap .mapRouteOverlay')
+    const mobileControlStackBlocks = cssBlocks(
+      workspaceCss,
+      '.workspaceShellMobileMap .mobileMapControlStack',
+    )
+    const mobileControlsBlocks = cssBlocks(workspaceCss, '.workspaceShellMobileMap .mobileMapControls')
+    const mobileControlRowBlocks = cssBlocks(
+      workspaceCss,
+      '.workspaceShellMobileMap .mobileMapControlRow',
+    )
+    const mobilePopoverBlocks = cssBlocks(workspaceCss, '.workspaceShellMobileMap .mobileMapPopover')
     const mobileRouteSummaryBlocks = cssBlocks(workspaceCss, '.workspaceShellMobileMap .mapRouteSummary')
     const mobileShelfBlocks = cssBlocks(searchShelfCss, '.shelf')
     const mobileOverlayLayoutBlock = mobileOverlayLayoutBlocks[mobileOverlayLayoutBlocks.length - 1] ?? ''
-    const mobileSearchBlock = mobileSearchBlocks[mobileSearchBlocks.length - 1] ?? ''
-    const mobileRouteOverlayBlock = mobileRouteOverlayBlocks[mobileRouteOverlayBlocks.length - 1] ?? ''
+    const mobileControlStackBlock = mobileControlStackBlocks[mobileControlStackBlocks.length - 1] ?? ''
+    const mobileControlsBlock = mobileControlsBlocks[mobileControlsBlocks.length - 1] ?? ''
+    const mobileControlRowBlock = mobileControlRowBlocks[mobileControlRowBlocks.length - 1] ?? ''
+    const mobilePopoverBlock = mobilePopoverBlocks[mobilePopoverBlocks.length - 1] ?? ''
     const mobileRouteSummaryBlock = mobileRouteSummaryBlocks[mobileRouteSummaryBlocks.length - 1] ?? ''
     const mobileShelfBlock = mobileShelfBlocks[mobileShelfBlocks.length - 1] ?? ''
 
@@ -373,14 +383,19 @@ describe('TripWorkspacePage layout scroll contract', () => {
     expect(workspaceCss).toMatch(
       /\.workspaceShellMobileMap \.mapOverlayLayout > \*\s*\{[^}]*pointer-events:\s*auto/s,
     )
-    expect(mobileRouteOverlayBlock).toMatch(/position:\s*static/)
-    expect(mobileRouteOverlayBlock).toMatch(/margin:\s*0 var\(--space-3\)/)
-    expect(mobileRouteOverlayBlock).toMatch(/justify-items:\s*start/)
+    expect(mobileControlStackBlock).toMatch(/width:\s*min\(34rem,\s*calc\(100% - var\(--space-6\)\)\)/)
+    expect(mobileControlStackBlock).toMatch(/display:\s*grid/)
+    expect(mobileControlStackBlock).toMatch(/margin:\s*0 var\(--space-3\)/)
+    expect(mobileControlsBlock).toMatch(/position:\s*relative/)
+    expect(mobileControlsBlock).toMatch(/width:\s*100%/)
+    expect(mobileControlRowBlock).toMatch(/display:\s*flex/)
+    expect(mobileControlRowBlock).toMatch(/align-items:\s*stretch/)
+    expect(mobilePopoverBlock).toMatch(/position:\s*absolute/)
+    expect(mobilePopoverBlock).toMatch(/max-height:\s*min\(20rem,\s*calc\(100dvh - 12rem\)\)/)
+    expect(mobilePopoverBlock).toMatch(/overflow-y:\s*auto/)
     expect(mobileRouteSummaryBlock).toMatch(/position:\s*static/)
-    expect(mobileRouteSummaryBlock).toMatch(/min-height:\s*42px/)
-    expect(mobileRouteSummaryBlock).not.toMatch(/(?:^|\n)\s*height:\s*42px/)
-    expect(mobileSearchBlock).toMatch(/position:\s*static/)
-    expect(mobileSearchBlock).toMatch(/margin:\s*0 var\(--space-3\)/)
+    expect(mobileRouteSummaryBlock).toMatch(/min-height:\s*32px/)
+    expect(mobileRouteSummaryBlock).toMatch(/border-radius:\s*var\(--radius-pill\)/)
     expect(mobileShelfBlock).toMatch(/position:\s*static/)
     expect(mobileShelfBlock).toMatch(/margin-top:\s*auto/)
     expect(workspaceCss).not.toMatch(/--map-mobile-/)

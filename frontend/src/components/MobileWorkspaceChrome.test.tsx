@@ -2,16 +2,12 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { describe, expect, it, vi } from 'vitest'
-import {
-  MobileWorkspaceChrome,
-  type MobileMapDayVisibilityModel,
-} from './MobileWorkspaceChrome'
+import { MobileWorkspaceChrome } from './MobileWorkspaceChrome'
 import styles from './MobileWorkspaceChrome.module.css'
 
 interface RenderChromeOptions {
   canEditTrip?: boolean
   isAuthenticated?: boolean
-  mapDayVisibility?: MobileMapDayVisibilityModel
   onOpenSettings?: () => void
   onOpenShare?: () => void
 }
@@ -19,7 +15,6 @@ interface RenderChromeOptions {
 function renderChrome({
   canEditTrip = true,
   isAuthenticated = true,
-  mapDayVisibility,
   onOpenSettings = vi.fn(),
   onOpenShare = vi.fn(),
 }: RenderChromeOptions = {}) {
@@ -29,7 +24,6 @@ function renderChrome({
         activeTab="map"
         canEditTrip={canEditTrip}
         isAuthenticated={isAuthenticated}
-        mapDayVisibility={mapDayVisibility}
         onOpenSettings={onOpenSettings}
         onOpenShare={onOpenShare}
         onSelectTab={vi.fn()}
@@ -61,18 +55,9 @@ describe('<MobileWorkspaceChrome>', () => {
     })
   })
 
-  it('keeps map day controls reachable while trapping keyboard focus inside the drawer', async () => {
+  it('traps keyboard focus inside the trip drawer', async () => {
     const user = userEvent.setup()
-    renderChrome({
-      mapDayVisibility: {
-        days: [
-          { id: 'day-1', label: 'Day 1', isVisible: true },
-          { id: 'day-2', label: 'Day 2', isVisible: false },
-        ],
-        onShowAllDays: vi.fn(),
-        onToggleDay: vi.fn(),
-      },
-    })
+    renderChrome()
 
     await user.click(screen.getByRole('button', { name: /open trip menu/i }))
     await screen.findByRole('dialog', { name: /monterey/i })
@@ -80,52 +65,9 @@ describe('<MobileWorkspaceChrome>', () => {
 
     await waitFor(() => expect(closeButton).toHaveFocus())
     await user.tab({ shift: true })
-    expect(screen.getByRole('button', { name: 'Day 2' })).toHaveFocus()
+    expect(screen.getByRole('button', { name: /trip settings/i })).toHaveFocus()
     await user.tab()
     expect(closeButton).toHaveFocus()
-  })
-
-  it('renders map day visibility controls only when a model is provided and routes their callbacks', async () => {
-    const user = userEvent.setup()
-    const onShowAllDays = vi.fn()
-    const onToggleDay = vi.fn()
-    const mapDayVisibility: MobileMapDayVisibilityModel = {
-      days: [
-        { id: 'day-1', label: 'Day 1', isVisible: true },
-        { id: 'day-2', label: 'Day 2', isVisible: false },
-      ],
-      onShowAllDays,
-      onToggleDay,
-    }
-    const withoutModel = renderChrome()
-
-    await openDrawer()
-    expect(screen.queryByRole('heading', { name: /map days/i })).not.toBeInTheDocument()
-
-    withoutModel.unmount()
-    const withModel = renderChrome({ mapDayVisibility })
-    await openDrawer()
-
-    const dayOne = screen.getByRole('button', { name: 'Day 1' })
-    const dayTwo = screen.getByRole('button', { name: 'Day 2' })
-    expect(dayOne).toHaveAttribute('aria-pressed', 'true')
-    expect(dayTwo).toHaveAttribute('aria-pressed', 'false')
-
-    await user.click(dayTwo)
-    expect(onToggleDay).toHaveBeenCalledWith('day-2')
-
-    await user.click(screen.getByRole('button', { name: /show all days/i }))
-    expect(onShowAllDays).toHaveBeenCalledOnce()
-
-    withModel.unmount()
-    renderChrome({
-      mapDayVisibility: {
-        ...mapDayVisibility,
-        days: mapDayVisibility.days.map((day) => ({ ...day, isVisible: true })),
-      },
-    })
-    await openDrawer()
-    expect(screen.getByRole('button', { name: /show all days/i })).toBeDisabled()
   })
 
   it('closes on Escape or backdrop dismissal and restores focus to the menu trigger', async () => {

@@ -50,6 +50,7 @@ import {
   ExternalLink,
   Globe,
   Landmark,
+  Layers,
   MapPin,
   Navigation,
   Pencil,
@@ -90,7 +91,6 @@ import { markPerformance } from '../performance/timing'
 import styles from './TripWorkspacePage.module.css'
 import {
   MobileWorkspaceChrome,
-  type MobileMapDayVisibilityModel,
   type MobileWorkspaceTab,
 } from '../components/MobileWorkspaceChrome'
 import { ActivityCard } from '../components/ActivityCard'
@@ -904,6 +904,190 @@ function MapStyleControl({
   )
 }
 
+interface MobileMapDayOption {
+  activityCount: number
+  dayDate: string
+  isVisible: boolean
+  label: string
+}
+
+function MobileMapControls({
+  days,
+  mapStyle,
+  mapsExport,
+  onMapStyleChange,
+  onShowAllDays,
+  onToggleDay,
+  onRoutesChange,
+  routesEnabled,
+}: {
+  days: readonly MobileMapDayOption[]
+  mapStyle: MapStyleId
+  mapsExport: GoogleMapsExport
+  onMapStyleChange: (mapStyle: MapStyleId) => void
+  onShowAllDays: () => void
+  onToggleDay: (dayDate: string) => void
+  onRoutesChange: (enabled: boolean) => void
+  routesEnabled: boolean
+}) {
+  const [openPopover, setOpenPopover] = useState<'days' | 'overflow' | null>(null)
+  const controlsRef = useRef<HTMLDivElement>(null)
+  const visibleDayCount = days.filter((day) => day.isVisible).length
+  const areAllDaysVisible = visibleDayCount === days.length
+
+  useEffect(() => {
+    if (!openPopover) return undefined
+
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      if (controlsRef.current?.contains(event.target as Node)) return
+      setOpenPopover(null)
+    }
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpenPopover(null)
+    }
+
+    document.addEventListener('pointerdown', closeOnOutsidePointer)
+    window.addEventListener('keydown', closeOnEscape)
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutsidePointer)
+      window.removeEventListener('keydown', closeOnEscape)
+    }
+  }, [openPopover])
+
+  return (
+    <div ref={controlsRef} className={styles.mobileMapControls} aria-label="Map controls">
+      <div className={styles.mobileMapControlRow}>
+        <button
+          type="button"
+          className={styles.mobileMapControlButton}
+          aria-expanded={openPopover === 'days'}
+          aria-haspopup="dialog"
+          onClick={() => setOpenPopover((current) => current === 'days' ? null : 'days')}
+        >
+          <CalendarDays size={16} aria-hidden="true" />
+          <span>Days {visibleDayCount}/{days.length}</span>
+        </button>
+        <label className={`${styles.mobileMapControlButton} ${styles.mobileMapRouteToggle}`}>
+          <input
+            type="checkbox"
+            checked={routesEnabled}
+            onChange={(event) => onRoutesChange(event.currentTarget.checked)}
+          />
+          <Route size={16} aria-hidden="true" />
+          <span>Routes</span>
+        </label>
+        <button
+          type="button"
+          className={styles.mobileMapControlButton}
+          aria-expanded={openPopover === 'overflow'}
+          aria-haspopup="dialog"
+          aria-label="Open map layers and export"
+          onClick={() => setOpenPopover((current) => current === 'overflow' ? null : 'overflow')}
+        >
+          <Layers size={17} aria-hidden="true" />
+        </button>
+      </div>
+
+      {openPopover === 'days' ? (
+        <section className={styles.mobileMapPopover} role="dialog" aria-label="Map days">
+          <div className={styles.mobileMapPopoverHeader}>
+            <div>
+              <strong>Visible days</strong>
+              <span>{visibleDayCount} of {days.length} on map</span>
+            </div>
+            <button
+              type="button"
+              className={styles.mobileMapPopoverTextButton}
+              disabled={areAllDaysVisible}
+              onClick={onShowAllDays}
+            >
+              Show all
+            </button>
+          </div>
+          <div className={styles.mobileMapDayList} aria-label="Map day visibility">
+            {days.map((day) => (
+              <button
+                key={day.dayDate}
+                type="button"
+                className={styles.mobileMapDayToggle}
+                aria-pressed={day.isVisible}
+                onClick={() => onToggleDay(day.dayDate)}
+              >
+                <span>{day.label}</span>
+                <span aria-hidden="true">{day.isVisible ? 'Shown' : 'Hidden'}</span>
+              </button>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      {openPopover === 'overflow' ? (
+        <section
+          className={`${styles.mobileMapPopover} ${styles.mobileMapOverflowPopover}`}
+          role="dialog"
+          aria-label="Map layers and export"
+        >
+          <div className={styles.mobileMapPopoverHeader}>
+            <div>
+              <strong>Map options</strong>
+              <span>Visible days only</span>
+            </div>
+          </div>
+          {mapsExport.url ? (
+            <a
+              className={styles.mobileMapExport}
+              href={mapsExport.url}
+              target="_blank"
+              rel="noreferrer"
+              title={
+                mapsExport.truncated
+                  ? `Opens ${mapsExport.exportedStopCount} of ${mapsExport.totalMappedStopCount} mapped stops in Google Maps`
+                  : 'Open visible days in Google Maps'
+              }
+            >
+              <ExternalLink size={16} aria-hidden="true" />
+              Open in Google Maps
+            </a>
+          ) : (
+            <button
+              type="button"
+              className={styles.mobileMapExport}
+              disabled
+              title={mapsExport.disabledReason ?? undefined}
+            >
+              <ExternalLink size={16} aria-hidden="true" />
+              Open in Google Maps
+            </button>
+          )}
+          <div className={styles.mobileMapStyleSection}>
+            <strong>Map style</strong>
+            <div className={styles.mobileMapStyleOptions} role="group" aria-label="Map style">
+              {MAP_STYLE_OPTIONS.map((option) => (
+                <button
+                  key={option.id}
+                  type="button"
+                  aria-pressed={mapStyle === option.id}
+                  onClick={() => {
+                    onMapStyleChange(option.id)
+                    setOpenPopover(null)
+                  }}
+                >
+                  <span
+                    className={`${styles.mapStyleThumbnail} ${styles.mobileMapStyleSwatch}`}
+                    data-style={option.thumbnail}
+                    aria-hidden="true"
+                  />
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </section>
+      ) : null}
+    </div>
+  )
+}
+
 function pointerCoordinatesFromEvent(event: Event | null | undefined): PointerCoordinates | null {
   if (!event) return null
   if (
@@ -1633,7 +1817,9 @@ export function TripWorkspacePage() {
   const [sidebarPinned, setSidebarPinned] = useState(false)
   const [sidebarCollapsedAfterTabClick, setSidebarCollapsedAfterTabClick] = useState(false)
   const [collapsedTimelineDays, setCollapsedTimelineDays] = useState<Set<string>>(() => new Set())
-  const [hiddenMapDayDates, setHiddenMapDayDates] = useState<Set<string>>(() => new Set())
+  const [requestedHiddenMapDayDates, setRequestedHiddenMapDayDates] = useState<Set<string>>(
+    () => new Set(),
+  )
   const [mapStyle, setMapStyle] = useState<MapStyleId>('roadmap')
   const [routesEnabled, setRoutesEnabled] = useState(true)
   const [mapRouteSummaryHost, setMapRouteSummaryHost] = useState<HTMLDivElement | null>(null)
@@ -1878,6 +2064,10 @@ export function TripWorkspacePage() {
     [tripQuery.data],
   )
   const tripDaySet = useMemo(() => new Set(tripDays), [tripDays])
+  const hiddenMapDayDates = useMemo(
+    () => new Set([...requestedHiddenMapDayDates].filter((dayDate) => tripDaySet.has(dayDate))),
+    [requestedHiddenMapDayDates, tripDaySet],
+  )
   const displayedCalendarMonth = useMemo(() => {
     if (!tripQuery.data) return calendarMonth
     const firstTripMonth = getMonthKey(tripQuery.data.startDate)
@@ -1905,6 +2095,14 @@ export function TripWorkspacePage() {
       ),
     [fullTimelineActivities, tripDaySet],
   )
+  const scheduledActivityCountsByDay = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const activity of scheduledTimelineActivities) {
+      if (activity.dayDate === null) continue
+      counts.set(activity.dayDate, (counts.get(activity.dayDate) ?? 0) + 1)
+    }
+    return counts
+  }, [scheduledTimelineActivities])
   const visibleMapTimelineActivities = useMemo(
     () =>
       scheduledTimelineActivities.filter(
@@ -1918,15 +2116,33 @@ export function TripWorkspacePage() {
     () => (isMobileViewport ? Array.from(hiddenMapDayDates).sort().join(',') : ''),
     [hiddenMapDayDates, isMobileViewport],
   )
-  const mapActivities = workspaceMode === 'timeline'
+  const hasMobileMapDayScope = isMobileViewport && mobileTab === 'map'
+  const mobileMapDayOptions = useMemo(
+    () => tripDays.map((dayDate, index) => {
+      const activityCount = scheduledActivityCountsByDay.get(dayDate) ?? 0
+      return {
+        activityCount,
+        dayDate,
+        isVisible: !hiddenMapDayDates.has(dayDate),
+        label: `Day ${index + 1} · ${formatReadableDate(dayDate)} · ${pluralize(activityCount, 'activity')}`,
+      }
+    }),
+    [hiddenMapDayDates, scheduledActivityCountsByDay, tripDays],
+  )
+  const mapActivities = hasMobileMapDayScope
     ? visibleMapTimelineActivities
-    : workspaceMode === 'ideas'
-      ? ideasActivities
-      : dayActivities
+    : workspaceMode === 'timeline'
+      ? visibleMapTimelineActivities
+      : workspaceMode === 'ideas'
+        ? ideasActivities
+        : dayActivities
+  const usesTimelineMapPresentation = hasMobileMapDayScope || workspaceMode === 'timeline'
   const mapFallbackActivities = useMemo<Activity[]>(() => [], [])
   const viewportFitKey = [
-    workspaceMode,
-    workspaceMode === 'timeline'
+    hasMobileMapDayScope
+      ? `mobile-map:${mapTimelineVisibilityKey}`
+      : workspaceMode,
+    hasMobileMapDayScope || workspaceMode === 'timeline'
       ? `timeline:${mapTimelineVisibilityKey}`
       : workspaceMode === 'ideas'
         ? 'ideas'
@@ -1953,12 +2169,17 @@ export function TripWorkspacePage() {
     hasFiniteCoordinates,
   ).length
   const routeControlActivities = useMemo(() => {
+    if (hasMobileMapDayScope) return visibleMapTimelineActivities
     if (workspaceMode === 'timeline') return visibleMapTimelineActivities
     if (workspaceMode === 'days') return dayActivities
     return []
-  }, [dayActivities, visibleMapTimelineActivities, workspaceMode])
-  const routeControlsVisible = workspaceMode === 'days' || workspaceMode === 'timeline'
-  const routeExportScopeLabel = workspaceMode === 'timeline' ? 'timeline' : 'day'
+  }, [dayActivities, hasMobileMapDayScope, visibleMapTimelineActivities, workspaceMode])
+  const routeControlsVisible = hasMobileMapDayScope || workspaceMode === 'days' || workspaceMode === 'timeline'
+  const routeExportScopeLabel = hasMobileMapDayScope
+    ? 'visible days'
+    : workspaceMode === 'timeline'
+      ? 'timeline'
+      : 'day'
   const routeExportButtonLabel = workspaceMode === 'timeline' ? 'Export Timeline' : 'Export Day'
   const routeMapsExport = useMemo(
     () => buildGoogleMapsExport(routeControlActivities, routeExportScopeLabel),
@@ -2481,6 +2702,8 @@ export function TripWorkspacePage() {
     const activity = allActivities.find((item) => item.id === activityId)
     if (!activity) return
 
+    showMapDay(activity.dayDate)
+
     if (workspaceMode === 'timeline') {
       showTimelineActivityOnMap(activity)
       return
@@ -2522,6 +2745,7 @@ export function TripWorkspacePage() {
   }
 
   const showTimelineActivityOnMap = (activity: Activity) => {
+    showMapDay(activity.dayDate)
     setMobileTab('map')
     setExpandedActivityId(null)
     clearPlaceDraft()
@@ -3066,7 +3290,7 @@ export function TripWorkspacePage() {
 
   const handleToggleMapDayVisibility = (dayDate: string) => {
     const hidingDay = !hiddenMapDayDates.has(dayDate)
-    setHiddenMapDayDates((current) => {
+    setRequestedHiddenMapDayDates((current) => {
       const next = new Set(current)
       if (next.has(dayDate)) {
         next.delete(dayDate)
@@ -3079,9 +3303,9 @@ export function TripWorkspacePage() {
     if (!hidingDay) return
 
     const hiddenActivityIds = new Set(
-      timelineGroups
-        .find((group) => group.dayDate === dayDate)
-        ?.activities.map((activity) => activity.id) ?? [],
+      scheduledTimelineActivities
+        .filter((activity) => activity.dayDate === dayDate)
+        .map((activity) => activity.id),
     )
     if (
       (activeActivityId !== null && hiddenActivityIds.has(activeActivityId)) ||
@@ -3102,7 +3326,17 @@ export function TripWorkspacePage() {
   }
 
   const handleShowAllMapDays = () => {
-    setHiddenMapDayDates(new Set())
+    setRequestedHiddenMapDayDates(new Set())
+  }
+
+  const showMapDay = (dayDate: string | null) => {
+    if (!dayDate) return
+    setRequestedHiddenMapDayDates((current) => {
+      if (!current.has(dayDate)) return current
+      const next = new Set(current)
+      next.delete(dayDate)
+      return next
+    })
   }
 
   const handleScheduleIdeaForSelectedDay = (activity: Activity) => {
@@ -3324,19 +3558,6 @@ export function TripWorkspacePage() {
     }
   }
 
-  const mobileMapDayVisibility: MobileMapDayVisibilityModel | undefined =
-    isMobileViewport && mobileTab === 'map' && workspaceMode === 'timeline'
-      ? {
-          days: timelineGroups.map((group) => ({
-            id: group.dayDate,
-            isVisible: !hiddenMapDayDates.has(group.dayDate),
-            label: `${formatReadableDate(group.dayDate)} · ${pluralize(group.activities.length, 'activity')}`,
-          })),
-          onShowAllDays: handleShowAllMapDays,
-          onToggleDay: handleToggleMapDayVisibility,
-        }
-      : undefined
-
   return (
     <main id="main" className={styles.shell}>
       {shouldClaimGuestSession && !claimGuestSessionMutation.isError ? (
@@ -3429,7 +3650,6 @@ export function TripWorkspacePage() {
                     </Link>
                   ) : undefined}
                   isAuthenticated={isAuthenticated}
-                  mapDayVisibility={mobileMapDayVisibility}
                   onOpenSettings={openTripSettings}
                   onOpenShare={() => setIsShareTripOpen(true)}
                   onSelectTab={selectMobileTab}
@@ -3860,89 +4080,133 @@ export function TripWorkspacePage() {
                 aria-labelledby="map-panel-title"
               >
                 <div className={styles.mapOverlayLayout}>
-                  <div className={styles.mapRouteOverlay}>
-                    {routeControlsVisible && (
-                      <div className={styles.mapChrome} aria-label="Map route controls">
-                        <label className={styles.routeToggle}>
-                          <input
-                            type="checkbox"
-                            checked={routesEnabled}
-                            onChange={(event) => setRoutesEnabled(event.currentTarget.checked)}
-                          />
-                          <span className={styles.routeToggleControl} aria-hidden="true">
-                            <Route size={14} />
-                          </span>
-                          <span>Routes</span>
-                        </label>
-                        {routeMapsExport.url ? (
-                          <a
-                            className={styles.exportDayButton}
-                            href={routeMapsExport.url}
-                            target="_blank"
-                            rel="noreferrer"
-                            title={
-                              routeMapsExport.truncated
-                                ? `Opens ${routeMapsExport.exportedStopCount} of ${routeMapsExport.totalMappedStopCount} mapped stops in Google Maps`
-                                : `Open this ${routeExportScopeLabel} in Google Maps`
-                            }
+                  {isMobileViewport ? (
+                    <>
+                      <div className={styles.mobileMapControlStack}>
+                        {canEditTrip && (
+                          <div
+                            id="map-search-panel"
+                            className={styles.mapSearchOverlay}
+                            aria-busy={isMapSearchSubmitting}
                           >
-                            <ExternalLink size={15} aria-hidden="true" />
-                            {routeExportButtonLabel}
-                          </a>
-                        ) : (
-                          <button
-                            type="button"
-                            className={styles.exportDayButton}
-                            disabled
-                            title={routeMapsExport.disabledReason ?? undefined}
-                          >
-                            <ExternalLink size={15} aria-hidden="true" />
-                            {routeExportButtonLabel}
-                          </button>
+                            <PlaceSearch
+                              contextLabel={
+                                mapLocationTarget
+                                  ? `Updating location for ${mapLocationTarget.activityTitle}`
+                                  : undefined
+                              }
+                              focusKey={mapSearchFocusKey}
+                              searchValue={mapSearchValue}
+                              searchOptions={placeSearchOptions}
+                              onPlacePreview={(place) => {
+                                setMapSearchPreview(place)
+                                setCoordinateMapMarker(null)
+                                setSelectedMapClickedPlace(null)
+                                setSelectedMapClickedActivityId(null)
+                              }}
+                              onPlaceSelect={handleMapPlaceSuggestionSelect}
+                              onSearchSubmit={handleMapSearchSubmit}
+                              onSearchValueChange={handleMapSearchValueChange}
+                            />
+                          </div>
                         )}
+                        <MobileMapControls
+                          days={mobileMapDayOptions}
+                          mapStyle={mapStyle}
+                          mapsExport={routeMapsExport}
+                          onMapStyleChange={setMapStyle}
+                          onRoutesChange={setRoutesEnabled}
+                          onShowAllDays={handleShowAllMapDays}
+                          onToggleDay={handleToggleMapDayVisibility}
+                          routesEnabled={routesEnabled}
+                        />
                       </div>
-                    )}
-                    <MapStyleControl
-                      mapStyle={mapStyle}
-                      onMapStyleChange={setMapStyle}
-                    />
-                  </div>
-                  <div
-                    ref={isMobileViewport ? setMapRouteSummaryHost : undefined}
-                    className={styles.mapRouteSummaryHost}
-                  />
-                  <div className={styles.mapOverlayStack}>
-                    <div className={styles.mapSearchAndStyle}>
-                      {canEditTrip && (
-                        <div
-                          id="map-search-panel"
-                          className={styles.mapSearchOverlay}
-                          aria-busy={isMapSearchSubmitting}
-                        >
-                          <PlaceSearch
-                            contextLabel={
-                              mapLocationTarget
-                                ? `Updating location for ${mapLocationTarget.activityTitle}`
-                                : undefined
-                            }
-                            focusKey={mapSearchFocusKey}
-                            searchValue={mapSearchValue}
-                            searchOptions={placeSearchOptions}
-                            onPlacePreview={(place) => {
-                              setMapSearchPreview(place)
-                              setCoordinateMapMarker(null)
-                              setSelectedMapClickedPlace(null)
-                              setSelectedMapClickedActivityId(null)
-                            }}
-                            onPlaceSelect={handleMapPlaceSuggestionSelect}
-                            onSearchSubmit={handleMapSearchSubmit}
-                            onSearchValueChange={handleMapSearchValueChange}
-                          />
+                      <div ref={setMapRouteSummaryHost} className={styles.mapRouteSummaryHost} />
+                    </>
+                  ) : (
+                    <>
+                      <div className={styles.mapRouteOverlay}>
+                        {routeControlsVisible && (
+                          <div className={styles.mapChrome} aria-label="Map route controls">
+                            <label className={styles.routeToggle}>
+                              <input
+                                type="checkbox"
+                                checked={routesEnabled}
+                                onChange={(event) => setRoutesEnabled(event.currentTarget.checked)}
+                              />
+                              <span className={styles.routeToggleControl} aria-hidden="true">
+                                <Route size={14} />
+                              </span>
+                              <span>Routes</span>
+                            </label>
+                            {routeMapsExport.url ? (
+                              <a
+                                className={styles.exportDayButton}
+                                href={routeMapsExport.url}
+                                target="_blank"
+                                rel="noreferrer"
+                                title={
+                                  routeMapsExport.truncated
+                                    ? `Opens ${routeMapsExport.exportedStopCount} of ${routeMapsExport.totalMappedStopCount} mapped stops in Google Maps`
+                                    : `Open this ${routeExportScopeLabel} in Google Maps`
+                                }
+                              >
+                                <ExternalLink size={15} aria-hidden="true" />
+                                {routeExportButtonLabel}
+                              </a>
+                            ) : (
+                              <button
+                                type="button"
+                                className={styles.exportDayButton}
+                                disabled
+                                title={routeMapsExport.disabledReason ?? undefined}
+                              >
+                                <ExternalLink size={15} aria-hidden="true" />
+                                {routeExportButtonLabel}
+                              </button>
+                            )}
+                          </div>
+                        )}
+                        <MapStyleControl
+                          mapStyle={mapStyle}
+                          onMapStyleChange={setMapStyle}
+                        />
+                      </div>
+                      <div className={styles.mapRouteSummaryHost} />
+                      <div className={styles.mapOverlayStack}>
+                        <div className={styles.mapSearchAndStyle}>
+                          {canEditTrip && (
+                            <div
+                              id="map-search-panel"
+                              className={styles.mapSearchOverlay}
+                              aria-busy={isMapSearchSubmitting}
+                            >
+                              <PlaceSearch
+                                contextLabel={
+                                  mapLocationTarget
+                                    ? `Updating location for ${mapLocationTarget.activityTitle}`
+                                    : undefined
+                                }
+                                focusKey={mapSearchFocusKey}
+                                searchValue={mapSearchValue}
+                                searchOptions={placeSearchOptions}
+                                onPlacePreview={(place) => {
+                                  setMapSearchPreview(place)
+                                  setCoordinateMapMarker(null)
+                                  setSelectedMapClickedPlace(null)
+                                  setSelectedMapClickedActivityId(null)
+                                }}
+                                onPlaceSelect={handleMapPlaceSuggestionSelect}
+                                onSearchSubmit={handleMapSearchSubmit}
+                                onSearchValueChange={handleMapSearchValueChange}
+                              />
+                            </div>
+                          )}
                         </div>
-                      )}
-                    </div>
-                    <h2 id="map-panel-title" className="sr-only">Map</h2>
-                  </div>
+                      </div>
+                    </>
+                  )}
+                  <h2 id="map-panel-title" className="sr-only">Map</h2>
                   {canEditTrip && mapDetailPlace && (
                   <section
                     className={[
@@ -4124,13 +4388,13 @@ export function TripWorkspacePage() {
                 <GoogleMapsProvider>
                 <TripMap
                   activities={mapActivities}
-                  activityMarkerColors={workspaceMode === 'timeline' ? timelineActivityMarkerColors : undefined}
-                  activityMarkerMode={workspaceMode === 'timeline' ? 'timeline-days' : 'default'}
+                  activityMarkerColors={usesTimelineMapPresentation ? timelineActivityMarkerColors : undefined}
+                  activityMarkerMode={usesTimelineMapPresentation ? 'timeline-days' : 'default'}
                   fallbackActivities={mapFallbackActivities}
                   routeActivities={routesEnabled ? routeControlActivities : []}
                   activeActivityId={visibleActiveActivityId}
                   destination={tripQuery.data.destination}
-                  showDestinationFallback={workspaceMode !== 'timeline'}
+                  showDestinationFallback={hasMobileMapDayScope || workspaceMode !== 'timeline'}
                   mapStyle={mapStyle}
                   previewPlace={mapPreviewPlace}
                   coordinatePreviewPlace={coordinateMapMarker}
@@ -4150,6 +4414,7 @@ export function TripWorkspacePage() {
                   onViewportContextChange={setMapViewportContext}
                   routeSummaryClassName={isMobileViewport ? styles.mapRouteSummary : undefined}
                   routeSummaryContainer={isMobileViewport ? mapRouteSummaryHost : undefined}
+                  routeSummaryLabel={hasMobileMapDayScope ? 'Visible-days route' : undefined}
                   viewportFitKey={viewportFitKey}
                 />
                 </GoogleMapsProvider>
