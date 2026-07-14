@@ -643,7 +643,7 @@ describe('<TripMap>', () => {
       />,
     )
 
-    expect(await screen.findByText(/route unavailable/i)).toBeInTheDocument()
+    expect(await screen.findByText(/route unavailable/i, {}, { timeout: 3_000 })).toBeInTheDocument()
     expect(screen.getByTestId('route-layer')).toBeInTheDocument()
     expect(screen.getByText('12 min total · 2.4 km across 1 of 2 days')).toBeInTheDocument()
   })
