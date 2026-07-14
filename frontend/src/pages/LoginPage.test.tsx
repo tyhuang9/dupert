@@ -101,6 +101,7 @@ describe('<LoginPage>', () => {
   it('renders the email and password fields with proper labels', () => {
     renderLogin(makeAuth())
     expect(screen.getByLabelText('Email')).toBeInTheDocument()
+    expect(screen.getByLabelText('Email')).not.toHaveFocus()
     expect(screen.getByLabelText('Password')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /sign in/i })).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: /dev reset password/i })).not.toBeInTheDocument()
@@ -293,5 +294,83 @@ describe('<LoginPage>', () => {
     await user.click(screen.getByRole('button', { name: /back to sign in/i }))
     expect(screen.getByRole('heading', { name: /sign in/i })).toBeInTheDocument()
     expect(screen.getByLabelText('Password')).toBeInTheDocument()
+  })
+
+  it('returns to sign in by pointer without submitting preserved credentials', async () => {
+    const ctx = makeAuth()
+    renderLogin(ctx)
+
+    const user = userEvent.setup()
+    await user.type(screen.getByLabelText('Email'), 'me@example.com')
+    await user.type(screen.getByLabelText('Password'), 'super-secret-1')
+    await user.click(screen.getByRole('button', { name: /forgot password/i }))
+
+    const resetForm = screen.getByLabelText('Email').closest('form')
+    const backButton = screen.getByRole('button', { name: /back to sign in/i })
+    await user.click(backButton)
+
+    const signInEmail = screen.getByLabelText('Email')
+    const signInForm = signInEmail.closest('form')
+    const signInButton = screen.getByRole('button', { name: /^sign in$/i })
+    expect(ctx.login).not.toHaveBeenCalled()
+    expect(signInEmail).toHaveValue('me@example.com')
+    expect(screen.getByLabelText('Password')).toHaveValue('super-secret-1')
+    expect(signInEmail).toHaveFocus()
+    expect(signInForm).not.toBe(resetForm)
+    expect(signInButton).not.toBe(backButton)
+
+    await user.click(signInButton)
+    expect(ctx.login).toHaveBeenCalledOnce()
+  })
+
+  it('returns to sign in by Enter without submitting preserved credentials', async () => {
+    const ctx = makeAuth()
+    renderLogin(ctx)
+
+    const user = userEvent.setup()
+    await user.type(screen.getByLabelText('Email'), 'me@example.com')
+    await user.type(screen.getByLabelText('Password'), 'super-secret-1')
+    await user.click(screen.getByRole('button', { name: /forgot password/i }))
+
+    const backButton = screen.getByRole('button', { name: /back to sign in/i })
+    backButton.focus()
+    await user.keyboard('{Enter}')
+
+    expect(ctx.login).not.toHaveBeenCalled()
+    expect(screen.getByLabelText('Email')).toHaveValue('me@example.com')
+    expect(screen.getByLabelText('Password')).toHaveValue('super-secret-1')
+    expect(screen.getByLabelText('Email')).toHaveFocus()
+  })
+
+  it('submits a password reset request with Enter', async () => {
+    const ctx = makeAuth()
+    renderLogin(ctx)
+
+    const user = userEvent.setup()
+    await user.click(screen.getByRole('button', { name: /forgot password/i }))
+    await user.type(screen.getByLabelText('Email'), 'me@example.com')
+    await user.keyboard('{Enter}')
+
+    expect(ctx.requestPasswordReset).toHaveBeenCalledWith({
+      email: 'me@example.com',
+    })
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      /reset email is on the way/i,
+    )
+  })
+
+  it('submits valid sign-in credentials with Enter', async () => {
+    const ctx = makeAuth()
+    renderLogin(ctx)
+
+    const user = userEvent.setup()
+    await user.type(screen.getByLabelText('Email'), 'me@example.com')
+    await user.type(screen.getByLabelText('Password'), 'super-secret-1')
+    await user.keyboard('{Enter}')
+
+    expect(ctx.login).toHaveBeenCalledWith({
+      email: 'me@example.com',
+      password: 'super-secret-1',
+    })
   })
 })
