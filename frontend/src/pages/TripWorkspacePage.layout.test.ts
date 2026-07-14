@@ -9,6 +9,7 @@ const tripMapCss = readFileSync(join(currentDir, '../components/TripMap.module.c
 const activityFormCss = readFileSync(join(currentDir, '../components/ActivityForm.module.css'), 'utf8')
 const activityCardCss = readFileSync(join(currentDir, '../components/ActivityCard.module.css'), 'utf8')
 const activityListCss = readFileSync(join(currentDir, '../components/ActivityList.module.css'), 'utf8')
+const activityListSource = readFileSync(join(currentDir, '../components/ActivityList.tsx'), 'utf8')
 const datePickerCss = readFileSync(join(currentDir, '../components/TripDateRangePicker.module.css'), 'utf8')
 const searchShelfCss = readFileSync(join(currentDir, '../components/MapSearchResultsShelf.module.css'), 'utf8')
 
@@ -80,17 +81,14 @@ describe('TripWorkspacePage layout scroll contract', () => {
     }
   })
 
-  it('keeps the mobile day navigator and activity actions touch-sized', () => {
-    const dayPlanActionBlock = cssBlocks(workspaceCss, '.mobileDayPlanAddActivity').find((block) =>
-      /min-height:\s*44px/.test(block),
+  it('keeps the mobile day navigator touch-sized with a floating add action', () => {
+    const mobileAddActivityFabBlock = cssBlocks(workspaceCss, '.mobileAddActivityFab').find((block) =>
+      /position:\s*fixed/.test(block),
     ) ?? ''
     const dayNavigationBlock = cssBlocks(workspaceCss, '.mobileDayNavigationButton').find((block) =>
       /min-height:\s*44px/.test(block),
     ) ?? ''
     const dayPickerBlock = cssBlocks(workspaceCss, '.mobileDayPickerHeadingButton').find((block) =>
-      /min-height:\s*44px/.test(block),
-    ) ?? ''
-    const editActionBlock = cssBlocks(activityCardCss, '.mobileEditAction').find((block) =>
       /min-height:\s*44px/.test(block),
     ) ?? ''
     const editorActionBlock = cssBlocks(activityCardCss, '.mobileEditorActions button').find((block) =>
@@ -104,33 +102,30 @@ describe('TripWorkspacePage layout scroll contract', () => {
       workspaceCss,
       '.workspaceShellMobile .mobileDayPlanHeader > div:first-child',
     ).find((block) => /display:\s*contents/.test(block)) ?? ''
-    const mobileHeaderActionsBlock = cssBlocks(
-      workspaceCss,
-      '.workspaceShellMobile .timelineHeaderActions.mobileDayPlanActions',
-    ).find((block) => /grid-area:\s*actions/.test(block)) ?? ''
     const mobileNavigatorRowBlock = cssBlocks(
       workspaceCss,
       '.workspaceShellMobile .mobileDayPlanHeader .mobileDayNavigator',
     )[0] ?? ''
 
-    expect(dayPlanActionBlock).toMatch(/width:\s*auto/)
-    expect(dayPlanActionBlock).toMatch(/height:\s*44px/)
-    expect(dayPlanActionBlock).toMatch(/min-height:\s*44px/)
+    expect(mobileAddActivityFabBlock).toMatch(/position:\s*fixed/)
+    expect(mobileAddActivityFabBlock).toMatch(/right:\s*var\(--space-4\)/)
+    expect(mobileAddActivityFabBlock).toMatch(/bottom:\s*calc\(64px \+ var\(--space-4\) \+ env\(safe-area-inset-bottom\)\)/)
+    expect(mobileAddActivityFabBlock).toMatch(/width:\s*56px/)
+    expect(mobileAddActivityFabBlock).toMatch(/height:\s*56px/)
+    expect(mobileAddActivityFabBlock).toMatch(/min-height:\s*56px/)
+    expect(mobileAddActivityFabBlock).toMatch(/border-radius:\s*var\(--radius-pill\)/)
     expect(dayNavigationBlock).toMatch(/width:\s*44px/)
     expect(dayNavigationBlock).toMatch(/min-height:\s*44px/)
     expect(dayPickerBlock).toMatch(/min-height:\s*44px/)
-    expect(editActionBlock).toMatch(/width:\s*44px/)
-    expect(editActionBlock).toMatch(/min-height:\s*44px/)
     expect(editorActionBlock).toMatch(/min-height:\s*44px/)
     expect(mobileHeaderBlock).toMatch(/display:\s*grid/)
     expect(mobileHeaderBlock).toMatch(
-      /grid-template-areas:\s*'kicker actions'\s*'navigator navigator'\s*'summary summary'/,
+      /grid-template-areas:\s*'kicker'\s*'navigator'\s*'summary'/,
     )
-    expect(mobileHeaderBlock).toMatch(/grid-template-columns:\s*minmax\(0,\s*1fr\) auto/)
+    expect(mobileHeaderBlock).toMatch(/grid-template-columns:\s*minmax\(0,\s*1fr\)/)
     expect(mobileHeaderBlock).toMatch(/gap:\s*var\(--space-2\)/)
     expect(mobileHeaderContentsBlock).toMatch(/display:\s*contents/)
-    expect(mobileHeaderActionsBlock).toMatch(/grid-area:\s*actions/)
-    expect(mobileHeaderActionsBlock).not.toMatch(/width:\s*100%/)
+    expect(workspaceCss).not.toMatch(/mobileDayPlan(?:AddActivity|Actions)/)
     expect(mobileNavigatorRowBlock).toMatch(/grid-area:\s*navigator/)
     expect(mobileNavigatorRowBlock).toMatch(/width:\s*100%/)
     expect(cssBlocks(workspaceCss, '.workspaceShellMobile .mobileDayPlanHeader .panelKicker')[0] ?? '')
@@ -144,6 +139,27 @@ describe('TripWorkspacePage layout scroll contract', () => {
 
     expect(expandedSlotBlock).toMatch(/transform:\s*none/)
     expect(expandedSlotBlock).toMatch(/will-change:\s*auto/)
+    expect(activityListSource).toMatch(/isDragging && !isExpanded \? styles\.dragging : ''/)
+  })
+
+  it('keeps the mobile activity editor fully opaque without a pencil action', () => {
+    const mobileExpandedCardBlock = cssBlocks(activityCardCss, '.cardExpanded').find((block) =>
+      /position:\s*fixed/.test(block),
+    ) ?? ''
+    const mobileExpandedCardInteractionBlock = cssBlocks(
+      activityCardCss,
+      '.cardExpanded:hover,\n  .cardExpanded:focus-within,\n  .cardExpanded:focus-visible',
+    )[0] ?? ''
+    const mobileExpandedEditorBlock = cssBlocks(activityCardCss, '.cardExpanded .editorPanel')[0] ?? ''
+
+    expect(activityCardCss).not.toMatch(/mobileEditAction/)
+    expect(mobileExpandedCardBlock).toMatch(/background-color:\s*var\(--color-surface\)/)
+    expect(mobileExpandedCardBlock).toMatch(/opacity:\s*1/)
+    expect(mobileExpandedCardBlock).toMatch(/animation:\s*none/)
+    expect(mobileExpandedCardInteractionBlock).toMatch(/background-color:\s*var\(--color-surface\)/)
+    expect(mobileExpandedEditorBlock).toMatch(/background-color:\s*var\(--color-surface\)/)
+    expect(mobileExpandedEditorBlock).toMatch(/opacity:\s*1/)
+    expect(mobileExpandedEditorBlock).toMatch(/animation:\s*none/)
   })
 
   it('keeps full-trip timeline groups and entries visually seamless', () => {

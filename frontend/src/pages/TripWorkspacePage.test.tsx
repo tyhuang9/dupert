@@ -756,7 +756,7 @@ describe('<TripWorkspacePage>', () => {
     })
   })
 
-  it('uses a bounded mobile day navigator and keeps the labelled activity action', async () => {
+  it('uses a bounded mobile day navigator and a floating activity action', async () => {
     mockViewport(true)
     mockWorkspace()
 
@@ -778,7 +778,9 @@ describe('<TripWorkspacePage>', () => {
     expect(nextDay).toBeEnabled()
 
     const addActivity = screen.getByLabelText(/^add activity$/i, { selector: 'button' })
-    expect(addActivity).toHaveTextContent('Add Activity')
+    expect(addActivity).not.toHaveTextContent('Add Activity')
+    expect(addActivity).toHaveAttribute('title', 'Add Activity')
+    expect(addActivity.querySelector('svg')).toBeInTheDocument()
     addActivity.focus()
     await userEvent.keyboard('{Enter}')
     await waitFor(() => {
@@ -822,6 +824,29 @@ describe('<TripWorkspacePage>', () => {
     expect(within(dayNavigator).getByRole('button', { name: /next day/i })).toBeDisabled()
   })
 
+  it('shows the mobile add action only in Plan and hides it while composing', async () => {
+    mockViewport(true)
+    mockWorkspace()
+
+    renderWorkspace('/trips/abc234def567/d/2026-05-01')
+
+    const addActivity = await screen.findByLabelText(/^add activity$/i, { selector: 'button' })
+    await userEvent.click(addActivity)
+    await screen.findByRole('textbox', { name: /activity name/i })
+    expect(screen.queryByLabelText(/^add activity$/i, { selector: 'button' })).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: /^cancel$/i }))
+    await screen.findByLabelText(/^add activity$/i, { selector: 'button' })
+
+    await userEvent.click(screen.getByRole('button', { name: /^map$/i }))
+    await screen.findByTestId('trip-map')
+    expect(screen.queryByLabelText(/^add activity$/i, { selector: 'button' })).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: /^timeline$/i }))
+    expect(await screen.findByRole('heading', { name: /full trip timeline/i })).toBeInTheDocument()
+    expect(screen.queryByLabelText(/^add activity$/i, { selector: 'button' })).not.toBeInTheDocument()
+  })
+
   it('keeps the desktop day heading and compact add action', async () => {
     mockWorkspace()
 
@@ -856,7 +881,7 @@ describe('<TripWorkspacePage>', () => {
     expect(apiMock.history.get.map(({ url }) => url)).not.toContain('/trips/abc234def567/members')
   })
 
-  it('edits and moves a mobile activity through discoverable card actions', async () => {
+  it('edits and moves a mobile activity by selecting its card', async () => {
     mockViewport(true)
     mockWorkspace([SAMPLE_ACTIVITY])
     apiMock.onPost('/activities/10/move?publicId=abc234def567').reply((config) => {
@@ -869,7 +894,8 @@ describe('<TripWorkspacePage>', () => {
 
     renderWorkspace('/trips/abc234def567/d/2026-05-01')
 
-    await screen.findByRole('button', { name: /edit tsukiji sushi/i })
+    await screen.findByRole('article', { name: /expand tsukiji sushi/i })
+    expect(screen.queryByRole('button', { name: /edit tsukiji sushi/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /move to day/i })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: /reorder tsukiji sushi/i })).toBeInTheDocument()
 
@@ -878,8 +904,7 @@ describe('<TripWorkspacePage>', () => {
     expect(screen.getByRole('button', { name: /^delete$/i })).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: /^done$/i }))
 
-    const editActivity = await screen.findByRole('button', { name: /edit tsukiji sushi/i })
-    await userEvent.click(editActivity)
+    await userEvent.click(screen.getByRole('article', { name: /expand tsukiji sushi/i }))
     expect(screen.getByText(/^edit activity$/i)).toBeInTheDocument()
     const changeDay = screen.getByRole('button', { name: /^change day$/i })
     expect(changeDay).toBeInTheDocument()
@@ -947,7 +972,8 @@ describe('<TripWorkspacePage>', () => {
     await screen.findByRole('heading', { level: 2, name: /friday, may 1/i })
     await userEvent.click(screen.getByRole('button', { name: /^ideas$/i }))
     expect(screen.getByRole('button', { name: /^schedule$/i })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /edit save teamlab/i })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /edit save teamlab/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('article', { name: /expand save teamlab/i })).toBeInTheDocument()
 
     await userEvent.click(screen.getByRole('button', { name: /^schedule$/i }))
     expect(screen.getByRole('dialog', { name: /move save teamlab/i })).toBeInTheDocument()

@@ -876,8 +876,8 @@
   box-shadow: var(--shadow-sm);
 }
 
-/* Rendered only for the compact day-plan header below the mobile breakpoint. */
-.mobileDayPlanAddActivity {
+.mobileAddActivityFab,
+.mobileDayPlanScroll {
   display: none;
 }
 
@@ -2447,39 +2447,37 @@
     gap: var(--space-2);
   }
 
-  .workspaceShellMobile .timelineHeaderActions.mobileDayPlanActions {
-    min-width: 0;
-    flex-wrap: nowrap;
+  .workspaceShellMobile .mobileDayPlanScroll {
+    display: grid;
+    padding-bottom: calc(56px + var(--space-8));
   }
 
-  .mobileDayPlanAddActivity {
-    width: auto;
-    height: 44px;
-    min-height: 44px;
+  .mobileAddActivityFab {
+    position: fixed;
+    right: var(--space-4);
+    bottom: calc(64px + var(--space-4) + env(safe-area-inset-bottom));
+    z-index: 160;
+    width: 56px;
+    height: 56px;
+    min-height: 56px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    flex: 0 0 auto;
-    gap: var(--space-2);
-    padding: 0 var(--space-3);
+    padding: 0;
     border: 1px solid var(--color-primary);
     border-radius: var(--radius-pill);
     background: var(--color-primary);
     color: var(--color-primary-fg);
-    font: inherit;
-    font-size: var(--font-size-xs);
-    font-weight: 800;
-    white-space: nowrap;
-    box-shadow: var(--shadow-sm);
+    box-shadow: var(--shadow-md);
     cursor: pointer;
   }
 
-  .mobileDayPlanAddActivity:hover {
+  .mobileAddActivityFab:hover {
     border-color: var(--color-primary-hover);
     background: var(--color-primary-hover);
   }
 
-  .mobileDayPlanAddActivity:focus-visible {
+  .mobileAddActivityFab:focus-visible {
     outline: var(--focus-ring-width) solid var(--focus-ring-color);
     outline-offset: var(--focus-ring-offset);
   }
@@ -2683,11 +2681,11 @@
 @media (max-width: 560px) {
   .workspaceShellMobile .timelineHeader.mobileDayPlanHeader {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr);
     grid-template-areas:
-      'kicker actions'
-      'navigator navigator'
-      'summary summary';
+      'kicker'
+      'navigator'
+      'summary';
     align-items: center;
     gap: var(--space-2);
   }
@@ -2713,12 +2711,6 @@
     overflow-wrap: anywhere;
   }
 
-  .workspaceShellMobile .timelineHeaderActions.mobileDayPlanActions {
-    grid-area: actions;
-    width: auto;
-    justify-self: end;
-    justify-content: flex-end;
-  }
 }
 
 @media (max-width: 520px) {

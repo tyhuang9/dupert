@@ -16,7 +16,6 @@ import {
   GripVertical,
   Landmark,
   MapPin,
-  Pencil,
   Plane,
   Utensils,
 } from 'lucide-react'
@@ -169,7 +168,6 @@ export function ActivityCard({
   const categoryLabel = getCategoryLabel(activity.category)
   const canDrag = !presentation && !readOnly && !busy && !dragDisabled && !expanded
   const usesMobileDragHandle = canDrag && mobileDragHandle
-  const showsMobileEditAction = mobileDragHandle && !presentation && !readOnly && !expanded
   const cardClassName = [
     styles.card,
     canDrag ? styles.cardDraggable : '',
@@ -273,42 +271,26 @@ export function ActivityCard({
               </div>
             )}
           </div>
-          {showsMobileEditAction || usesMobileDragHandle ? (
+          {usesMobileDragHandle ? (
             <div className={styles.mobileCardActions}>
-              {showsMobileEditAction ? (
-                <button
-                  type="button"
-                  className={styles.mobileEditAction}
-                  aria-label={`Edit ${activity.title}`}
-                  disabled={busy}
-                  onClick={(event) => {
-                    event.stopPropagation()
-                    toggleCard()
-                  }}
-                >
-                  <Pencil size={17} aria-hidden="true" />
-                </button>
-              ) : null}
-              {usesMobileDragHandle ? (
-                <button
-                  ref={dragActivatorRef}
-                  type="button"
-                  className={styles.dragHandle}
-                  {...dragAttributes}
-                  aria-label={`Reorder ${activity.title}`}
-                  onClick={(event) => event.stopPropagation()}
-                  onKeyDown={(event) => {
-                    event.stopPropagation()
-                    dragListeners?.onKeyDown?.(event)
-                  }}
-                  onPointerDown={(event) => {
-                    event.stopPropagation()
-                    dragListeners?.onPointerDown?.(event)
-                  }}
-                >
-                  <GripVertical size={18} aria-hidden="true" />
-                </button>
-              ) : null}
+              <button
+                ref={dragActivatorRef}
+                type="button"
+                className={styles.dragHandle}
+                {...dragAttributes}
+                aria-label={`Reorder ${activity.title}`}
+                onClick={(event) => event.stopPropagation()}
+                onKeyDown={(event) => {
+                  event.stopPropagation()
+                  dragListeners?.onKeyDown?.(event)
+                }}
+                onPointerDown={(event) => {
+                  event.stopPropagation()
+                  dragListeners?.onPointerDown?.(event)
+                }}
+              >
+                <GripVertical size={18} aria-hidden="true" />
+              </button>
             </div>
           ) : null}
         </div>

@@ -3684,28 +3684,27 @@ export function TripWorkspacePage() {
                           : `${tripQuery.data.destination || 'Destination TBD'} · ${pluralize(dayActivities.length, 'activity', 'activities')} scheduled today · ${selectedDayMappedCount} mapped`}
                     </p>
                   </div>
-                  <div
-                    className={`${styles.timelineHeaderActions}${isMobileViewport && workspaceMode === 'days' ? ` ${styles.mobileDayPlanActions}` : ''}`}
-                  >
-                    <div className={styles.avatarStack} aria-label="Recent collaborators">
-                      {collaboratorNames.map((name) => (
-                        <span key={name} className={styles.collaboratorAvatar} title={name}>
-                          {getInitials(name)}
-                        </span>
-                      ))}
+                  {(!isMobileViewport || workspaceMode !== 'days') && (
+                    <div className={styles.timelineHeaderActions}>
+                      <div className={styles.avatarStack} aria-label="Recent collaborators">
+                        {collaboratorNames.map((name) => (
+                          <span key={name} className={styles.collaboratorAvatar} title={name}>
+                            {getInitials(name)}
+                          </span>
+                        ))}
+                      </div>
+                      {canEditTrip && workspaceMode !== 'timeline' && (
+                        <button
+                          type="button"
+                          className={styles.addActivityButton}
+                          onClick={workspaceMode === 'ideas' ? openIdeaComposer : openActivityComposer}
+                          aria-label={workspaceMode === 'ideas' ? 'Add Idea' : 'Add Activity'}
+                        >
+                          <Plus size={16} aria-hidden="true" />
+                        </button>
+                      )}
                     </div>
-                    {canEditTrip && workspaceMode !== 'timeline' && (
-                      <button
-                        type="button"
-                        className={`${styles.addActivityButton}${isMobileViewport && workspaceMode === 'days' ? ` ${styles.mobileDayPlanAddActivity}` : ''}`}
-                        onClick={workspaceMode === 'ideas' ? openIdeaComposer : openActivityComposer}
-                        aria-label={workspaceMode === 'ideas' ? 'Add Idea' : 'Add Activity'}
-                      >
-                        <Plus size={16} aria-hidden="true" />
-                        {isMobileViewport && workspaceMode === 'days' ? <span>Add Activity</span> : null}
-                      </button>
-                    )}
-                  </div>
+                  )}
                 </div>
 
                 {activitiesQuery.isLoading ? (
@@ -3715,7 +3714,9 @@ export function TripWorkspacePage() {
                     {parseApiError(activitiesQuery.error).topMessage}
                   </p>
                 ) : (
-                  <div className={styles.timelineScroll}>
+                  <div
+                    className={`${styles.timelineScroll}${isMobileViewport && workspaceMode === 'days' ? ` ${styles.mobileDayPlanScroll}` : ''}`}
+                  >
                     {mutationError && (
                       <p className={styles.inlineAlert} role="alert">
                         {parseApiError(mutationError).topMessage}
@@ -3840,6 +3841,17 @@ export function TripWorkspacePage() {
                   </div>
                 )}
               </section>
+              {canEditTrip && isMobileViewport && mobileTab === 'plan' && workspaceMode === 'days' && placeDraft === null && expandedActivityId === null && (
+                <button
+                  type="button"
+                  className={styles.mobileAddActivityFab}
+                  onClick={openActivityComposer}
+                  aria-label="Add Activity"
+                  title="Add Activity"
+                >
+                  <Plus size={24} aria-hidden="true" />
+                </button>
+              )}
               </div>
 
               {!isMobileViewport || mobileTab === 'map' ? (
