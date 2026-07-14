@@ -1474,7 +1474,7 @@
   bottom: calc(var(--map-search-results-height) + var(--map-search-results-gap));
 }
 
-.placeDetailMobileHeader {
+.placeDetailMobileControls {
   display: none;
 }
 
@@ -3119,27 +3119,29 @@
   .workspaceShellMobileMap .placeDetailCard {
     top: auto;
     right: 0;
+    /* The mobile map panel already ends above the bottom navigation. */
     bottom: 0;
     left: 0;
-    z-index: 14;
+    /* A selected place takes precedence over the map's contextual controls. */
+    z-index: 17;
     width: 100%;
-    max-height: min(54dvh, 34rem);
-    grid-template-rows: auto auto minmax(0, 1fr);
+    max-height: min(calc(100dvh - 128px - env(safe-area-inset-bottom)), 42rem);
+    grid-template-rows: auto minmax(0, 1fr);
     border-right: 0;
     border-bottom: 0;
     border-left: 0;
     border-radius: var(--radius-xl) var(--radius-xl) 0 0;
   }
 
-  .workspaceShellMobileMap .placeDetailMobileHeader {
-    min-height: 52px;
+  .workspaceShellMobileMap .placeDetailMobileControls {
+    position: absolute;
+    inset: var(--space-3) var(--space-3) auto;
+    z-index: 2;
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    justify-content: flex-end;
     gap: var(--space-3);
-    padding: var(--space-2) var(--space-3);
-    border-bottom: 1px solid var(--color-surface-border);
-    background: var(--color-floating-surface);
+    pointer-events: none;
   }
 
   .workspaceShellMobileMap .placeDetailBack,
@@ -3151,15 +3153,18 @@
     gap: var(--space-1);
     border: 1px solid var(--color-surface-border);
     border-radius: var(--radius-lg);
-    background: var(--color-floating-surface-soft);
+    background: rgb(255 255 255 / 92%);
     color: var(--color-text);
     font: inherit;
     font-size: var(--font-size-xs);
     font-weight: 700;
     cursor: pointer;
+    box-shadow: var(--shadow-sm);
+    pointer-events: auto;
   }
 
   .workspaceShellMobileMap .placeDetailBack {
+    margin-right: auto;
     padding: 0 var(--space-3);
   }
 
@@ -3175,12 +3180,13 @@
   }
 
   .workspaceShellMobileMap .placeHero {
-    min-height: 6.5rem;
-    max-height: min(7.5rem, 22dvh);
+    width: 100%;
+    min-height: 10rem;
+    max-height: none;
     display: block;
-    margin: var(--space-3) var(--space-4) 0;
-    border-radius: var(--radius-lg);
-    aspect-ratio: auto;
+    margin: 0;
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+    aspect-ratio: 16 / 9;
   }
 
   .workspaceShellMobileMap .placeHero .placeThumbnail {
@@ -3188,8 +3194,14 @@
   }
 
   .workspaceShellMobileMap .placeDetailBody {
+    gap: var(--space-1);
+    padding: var(--space-3) var(--space-4) var(--space-4);
     scrollbar-width: thin;
     scrollbar-color: var(--color-text-muted) transparent;
+  }
+
+  .workspaceShellMobileMap .placeHours {
+    padding: var(--space-2) var(--space-3);
   }
 
   .workspaceShellMobileMap .placeDetailBody::-webkit-scrollbar {
@@ -3206,6 +3218,11 @@
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     align-items: stretch;
+    position: sticky;
+    bottom: calc(var(--space-4) * -1);
+    margin-top: auto;
+    padding: var(--space-2) 0 var(--space-4);
+    background: var(--color-floating-surface);
   }
 
   .workspaceShellMobileMap .placeDetailActions .primaryAction {
@@ -3237,5 +3254,17 @@
 
   .workspaceShellMobileMap .placeActionLabel {
     display: inline;
+  }
+}
+
+@media (max-width: 820px) and (max-height: 600px) {
+  .workspaceShellMobileMap .placeDetailCard {
+    min-height: calc(100dvh - 128px - env(safe-area-inset-bottom));
+  }
+}
+
+@media (min-width: 600px) and (max-width: 820px) {
+  .workspaceShellMobileMap .placeDetailCard {
+    min-height: min(calc(100dvh - 128px - env(safe-area-inset-bottom)), 42rem);
   }
 }
