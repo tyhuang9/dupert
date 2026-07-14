@@ -2,7 +2,13 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import MockAdapter from 'axios-mock-adapter'
-import { useEffect, useRef, type PropsWithChildren, type ReactNode } from 'react'
+import {
+  useEffect,
+  useRef,
+  type CSSProperties,
+  type PropsWithChildren,
+  type ReactNode,
+} from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { apiClient } from '../api/client'
@@ -41,6 +47,7 @@ type DndTestCollisionArgs = {
 const dndMockState = vi.hoisted(() => ({
   closestCenterCollisions: [] as DndTestCollision[],
   collisionDetection: null as null | ((args: DndTestCollisionArgs) => DndTestCollision[]),
+  dragOverlayStyle: undefined as CSSProperties | undefined,
   onDragEnd: null as null | ((event: {
     active: { id: string }
     over: { id: string } | null
@@ -102,9 +109,10 @@ vi.mock('@dnd-kit/core', () => ({
     dndMockState.onDragStart = onDragStart ?? null
     return <>{children}</>
   },
-  DragOverlay: ({ children }: { children: ReactNode }) => (
-    <div data-testid="drag-overlay">{children}</div>
-  ),
+  DragOverlay: ({ children, style }: { children: ReactNode; style?: CSSProperties }) => {
+    dndMockState.dragOverlayStyle = style
+    return <div data-testid="drag-overlay">{children}</div>
+  },
   KeyboardSensor: vi.fn(),
   PointerSensor: vi.fn(),
   closestCenter: vi.fn(() => dndMockState.closestCenterCollisions),
@@ -663,6 +671,10 @@ function domRect({
 beforeEach(() => {
   vi.stubEnv('VITE_GOOGLE_MAPS_API_KEY', 'gmaps.test')
   mockViewport(false)
+  Object.defineProperty(document, 'elementFromPoint', {
+    configurable: true,
+    value: vi.fn(() => null),
+  })
   apiMock = new MockAdapter(apiClient)
   queryClient = new QueryClient({
     defaultOptions: {
@@ -734,6 +746,7 @@ beforeEach(() => {
   googlePlacesMockState.imageUrlFromGooglePhotoName.mockResolvedValue(null)
   dndMockState.closestCenterCollisions = []
   dndMockState.collisionDetection = null
+  dndMockState.dragOverlayStyle = undefined
   dndMockState.onDragEnd = null
   dndMockState.onDragMove = null
   dndMockState.onDragOver = null
@@ -1270,7 +1283,7 @@ describe('<TripWorkspacePage>', () => {
     expect(HTMLElement.prototype.scrollIntoView).toHaveBeenCalled()
   })
 
-  it('accepts only direct pointer hits over the sidebar calendar and clears a stale day target', async () => {
+  it('uses the painted sidebar day under the pointer and clears a stale target over a gap', async () => {
     const dayTwoActivity = {
       ...SAMPLE_ACTIVITY,
       id: 22,
@@ -1290,16 +1303,25 @@ describe('<TripWorkspacePage>', () => {
       right: 300,
       top: 0,
     }))
+    const paintedDay = screen.getByTitle('2026-05-02 (1 activities)')
+    expect(paintedDay).not.toHaveAttribute('data-sidebar-drop-target')
 
     triggerDragStart(activityDragId(10), 400, 200)
-    dndMockState.pointerCollisions = [{ id: sidebarDayDropId('2026-05-02') }]
-    dndMockState.closestCenterCollisions = [{ id: sidebarDayDropId('2026-05-03') }]
+    const paintedDayChild = paintedDay.querySelector('span')
+    expect(paintedDayChild).not.toBeNull()
+    expect(paintedDay).toHaveAttribute(
+      'data-sidebar-drop-target',
+      sidebarDayDropId('2026-05-02'),
+    )
+    vi.mocked(document.elementFromPoint).mockReturnValue(paintedDayChild)
+    dndMockState.pointerCollisions = [{ id: sidebarDayDropId('2026-05-03') }]
     expect(runCollisionDetection(activityDragId(10), { x: 120, y: 400 })).toEqual([
       { id: sidebarDayDropId('2026-05-02') },
     ])
     triggerDragOver(activityDragId(10), sidebarDayDropId('2026-05-02'))
 
-    dndMockState.pointerCollisions = []
+    vi.mocked(document.elementFromPoint).mockReturnValue(null)
+    dndMockState.pointerCollisions = [{ id: sidebarDayDropId('2026-05-02') }]
     expect(runCollisionDetection(activityDragId(10), { x: 120, y: 440 })).toEqual([])
     triggerDragOver(activityDragId(10), null)
     triggerDragEnd(activityDragId(10), null)
@@ -1309,6 +1331,69 @@ describe('<TripWorkspacePage>', () => {
     )
     expect(apiMock.history.post.some((request) => request.url?.startsWith('/activities/10/move')))
       .toBe(false)
+  })
+
+  it('keeps the fixed drag overlay wrapper out of pointer hit testing', async () => {
+    mockWorkspace([SAMPLE_ACTIVITY])
+
+    renderWorkspace('/trips/abc234def567/d/2026-05-01')
+
+    await screen.findByRole('heading', { level: 2, name: /friday, may 1/i })
+    triggerDragStart(activityDragId(10), 400, 200)
+
+    expect(screen.getByTestId('drag-overlay')).toHaveTextContent(/tsukiji sushi/i)
+    expect(dndMockState.dragOverlayStyle).toEqual({ pointerEvents: 'none' })
+  })
+
+  it('rejects an out-of-range sidebar calendar day under the pointer', async () => {
+    mockWorkspace([SAMPLE_ACTIVITY])
+
+    renderWorkspace('/trips/abc234def567/d/2026-05-01')
+
+    await screen.findByRole('heading', { level: 2, name: /friday, may 1/i })
+    const sidebar = screen.getByLabelText('Trip workspace navigation')
+    vi.spyOn(sidebar, 'getBoundingClientRect').mockReturnValue(domRect({
+      bottom: 700,
+      left: 0,
+      right: 300,
+      top: 0,
+    }))
+    const outOfRangeDay = screen.getByTitle('2026-04-30 (0 activities)')
+    expect(outOfRangeDay).toBeDisabled()
+    expect(outOfRangeDay).not.toHaveAttribute('data-sidebar-drop-target')
+
+    triggerDragStart(activityDragId(10), 400, 200)
+    expect(outOfRangeDay).not.toHaveAttribute('data-sidebar-drop-target')
+    vi.mocked(document.elementFromPoint).mockReturnValue(outOfRangeDay.querySelector('span'))
+    dndMockState.pointerCollisions = [{ id: sidebarDayDropId('2026-05-02') }]
+
+    expect(runCollisionDetection(activityDragId(10), { x: 120, y: 400 })).toEqual([])
+  })
+
+  it('accepts the enabled Ideas rail target at the exact pointer position', async () => {
+    mockWorkspace([SAMPLE_ACTIVITY])
+
+    renderWorkspace('/trips/abc234def567/d/2026-05-01')
+
+    await screen.findByRole('heading', { level: 2, name: /friday, may 1/i })
+    const sidebar = screen.getByLabelText('Trip workspace navigation')
+    vi.spyOn(sidebar, 'getBoundingClientRect').mockReturnValue(domRect({
+      bottom: 700,
+      left: 0,
+      right: 300,
+      top: 0,
+    }))
+    const ideasButton = screen.getByRole('button', { name: /^ideas$/i })
+    expect(ideasButton).not.toHaveAttribute('data-sidebar-drop-target')
+
+    triggerDragStart(activityDragId(10), 400, 200)
+    expect(ideasButton).toHaveAttribute('data-sidebar-drop-target', sidebarIdeasDropId())
+    vi.mocked(document.elementFromPoint).mockReturnValue(ideasButton.querySelector('span'))
+    dndMockState.pointerCollisions = [{ id: sidebarDayDropId('2026-05-02') }]
+
+    expect(runCollisionDetection(activityDragId(10), { x: 120, y: 400 })).toEqual([
+      { id: sidebarIdeasDropId() },
+    ])
   })
 
   it('excludes calendar days from pointer proximity fallback but keeps sortable and keyboard fallback', async () => {
@@ -2177,6 +2262,12 @@ describe('<TripWorkspacePage>', () => {
     expect(screen.queryByRole('button', { name: /edit: tsukiji sushi/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /delete: tsukiji sushi/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /move tsukiji sushi up/i })).not.toBeInTheDocument()
+
+    const calendarDay = screen.getByTitle('2026-05-02 (0 activities)')
+    const ideasButton = screen.getByRole('button', { name: /^ideas$/i })
+    triggerDragStart(activityDragId(10))
+    expect(calendarDay).not.toHaveAttribute('data-sidebar-drop-target')
+    expect(ideasButton).not.toHaveAttribute('data-sidebar-drop-target')
   })
 
   it('opens the empty-day composer and closes it when create is canceled', async () => {

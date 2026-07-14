@@ -142,6 +142,8 @@ import {
 } from '../utils/placeDetailsTiming'
 import { timelineDayColor } from '../utils/timelineDayColors'
 
+const SIDEBAR_DROP_TARGET_SELECTOR = '[data-sidebar-drop-target]'
+
 function isNotFoundError(err: unknown): boolean {
   return axios.isAxiosError(err) && err.response?.status === 404
 }
@@ -1134,6 +1136,27 @@ function pointIsInsideElement(point: PointerCoordinates, element: HTMLElement): 
   )
 }
 
+function sidebarDropTargetAtPoint(point: PointerCoordinates): UniqueIdentifier | null {
+  if (typeof document === 'undefined' || typeof document.elementFromPoint !== 'function') {
+    return null
+  }
+
+  const hitElement = document.elementFromPoint(point.x, point.y)
+  const dropTarget = hitElement?.closest<HTMLElement>(SIDEBAR_DROP_TARGET_SELECTOR)
+  const dropTargetId = dropTarget?.dataset.sidebarDropTarget
+  if (
+    !dropTargetId ||
+    (
+      parseSidebarDayDropId(dropTargetId) === null &&
+      !parseSidebarIdeasDropId(dropTargetId)
+    )
+  ) {
+    return null
+  }
+
+  return dropTargetId
+}
+
 interface DragRect {
   bottom: number
   left: number
@@ -1211,9 +1234,11 @@ function CalendarDayCell({
   selected: boolean
   showDropTarget: boolean
 }) {
+  const dropTargetId = sidebarDayDropId(cell.dayDate)
+  const dropTargetEnabled = showDropTarget && !disabled && cell.inTripRange
   const { isOver, setNodeRef } = useDroppable({
-    id: sidebarDayDropId(cell.dayDate),
-    disabled: disabled || !showDropTarget || !cell.inTripRange,
+    id: dropTargetId,
+    disabled: !dropTargetEnabled,
   })
   const className = [
     styles.calendarDay,
@@ -1232,6 +1257,7 @@ function CalendarDayCell({
       className={className}
       onClick={() => onSelectDay(cell.dayDate)}
       disabled={!cell.inTripRange}
+      data-sidebar-drop-target={dropTargetEnabled ? dropTargetId : undefined}
       aria-pressed={selected}
       title={`${cell.dayDate} (${activityCount} activities)`}
     >
@@ -1370,9 +1396,11 @@ function IdeasRailTab({
   dragging: boolean
   onClick: () => void
 }) {
+  const dropTargetId = sidebarIdeasDropId()
+  const dropTargetEnabled = dragging && !disabled
   const { isOver, setNodeRef } = useDroppable({
-    id: sidebarIdeasDropId(),
-    disabled: disabled || !dragging,
+    id: dropTargetId,
+    disabled: !dropTargetEnabled,
   })
 
   return (
@@ -1380,6 +1408,7 @@ function IdeasRailTab({
       ref={setNodeRef}
       type="button"
       aria-pressed={active}
+      data-sidebar-drop-target={dropTargetEnabled ? dropTargetId : undefined}
       className={[
         dragging && !disabled ? styles.railNavDropTarget : '',
         isOver ? styles.railNavDropTargetOver : '',
@@ -1987,7 +2016,13 @@ export function TripWorkspacePage() {
     )
     const sidebarCollisions = pointerCollisions.filter(isSidebarDropCollision)
     if (pointerOverSidebar) {
-      if (sidebarCollisions.length > 0) return sidebarCollisions
+      const exactSidebarDropTarget = sidebarDropTargetAtPoint(args.pointerCoordinates)
+      if (exactSidebarDropTarget !== null) {
+        return [
+          sidebarCollisions.find((collision) => collision.id === exactSidebarDropTarget) ??
+            { id: exactSidebarDropTarget },
+        ]
+      }
       clearRememberedSidebarDropTarget()
       return []
     }
@@ -4459,7 +4494,7 @@ export function TripWorkspacePage() {
               </aside>
               ) : null}
             </section>
-            <DragOverlay dropAnimation={null}>
+            <DragOverlay dropAnimation={null} style={{ pointerEvents: 'none' }}>
               {dragOverlayActivity ? (
                 <div className={styles.activityDragOverlay}>
                   <ActivityCard
