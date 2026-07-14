@@ -1876,15 +1876,22 @@ describe('<TripWorkspacePage>', () => {
     expect(screen.getByRole('button', { name: /^timeline$/i })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByRole('heading', { name: /full trip timeline/i })).toBeInTheDocument()
     expect(screen.getByTestId('active-map-activity')).toHaveTextContent('22')
+    expect(screen.getByTestId('preview-map-place')).toHaveTextContent('none')
     await waitFor(() => {
       expect(within(screen.getByLabelText(/selected map place/i)).getByRole('heading', {
         name: /tokyo tower/i,
       })).toBeInTheDocument()
     })
+    expect(screen.getByTestId('preview-map-place')).toHaveTextContent('none')
     expect(within(screen.getByTestId('selected-map-activities')).getByText('Tokyo Tower'))
       .toBeInTheDocument()
     expect(within(screen.getByTestId('selected-map-activities')).getByText('Tsukiji sushi'))
       .toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: /mock map place click/i }))
+    await waitFor(() => {
+      expect(screen.getByTestId('preview-map-place')).toHaveTextContent('Clicked Place')
+    })
   })
 
   it('syncs active activity state between cards and map controls', async () => {
@@ -1966,6 +1973,7 @@ describe('<TripWorkspacePage>', () => {
 
     await userEvent.click(screen.getByRole('button', { name: /mock activate marker/i }))
     expect(screen.getByTestId('active-map-activity')).toHaveTextContent('22')
+    expect(screen.getByTestId('preview-map-place')).toHaveTextContent('none')
     await waitFor(() => {
       expect(document.activeElement).toHaveAttribute('id', 'activity-22')
     })
@@ -1988,6 +1996,7 @@ describe('<TripWorkspacePage>', () => {
     })
     expect(googleMapsLink).toHaveAttribute('href', 'https://maps.google.com/?cid=tokyo-tower')
     expect(googleMapsLink).not.toHaveTextContent(/open in google maps/i)
+    expect(screen.getByTestId('preview-map-place')).toHaveTextContent('none')
 
     await userEvent.click(screen.getByRole('button', { name: /mock activate marker/i }))
     expect(activityCard).toHaveAttribute('aria-expanded', 'true')
