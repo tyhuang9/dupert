@@ -32,7 +32,15 @@ const googlePlacesMockState = vi.hoisted(() => ({
   imageUrlFromGooglePhotoName: vi.fn(),
 }))
 
+type DndTestCollision = { id: string }
+type DndTestCollisionArgs = {
+  active: { id: string }
+  pointerCoordinates: { x: number; y: number } | null
+}
+
 const dndMockState = vi.hoisted(() => ({
+  closestCenterCollisions: [] as DndTestCollision[],
+  collisionDetection: null as null | ((args: DndTestCollisionArgs) => DndTestCollision[]),
   onDragEnd: null as null | ((event: {
     active: { id: string }
     over: { id: string } | null
@@ -49,6 +57,7 @@ const dndMockState = vi.hoisted(() => ({
     active: { id: string }
     activatorEvent: Event
   }) => void),
+  pointerCollisions: [] as DndTestCollision[],
   sortableTransform: null as null | {
     x: number
     y: number
@@ -61,12 +70,14 @@ const dndMockState = vi.hoisted(() => ({
 vi.mock('@dnd-kit/core', () => ({
   DndContext: ({
     children,
+    collisionDetection,
     onDragEnd,
     onDragMove,
     onDragOver,
     onDragStart,
   }: {
     children: ReactNode
+    collisionDetection?: (args: DndTestCollisionArgs) => DndTestCollision[]
     onDragEnd?: (event: {
       active: { id: string }
       over: { id: string } | null
@@ -84,6 +95,7 @@ vi.mock('@dnd-kit/core', () => ({
       activatorEvent: Event
     }) => void
   }) => {
+    dndMockState.collisionDetection = collisionDetection ?? null
     dndMockState.onDragEnd = onDragEnd ?? null
     dndMockState.onDragMove = onDragMove ?? null
     dndMockState.onDragOver = onDragOver ?? null
@@ -95,8 +107,8 @@ vi.mock('@dnd-kit/core', () => ({
   ),
   KeyboardSensor: vi.fn(),
   PointerSensor: vi.fn(),
-  closestCenter: vi.fn(() => []),
-  pointerWithin: vi.fn(() => []),
+  closestCenter: vi.fn(() => dndMockState.closestCenterCollisions),
+  pointerWithin: vi.fn(() => dndMockState.pointerCollisions),
   useDroppable: vi.fn(() => ({
     isOver: false,
     setNodeRef: vi.fn(),
@@ -611,6 +623,19 @@ function triggerDragOver(activeId: string, overId: string | null) {
   })
 }
 
+function runCollisionDetection(
+  activeId: string,
+  pointerCoordinates: { x: number; y: number } | null,
+): DndTestCollision[] {
+  if (!dndMockState.collisionDetection) {
+    throw new Error('DndContext collision detection was not registered')
+  }
+  return dndMockState.collisionDetection({
+    active: { id: activeId },
+    pointerCoordinates,
+  })
+}
+
 function domRect({
   bottom,
   left,
@@ -707,10 +732,13 @@ beforeEach(() => {
   })
   googlePlacesMockState.imageUrlFromGooglePhotoName.mockReset()
   googlePlacesMockState.imageUrlFromGooglePhotoName.mockResolvedValue(null)
+  dndMockState.closestCenterCollisions = []
+  dndMockState.collisionDetection = null
   dndMockState.onDragEnd = null
   dndMockState.onDragMove = null
   dndMockState.onDragOver = null
   dndMockState.onDragStart = null
+  dndMockState.pointerCollisions = []
   dndMockState.sortableTransform = null
   dndMockState.sortableTransition = undefined
 })
@@ -1242,6 +1270,82 @@ describe('<TripWorkspacePage>', () => {
     expect(HTMLElement.prototype.scrollIntoView).toHaveBeenCalled()
   })
 
+  it('accepts only direct pointer hits over the sidebar calendar and clears a stale day target', async () => {
+    const dayTwoActivity = {
+      ...SAMPLE_ACTIVITY,
+      id: 22,
+      dayDate: '2026-05-02',
+      title: 'Tokyo Tower',
+      orderIndex: 0,
+    }
+    mockWorkspace([SAMPLE_ACTIVITY, dayTwoActivity])
+
+    renderWorkspace('/trips/abc234def567/d/2026-05-01')
+
+    await screen.findByRole('heading', { level: 2, name: /friday, may 1/i })
+    const sidebar = screen.getByLabelText('Trip workspace navigation')
+    vi.spyOn(sidebar, 'getBoundingClientRect').mockReturnValue(domRect({
+      bottom: 700,
+      left: 0,
+      right: 300,
+      top: 0,
+    }))
+
+    triggerDragStart(activityDragId(10), 400, 200)
+    dndMockState.pointerCollisions = [{ id: sidebarDayDropId('2026-05-02') }]
+    dndMockState.closestCenterCollisions = [{ id: sidebarDayDropId('2026-05-03') }]
+    expect(runCollisionDetection(activityDragId(10), { x: 120, y: 400 })).toEqual([
+      { id: sidebarDayDropId('2026-05-02') },
+    ])
+    triggerDragOver(activityDragId(10), sidebarDayDropId('2026-05-02'))
+
+    dndMockState.pointerCollisions = []
+    expect(runCollisionDetection(activityDragId(10), { x: 120, y: 440 })).toEqual([])
+    triggerDragOver(activityDragId(10), null)
+    triggerDragEnd(activityDragId(10), null)
+
+    expect(screen.getByTestId('current-location')).toHaveTextContent(
+      '/trips/abc234def567/d/2026-05-01',
+    )
+    expect(apiMock.history.post.some((request) => request.url?.startsWith('/activities/10/move')))
+      .toBe(false)
+  })
+
+  it('excludes calendar days from pointer proximity fallback but keeps sortable and keyboard fallback', async () => {
+    const secondActivity = {
+      ...SAMPLE_ACTIVITY,
+      id: 11,
+      title: 'Morning market',
+      orderIndex: 1,
+    }
+    mockWorkspace([SAMPLE_ACTIVITY, secondActivity])
+
+    renderWorkspace('/trips/abc234def567/d/2026-05-01')
+
+    await screen.findByRole('heading', { level: 2, name: /friday, may 1/i })
+    const sidebar = screen.getByLabelText('Trip workspace navigation')
+    vi.spyOn(sidebar, 'getBoundingClientRect').mockReturnValue(domRect({
+      bottom: 700,
+      left: 0,
+      right: 300,
+      top: 0,
+    }))
+    dndMockState.pointerCollisions = []
+    dndMockState.closestCenterCollisions = [
+      { id: sidebarDayDropId('2026-05-02') },
+      { id: activityDragId(11) },
+    ]
+
+    expect(runCollisionDetection(activityDragId(10), { x: 500, y: 400 })).toEqual([
+      { id: activityDragId(11) },
+    ])
+
+    dndMockState.closestCenterCollisions = [{ id: sidebarDayDropId('2026-05-02') }]
+    expect(runCollisionDetection(activityDragId(10), null)).toEqual([
+      { id: sidebarDayDropId('2026-05-02') },
+    ])
+  })
+
   it('uses the last valid drop target when an activity drop ends with no current target', async () => {
     const dayTwoActivity = {
       ...SAMPLE_ACTIVITY,
@@ -1274,6 +1378,34 @@ describe('<TripWorkspacePage>', () => {
 
     expect(await screen.findByRole('heading', { level: 2, name: /saturday, may 2/i })).toBeInTheDocument()
     expect(screen.getByRole('article', { name: /expand tsukiji sushi/i })).toBeInTheDocument()
+  })
+
+  it('keeps the last sortable activity target across a transient null drag-over', async () => {
+    const secondActivity = {
+      ...SAMPLE_ACTIVITY,
+      id: 11,
+      title: 'Morning market',
+      orderIndex: 1,
+    }
+    mockWorkspace([SAMPLE_ACTIVITY, secondActivity])
+    apiMock.onPost('/trips/abc234def567/days/2026-05-01/order').reply((config) => {
+      expect(JSON.parse(config.data as string)).toEqual({ activityIds: [11, 10] })
+      return [204]
+    })
+
+    renderWorkspace('/trips/abc234def567/d/2026-05-01')
+
+    await screen.findByRole('heading', { level: 2, name: /friday, may 1/i })
+    triggerDragStart(activityDragId(11))
+    triggerDragOver(activityDragId(11), activityDragId(10))
+    triggerDragOver(activityDragId(11), null)
+    triggerDragEnd(activityDragId(11), null)
+
+    await waitFor(() => {
+      expect(apiMock.history.post.some(
+        (request) => request.url === '/trips/abc234def567/days/2026-05-01/order',
+      )).toBe(true)
+    })
   })
 
   it('jumps to Ideas after dragging a scheduled activity to ideas', async () => {

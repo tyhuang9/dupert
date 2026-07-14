@@ -1966,26 +1966,49 @@ export function TripWorkspacePage() {
     const isSidebarDropCollision = (collision: Collision) =>
       parseSidebarDayDropId(collision.id) !== null ||
       parseSidebarIdeasDropId(collision.id)
+    const clearRememberedSidebarDropTarget = () => {
+      const rememberedTarget = lastActivityDropOverIdRef.current
+      if (
+        rememberedTarget !== null &&
+        (
+          parseSidebarDayDropId(rememberedTarget) !== null ||
+          parseSidebarIdeasDropId(rememberedTarget)
+        )
+      ) {
+        lastActivityDropOverIdRef.current = null
+      }
+    }
+    if (!isDraggingActivity || !args.pointerCoordinates) {
+      return pointerCollisions.length > 0 ? pointerCollisions : closestCenter(args)
+    }
     const pointerOverSidebar = Boolean(
-      isDraggingActivity &&
-      args.pointerCoordinates &&
       sidebarPanelRef.current &&
       pointIsInsideElement(args.pointerCoordinates, sidebarPanelRef.current),
     )
-    if (pointerOverSidebar || isDraggingActivityOverSidebarRef.current) {
-      const sidebarCollisions = pointerCollisions.filter(isSidebarDropCollision)
-      if (pointerOverSidebar) {
-        if (sidebarCollisions.length > 0) return sidebarCollisions
-        return closestCenter(args).filter(isSidebarDropCollision)
-      }
+    const sidebarCollisions = pointerCollisions.filter(isSidebarDropCollision)
+    if (pointerOverSidebar) {
+      if (sidebarCollisions.length > 0) return sidebarCollisions
+      clearRememberedSidebarDropTarget()
+      return []
+    }
+    if (isDraggingActivityOverSidebarRef.current) {
       if (sidebarCollisions.length > 0) return sidebarCollisions
       const nonSidebarCollisions = pointerCollisions.filter(
         (collision) => !isSidebarDropCollision(collision),
       )
       if (nonSidebarCollisions.length > 0) return nonSidebarCollisions
-      return closestCenter(args).filter((collision) => !isSidebarDropCollision(collision))
+      const closestNonSidebarCollisions = closestCenter(args).filter(
+        (collision) => !isSidebarDropCollision(collision),
+      )
+      if (closestNonSidebarCollisions.length === 0) clearRememberedSidebarDropTarget()
+      return closestNonSidebarCollisions
     }
-    return pointerCollisions.length > 0 ? pointerCollisions : closestCenter(args)
+    if (pointerCollisions.length > 0) return pointerCollisions
+    const closestNonSidebarCollisions = closestCenter(args).filter(
+      (collision) => !isSidebarDropCollision(collision),
+    )
+    if (closestNonSidebarCollisions.length === 0) clearRememberedSidebarDropTarget()
+    return closestNonSidebarCollisions
   }, [])
 
   usePageTitle(
