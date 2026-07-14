@@ -143,16 +143,20 @@ describe('<MobileWorkspaceChrome>', () => {
   it('keeps the menu as a right-aligned, viewport-bounded popup instead of a full-height drawer', () => {
     const backdropBlock = cssBlocks(chromeCss, '.menuBackdrop')[0] ?? ''
     const popupBlock = cssBlocks(chromeCss, '.menuPopup')[0] ?? ''
+    const headerBlock = cssBlocks(chromeCss, '.menuHeader')[0] ?? ''
     const actionsBlock = cssBlocks(chromeCss, '.menuActions')[0] ?? ''
 
     expect(backdropBlock).toMatch(/background:\s*rgb\(26 33 31 \/ 22%\)/)
     expect(popupBlock).toMatch(/position:\s*absolute/)
-    expect(popupBlock).toMatch(/top:\s*calc\(64px \+ var\(--space-2\)\)/)
-    expect(popupBlock).toMatch(/right:\s*var\(--space-4\)/)
+    expect(popupBlock).toMatch(/--menu-control-top:\s*10px/)
+    expect(popupBlock).toMatch(/top:\s*0/)
+    expect(popupBlock).toMatch(/right:\s*0/)
     expect(popupBlock).toMatch(/width:\s*min\(22rem,\s*calc\(100vw - var\(--space-6\)\)\)/)
     expect(popupBlock).toMatch(/max-height:\s*calc\(100dvh - 8rem - var\(--space-4\) - env\(safe-area-inset-bottom\)\)/)
     expect(popupBlock).toMatch(/border-radius:\s*var\(--radius-xl\)/)
+    expect(popupBlock).toMatch(/overflow:\s*hidden/)
     expect(popupBlock).not.toMatch(/height:\s*100dvh/)
+    expect(headerBlock).toMatch(/padding:\s*var\(--menu-control-top\) var\(--space-4\) var\(--space-4\)/)
     expect(actionsBlock).toMatch(/overflow-y:\s*auto/)
   })
 })
