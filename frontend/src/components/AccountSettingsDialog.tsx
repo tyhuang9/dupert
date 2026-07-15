@@ -46,7 +46,7 @@ export function AccountSettingsDialog({
     try {
       await auth.updateProfile({ displayName })
       window.localStorage.setItem('dupert.marketingEmails', String(marketingEmails))
-      setStatusMessage('Account settings saved.')
+      onClose()
     } catch (error) {
       setErrorMessage(parseApiError(error).topMessage)
     } finally {

@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AuthContext, type AuthContextValue } from '../auth/authContextValue'
@@ -40,12 +40,17 @@ function makeAuth(): AuthContextValue {
   }
 }
 
-function renderDialog() {
-  return render(
-    <AuthContext.Provider value={makeAuth()}>
+function renderDialog(options?: {
+  auth?: AuthContextValue
+  onClose?: () => void
+}) {
+  const auth = options?.auth ?? makeAuth()
+  const onClose = options?.onClose ?? vi.fn()
+  const view = render(
+    <AuthContext.Provider value={auth}>
       <ColorModeProvider>
         <AccountSettingsDialog
-          onClose={vi.fn()}
+          onClose={onClose}
           onDeleted={vi.fn()}
           user={{
             id: 1,
@@ -57,6 +62,8 @@ function renderDialog() {
       </ColorModeProvider>
     </AuthContext.Provider>,
   )
+
+  return { auth, onClose, ...view }
 }
 
 beforeEach(() => {
@@ -81,6 +88,31 @@ afterEach(() => {
 })
 
 describe('<AccountSettingsDialog>', () => {
+  it('closes after account settings are saved successfully', async () => {
+    const onClose = vi.fn()
+    const { auth } = renderDialog({ onClose })
+
+    await userEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+
+    await waitFor(() => expect(auth.updateProfile).toHaveBeenCalledWith({ displayName: 'Alice' }))
+    expect(onClose).toHaveBeenCalledOnce()
+  })
+
+  it('stays open when saving account settings fails', async () => {
+    const onClose = vi.fn()
+    const auth = makeAuth()
+    auth.updateProfile = vi.fn(async () => {
+      throw new Error('Unable to save profile')
+    })
+    renderDialog({ auth, onClose })
+
+    await userEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+
+    expect(await screen.findByRole('alert')).toBeInTheDocument()
+    expect(screen.getByRole('dialog', { name: 'Account settings' })).toBeInTheDocument()
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
   it('applies and stores color mode choices immediately', async () => {
     renderDialog()
 
