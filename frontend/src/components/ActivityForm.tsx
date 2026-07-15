@@ -8,6 +8,7 @@ import {
   useRef,
   useState,
   type FormEvent,
+  type MouseEvent,
 } from 'react'
 import {
   BedDouble,
@@ -48,7 +49,7 @@ interface ActivityFormProps {
   onSubmit: (payload: CreateActivityRequest) => Promise<void> | void
   onCancel?: () => void
   onDelete?: () => void
-  onChangeDay?: () => Promise<void> | void
+  onChangeDay?: (anchor: HTMLElement) => Promise<void> | void
   autosave?: boolean
   submitting: boolean
   deleteLabel?: string
@@ -332,11 +333,12 @@ export const ActivityForm = forwardRef<ActivityFormHandle, ActivityFormProps>(fu
     }).catch(() => undefined)
   }
 
-  const handleChangeDay = () => {
+  const handleChangeDay = (event: MouseEvent<HTMLButtonElement>) => {
     if (!onChangeDay || changeDayPending) return
+    const anchor = event.currentTarget
     setChangeDayPending(true)
     void flushAutosave()
-      .then((saved) => saved ? Promise.resolve(onChangeDay()) : undefined)
+      .then((saved) => saved ? Promise.resolve(onChangeDay(anchor)) : undefined)
       .finally(() => setChangeDayPending(false))
   }
 
