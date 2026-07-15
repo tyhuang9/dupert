@@ -411,13 +411,15 @@
 }
 
 .compactForm .autosaveActions {
-  padding-top: var(--space-1);
-  border-top: 0;
+  margin-top: var(--space-2);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-surface-border);
 }
 
 .submitButton,
 .cancelButton,
-.deleteButton {
+.deleteButton,
+.changeDayButton {
   min-height: 40px;
   display: inline-flex;
   align-items: center;
@@ -453,6 +455,12 @@
   color: var(--color-text-muted);
 }
 
+.changeDayButton {
+  border: 1px solid var(--color-surface-border);
+  background: var(--color-surface);
+  color: var(--color-primary-text);
+}
+
 .deleteButton {
   margin-right: auto;
   border: 1px solid transparent;
@@ -466,19 +474,24 @@
 
 .submitButton:focus-visible,
 .cancelButton:focus-visible,
-.deleteButton:focus-visible {
+.deleteButton:focus-visible,
+.changeDayButton:focus-visible,
+.retryButton:focus-visible {
   outline: var(--focus-ring-width) solid var(--focus-ring-color);
   outline-offset: var(--focus-ring-offset);
 }
 
 .submitButton:disabled,
-.deleteButton:disabled {
+.deleteButton:disabled,
+.changeDayButton:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }
 
 .cancelButton:hover,
-.cancelButton:focus-visible {
+.cancelButton:focus-visible,
+.changeDayButton:hover,
+.changeDayButton:focus-visible {
   border-color: var(--color-primary);
   background: var(--color-surface-2);
   color: var(--color-primary-text);
@@ -488,6 +501,41 @@
 .deleteButton:focus-visible {
   background: var(--color-danger-bg);
   border-color: color-mix(in srgb, var(--color-danger) 18%, var(--color-danger-bg));
+}
+
+.autosaveStatus {
+  flex: 0 0 100%;
+  min-height: 20px;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+}
+
+.autosaveError {
+  color: var(--color-danger-fg);
+}
+
+.retryButton {
+  min-height: 32px;
+  padding: 0 var(--space-2);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: var(--font-size-xs);
+  font-weight: 800;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.retryButton:hover,
+.retryButton:focus-visible {
+  background: var(--color-danger-bg);
 }
 
 @media (max-width: 640px) {
@@ -510,11 +558,19 @@
 
   .submitButton,
   .cancelButton,
-  .deleteButton {
+  .deleteButton,
+  .changeDayButton {
     width: 100%;
   }
 
   .deleteButton {
     margin-right: 0;
+  }
+
+  .autosaveActions .deleteButton,
+  .autosaveActions .changeDayButton {
+    width: auto;
+    min-height: 44px;
+    flex: 1 1 calc(50% - var(--space-1));
   }
 }

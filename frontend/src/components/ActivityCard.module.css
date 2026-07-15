@@ -354,38 +354,32 @@
     font-weight: 800;
   }
 
-  .mobileEditorActions {
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    flex-wrap: wrap;
-    gap: var(--space-2);
+  .mobileEditorClose {
+    width: 44px;
+    min-height: 44px;
+    display: inline-grid;
+    place-items: center;
+    padding: 0;
+    border: 0;
+    border-radius: var(--radius-md);
+    background: transparent;
+    color: var(--color-text-muted);
+    cursor: pointer;
     margin-left: auto;
   }
 
-  .mobileEditorActions button {
-    min-height: 44px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    gap: var(--space-2);
-    padding: 0 var(--space-3);
-    border: 0;
-    border-radius: var(--radius-md);
-    background: var(--color-primary-softer);
-    color: var(--color-primary-text);
-    font: inherit;
-    font-size: var(--font-size-sm);
-    font-weight: 800;
-    cursor: pointer;
+  .mobileEditorClose:hover,
+  .mobileEditorClose:focus-visible {
+    background: var(--color-surface-2);
+    color: var(--color-text);
   }
 
-  .mobileEditorActions button:disabled {
+  .mobileEditorClose:disabled {
     cursor: not-allowed;
     opacity: 0.56;
   }
 
-  .mobileEditorActions button:focus-visible {
+  .mobileEditorClose:focus-visible {
     outline: var(--focus-ring-width) solid var(--focus-ring-color);
     outline-offset: var(--focus-ring-offset);
   }

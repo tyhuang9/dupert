@@ -955,9 +955,19 @@ describe('<TripWorkspacePage>', () => {
     expect(screen.getByRole('button', { name: /reorder tsukiji sushi/i })).toBeInTheDocument()
 
     await userEvent.click(screen.getByRole('article', { name: /expand tsukiji sushi/i }))
-    expect(screen.getByText(/^edit activity$/i)).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /^delete$/i })).toBeInTheDocument()
-    await userEvent.click(screen.getByRole('button', { name: /^done$/i }))
+    const editorHeader = screen.getByText(/^edit activity$/i).parentElement
+    expect(editorHeader).not.toBeNull()
+    expect(within(editorHeader as HTMLElement).getByRole('button', { name: /^close activity editor$/i }))
+      .toBeInTheDocument()
+    expect(within(editorHeader as HTMLElement).queryByRole('button', { name: /^change day$/i }))
+      .not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^done$/i })).not.toBeInTheDocument()
+    const firstChangeDay = screen.getByRole('button', { name: /^change day$/i })
+    const editFooter = firstChangeDay.parentElement
+    expect(editFooter).not.toBeNull()
+    expect(within(editFooter as HTMLElement).getByRole('button', { name: /^delete$/i }))
+      .toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: /^close activity editor$/i }))
 
     await userEvent.click(screen.getByRole('article', { name: /expand tsukiji sushi/i }))
     expect(screen.getByText(/^edit activity$/i)).toBeInTheDocument()
@@ -972,6 +982,85 @@ describe('<TripWorkspacePage>', () => {
       expect(apiMock.history.post.some((request) => request.url?.startsWith('/activities/10/move'))).toBe(true)
       expect(screen.getByTestId('current-location')).toHaveTextContent('/trips/abc234def567/d/2026-05-02')
     })
+  })
+
+  it('flushes a pending mobile edit before closing without a duplicate update', async () => {
+    mockViewport(true)
+    mockWorkspace([SAMPLE_ACTIVITY])
+    apiMock.onPatch('/trips/abc234def567/activities/10').reply((config) => {
+      const payload = JSON.parse(config.data as string)
+      return [200, { ...SAMPLE_ACTIVITY, ...payload, version: 1 }]
+    })
+
+    renderWorkspace('/trips/abc234def567/d/2026-05-01')
+
+    await userEvent.click(await screen.findByRole('article', { name: /expand tsukiji sushi/i }))
+    const titleInput = screen.getByLabelText(/activity name/i)
+    await userEvent.clear(titleInput)
+    await userEvent.type(titleInput, 'Quick sushi edit')
+    expect(screen.getByRole('status')).toHaveTextContent('Saving\u2026')
+
+    await userEvent.click(screen.getByRole('button', { name: /^close activity editor$/i }))
+
+    await waitFor(() => {
+      expect(apiMock.history.patch).toHaveLength(1)
+      expect(JSON.parse(apiMock.history.patch[0].data as string)).toMatchObject({
+        title: 'Quick sushi edit',
+      })
+      expect(screen.getByRole('article', { name: /expand quick sushi edit/i })).toBeInTheDocument()
+    })
+    await act(async () => {
+      await new Promise((resolve) => window.setTimeout(resolve, 750))
+    })
+    expect(apiMock.history.patch).toHaveLength(1)
+  })
+
+  it('keeps the mobile editor open after an autosave error and retries the latest edit', async () => {
+    mockViewport(true)
+    mockWorkspace([SAMPLE_ACTIVITY])
+    let attempts = 0
+    apiMock.onPatch('/trips/abc234def567/activities/10').reply((config) => {
+      attempts += 1
+      if (attempts === 1) return [500, { message: 'Temporary failure' }]
+      const payload = JSON.parse(config.data as string)
+      return [200, { ...SAMPLE_ACTIVITY, ...payload, version: 1 }]
+    })
+
+    renderWorkspace('/trips/abc234def567/d/2026-05-01')
+
+    await userEvent.click(await screen.findByRole('article', { name: /expand tsukiji sushi/i }))
+    const titleInput = screen.getByLabelText(/activity name/i)
+    await userEvent.clear(titleInput)
+    await userEvent.type(titleInput, 'Retry sushi edit')
+    await userEvent.click(screen.getByRole('button', { name: /^close activity editor$/i }))
+
+    expect(await screen.findByText('Couldn\u2019t save changes.'))
+      .toBeInTheDocument()
+    expect(screen.getByRole('article', { name: /collapse tsukiji sushi/i })).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: /^retry$/i }))
+
+    await waitFor(() => {
+      expect(apiMock.history.patch).toHaveLength(2)
+      expect(screen.getByRole('status')).toHaveTextContent(/^saved$/i)
+    })
+    expect(JSON.parse(apiMock.history.patch[1].data as string)).toMatchObject({
+      title: 'Retry sushi edit',
+    })
+  })
+
+  it('keeps the mobile editor open when its required name is invalid', async () => {
+    mockViewport(true)
+    mockWorkspace([SAMPLE_ACTIVITY])
+
+    renderWorkspace('/trips/abc234def567/d/2026-05-01')
+
+    await userEvent.click(await screen.findByRole('article', { name: /expand tsukiji sushi/i }))
+    await userEvent.clear(screen.getByLabelText(/activity name/i))
+    await userEvent.click(screen.getByRole('button', { name: /^close activity editor$/i }))
+
+    expect(screen.getByText('Activity name is required.')).toBeInTheDocument()
+    expect(screen.getByRole('article', { name: /collapse tsukiji sushi/i })).toBeInTheDocument()
+    expect(apiMock.history.patch).toHaveLength(0)
   })
 
   it('clears sortable positioning while the mobile activity editor is expanded', async () => {

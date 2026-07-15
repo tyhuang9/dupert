@@ -91,9 +91,13 @@ describe('TripWorkspacePage layout scroll contract', () => {
     const dayPickerBlock = cssBlocks(workspaceCss, '.mobileDayPickerHeadingButton').find((block) =>
       /min-height:\s*44px/.test(block),
     ) ?? ''
-    const editorActionBlock = cssBlocks(activityCardCss, '.mobileEditorActions button').find((block) =>
+    const editorActionBlock = cssBlocks(activityCardCss, '.mobileEditorClose').find((block) =>
       /min-height:\s*44px/.test(block),
     ) ?? ''
+    const editorFooterActionBlock = cssBlocks(
+      activityFormCss,
+      '.autosaveActions .changeDayButton',
+    ).find((block) => /min-height:\s*44px/.test(block)) ?? ''
     const mobileHeaderBlock = cssBlocks(
       workspaceCss,
       '.workspaceShellMobile .timelineHeader.mobileDayPlanHeader',
@@ -118,6 +122,7 @@ describe('TripWorkspacePage layout scroll contract', () => {
     expect(dayNavigationBlock).toMatch(/min-height:\s*44px/)
     expect(dayPickerBlock).toMatch(/min-height:\s*44px/)
     expect(editorActionBlock).toMatch(/min-height:\s*44px/)
+    expect(editorFooterActionBlock).toMatch(/min-height:\s*44px/)
     expect(mobileHeaderBlock).toMatch(/display:\s*grid/)
     expect(mobileHeaderBlock).toMatch(
       /grid-template-areas:\s*'kicker'\s*'navigator'\s*'summary'/,

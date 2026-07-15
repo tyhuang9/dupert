@@ -1,6 +1,17 @@
-import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from 'react'
+import {
+  forwardRef,
+  useCallback,
+  useEffect,
+  useId,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+} from 'react'
 import {
   BedDouble,
+  CalendarDays,
   ChevronDown,
   Coffee,
   FileText,
@@ -37,6 +48,7 @@ interface ActivityFormProps {
   onSubmit: (payload: CreateActivityRequest) => Promise<void> | void
   onCancel?: () => void
   onDelete?: () => void
+  onChangeDay?: () => Promise<void> | void
   autosave?: boolean
   submitting: boolean
   deleteLabel?: string
@@ -44,6 +56,14 @@ interface ActivityFormProps {
   variant?: 'default' | 'compact'
   submitLabel?: string
 }
+
+export interface ActivityFormHandle {
+  flushAutosave: () => Promise<boolean>
+}
+
+type AutosaveState =
+  | { status: 'saved' | 'saving' }
+  | { status: 'error'; message: string; retryable: boolean }
 
 function emptyToNull(value: string): string | null {
   const trimmed = value.trim()
@@ -82,19 +102,20 @@ function ActivityCategoryIcon({ category }: { category: ActivityCategory }) {
   }
 }
 
-export function ActivityForm({
+export const ActivityForm = forwardRef<ActivityFormHandle, ActivityFormProps>(function ActivityForm({
   autoFocusTitle = false,
   autosave = false,
   initialValues,
   onSubmit,
   onCancel,
+  onChangeDay,
   onDelete,
   submitting,
   deleteLabel = 'Delete',
   onRequestMapLocation,
   variant = 'compact',
   submitLabel = 'Save activity',
-}: ActivityFormProps) {
+}, ref) {
   const titleId = useId()
   const timeId = useId()
   const notesId = useId()
@@ -113,6 +134,8 @@ export function ActivityForm({
   const [lng, setLng] = useState<number | null>(initialFormState.lng ?? null)
   const [categoryMenuOpen, setCategoryMenuOpen] = useState(false)
   const [notesOpen, setNotesOpen] = useState(Boolean(initialValues?.notes))
+  const [autosaveState, setAutosaveState] = useState<AutosaveState>({ status: 'saved' })
+  const [changeDayPending, setChangeDayPending] = useState(false)
 
   const reset = () => {
     setCategory('OTHER')
@@ -148,32 +171,145 @@ export function ActivityForm({
     () => JSON.stringify(currentPayload),
     [currentPayload],
   )
-  const lastAutosavedSignatureRef = useRef<string | null>(null)
+  const lastAutosavedSignatureRef = useRef<string | null>(
+    autosave ? currentPayloadSignature : null,
+  )
+  const latestPayloadRef = useRef(currentPayload)
+  const latestPayloadSignatureRef = useRef(currentPayloadSignature)
+  const onSubmitRef = useRef(onSubmit)
+  const autosaveTimeoutRef = useRef<number | null>(null)
+  const inFlightAutosaveRef = useRef<{
+    signature: string
+    promise: Promise<boolean>
+  } | null>(null)
+
+  useEffect(() => {
+    latestPayloadRef.current = currentPayload
+    latestPayloadSignatureRef.current = currentPayloadSignature
+    onSubmitRef.current = onSubmit
+  }, [currentPayload, currentPayloadSignature, onSubmit])
+
+  const clearAutosaveTimeout = useCallback(() => {
+    if (autosaveTimeoutRef.current === null) return
+    window.clearTimeout(autosaveTimeoutRef.current)
+    autosaveTimeoutRef.current = null
+  }, [])
+
+  const persistAutosave = useCallback(async (
+    payload: CreateActivityRequest,
+    signature: string,
+  ): Promise<boolean> => {
+    while (true) {
+      if (lastAutosavedSignatureRef.current === signature) return true
+
+      const activeSave = inFlightAutosaveRef.current
+      if (!activeSave) break
+      if (activeSave.signature === signature) return activeSave.promise
+      await activeSave.promise
+    }
+
+    setAutosaveState({ status: 'saving' })
+    const savePromise = (async () => {
+      try {
+        await Promise.resolve(onSubmitRef.current(payload))
+        lastAutosavedSignatureRef.current = signature
+        if (latestPayloadSignatureRef.current === signature) {
+          setAutosaveState({ status: 'saved' })
+        }
+        return true
+      } catch {
+        if (latestPayloadSignatureRef.current === signature) {
+          setAutosaveState({
+            status: 'error',
+            message: 'Couldn\u2019t save changes.',
+            retryable: true,
+          })
+        }
+        return false
+      }
+    })()
+    inFlightAutosaveRef.current = { signature, promise: savePromise }
+    void savePromise.then(() => {
+      if (inFlightAutosaveRef.current?.promise === savePromise) {
+        inFlightAutosaveRef.current = null
+      }
+    })
+    return savePromise
+  }, [])
+
+  const flushAutosave = useCallback(async (): Promise<boolean> => {
+    if (!autosave) return true
+    clearAutosaveTimeout()
+
+    while (true) {
+      const payload = latestPayloadRef.current
+      const signature = latestPayloadSignatureRef.current
+      if (!payload.title.trim()) {
+        setAutosaveState({
+          status: 'error',
+          message: 'Activity name is required.',
+          retryable: false,
+        })
+        return false
+      }
+      if (lastAutosavedSignatureRef.current === signature) {
+        setAutosaveState({ status: 'saved' })
+        return true
+      }
+
+      const saved = await persistAutosave(payload, signature)
+      if (latestPayloadSignatureRef.current !== signature) continue
+      return saved
+    }
+  }, [autosave, clearAutosaveTimeout, persistAutosave])
+
+  useImperativeHandle(ref, () => ({ flushAutosave }), [flushAutosave])
 
   useEffect(() => {
     if (!autosave) return undefined
-    if (lastAutosavedSignatureRef.current === null) {
-      lastAutosavedSignatureRef.current = currentPayloadSignature
-      return undefined
-    }
-    if (
-      submitting ||
-      !currentPayload.title.trim() ||
-      currentPayloadSignature === lastAutosavedSignatureRef.current
-    ) {
-      return undefined
-    }
-
-    const timeoutId = window.setTimeout(() => {
-      void Promise.resolve(onSubmit(currentPayload))
-        .then(() => {
-          lastAutosavedSignatureRef.current = currentPayloadSignature
+    clearAutosaveTimeout()
+    if (!currentPayload.title.trim()) {
+      const statusTimeoutId = window.setTimeout(() => {
+        setAutosaveState({
+          status: 'error',
+          message: 'Activity name is required.',
+          retryable: false,
         })
-        .catch(() => undefined)
-    }, 700)
+      }, 0)
+      return () => window.clearTimeout(statusTimeoutId)
+    }
+    if (currentPayloadSignature === lastAutosavedSignatureRef.current) {
+      const statusTimeoutId = window.setTimeout(() => {
+        setAutosaveState({ status: 'saved' })
+      }, 0)
+      return () => window.clearTimeout(statusTimeoutId)
+    }
 
-    return () => window.clearTimeout(timeoutId)
-  }, [autosave, currentPayload, currentPayloadSignature, onSubmit, submitting])
+    const statusTimeoutId = window.setTimeout(() => {
+      setAutosaveState({ status: 'saving' })
+    }, 0)
+    const timeoutId = window.setTimeout(() => {
+      if (autosaveTimeoutRef.current === timeoutId) {
+        autosaveTimeoutRef.current = null
+      }
+      void persistAutosave(currentPayload, currentPayloadSignature)
+    }, 700)
+    autosaveTimeoutRef.current = timeoutId
+
+    return () => {
+      window.clearTimeout(statusTimeoutId)
+      if (autosaveTimeoutRef.current === timeoutId) {
+        window.clearTimeout(timeoutId)
+        autosaveTimeoutRef.current = null
+      }
+    }
+  }, [
+    autosave,
+    clearAutosaveTimeout,
+    currentPayload,
+    currentPayloadSignature,
+    persistAutosave,
+  ])
 
   const locationPrimary = address.trim() || placeName.trim() || 'Location not set'
   const hasLocation = Boolean(placeName.trim() || address.trim())
@@ -181,6 +317,11 @@ export function ActivityForm({
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
+
+    if (autosave) {
+      void flushAutosave()
+      return
+    }
 
     const payload = currentPayload
 
@@ -191,8 +332,38 @@ export function ActivityForm({
     }).catch(() => undefined)
   }
 
+  const handleChangeDay = () => {
+    if (!onChangeDay || changeDayPending) return
+    setChangeDayPending(true)
+    void flushAutosave()
+      .then((saved) => saved ? Promise.resolve(onChangeDay()) : undefined)
+      .finally(() => setChangeDayPending(false))
+  }
+
   const actions = (
     <div className={`${styles.actions} ${autosave ? styles.autosaveActions : ''}`}>
+      {autosave && (
+        <div
+          className={`${styles.autosaveStatus} ${autosaveState.status === 'error' ? styles.autosaveError : ''}`}
+          role={autosaveState.status === 'error' ? 'alert' : 'status'}
+          aria-live="polite"
+        >
+          <span>
+            {autosaveState.status === 'saving' ? 'Saving\u2026' : null}
+            {autosaveState.status === 'saved' ? 'Saved' : null}
+            {autosaveState.status === 'error' ? autosaveState.message : null}
+          </span>
+          {autosaveState.status === 'error' && autosaveState.retryable ? (
+            <button
+              type="button"
+              className={styles.retryButton}
+              onClick={() => void flushAutosave()}
+            >
+              Retry
+            </button>
+          ) : null}
+        </div>
+      )}
       {onDelete && (
         <button
           type="button"
@@ -202,6 +373,17 @@ export function ActivityForm({
         >
           {variant === 'compact' && <Trash2 size={14} aria-hidden="true" />}
           {deleteLabel}
+        </button>
+      )}
+      {autosave && onChangeDay && (
+        <button
+          type="button"
+          className={styles.changeDayButton}
+          onClick={handleChangeDay}
+          disabled={submitting || changeDayPending}
+        >
+          <CalendarDays size={16} aria-hidden="true" />
+          {changeDayPending ? 'Saving\u2026' : 'Change day'}
         </button>
       )}
       {!autosave && onCancel && (
@@ -427,4 +609,4 @@ export function ActivityForm({
       {actions}
     </form>
   )
-}
+})
