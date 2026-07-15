@@ -96,6 +96,11 @@
   will-change: transform;
 }
 
+.expandedItem .cardSlot {
+  transform: none;
+  will-change: auto;
+}
+
 .emptyState {
   min-height: 18rem;
   display: grid;

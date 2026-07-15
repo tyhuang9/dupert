@@ -1,4 +1,4 @@
-import { useId, useRef, useState, type FormEvent } from 'react'
+import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth'
@@ -44,12 +44,19 @@ export function LoginPage() {
 
   const emailRef = useRef<HTMLInputElement>(null)
   const passwordRef = useRef<HTMLInputElement>(null)
+  const shouldFocusEmailOnReturnRef = useRef(false)
 
   const emailId = useId()
   const passwordId = useId()
   const resetEmailId = useId()
   const emailErrorId = `${emailId}-error`
   const passwordErrorId = `${passwordId}-error`
+
+  useEffect(() => {
+    if (mode !== 'signIn' || !shouldFocusEmailOnReturnRef.current) return
+    shouldFocusEmailOnReturnRef.current = false
+    emailRef.current?.focus()
+  }, [mode])
 
   // Withhold the redirect while the silent-refresh probe is in-flight,
   // otherwise a user with a valid refresh cookie sees a brief flash of
@@ -129,6 +136,13 @@ export function LoginPage() {
     }
   }
 
+  function returnToSignIn() {
+    shouldFocusEmailOnReturnRef.current = true
+    setMode('signIn')
+    setResetError(null)
+    setResetMessage(null)
+  }
+
   const topMessage = errorInfo?.topMessage ?? null
   const isWarning = errorInfo?.severity === 'warning'
   const bannerClass = isWarning ? styles.bannerWarning : styles.banner
@@ -183,7 +197,12 @@ export function LoginPage() {
         ) : null}
 
         {isPasswordResetMode ? (
-          <form className={styles.form} onSubmit={onResetSubmit} noValidate>
+          <form
+            key="password-reset"
+            className={styles.form}
+            onSubmit={onResetSubmit}
+            noValidate
+          >
             <label className={styles.field}>
               <span className={styles.label}>Email</span>
               <input
@@ -207,17 +226,18 @@ export function LoginPage() {
             <button
               type="button"
               className={styles.textButton}
-              onClick={() => {
-                setMode('signIn')
-                setResetError(null)
-                setResetMessage(null)
-              }}
+              onClick={returnToSignIn}
             >
               Back to sign in
             </button>
           </form>
         ) : (
-          <form className={styles.form} onSubmit={onSubmit} noValidate>
+          <form
+            key="sign-in"
+            className={styles.form}
+            onSubmit={onSubmit}
+            noValidate
+          >
             <div className={styles.field}>
               <label className={styles.label} htmlFor={emailId}>
                 Email

@@ -7,6 +7,9 @@ const currentDir = dirname(fileURLToPath(import.meta.url))
 const workspaceCss = readFileSync(join(currentDir, 'TripWorkspacePage.module.css'), 'utf8')
 const tripMapCss = readFileSync(join(currentDir, '../components/TripMap.module.css'), 'utf8')
 const activityFormCss = readFileSync(join(currentDir, '../components/ActivityForm.module.css'), 'utf8')
+const activityCardCss = readFileSync(join(currentDir, '../components/ActivityCard.module.css'), 'utf8')
+const activityListCss = readFileSync(join(currentDir, '../components/ActivityList.module.css'), 'utf8')
+const activityListSource = readFileSync(join(currentDir, '../components/ActivityList.tsx'), 'utf8')
 const datePickerCss = readFileSync(join(currentDir, '../components/TripDateRangePicker.module.css'), 'utf8')
 const searchShelfCss = readFileSync(join(currentDir, '../components/MapSearchResultsShelf.module.css'), 'utf8')
 
@@ -78,20 +81,85 @@ describe('TripWorkspacePage layout scroll contract', () => {
     }
   })
 
-  it('keeps the mobile day-plan controls touch-sized and inside a wrapping header row', () => {
-    const dayPlanActionBlock = cssBlocks(workspaceCss, '.mobileDayPlanAddActivity').find((block) =>
+  it('keeps the mobile day navigator touch-sized with a floating add action', () => {
+    const mobileAddActivityFabBlock = cssBlocks(workspaceCss, '.mobileAddActivityFab').find((block) =>
+      /position:\s*fixed/.test(block),
+    ) ?? ''
+    const dayNavigationBlock = cssBlocks(workspaceCss, '.mobileDayNavigationButton').find((block) =>
       /min-height:\s*44px/.test(block),
     ) ?? ''
+    const dayPickerBlock = cssBlocks(workspaceCss, '.mobileDayPickerHeadingButton').find((block) =>
+      /min-height:\s*44px/.test(block),
+    ) ?? ''
+    const editorActionBlock = cssBlocks(activityCardCss, '.mobileEditorActions button').find((block) =>
+      /min-height:\s*44px/.test(block),
+    ) ?? ''
+    const mobileHeaderBlock = cssBlocks(
+      workspaceCss,
+      '.workspaceShellMobile .timelineHeader.mobileDayPlanHeader',
+    ).find((block) => /grid-template-areas:/.test(block)) ?? ''
+    const mobileHeaderContentsBlock = cssBlocks(
+      workspaceCss,
+      '.workspaceShellMobile .mobileDayPlanHeader > div:first-child',
+    ).find((block) => /display:\s*contents/.test(block)) ?? ''
+    const mobileNavigatorRowBlock = cssBlocks(
+      workspaceCss,
+      '.workspaceShellMobile .mobileDayPlanHeader .mobileDayNavigator',
+    )[0] ?? ''
 
-    expect(dayPlanActionBlock).toMatch(/width:\s*auto/)
-    expect(dayPlanActionBlock).toMatch(/height:\s*44px/)
-    expect(dayPlanActionBlock).toMatch(/min-height:\s*44px/)
-    expect(workspaceCss).toMatch(
-      /\.workspaceShellMobile \.timelineHeader\.mobileDayPlanHeader\s*\{\s*flex-wrap:\s*wrap/s,
+    expect(mobileAddActivityFabBlock).toMatch(/position:\s*fixed/)
+    expect(mobileAddActivityFabBlock).toMatch(/right:\s*var\(--space-4\)/)
+    expect(mobileAddActivityFabBlock).toMatch(/bottom:\s*calc\(64px \+ var\(--space-4\) \+ env\(safe-area-inset-bottom\)\)/)
+    expect(mobileAddActivityFabBlock).toMatch(/width:\s*56px/)
+    expect(mobileAddActivityFabBlock).toMatch(/height:\s*56px/)
+    expect(mobileAddActivityFabBlock).toMatch(/min-height:\s*56px/)
+    expect(mobileAddActivityFabBlock).toMatch(/border-radius:\s*var\(--radius-pill\)/)
+    expect(dayNavigationBlock).toMatch(/width:\s*44px/)
+    expect(dayNavigationBlock).toMatch(/min-height:\s*44px/)
+    expect(dayPickerBlock).toMatch(/min-height:\s*44px/)
+    expect(editorActionBlock).toMatch(/min-height:\s*44px/)
+    expect(mobileHeaderBlock).toMatch(/display:\s*grid/)
+    expect(mobileHeaderBlock).toMatch(
+      /grid-template-areas:\s*'kicker'\s*'navigator'\s*'summary'/,
     )
-    expect(workspaceCss).toMatch(
-      /\.workspaceShellMobile \.timelineHeaderActions\.mobileDayPlanActions\s*\{\s*width:\s*100%[\s\S]*flex:\s*1 0 100%/,
-    )
+    expect(mobileHeaderBlock).toMatch(/grid-template-columns:\s*minmax\(0,\s*1fr\)/)
+    expect(mobileHeaderBlock).toMatch(/gap:\s*var\(--space-2\)/)
+    expect(mobileHeaderContentsBlock).toMatch(/display:\s*contents/)
+    expect(workspaceCss).not.toMatch(/mobileDayPlan(?:AddActivity|Actions)/)
+    expect(mobileNavigatorRowBlock).toMatch(/grid-area:\s*navigator/)
+    expect(mobileNavigatorRowBlock).toMatch(/width:\s*100%/)
+    expect(cssBlocks(workspaceCss, '.workspaceShellMobile .mobileDayPlanHeader .panelKicker')[0] ?? '')
+      .toMatch(/grid-area:\s*kicker/)
+    expect(cssBlocks(workspaceCss, '.workspaceShellMobile .mobileDayPlanHeader .panelDescription')[0] ?? '')
+      .toMatch(/grid-area:\s*summary/)
+  })
+
+  it('removes sortable containing-block hints from an expanded activity editor', () => {
+    const expandedSlotBlock = cssBlocks(activityListCss, '.expandedItem .cardSlot')[0] ?? ''
+
+    expect(expandedSlotBlock).toMatch(/transform:\s*none/)
+    expect(expandedSlotBlock).toMatch(/will-change:\s*auto/)
+    expect(activityListSource).toMatch(/isDragging && !isExpanded \? styles\.dragging : ''/)
+  })
+
+  it('keeps the mobile activity editor fully opaque without a pencil action', () => {
+    const mobileExpandedCardBlock = cssBlocks(activityCardCss, '.cardExpanded').find((block) =>
+      /position:\s*fixed/.test(block),
+    ) ?? ''
+    const mobileExpandedCardInteractionBlock = cssBlocks(
+      activityCardCss,
+      '.cardExpanded:hover,\n  .cardExpanded:focus-within,\n  .cardExpanded:focus-visible',
+    )[0] ?? ''
+    const mobileExpandedEditorBlock = cssBlocks(activityCardCss, '.cardExpanded .editorPanel')[0] ?? ''
+
+    expect(activityCardCss).not.toMatch(/mobileEditAction/)
+    expect(mobileExpandedCardBlock).toMatch(/background-color:\s*var\(--color-surface\)/)
+    expect(mobileExpandedCardBlock).toMatch(/opacity:\s*1/)
+    expect(mobileExpandedCardBlock).toMatch(/animation:\s*none/)
+    expect(mobileExpandedCardInteractionBlock).toMatch(/background-color:\s*var\(--color-surface\)/)
+    expect(mobileExpandedEditorBlock).toMatch(/background-color:\s*var\(--color-surface\)/)
+    expect(mobileExpandedEditorBlock).toMatch(/opacity:\s*1/)
+    expect(mobileExpandedEditorBlock).toMatch(/animation:\s*none/)
   })
 
   it('keeps full-trip timeline groups and entries visually seamless', () => {
@@ -241,17 +309,24 @@ describe('TripWorkspacePage layout scroll contract', () => {
     const listBlocks = cssBlocks(searchShelfCss, '.list')
     const closeBlocks = cssBlocks(searchShelfCss, '.closeButton')
     const detailCardBlocks = cssBlocks(workspaceCss, '.workspaceShellMobileMap .placeDetailCard')
-    const mobileHeaderBlocks = cssBlocks(
+    const mobileControlBlocks = cssBlocks(
       workspaceCss,
-      '.workspaceShellMobileMap .placeDetailMobileHeader',
+      '.workspaceShellMobileMap .placeDetailMobileControls',
     )
     const heroBlocks = cssBlocks(workspaceCss, '.workspaceShellMobileMap .placeHero')
+    const mobileBodyBlocks = cssBlocks(workspaceCss, '.workspaceShellMobileMap .placeDetailBody')
+    const mobileActionsBlocks = cssBlocks(
+      workspaceCss,
+      '.workspaceShellMobileMap .placeDetailActions',
+    )
     const mobileShelfBlock = shelfBlocks[shelfBlocks.length - 1] ?? ''
     const mobileListBlock = listBlocks[listBlocks.length - 1] ?? ''
     const mobileCloseBlock = closeBlocks[closeBlocks.length - 1] ?? ''
-    const mobileDetailCardBlock = detailCardBlocks[detailCardBlocks.length - 1] ?? ''
-    const mobileHeaderBlock = mobileHeaderBlocks[mobileHeaderBlocks.length - 1] ?? ''
+    const mobileDetailCardBlock = detailCardBlocks.find((block) => /top:\s*auto/.test(block)) ?? ''
+    const mobileControlBlock = mobileControlBlocks[mobileControlBlocks.length - 1] ?? ''
     const mobileHeroBlock = heroBlocks[heroBlocks.length - 1] ?? ''
+    const mobileBodyBlock = mobileBodyBlocks[mobileBodyBlocks.length - 1] ?? ''
+    const mobileActionsBlock = mobileActionsBlocks[mobileActionsBlocks.length - 1] ?? ''
 
     expect(mobileShelfBlock).toMatch(/position:\s*static/)
     expect(mobileShelfBlock).toMatch(/flex:\s*0 1 auto/)
@@ -267,15 +342,25 @@ describe('TripWorkspacePage layout scroll contract', () => {
     expect(mobileCloseBlock).toMatch(/height:\s*44px/)
     expect(mobileDetailCardBlock).toMatch(/top:\s*auto/)
     expect(mobileDetailCardBlock).toMatch(/bottom:\s*0/)
-    expect(mobileDetailCardBlock).not.toMatch(
-      /bottom:\s*calc\(64px \+ env\(safe-area-inset-bottom\)\)/,
-    )
+    expect(mobileDetailCardBlock).toMatch(/z-index:\s*17/)
     expect(mobileDetailCardBlock).toMatch(/width:\s*100%/)
     expect(mobileDetailCardBlock).toMatch(
-      /grid-template-rows:\s*auto auto minmax\(0,\s*1fr\)/,
+      /max-height:\s*min\(calc\(100dvh - 128px - env\(safe-area-inset-bottom\)\),\s*42rem\)/,
     )
-    expect(mobileHeaderBlock).toMatch(/min-height:\s*52px/)
+    expect(mobileDetailCardBlock).toMatch(/grid-template-rows:\s*auto minmax\(0,\s*1fr\)/)
+    expect(mobileControlBlock).toMatch(/position:\s*absolute/)
+    expect(mobileControlBlock).toMatch(/inset:\s*var\(--space-3\) var\(--space-3\) auto/)
+    expect(mobileControlBlock).toMatch(/justify-content:\s*flex-end/)
     expect(mobileHeroBlock).toMatch(/display:\s*block/)
+    expect(mobileHeroBlock).toMatch(/width:\s*100%/)
+    expect(mobileHeroBlock).toMatch(/max-height:\s*none/)
+    expect(mobileHeroBlock).toMatch(/aspect-ratio:\s*16 \/ 9/)
+    expect(mobileHeroBlock).toMatch(/min-height:\s*10rem/)
+    expect(mobileHeroBlock).toMatch(/margin:\s*0/)
+    expect(mobileBodyBlock).toMatch(/gap:\s*var\(--space-1\)/)
+    expect(mobileBodyBlock).toMatch(/padding:\s*var\(--space-3\) var\(--space-4\) var\(--space-4\)/)
+    expect(mobileActionsBlock).toMatch(/position:\s*sticky/)
+    expect(mobileActionsBlock).toMatch(/bottom:\s*calc\(var\(--space-4\) \* -1\)/)
   })
 
   it('uses a bounded mobile map overlay flow for chrome, route feedback, search, and results', () => {
@@ -283,13 +368,23 @@ describe('TripWorkspacePage layout scroll contract', () => {
       workspaceCss,
       '.workspaceShellMobileMap .mapOverlayLayout',
     )
-    const mobileSearchBlocks = cssBlocks(workspaceCss, '.workspaceShellMobileMap .mapOverlayStack')
-    const mobileRouteOverlayBlocks = cssBlocks(workspaceCss, '.workspaceShellMobileMap .mapRouteOverlay')
+    const mobileControlStackBlocks = cssBlocks(
+      workspaceCss,
+      '.workspaceShellMobileMap .mobileMapControlStack',
+    )
+    const mobileControlsBlocks = cssBlocks(workspaceCss, '.workspaceShellMobileMap .mobileMapControls')
+    const mobileControlRowBlocks = cssBlocks(
+      workspaceCss,
+      '.workspaceShellMobileMap .mobileMapControlRow',
+    )
+    const mobilePopoverBlocks = cssBlocks(workspaceCss, '.workspaceShellMobileMap .mobileMapPopover')
     const mobileRouteSummaryBlocks = cssBlocks(workspaceCss, '.workspaceShellMobileMap .mapRouteSummary')
     const mobileShelfBlocks = cssBlocks(searchShelfCss, '.shelf')
     const mobileOverlayLayoutBlock = mobileOverlayLayoutBlocks[mobileOverlayLayoutBlocks.length - 1] ?? ''
-    const mobileSearchBlock = mobileSearchBlocks[mobileSearchBlocks.length - 1] ?? ''
-    const mobileRouteOverlayBlock = mobileRouteOverlayBlocks[mobileRouteOverlayBlocks.length - 1] ?? ''
+    const mobileControlStackBlock = mobileControlStackBlocks[mobileControlStackBlocks.length - 1] ?? ''
+    const mobileControlsBlock = mobileControlsBlocks[mobileControlsBlocks.length - 1] ?? ''
+    const mobileControlRowBlock = mobileControlRowBlocks[mobileControlRowBlocks.length - 1] ?? ''
+    const mobilePopoverBlock = mobilePopoverBlocks[mobilePopoverBlocks.length - 1] ?? ''
     const mobileRouteSummaryBlock = mobileRouteSummaryBlocks[mobileRouteSummaryBlocks.length - 1] ?? ''
     const mobileShelfBlock = mobileShelfBlocks[mobileShelfBlocks.length - 1] ?? ''
 
@@ -305,14 +400,19 @@ describe('TripWorkspacePage layout scroll contract', () => {
     expect(workspaceCss).toMatch(
       /\.workspaceShellMobileMap \.mapOverlayLayout > \*\s*\{[^}]*pointer-events:\s*auto/s,
     )
-    expect(mobileRouteOverlayBlock).toMatch(/position:\s*static/)
-    expect(mobileRouteOverlayBlock).toMatch(/margin:\s*0 var\(--space-3\)/)
-    expect(mobileRouteOverlayBlock).toMatch(/justify-items:\s*start/)
+    expect(mobileControlStackBlock).toMatch(/width:\s*min\(34rem,\s*calc\(100% - var\(--space-6\)\)\)/)
+    expect(mobileControlStackBlock).toMatch(/display:\s*grid/)
+    expect(mobileControlStackBlock).toMatch(/margin:\s*0 var\(--space-3\)/)
+    expect(mobileControlsBlock).toMatch(/position:\s*relative/)
+    expect(mobileControlsBlock).toMatch(/width:\s*100%/)
+    expect(mobileControlRowBlock).toMatch(/display:\s*flex/)
+    expect(mobileControlRowBlock).toMatch(/align-items:\s*stretch/)
+    expect(mobilePopoverBlock).toMatch(/position:\s*absolute/)
+    expect(mobilePopoverBlock).toMatch(/max-height:\s*min\(20rem,\s*calc\(100dvh - 12rem\)\)/)
+    expect(mobilePopoverBlock).toMatch(/overflow-y:\s*auto/)
     expect(mobileRouteSummaryBlock).toMatch(/position:\s*static/)
-    expect(mobileRouteSummaryBlock).toMatch(/min-height:\s*42px/)
-    expect(mobileRouteSummaryBlock).not.toMatch(/(?:^|\n)\s*height:\s*42px/)
-    expect(mobileSearchBlock).toMatch(/position:\s*static/)
-    expect(mobileSearchBlock).toMatch(/margin:\s*0 var\(--space-3\)/)
+    expect(mobileRouteSummaryBlock).toMatch(/min-height:\s*32px/)
+    expect(mobileRouteSummaryBlock).toMatch(/border-radius:\s*var\(--radius-pill\)/)
     expect(mobileShelfBlock).toMatch(/position:\s*static/)
     expect(mobileShelfBlock).toMatch(/margin-top:\s*auto/)
     expect(workspaceCss).not.toMatch(/--map-mobile-/)

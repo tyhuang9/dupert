@@ -78,7 +78,10 @@ function SortableActivityCard({
     id: activityDragId(activity.id),
     disabled: readOnly || dragDisabled || isExpanded,
   })
-  const applyTransform = shouldApplySortableTransform({ freezeDragPreview, isDragging })
+  const applyTransform = !isExpanded && shouldApplySortableTransform({
+    freezeDragPreview,
+    isDragging,
+  })
   const style: CSSProperties = {
     transform: sortableTranslateToString(applyTransform ? transform : null),
     transition: applyTransform ? transition : undefined,
@@ -87,7 +90,7 @@ function SortableActivityCard({
   return (
     <li
       ref={setNodeRef}
-      className={`${styles.sortableItem} ${isExpanded ? styles.expandedItem : ''} ${isLast ? styles.lastItem : ''} ${isDragging ? styles.dragging : ''}`}
+      className={`${styles.sortableItem} ${isExpanded ? styles.expandedItem : ''} ${isLast ? styles.lastItem : ''} ${isDragging && !isExpanded ? styles.dragging : ''}`}
     >
       <span className={styles.timelineMarker} aria-hidden="true">
         {position}

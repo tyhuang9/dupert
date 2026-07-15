@@ -217,6 +217,22 @@ class ActivityControllerTest {
     }
 
     @Test
+    void listAllowsLegacyActivitiesWithoutAttribution() throws Exception {
+        Activity legacyActivity = new Activity(TRIP_PK, DAY_ONE, ActivityCategory.ACTIVITY, "Legacy stop");
+        ReflectionIds.setId(legacyActivity, 1L);
+        legacyActivity.setOrderIndex(0);
+        when(activityRepository.findAllVisibleForTrip(TRIP_PK, DAY_ONE, DAY_THREE))
+            .thenReturn(List.of(legacyActivity));
+
+        mvc.perform(get("/api/trips/" + TRIP_PUBLIC_ID + "/activities")
+                .header("Authorization", bearerFor(ALICE_ID)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[0].title").value("Legacy stop"))
+            .andExpect(jsonPath("$[0].createdByUserDisplayName").doesNotExist())
+            .andExpect(jsonPath("$[0].updatedByUserDisplayName").doesNotExist());
+    }
+
+    @Test
     void updateAsViewerReturns404BeforeActivityLookup() throws Exception {
         when(tripMemberRepository.findByIdTripIdAndIdUserId(TRIP_PK, ALICE_ID))
             .thenReturn(Optional.of(new TripMember(TRIP_PK, ALICE_ID, TripRole.VIEWER)));

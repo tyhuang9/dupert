@@ -1,20 +1,32 @@
 import { useCallback, useEffect, useRef, useState, type UIEvent, type WheelEvent } from 'react'
 import { ChevronLeft, ChevronRight, LoaderCircle, MapPin, Star, X } from 'lucide-react'
 import type { PlaceSelection } from '../types/place'
+import {
+  createMapSearchThumbnailSession,
+  type MapSearchThumbnailSession,
+} from './mapSearchThumbnailSession'
 import styles from './MapSearchResultsShelf.module.css'
+
+interface ThumbnailLoadState {
+  status: 'loaded' | 'loading' | 'missing'
+  url?: string
+}
 
 interface MapSearchResultsShelfProps {
   emptyQuery?: string | null
   focusPlaceId?: string | null
   hasMore: boolean
   isMobile?: boolean
+  loadMoreError?: boolean
   loadingMore: boolean
   onHoverChange: (placeId: string | null) => void
   onLoadMore: () => void
+  onRetryLoadMore?: () => void
   onClose: () => void
   onSelect: (place: PlaceSelection) => void
   places: PlaceSelection[]
   selectedPlaceId: string | null
+  thumbnailSession?: MapSearchThumbnailSession
 }
 
 function placeDisplayName(place: PlaceSelection): string {
@@ -61,11 +73,38 @@ function formatStatus(place: PlaceSelection): { label: string; tone: 'open' | 'c
   return null
 }
 
-function PlaceThumbnail({ place }: { place: PlaceSelection }) {
+function PlaceThumbnail({
+  onImageError,
+  place,
+  thumbnailState,
+}: {
+  onImageError: () => void
+  place: PlaceSelection
+  thumbnailState?: ThumbnailLoadState
+}) {
+  const resolvedPhotoUrl = place.photoUrl ?? thumbnailState?.url ?? null
+  const [failedPhotoUrl, setFailedPhotoUrl] = useState<string | null>(null)
+  const imageFailed = resolvedPhotoUrl !== null && failedPhotoUrl === resolvedPhotoUrl
+  const visiblePhotoUrl = imageFailed ? null : resolvedPhotoUrl
+  const thumbnailStatus = visiblePhotoUrl
+    ? 'image'
+    : !imageFailed && place.photoName && thumbnailState?.status !== 'missing'
+      ? 'loading'
+      : 'fallback'
+
   return (
-    <span className={styles.thumbnail}>
-      {place.photoUrl ? (
-        <img src={place.photoUrl} alt="" />
+    <span className={styles.thumbnail} data-thumbnail-state={thumbnailStatus}>
+      {visiblePhotoUrl ? (
+        <img
+          src={visiblePhotoUrl}
+          alt=""
+          onError={() => {
+            setFailedPhotoUrl(resolvedPhotoUrl)
+            onImageError()
+          }}
+        />
+      ) : thumbnailStatus === 'loading' ? (
+        <span className={styles.thumbnailSkeleton} aria-hidden="true" />
       ) : (
         <MapPin size={20} aria-hidden="true" />
       )}
@@ -78,28 +117,62 @@ export function MapSearchResultsShelf({
   focusPlaceId = null,
   hasMore,
   isMobile = false,
+  loadMoreError = false,
   loadingMore,
   onHoverChange,
   onLoadMore,
+  onRetryLoadMore = onLoadMore,
   onClose,
   onSelect,
   places,
   selectedPlaceId,
+  thumbnailSession,
 }: MapSearchResultsShelfProps) {
   const listRef = useRef<HTMLUListElement | null>(null)
   const closeButtonRef = useRef<HTMLButtonElement | null>(null)
+  const resultItemRefs = useRef(new Map<string, HTMLLIElement>())
   const resultButtonRefs = useRef(new Map<string, HTMLButtonElement>())
   const loadRequestedRef = useRef(false)
   const scrollUpdateTimeoutRef = useRef<number | null>(null)
+  const [localThumbnailSession] = useState(() => createMapSearchThumbnailSession())
+  const activeThumbnailSession = thumbnailSession ?? localThumbnailSession
+  const requestedPhotoNamesRef = useRef(new Set<string>())
+  const isMountedRef = useRef(true)
   const [canScrollLeft, setCanScrollLeft] = useState(false)
   const [canScrollRight, setCanScrollRight] = useState(hasMore)
+  const [thumbnailStates, setThumbnailStates] = useState<Record<string, ThumbnailLoadState>>({})
   const showEmptyState = isMobile && places.length === 0 && Boolean(emptyQuery)
 
+  const requestThumbnail = useCallback((photoName: string) => {
+    if (requestedPhotoNamesRef.current.has(photoName)) return
+    requestedPhotoNamesRef.current.add(photoName)
+    setThumbnailStates((current) => ({
+      ...current,
+      [photoName]: { status: 'loading' },
+    }))
+    void activeThumbnailSession.load(photoName).then((url) => {
+      if (!isMountedRef.current) return
+      setThumbnailStates((current) => ({
+        ...current,
+        [photoName]: url ? { status: 'loaded', url } : { status: 'missing' },
+      }))
+    })
+  }, [activeThumbnailSession])
+
+  const handleThumbnailImageError = useCallback((photoName: string | null | undefined) => {
+    if (!photoName) return
+    activeThumbnailSession.markMissing(photoName)
+    setThumbnailStates((current) => ({
+      ...current,
+      [photoName]: { status: 'missing' },
+    }))
+  }, [activeThumbnailSession])
+
   const requestLoadMore = useCallback(() => {
-    if (!hasMore || loadingMore || loadRequestedRef.current) return
+    if (!hasMore || loadMoreError || loadingMore || loadRequestedRef.current) return
     loadRequestedRef.current = true
     onLoadMore()
-  }, [hasMore, loadingMore, onLoadMore])
+  }, [hasMore, loadMoreError, loadingMore, onLoadMore])
 
   const updateScrollState = useCallback(() => {
     const list = listRef.current
@@ -119,6 +192,46 @@ export function MapSearchResultsShelf({
       loadRequestedRef.current = false
     }
   }, [loadingMore])
+
+  useEffect(() => {
+    isMountedRef.current = true
+    return () => {
+      isMountedRef.current = false
+    }
+  }, [])
+
+  useEffect(() => {
+    const candidates = places.filter((place) => place.photoName && !place.photoUrl)
+    if (candidates.length === 0) return undefined
+
+    if (typeof IntersectionObserver !== 'function') {
+      candidates.forEach((place) => requestThumbnail(place.photoName as string))
+      return undefined
+    }
+
+    const photoNamesByElement = new Map<Element, string>()
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (!entry.isIntersecting) continue
+          const photoName = photoNamesByElement.get(entry.target)
+          if (!photoName) continue
+          observer.unobserve(entry.target)
+          requestThumbnail(photoName)
+        }
+      },
+      { root: listRef.current, rootMargin: '96px' },
+    )
+
+    for (const place of candidates) {
+      const item = resultItemRefs.current.get(placeStableId(place))
+      if (!item || !place.photoName) continue
+      photoNamesByElement.set(item, place.photoName)
+      observer.observe(item)
+    }
+
+    return () => observer.disconnect()
+  }, [places, requestThumbnail])
 
   useEffect(() => {
     const scheduleFrame = window.requestAnimationFrame
@@ -225,7 +338,11 @@ export function MapSearchResultsShelf({
       : `${resultCountLabel} found.`
 
   return (
-    <section className={styles.shelf} aria-labelledby="map-search-results-title">
+    <section
+      className={styles.shelf}
+      aria-labelledby="map-search-results-title"
+      data-load-more-error={loadMoreError || undefined}
+    >
       <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">
         {resultAnnouncement}
       </p>
@@ -248,6 +365,12 @@ export function MapSearchResultsShelf({
           </button>
         </span>
       </div>
+      {loadMoreError && (
+        <div className={styles.loadMoreError} role="alert">
+          <span>Couldn’t load more places.</span>
+          <button type="button" onClick={onRetryLoadMore}>Retry</button>
+        </div>
+      )}
       <div className={styles.carousel}>
         {!isMobile && canScrollLeft && (
           <span className={[styles.edgeFade, styles.edgeFadeLeft].join(' ')} aria-hidden="true" />
@@ -287,7 +410,14 @@ export function MapSearchResultsShelf({
             const price = formatPriceLevel(place.priceLevel)
             const status = formatStatus(place)
             return (
-              <li key={placeId} className={styles.resultItem}>
+              <li
+                key={placeId}
+                ref={(node) => {
+                  if (node) resultItemRefs.current.set(placeId, node)
+                  else resultItemRefs.current.delete(placeId)
+                }}
+                className={styles.resultItem}
+              >
                 <button
                   ref={(node) => {
                     if (node) resultButtonRefs.current.set(placeId, node)
@@ -302,7 +432,11 @@ export function MapSearchResultsShelf({
                   onFocus={() => onHoverChange(place.placeId ?? placeId)}
                   onBlur={() => onHoverChange(null)}
                 >
-                  <PlaceThumbnail place={place} />
+                  <PlaceThumbnail
+                    place={place}
+                    thumbnailState={place.photoName ? thumbnailStates[place.photoName] : undefined}
+                    onImageError={() => handleThumbnailImageError(place.photoName)}
+                  />
                   <span className={styles.cardBody}>
                     <strong>{placeDisplayName(place)}</strong>
                     {rating && (

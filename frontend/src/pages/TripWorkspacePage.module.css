@@ -876,8 +876,8 @@
   box-shadow: var(--shadow-sm);
 }
 
-/* Rendered only for the compact day-plan header below the mobile breakpoint. */
-.mobileDayPlanAddActivity {
+.mobileAddActivityFab,
+.mobileDayPlanScroll {
   display: none;
 }
 
@@ -1032,7 +1032,7 @@
   box-shadow: var(--shadow-soft);
 }
 
-.mobileDayPickerTrigger,
+.mobileDayNavigator,
 .mobileDayPickerBackdrop {
   display: none;
 }
@@ -1474,7 +1474,7 @@
   bottom: calc(var(--map-search-results-height) + var(--map-search-results-gap));
 }
 
-.placeDetailMobileHeader {
+.placeDetailMobileControls {
   display: none;
 }
 
@@ -2447,39 +2447,37 @@
     gap: var(--space-2);
   }
 
-  .workspaceShellMobile .timelineHeaderActions.mobileDayPlanActions {
-    min-width: 0;
-    flex-wrap: nowrap;
+  .workspaceShellMobile .mobileDayPlanScroll {
+    display: grid;
+    padding-bottom: calc(56px + var(--space-8));
   }
 
-  .mobileDayPlanAddActivity {
-    width: auto;
-    height: 44px;
-    min-height: 44px;
+  .mobileAddActivityFab {
+    position: fixed;
+    right: var(--space-4);
+    bottom: calc(64px + var(--space-4) + env(safe-area-inset-bottom));
+    z-index: 160;
+    width: 56px;
+    height: 56px;
+    min-height: 56px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    flex: 0 0 auto;
-    gap: var(--space-2);
-    padding: 0 var(--space-3);
+    padding: 0;
     border: 1px solid var(--color-primary);
     border-radius: var(--radius-pill);
     background: var(--color-primary);
     color: var(--color-primary-fg);
-    font: inherit;
-    font-size: var(--font-size-xs);
-    font-weight: 800;
-    white-space: nowrap;
-    box-shadow: var(--shadow-sm);
+    box-shadow: var(--shadow-md);
     cursor: pointer;
   }
 
-  .mobileDayPlanAddActivity:hover {
+  .mobileAddActivityFab:hover {
     border-color: var(--color-primary-hover);
     background: var(--color-primary-hover);
   }
 
-  .mobileDayPlanAddActivity:focus-visible {
+  .mobileAddActivityFab:focus-visible {
     outline: var(--focus-ring-width) solid var(--focus-ring-color);
     outline-offset: var(--focus-ring-offset);
   }
@@ -2488,26 +2486,66 @@
     display: none;
   }
 
-  .mobileDayPickerTrigger {
-    min-height: 44px;
-    display: inline-flex;
+  .mobileDayNavigator {
+    width: min(100%, 22rem);
+    display: grid;
+    grid-template-columns: 44px minmax(0, 1fr) 44px;
     align-items: center;
     gap: var(--space-2);
-    max-width: min(12rem, 48vw);
-    padding: 0 var(--space-3);
-    overflow: hidden;
+  }
+
+  .mobileDayNavigator .panelTitle {
+    min-width: 0;
+    margin: 0;
+  }
+
+  .mobileDayNavigationButton,
+  .mobileDayPickerHeadingButton {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     border: 1px solid var(--color-surface-border);
-    border-radius: var(--radius-pill);
     background: var(--color-surface);
     color: var(--color-primary-text);
     font: inherit;
-    font-size: var(--font-size-xs);
     font-weight: 800;
+    cursor: pointer;
+  }
+
+  .mobileDayNavigationButton {
+    width: 44px;
+    min-height: 44px;
+    padding: 0;
+    border-radius: var(--radius-md);
+  }
+
+  .mobileDayNavigationButton:disabled {
+    color: var(--color-text-subtle);
+    cursor: not-allowed;
+    opacity: 0.46;
+  }
+
+  .mobileDayPickerHeadingButton {
+    width: 100%;
+    min-width: 0;
+    min-height: 44px;
+    gap: var(--space-2);
+    padding: 0 var(--space-3);
+    overflow: hidden;
+    border-radius: var(--radius-pill);
+    font-size: var(--font-size-sm);
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
-  .mobileDayPickerTrigger:focus-visible,
+  .mobileDayPickerHeadingButton span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .mobileDayNavigationButton:focus-visible,
+  .mobileDayPickerHeadingButton:focus-visible,
   .mobileDayPickerClose:focus-visible {
     outline: var(--focus-ring-width) solid var(--focus-ring-color);
     outline-offset: var(--focus-ring-offset);
@@ -2642,20 +2680,37 @@
 
 @media (max-width: 560px) {
   .workspaceShellMobile .timelineHeader.mobileDayPlanHeader {
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      'kicker'
+      'navigator'
+      'summary';
+    align-items: center;
+    gap: var(--space-2);
   }
 
-  .workspaceShellMobile .timelineHeaderActions.mobileDayPlanActions {
-    width: 100%;
-    flex: 1 0 100%;
-    justify-content: space-between;
+  .workspaceShellMobile .mobileDayPlanHeader > div:first-child {
+    display: contents;
   }
 
-  .workspaceShellMobile .mobileDayPlanActions .mobileDayPickerTrigger {
+  .workspaceShellMobile .mobileDayPlanHeader .panelKicker {
+    grid-area: kicker;
     min-width: 0;
-    flex: 1 1 auto;
-    max-width: none;
   }
+
+  .workspaceShellMobile .mobileDayPlanHeader .mobileDayNavigator {
+    grid-area: navigator;
+    width: 100%;
+  }
+
+  .workspaceShellMobile .mobileDayPlanHeader .panelDescription {
+    grid-area: summary;
+    min-width: 0;
+    margin: 0;
+    overflow-wrap: anywhere;
+  }
+
 }
 
 @media (max-width: 520px) {
@@ -2782,26 +2837,274 @@
     display: contents;
   }
 
-  .workspaceShellMobileMap .mapRouteOverlay {
-    position: static;
-    align-self: flex-start;
-    width: auto;
-    max-width: calc(100% - var(--space-6));
+  .workspaceShellMobileMap .mobileMapControlStack {
+    width: min(34rem, calc(100% - var(--space-6)));
+    display: grid;
+    gap: var(--space-2);
     margin: 0 var(--space-3);
-    justify-items: start;
   }
 
-  .workspaceShellMobileMap .mapChrome {
-    justify-content: flex-start;
-    flex-wrap: wrap;
+  .workspaceShellMobileMap .mobileMapControls {
+    position: relative;
+    z-index: 16;
+    width: 100%;
+  }
+
+  .workspaceShellMobileMap .mobileMapControlRow {
+    display: flex;
+    align-items: stretch;
+    gap: var(--space-2);
+  }
+
+  .workspaceShellMobileMap .mobileMapControlButton {
+    min-height: 40px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    padding: 0 var(--space-3);
+    border: 1px solid var(--color-surface-border);
+    border-radius: var(--radius-md);
+    background: var(--color-floating-surface);
+    color: var(--color-text);
+    box-shadow: var(--shadow-sm);
+    cursor: pointer;
+    font: inherit;
+    font-size: var(--font-size-xs);
+    font-weight: 800;
+    white-space: nowrap;
+  }
+
+  .workspaceShellMobileMap .mobileMapControlButton:hover,
+  .workspaceShellMobileMap .mobileMapControlButton:focus-visible,
+  .workspaceShellMobileMap .mobileMapControlButton[aria-expanded='true'] {
+    border-color: var(--color-primary);
+    background: var(--color-primary-softer);
+    color: var(--color-primary-text);
+  }
+
+  .workspaceShellMobileMap .mobileMapControlButton:focus-visible,
+  .workspaceShellMobileMap .mobileMapPopover button:focus-visible,
+  .workspaceShellMobileMap .mobileMapPopover a:focus-visible {
+    outline: var(--focus-ring-width) solid var(--focus-ring-color);
+    outline-offset: var(--focus-ring-offset);
+  }
+
+  .workspaceShellMobileMap .mobileMapRouteToggle {
+    position: relative;
+  }
+
+  .workspaceShellMobileMap .mobileMapRouteToggle input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .workspaceShellMobileMap .mobileMapRouteToggle input:not(:checked) + svg {
+    color: var(--color-text-subtle);
+  }
+
+  .workspaceShellMobileMap .mobileMapPopover {
+    position: absolute;
+    top: calc(100% + var(--space-2));
+    left: 0;
+    z-index: 2;
+    width: min(21rem, calc(100vw - var(--space-6)));
+    max-height: min(20rem, calc(100dvh - 12rem));
+    display: grid;
+    gap: var(--space-3);
+    overflow-y: auto;
+    padding: var(--space-3);
+    border: 1px solid var(--color-surface-border);
+    border-radius: var(--radius-lg);
+    background: var(--color-floating-surface);
+    box-shadow: var(--shadow-lg);
+    scrollbar-width: thin;
+  }
+
+  .workspaceShellMobileMap .mobileMapOverflowPopover {
+    right: 0;
+    left: auto;
+  }
+
+  .workspaceShellMobileMap .mobileMapPopoverHeader {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+  }
+
+  .workspaceShellMobileMap .mobileMapPopoverHeader > div,
+  .workspaceShellMobileMap .mobileMapStyleSection {
+    min-width: 0;
+    display: grid;
+    gap: 2px;
+  }
+
+  .workspaceShellMobileMap .mobileMapPopoverHeader strong,
+  .workspaceShellMobileMap .mobileMapStyleSection > strong {
+    color: var(--color-text);
+    font-size: var(--font-size-sm);
+    line-height: var(--line-height-tight);
+  }
+
+  .workspaceShellMobileMap .mobileMapPopoverHeader span {
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+  }
+
+  .workspaceShellMobileMap .mobileMapPopoverTextButton {
+    min-height: 36px;
+    padding: 0 var(--space-2);
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--color-primary-text);
+    cursor: pointer;
+    font: inherit;
+    font-size: var(--font-size-xs);
+    font-weight: 800;
+    white-space: nowrap;
+  }
+
+  .workspaceShellMobileMap .mobileMapPopoverTextButton:disabled {
+    color: var(--color-text-subtle);
+    cursor: not-allowed;
+    opacity: 0.7;
+  }
+
+  .workspaceShellMobileMap .mobileMapDayList {
+    display: grid;
+    gap: var(--space-2);
+  }
+
+  .workspaceShellMobileMap .mobileMapDayToggle {
+    min-height: 42px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--color-surface-border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface-2);
+    color: var(--color-text);
+    cursor: pointer;
+    font: inherit;
+    font-size: var(--font-size-xs);
+    font-weight: 700;
+    text-align: left;
+  }
+
+  .workspaceShellMobileMap .mobileMapDayToggle span:first-child {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .workspaceShellMobileMap .mobileMapDayToggle span:last-child {
+    flex: 0 0 auto;
+    color: var(--color-text-subtle);
+    font-size: 11px;
+  }
+
+  .workspaceShellMobileMap .mobileMapDayToggle[aria-pressed='true'] {
+    border-color: color-mix(in srgb, var(--color-primary) 45%, var(--color-surface-border));
+    background: var(--color-primary-softer);
+    color: var(--color-primary-text);
+  }
+
+  .workspaceShellMobileMap .mobileMapExport {
+    min-height: 42px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    padding: 0 var(--space-3);
+    border: 1px solid var(--color-surface-border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface-2);
+    color: var(--color-text);
+    font: inherit;
+    font-size: var(--font-size-xs);
+    font-weight: 800;
+    text-decoration: none;
+  }
+
+  .workspaceShellMobileMap .mobileMapExport:not(:disabled):hover {
+    border-color: var(--color-primary);
+    background: var(--color-primary-softer);
+    color: var(--color-primary-text);
+  }
+
+  .workspaceShellMobileMap .mobileMapExport:disabled {
+    cursor: not-allowed;
+    opacity: 0.65;
+  }
+
+  .workspaceShellMobileMap .mobileMapStyleSection {
+    gap: var(--space-2);
+  }
+
+  .workspaceShellMobileMap .mobileMapStyleOptions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-2);
+  }
+
+  .workspaceShellMobileMap .mobileMapStyleOptions button {
+    min-height: 42px;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-1) var(--space-2);
+    border: 1px solid var(--color-surface-border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface-2);
+    color: var(--color-text-muted);
+    cursor: pointer;
+    font: inherit;
+    font-size: var(--font-size-xs);
+    font-weight: 700;
+    text-align: left;
+  }
+
+  .workspaceShellMobileMap .mobileMapStyleOptions button[aria-pressed='true'] {
+    border-color: var(--color-primary);
+    background: var(--color-primary-softer);
+    color: var(--color-primary-text);
+  }
+
+  .workspaceShellMobileMap .mobileMapStyleSwatch {
+    width: 28px;
+    height: 28px;
+    flex: 0 0 28px;
+    border-width: 1px;
+    border-radius: var(--radius-sm);
   }
 
   .workspaceShellMobileMap .mapRouteSummary {
     position: static;
     align-self: flex-start;
-    width: min(var(--map-route-summary-width, 12rem), calc(100% - var(--space-6)));
-    min-height: 42px;
+    width: auto;
+    min-height: 32px;
     margin: 0 var(--space-3);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-pill);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .workspaceShellMobileMap .mapRouteSummaryHeader {
+    display: none;
+  }
+
+  .workspaceShellMobileMap .mapRouteSummary strong {
+    white-space: nowrap;
   }
 
   .workspaceShellMobileMap .mapOverlayStack {
@@ -2813,41 +3116,32 @@
     pointer-events: auto;
   }
 
-  .workspaceShellMobileMap .mapStyleStrip {
-    max-width: min(15rem, calc(100vw - var(--space-6)));
-  }
-
-  .workspaceShellMobileMap .mapStyleMenu {
-    left: auto;
-    right: 0;
-    width: min(22rem, calc(100vw - var(--space-6)));
-    max-height: min(32rem, calc(100dvh - 9rem));
-  }
-
   .workspaceShellMobileMap .placeDetailCard {
     top: auto;
     right: 0;
+    /* The mobile map panel already ends above the bottom navigation. */
     bottom: 0;
     left: 0;
-    z-index: 14;
+    /* A selected place takes precedence over the map's contextual controls. */
+    z-index: 17;
     width: 100%;
-    max-height: min(54dvh, 34rem);
-    grid-template-rows: auto auto minmax(0, 1fr);
+    max-height: min(calc(100dvh - 128px - env(safe-area-inset-bottom)), 42rem);
+    grid-template-rows: auto minmax(0, 1fr);
     border-right: 0;
     border-bottom: 0;
     border-left: 0;
     border-radius: var(--radius-xl) var(--radius-xl) 0 0;
   }
 
-  .workspaceShellMobileMap .placeDetailMobileHeader {
-    min-height: 52px;
+  .workspaceShellMobileMap .placeDetailMobileControls {
+    position: absolute;
+    inset: var(--space-3) var(--space-3) auto;
+    z-index: 2;
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    justify-content: flex-end;
     gap: var(--space-3);
-    padding: var(--space-2) var(--space-3);
-    border-bottom: 1px solid var(--color-surface-border);
-    background: var(--color-floating-surface);
+    pointer-events: none;
   }
 
   .workspaceShellMobileMap .placeDetailBack,
@@ -2859,15 +3153,18 @@
     gap: var(--space-1);
     border: 1px solid var(--color-surface-border);
     border-radius: var(--radius-lg);
-    background: var(--color-floating-surface-soft);
+    background: rgb(255 255 255 / 92%);
     color: var(--color-text);
     font: inherit;
     font-size: var(--font-size-xs);
     font-weight: 700;
     cursor: pointer;
+    box-shadow: var(--shadow-sm);
+    pointer-events: auto;
   }
 
   .workspaceShellMobileMap .placeDetailBack {
+    margin-right: auto;
     padding: 0 var(--space-3);
   }
 
@@ -2883,12 +3180,13 @@
   }
 
   .workspaceShellMobileMap .placeHero {
-    min-height: 6.5rem;
-    max-height: min(7.5rem, 22dvh);
+    width: 100%;
+    min-height: 10rem;
+    max-height: none;
     display: block;
-    margin: var(--space-3) var(--space-4) 0;
-    border-radius: var(--radius-lg);
-    aspect-ratio: auto;
+    margin: 0;
+    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+    aspect-ratio: 16 / 9;
   }
 
   .workspaceShellMobileMap .placeHero .placeThumbnail {
@@ -2896,8 +3194,14 @@
   }
 
   .workspaceShellMobileMap .placeDetailBody {
+    gap: var(--space-1);
+    padding: var(--space-3) var(--space-4) var(--space-4);
     scrollbar-width: thin;
     scrollbar-color: var(--color-text-muted) transparent;
+  }
+
+  .workspaceShellMobileMap .placeHours {
+    padding: var(--space-2) var(--space-3);
   }
 
   .workspaceShellMobileMap .placeDetailBody::-webkit-scrollbar {
@@ -2914,6 +3218,11 @@
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     align-items: stretch;
+    position: sticky;
+    bottom: calc(var(--space-4) * -1);
+    margin-top: auto;
+    padding: var(--space-2) 0 var(--space-4);
+    background: var(--color-floating-surface);
   }
 
   .workspaceShellMobileMap .placeDetailActions .primaryAction {
@@ -2945,5 +3254,17 @@
 
   .workspaceShellMobileMap .placeActionLabel {
     display: inline;
+  }
+}
+
+@media (max-width: 820px) and (max-height: 600px) {
+  .workspaceShellMobileMap .placeDetailCard {
+    min-height: calc(100dvh - 128px - env(safe-area-inset-bottom));
+  }
+}
+
+@media (min-width: 600px) and (max-width: 820px) {
+  .workspaceShellMobileMap .placeDetailCard {
+    min-height: min(calc(100dvh - 128px - env(safe-area-inset-bottom)), 42rem);
   }
 }

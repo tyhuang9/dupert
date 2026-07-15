@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   CalendarDays,
   LogOut,
@@ -14,6 +14,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth'
 import { parseApiError } from '../api/errors'
 import { useDeleteTrip, useTrips } from '../hooks/useTrips'
+import { useMediaQuery } from '../hooks/useMediaQuery'
 import { AccountSettingsDialog } from '../components/AccountSettingsDialog'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import type { Trip, TripRole } from '../types/trip'
@@ -106,16 +107,21 @@ export function TripsPage() {
   const { logout, user } = useAuth()
   const navigate = useNavigate()
   const searchInputRef = useRef<HTMLInputElement>(null)
+  const accountMenuTriggerRef = useRef<HTMLButtonElement>(null)
+  const accountMenuRef = useRef<HTMLDivElement>(null)
+  const accountMenuFirstActionRef = useRef<HTMLButtonElement>(null)
   const [loggingOut, setLoggingOut] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [roleFilter, setRoleFilter] = useState<RoleFilter>('ALL')
   const [isAccountSettingsOpen, setIsAccountSettingsOpen] = useState(false)
+  const [isAccountMenuOpen, setIsAccountMenuOpen] = useState(false)
   const [deletingTripId, setDeletingTripId] = useState<string | null>(null)
   const [tripPendingDelete, setTripPendingDelete] = useState<Trip | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
   const tripsQuery = useTrips()
   const deleteTripMutation = useDeleteTrip()
   const trips = useMemo(() => tripsQuery.data ?? [], [tripsQuery.data])
+  const isMobileViewport = useMediaQuery('(max-width: 640px)')
 
   useEffect(() => {
     if (tripsQuery.isSuccess) {
@@ -137,6 +143,45 @@ export function TripsPage() {
   const hasActiveFilters = searchTerm.trim().length > 0 || roleFilter !== 'ALL'
   const tripGridClassName = styles.tripGrid
 
+  const closeAccountMenu = useCallback((restoreFocus = true) => {
+    setIsAccountMenuOpen(false)
+    if (restoreFocus) {
+      window.requestAnimationFrame(() => accountMenuTriggerRef.current?.focus())
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!isMobileViewport || !isAccountMenuOpen) return undefined
+
+    const focusFrame = window.requestAnimationFrame(() => {
+      accountMenuFirstActionRef.current?.focus()
+    })
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      event.preventDefault()
+      closeAccountMenu()
+    }
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target
+      if (!(target instanceof Node)) return
+      if (
+        accountMenuRef.current?.contains(target) ||
+        accountMenuTriggerRef.current?.contains(target)
+      ) {
+        return
+      }
+      closeAccountMenu()
+    }
+
+    window.addEventListener('keydown', onKeyDown)
+    window.addEventListener('pointerdown', onPointerDown)
+    return () => {
+      window.cancelAnimationFrame(focusFrame)
+      window.removeEventListener('keydown', onKeyDown)
+      window.removeEventListener('pointerdown', onPointerDown)
+    }
+  }, [closeAccountMenu, isAccountMenuOpen, isMobileViewport])
+
   function clearFilters() {
     setSearchTerm('')
     setRoleFilter('ALL')
@@ -144,6 +189,7 @@ export function TripsPage() {
   }
 
   async function onLogout() {
+    setIsAccountMenuOpen(false)
     setLoggingOut(true)
     try {
       await logout()
@@ -172,35 +218,99 @@ export function TripsPage() {
 
   return (
     <main id="main" className={styles.shell}>
-      <header className={styles.header}>
-        <div>
+      <header className={`${styles.header}${isMobileViewport ? ` ${styles.mobileHeader}` : ''}`}>
+        <div className={isMobileViewport ? styles.mobileHeaderCopy : undefined}>
           <h1 className={styles.heading}>My trips</h1>
           <p className={styles.subheading}>Plan and edit shared itineraries.</p>
         </div>
         <div className={styles.actions}>
-          <Link to="/trips/new" className={styles.primaryAction}>
-            <Plus aria-hidden="true" size={18} />
-            New trip
-          </Link>
-          {user ? (
-            <button
-              type="button"
-              onClick={() => setIsAccountSettingsOpen(true)}
-              className={styles.secondaryAction}
-            >
-              <UserRound aria-hidden="true" size={18} />
-              Account
-            </button>
-          ) : null}
-          <button
-            type="button"
-            onClick={onLogout}
-            disabled={loggingOut}
-            className={styles.secondaryAction}
-          >
-            <LogOut aria-hidden="true" size={18} />
-            {loggingOut ? 'Signing out...' : 'Sign out'}
-          </button>
+          {isMobileViewport ? (
+            user ? (
+              <div className={styles.accountMenu}>
+                <button
+                  ref={accountMenuTriggerRef}
+                  type="button"
+                  className={styles.accountMenuTrigger}
+                  aria-controls="trips-account-menu"
+                  aria-expanded={isAccountMenuOpen}
+                  aria-haspopup="menu"
+                  aria-label="Open account menu"
+                  onClick={() => setIsAccountMenuOpen((current) => !current)}
+                >
+                  <UserRound aria-hidden="true" size={20} />
+                </button>
+                {isAccountMenuOpen ? (
+                  <div
+                    ref={accountMenuRef}
+                    id="trips-account-menu"
+                    className={styles.accountMenuPanel}
+                    role="menu"
+                    aria-label="Account options"
+                  >
+                    <button
+                      ref={accountMenuFirstActionRef}
+                      type="button"
+                      className={styles.accountMenuItem}
+                      role="menuitem"
+                      onClick={() => {
+                        setIsAccountMenuOpen(false)
+                        setIsAccountSettingsOpen(true)
+                      }}
+                    >
+                      <UserRound aria-hidden="true" size={17} />
+                      Account
+                    </button>
+                    <button
+                      type="button"
+                      className={`${styles.accountMenuItem} ${styles.accountMenuItemDanger}`}
+                      role="menuitem"
+                      disabled={loggingOut}
+                      onClick={() => void onLogout()}
+                    >
+                      <LogOut aria-hidden="true" size={17} />
+                      {loggingOut ? 'Signing out...' : 'Sign out'}
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => void onLogout()}
+                disabled={loggingOut}
+                className={styles.accountMenuTrigger}
+              >
+                <LogOut aria-hidden="true" size={20} />
+                <span className="sr-only">{loggingOut ? 'Signing out...' : 'Sign out'}</span>
+              </button>
+            )
+          ) : (
+            <>
+              <Link to="/trips/new" className={styles.primaryAction}>
+                <Plus aria-hidden="true" size={18} />
+                New trip
+              </Link>
+              {user ? (
+                <button
+                  type="button"
+                  onClick={() => setIsAccountSettingsOpen(true)}
+                  className={styles.secondaryAction}
+                >
+                  <UserRound aria-hidden="true" size={18} />
+                  Account
+                </button>
+              ) : null}
+              <button
+                type="button"
+                onClick={() => void onLogout()}
+                disabled={loggingOut}
+                className={styles.secondaryAction}
+              >
+                <LogOut aria-hidden="true" size={18} />
+                {loggingOut ? 'Signing out...' : 'Sign out'}
+              </button>
+            </>
+          )}
         </div>
       </header>
 
@@ -221,9 +331,6 @@ export function TripsPage() {
         </section>
       ) : hasTrips ? (
         <section className={styles.dashboard} aria-labelledby="trips-heading">
-          <h2 id="trips-heading" className="sr-only">
-            Trips
-          </h2>
           <div className={styles.toolbar}>
             <label className={styles.searchField}>
               <span className="sr-only">Search trips</span>
@@ -262,6 +369,18 @@ export function TripsPage() {
                 </button>
               ))}
             </div>
+          </div>
+
+          <div className={styles.tripListHeader}>
+            <h2 id="trips-heading" className={isMobileViewport ? styles.tripListEyebrow : 'sr-only'}>
+              Your trips
+            </h2>
+            {isMobileViewport ? (
+              <Link to="/trips/new" className={styles.tripListAction}>
+                <Plus aria-hidden="true" size={17} />
+                New trip
+              </Link>
+            ) : null}
           </div>
 
           <p

@@ -16,24 +16,11 @@ import styles from './MobileWorkspaceChrome.module.css'
 
 export type MobileWorkspaceTab = 'plan' | 'map' | 'timeline' | 'ideas'
 
-export interface MobileMapDayVisibility {
-  id: string
-  isVisible: boolean
-  label: string
-}
-
-export interface MobileMapDayVisibilityModel {
-  days: readonly MobileMapDayVisibility[]
-  onShowAllDays: () => void
-  onToggleDay: (dayId: string) => void
-}
-
 interface MobileWorkspaceChromeProps {
   activeTab: MobileWorkspaceTab
   canEditTrip: boolean
   guestActions?: ReactNode
   isAuthenticated: boolean
-  mapDayVisibility?: MobileMapDayVisibilityModel
   onOpenSettings: () => void
   onOpenShare: () => void
   onSelectTab: (tab: MobileWorkspaceTab) => void
@@ -59,7 +46,6 @@ export function MobileWorkspaceChrome({
   canEditTrip,
   guestActions,
   isAuthenticated,
-  mapDayVisibility,
   onOpenSettings,
   onOpenShare,
   onSelectTab,
@@ -68,7 +54,7 @@ export function MobileWorkspaceChrome({
 }: Readonly<MobileWorkspaceChromeProps>) {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const menuTriggerRef = useRef<HTMLButtonElement>(null)
-  const drawerRef = useRef<HTMLElement>(null)
+  const menuPopupRef = useRef<HTMLElement>(null)
   const closeButtonRef = useRef<HTMLButtonElement>(null)
 
   const closeMenu = useCallback(() => {
@@ -88,11 +74,11 @@ export function MobileWorkspaceChrome({
 
       if (event.key !== 'Tab') return
 
-      const drawer = drawerRef.current
-      if (!drawer) return
+      const menuPopup = menuPopupRef.current
+      if (!menuPopup) return
 
       const focusableElements = Array.from(
-        drawer.querySelectorAll<HTMLElement>(
+        menuPopup.querySelectorAll<HTMLElement>(
           'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])',
         ),
       )
@@ -103,10 +89,10 @@ export function MobileWorkspaceChrome({
       const lastElement = focusableElements[focusableElements.length - 1]
       const activeElement = document.activeElement
 
-      if (event.shiftKey && (activeElement === firstElement || !drawer.contains(activeElement))) {
+      if (event.shiftKey && (activeElement === firstElement || !menuPopup.contains(activeElement))) {
         event.preventDefault()
         lastElement.focus()
-      } else if (!event.shiftKey && (activeElement === lastElement || !drawer.contains(activeElement))) {
+      } else if (!event.shiftKey && (activeElement === lastElement || !menuPopup.contains(activeElement))) {
         event.preventDefault()
         firstElement.focus()
       }
@@ -125,9 +111,6 @@ export function MobileWorkspaceChrome({
     setIsMenuOpen(false)
     action()
   }, [])
-
-  const mapDayVisibilityModel = mapDayVisibility?.days.length ? mapDayVisibility : undefined
-  const areAllMapDaysVisible = mapDayVisibilityModel?.days.every((day) => day.isVisible) ?? false
 
   return (
     <>
@@ -162,9 +145,9 @@ export function MobileWorkspaceChrome({
       {isMenuOpen ? (
         <div className={styles.menuBackdrop} onMouseDown={closeMenu}>
           <section
-            ref={drawerRef}
+            ref={menuPopupRef}
             id="mobile-trip-menu"
-            className={styles.menuDrawer}
+            className={styles.menuPopup}
             role="dialog"
             aria-modal="true"
             aria-labelledby="mobile-trip-menu-title"
@@ -213,35 +196,6 @@ export function MobileWorkspaceChrome({
                   <Settings size={18} aria-hidden="true" />
                   Trip settings
                 </button>
-              ) : null}
-              {mapDayVisibilityModel ? (
-                <section className={styles.mapDays} aria-labelledby="mobile-map-days-title">
-                  <div className={styles.mapDaysHeader}>
-                    <h3 id="mobile-map-days-title">Map days</h3>
-                    <button
-                      type="button"
-                      className={styles.showAllDaysButton}
-                      disabled={areAllMapDaysVisible}
-                      onClick={mapDayVisibilityModel.onShowAllDays}
-                    >
-                      Show all days
-                    </button>
-                  </div>
-                  <div className={styles.mapDayToggles} aria-label="Map day visibility">
-                    {mapDayVisibilityModel.days.map((day) => (
-                      <button
-                        key={day.id}
-                        type="button"
-                        className={styles.mapDayToggle}
-                        aria-pressed={day.isVisible}
-                        onClick={() => mapDayVisibilityModel.onToggleDay(day.id)}
-                      >
-                        <span>{day.label}</span>
-                        <span aria-hidden="true">{day.isVisible ? 'Shown' : 'Hidden'}</span>
-                      </button>
-                    ))}
-                  </div>
-                </section>
               ) : null}
             </nav>
           </section>

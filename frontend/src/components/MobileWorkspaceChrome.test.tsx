@@ -1,17 +1,26 @@
+import { readFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { describe, expect, it, vi } from 'vitest'
-import {
-  MobileWorkspaceChrome,
-  type MobileMapDayVisibilityModel,
-} from './MobileWorkspaceChrome'
+import { MobileWorkspaceChrome } from './MobileWorkspaceChrome'
 import styles from './MobileWorkspaceChrome.module.css'
+
+const currentDir = dirname(fileURLToPath(import.meta.url))
+const chromeCss = readFileSync(join(currentDir, 'MobileWorkspaceChrome.module.css'), 'utf8')
+
+function cssBlocks(css: string, selector: string) {
+  const escapedSelector = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  return [...css.matchAll(new RegExp(`${escapedSelector}\\s*\\{([^}]*)\\}`, 'g'))].map(
+    (match) => match[1],
+  )
+}
 
 interface RenderChromeOptions {
   canEditTrip?: boolean
   isAuthenticated?: boolean
-  mapDayVisibility?: MobileMapDayVisibilityModel
   onOpenSettings?: () => void
   onOpenShare?: () => void
 }
@@ -19,7 +28,6 @@ interface RenderChromeOptions {
 function renderChrome({
   canEditTrip = true,
   isAuthenticated = true,
-  mapDayVisibility,
   onOpenSettings = vi.fn(),
   onOpenShare = vi.fn(),
 }: RenderChromeOptions = {}) {
@@ -29,7 +37,6 @@ function renderChrome({
         activeTab="map"
         canEditTrip={canEditTrip}
         isAuthenticated={isAuthenticated}
-        mapDayVisibility={mapDayVisibility}
         onOpenSettings={onOpenSettings}
         onOpenShare={onOpenShare}
         onSelectTab={vi.fn()}
@@ -48,12 +55,12 @@ async function openDrawer() {
 }
 
 describe('<MobileWorkspaceChrome>', () => {
-  it('renders a labelled left drawer dialog and initially focuses its close control', async () => {
+  it('renders a labelled right-aligned popup dialog and initially focuses its close control', async () => {
     renderChrome()
 
-    const { drawer, trigger } = await openDrawer()
+    const { drawer: popup, trigger } = await openDrawer()
 
-    expect(drawer).toHaveClass(styles.menuDrawer)
+    expect(popup).toHaveClass(styles.menuPopup)
     expect(trigger).toHaveAttribute('aria-controls', 'mobile-trip-menu')
     expect(trigger).toHaveAttribute('aria-expanded', 'true')
     await waitFor(() => {
@@ -61,18 +68,9 @@ describe('<MobileWorkspaceChrome>', () => {
     })
   })
 
-  it('keeps map day controls reachable while trapping keyboard focus inside the drawer', async () => {
+  it('traps keyboard focus inside the trip popup', async () => {
     const user = userEvent.setup()
-    renderChrome({
-      mapDayVisibility: {
-        days: [
-          { id: 'day-1', label: 'Day 1', isVisible: true },
-          { id: 'day-2', label: 'Day 2', isVisible: false },
-        ],
-        onShowAllDays: vi.fn(),
-        onToggleDay: vi.fn(),
-      },
-    })
+    renderChrome()
 
     await user.click(screen.getByRole('button', { name: /open trip menu/i }))
     await screen.findByRole('dialog', { name: /monterey/i })
@@ -80,52 +78,9 @@ describe('<MobileWorkspaceChrome>', () => {
 
     await waitFor(() => expect(closeButton).toHaveFocus())
     await user.tab({ shift: true })
-    expect(screen.getByRole('button', { name: 'Day 2' })).toHaveFocus()
+    expect(screen.getByRole('button', { name: /trip settings/i })).toHaveFocus()
     await user.tab()
     expect(closeButton).toHaveFocus()
-  })
-
-  it('renders map day visibility controls only when a model is provided and routes their callbacks', async () => {
-    const user = userEvent.setup()
-    const onShowAllDays = vi.fn()
-    const onToggleDay = vi.fn()
-    const mapDayVisibility: MobileMapDayVisibilityModel = {
-      days: [
-        { id: 'day-1', label: 'Day 1', isVisible: true },
-        { id: 'day-2', label: 'Day 2', isVisible: false },
-      ],
-      onShowAllDays,
-      onToggleDay,
-    }
-    const withoutModel = renderChrome()
-
-    await openDrawer()
-    expect(screen.queryByRole('heading', { name: /map days/i })).not.toBeInTheDocument()
-
-    withoutModel.unmount()
-    const withModel = renderChrome({ mapDayVisibility })
-    await openDrawer()
-
-    const dayOne = screen.getByRole('button', { name: 'Day 1' })
-    const dayTwo = screen.getByRole('button', { name: 'Day 2' })
-    expect(dayOne).toHaveAttribute('aria-pressed', 'true')
-    expect(dayTwo).toHaveAttribute('aria-pressed', 'false')
-
-    await user.click(dayTwo)
-    expect(onToggleDay).toHaveBeenCalledWith('day-2')
-
-    await user.click(screen.getByRole('button', { name: /show all days/i }))
-    expect(onShowAllDays).toHaveBeenCalledOnce()
-
-    withModel.unmount()
-    renderChrome({
-      mapDayVisibility: {
-        ...mapDayVisibility,
-        days: mapDayVisibility.days.map((day) => ({ ...day, isVisible: true })),
-      },
-    })
-    await openDrawer()
-    expect(screen.getByRole('button', { name: /show all days/i })).toBeDisabled()
   })
 
   it('closes on Escape or backdrop dismissal and restores focus to the menu trigger', async () => {
@@ -183,5 +138,25 @@ describe('<MobileWorkspaceChrome>', () => {
     await user.click(trigger)
     await user.click(screen.getByRole('button', { name: /trip settings/i }))
     expect(onOpenSettings).toHaveBeenCalledOnce()
+  })
+
+  it('keeps the menu as a right-aligned, viewport-bounded popup instead of a full-height drawer', () => {
+    const backdropBlock = cssBlocks(chromeCss, '.menuBackdrop')[0] ?? ''
+    const popupBlock = cssBlocks(chromeCss, '.menuPopup')[0] ?? ''
+    const headerBlock = cssBlocks(chromeCss, '.menuHeader')[0] ?? ''
+    const actionsBlock = cssBlocks(chromeCss, '.menuActions')[0] ?? ''
+
+    expect(backdropBlock).toMatch(/background:\s*rgb\(26 33 31 \/ 22%\)/)
+    expect(popupBlock).toMatch(/position:\s*absolute/)
+    expect(popupBlock).toMatch(/--menu-control-top:\s*10px/)
+    expect(popupBlock).toMatch(/top:\s*0/)
+    expect(popupBlock).toMatch(/right:\s*0/)
+    expect(popupBlock).toMatch(/width:\s*min\(22rem,\s*calc\(100vw - var\(--space-6\)\)\)/)
+    expect(popupBlock).toMatch(/max-height:\s*calc\(100dvh - 8rem - var\(--space-4\) - env\(safe-area-inset-bottom\)\)/)
+    expect(popupBlock).toMatch(/border-radius:\s*var\(--radius-xl\)/)
+    expect(popupBlock).toMatch(/overflow:\s*hidden/)
+    expect(popupBlock).not.toMatch(/height:\s*100dvh/)
+    expect(headerBlock).toMatch(/padding:\s*var\(--menu-control-top\) var\(--space-4\) var\(--space-4\)/)
+    expect(actionsBlock).toMatch(/overflow-y:\s*auto/)
   })
 })

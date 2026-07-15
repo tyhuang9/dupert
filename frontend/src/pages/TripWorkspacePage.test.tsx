@@ -2,7 +2,13 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import MockAdapter from 'axios-mock-adapter'
-import { useEffect, useRef, type PropsWithChildren, type ReactNode } from 'react'
+import {
+  useEffect,
+  useRef,
+  type CSSProperties,
+  type PropsWithChildren,
+  type ReactNode,
+} from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { apiClient } from '../api/client'
@@ -32,7 +38,16 @@ const googlePlacesMockState = vi.hoisted(() => ({
   imageUrlFromGooglePhotoName: vi.fn(),
 }))
 
+type DndTestCollision = { id: string }
+type DndTestCollisionArgs = {
+  active: { id: string }
+  pointerCoordinates: { x: number; y: number } | null
+}
+
 const dndMockState = vi.hoisted(() => ({
+  closestCenterCollisions: [] as DndTestCollision[],
+  collisionDetection: null as null | ((args: DndTestCollisionArgs) => DndTestCollision[]),
+  dragOverlayStyle: undefined as CSSProperties | undefined,
   onDragEnd: null as null | ((event: {
     active: { id: string }
     over: { id: string } | null
@@ -49,17 +64,27 @@ const dndMockState = vi.hoisted(() => ({
     active: { id: string }
     activatorEvent: Event
   }) => void),
+  pointerCollisions: [] as DndTestCollision[],
+  sortableTransform: null as null | {
+    x: number
+    y: number
+    scaleX: number
+    scaleY: number
+  },
+  sortableTransition: undefined as string | undefined,
 }))
 
 vi.mock('@dnd-kit/core', () => ({
   DndContext: ({
     children,
+    collisionDetection,
     onDragEnd,
     onDragMove,
     onDragOver,
     onDragStart,
   }: {
     children: ReactNode
+    collisionDetection?: (args: DndTestCollisionArgs) => DndTestCollision[]
     onDragEnd?: (event: {
       active: { id: string }
       over: { id: string } | null
@@ -77,19 +102,21 @@ vi.mock('@dnd-kit/core', () => ({
       activatorEvent: Event
     }) => void
   }) => {
+    dndMockState.collisionDetection = collisionDetection ?? null
     dndMockState.onDragEnd = onDragEnd ?? null
     dndMockState.onDragMove = onDragMove ?? null
     dndMockState.onDragOver = onDragOver ?? null
     dndMockState.onDragStart = onDragStart ?? null
     return <>{children}</>
   },
-  DragOverlay: ({ children }: { children: ReactNode }) => (
-    <div data-testid="drag-overlay">{children}</div>
-  ),
+  DragOverlay: ({ children, style }: { children: ReactNode; style?: CSSProperties }) => {
+    dndMockState.dragOverlayStyle = style
+    return <div data-testid="drag-overlay">{children}</div>
+  },
   KeyboardSensor: vi.fn(),
   PointerSensor: vi.fn(),
-  closestCenter: vi.fn(() => []),
-  pointerWithin: vi.fn(() => []),
+  closestCenter: vi.fn(() => dndMockState.closestCenterCollisions),
+  pointerWithin: vi.fn(() => dndMockState.pointerCollisions),
   useDroppable: vi.fn(() => ({
     isOver: false,
     setNodeRef: vi.fn(),
@@ -119,8 +146,8 @@ vi.mock('@dnd-kit/sortable', () => ({
     },
     setActivatorNodeRef: vi.fn(),
     setNodeRef: vi.fn(),
-    transform: null,
-    transition: undefined,
+    transform: dndMockState.sortableTransform,
+    transition: dndMockState.sortableTransition,
   })),
   verticalListSortingStrategy: {},
 }))
@@ -131,6 +158,7 @@ vi.mock('../components/TripMap', () => ({
     activities,
     coordinatePreviewPlace,
     fallbackActivities,
+    focusedActivityId,
     mapStyle,
     onActivityActivate,
     onActiveActivityChange,
@@ -145,11 +173,13 @@ vi.mock('../components/TripMap', () => ({
     searchResults = [],
     selectedSearchResultId,
     showDestinationFallback = true,
+    viewportFitKey,
   }: {
     activeActivityId?: number | null
     activities: Array<{ id: number; title: string }>
     coordinatePreviewPlace?: { placeName?: string | null; title?: string | null } | null
     fallbackActivities: Array<{ id: number; title: string }>
+    focusedActivityId?: number | null
     mapStyle?: string
     onActivityActivate?: (activityId: number) => void
     onActiveActivityChange?: (activityId: number | null) => void
@@ -174,9 +204,12 @@ vi.mock('../components/TripMap', () => ({
     searchResults?: Array<Record<string, unknown>>
     selectedSearchResultId?: string | null
     showDestinationFallback?: boolean
+    viewportFitKey?: string
   }) => (
     <div id="trip-map-focus-target" data-testid="trip-map" tabIndex={-1}>
       <div data-testid="active-map-activity">{activeActivityId ?? 'none'}</div>
+      <div data-testid="focused-map-activity">{focusedActivityId ?? 'none'}</div>
+      <div data-testid="map-viewport-fit-key" data-viewport-fit-key={viewportFitKey ?? 'none'} />
       <div data-testid="map-style">{mapStyle}</div>
       <div data-testid="preview-map-place">
         {previewPlace?.placeName ?? previewPlace?.title ?? 'none'}
@@ -217,6 +250,16 @@ vi.mock('../components/TripMap', () => ({
         })}
       >
         Mock viewport center
+      </button>
+      <button
+        type="button"
+        onClick={() => onViewportContextChange?.({
+          bounds: { north: 36.2, south: 36.1, east: 140.3, west: 140.2 },
+          center: { lng: 140.25, lat: 36.15 },
+          zoom: 11,
+        })}
+      >
+        Mock move map viewport
       </button>
       <button
         type="button"
@@ -478,6 +521,14 @@ function Providers({ children }: PropsWithChildren) {
 
 type ActivityApiFixture = Activity | Omit<Activity, 'dayDate'>
 
+function createDeferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void
+  const promise = new Promise<T>((nextResolve) => {
+    resolve = nextResolve
+  })
+  return { promise, resolve }
+}
+
 function withoutDayDate(activity: Activity): Omit<Activity, 'dayDate'> {
   const response = { ...activity }
   delete (response as Partial<Activity>).dayDate
@@ -594,6 +645,19 @@ function triggerDragOver(activeId: string, overId: string | null) {
   })
 }
 
+function runCollisionDetection(
+  activeId: string,
+  pointerCoordinates: { x: number; y: number } | null,
+): DndTestCollision[] {
+  if (!dndMockState.collisionDetection) {
+    throw new Error('DndContext collision detection was not registered')
+  }
+  return dndMockState.collisionDetection({
+    active: { id: activeId },
+    pointerCoordinates,
+  })
+}
+
 function domRect({
   bottom,
   left,
@@ -621,6 +685,10 @@ function domRect({
 beforeEach(() => {
   vi.stubEnv('VITE_GOOGLE_MAPS_API_KEY', 'gmaps.test')
   mockViewport(false)
+  Object.defineProperty(document, 'elementFromPoint', {
+    configurable: true,
+    value: vi.fn(() => null),
+  })
   apiMock = new MockAdapter(apiClient)
   queryClient = new QueryClient({
     defaultOptions: {
@@ -690,10 +758,16 @@ beforeEach(() => {
   })
   googlePlacesMockState.imageUrlFromGooglePhotoName.mockReset()
   googlePlacesMockState.imageUrlFromGooglePhotoName.mockResolvedValue(null)
+  dndMockState.closestCenterCollisions = []
+  dndMockState.collisionDetection = null
+  dndMockState.dragOverlayStyle = undefined
   dndMockState.onDragEnd = null
   dndMockState.onDragMove = null
   dndMockState.onDragOver = null
   dndMockState.onDragStart = null
+  dndMockState.pointerCollisions = []
+  dndMockState.sortableTransform = null
+  dndMockState.sortableTransition = undefined
 })
 
 afterEach(() => {
@@ -737,38 +811,95 @@ describe('<TripWorkspacePage>', () => {
     })
   })
 
-  it('keeps one mobile day date, a labelled activity action, and day navigation', async () => {
+  it('uses a bounded mobile day navigator and a floating activity action', async () => {
     mockViewport(true)
     mockWorkspace()
 
     renderWorkspace('/trips/abc234def567/d/2026-05-01')
 
-    expect(await screen.findByRole('heading', { level: 2, name: /^day plan$/i })).toBeInTheDocument()
-    expect(screen.queryByRole('heading', { level: 2, name: /friday, may 1/i })).not.toBeInTheDocument()
+    const dayHeading = await screen.findByRole('heading', {
+      level: 2,
+      name: /friday, may 1/i,
+    })
+    expect(screen.queryByRole('heading', { level: 2, name: /^day plan$/i })).not.toBeInTheDocument()
+    const dayNavigator = dayHeading.parentElement as HTMLElement
 
-    const dayPicker = screen.getByRole('button', {
+    const dayPicker = within(dayHeading).getByRole('button', {
       name: /choose trip day: friday, may 1/i,
     })
     expect(dayPicker).toHaveTextContent('Friday, May 1')
+    expect(within(dayNavigator).getByRole('button', { name: /previous day/i })).toBeDisabled()
+    const nextDay = within(dayNavigator).getByRole('button', { name: /next day/i })
+    expect(nextDay).toBeEnabled()
 
-    const addActivity = within(dayPicker.parentElement as HTMLElement).getByRole('button', {
-      name: /^add activity$/i,
-    })
-    expect(addActivity).toHaveTextContent('Add Activity')
+    const addActivity = screen.getByLabelText(/^add activity$/i, { selector: 'button' })
+    expect(addActivity).not.toHaveTextContent('Add Activity')
+    expect(addActivity).toHaveAttribute('title', 'Add Activity')
+    expect(addActivity.querySelector('svg')).toBeInTheDocument()
     addActivity.focus()
     await userEvent.keyboard('{Enter}')
     await waitFor(() => {
       expect(screen.getByRole('textbox', { name: /activity name/i })).toHaveFocus()
     })
+    await userEvent.click(screen.getByRole('button', { name: /^cancel$/i }))
 
-    dayPicker.focus()
-    await userEvent.keyboard('{Enter}')
-    expect(screen.getByRole('dialog', { name: /choose a trip day/i })).toBeInTheDocument()
-    await userEvent.click(screen.getByTitle('2026-05-02 (0 activities)'))
+    await userEvent.click(nextDay)
     await waitFor(() => {
       expect(screen.getByTestId('current-location')).toHaveTextContent('/trips/abc234def567/d/2026-05-02')
-      expect(screen.getByRole('button', { name: /choose trip day: saturday, may 2/i })).toBeInTheDocument()
     })
+    const nextHeading = screen.getByRole('heading', { level: 2, name: /saturday, may 2/i })
+    expect(within(nextHeading.parentElement as HTMLElement).getByRole('button', {
+      name: /previous day/i,
+    })).toBeEnabled()
+
+    const nextDayPicker = within(nextHeading).getByRole('button', {
+      name: /choose trip day: saturday, may 2/i,
+    })
+    await userEvent.click(nextDayPicker)
+    expect(screen.getByRole('dialog', { name: /choose a trip day/i })).toBeInTheDocument()
+    await userEvent.click(screen.getByTitle('2026-05-03 (0 activities)'))
+    await waitFor(() => {
+      expect(screen.getByTestId('current-location')).toHaveTextContent('/trips/abc234def567/d/2026-05-03')
+      expect(screen.getByRole('button', { name: /choose trip day: sunday, may 3/i })).toBeInTheDocument()
+    })
+  })
+
+  it('disables next-day navigation at the end of the trip', async () => {
+    mockViewport(true)
+    mockWorkspace()
+
+    renderWorkspace('/trips/abc234def567/d/2026-05-05')
+
+    const dayHeading = await screen.findByRole('heading', {
+      level: 2,
+      name: /tuesday, may 5/i,
+    })
+    const dayNavigator = dayHeading.parentElement as HTMLElement
+    expect(within(dayNavigator).getByRole('button', { name: /previous day/i })).toBeEnabled()
+    expect(within(dayNavigator).getByRole('button', { name: /next day/i })).toBeDisabled()
+  })
+
+  it('shows the mobile add action only in Plan and hides it while composing', async () => {
+    mockViewport(true)
+    mockWorkspace()
+
+    renderWorkspace('/trips/abc234def567/d/2026-05-01')
+
+    const addActivity = await screen.findByLabelText(/^add activity$/i, { selector: 'button' })
+    await userEvent.click(addActivity)
+    await screen.findByRole('textbox', { name: /activity name/i })
+    expect(screen.queryByLabelText(/^add activity$/i, { selector: 'button' })).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: /^cancel$/i }))
+    await screen.findByLabelText(/^add activity$/i, { selector: 'button' })
+
+    await userEvent.click(screen.getByRole('button', { name: /^map$/i }))
+    await screen.findByTestId('trip-map')
+    expect(screen.queryByLabelText(/^add activity$/i, { selector: 'button' })).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: /^timeline$/i }))
+    expect(await screen.findByRole('heading', { name: /full trip timeline/i })).toBeInTheDocument()
+    expect(screen.queryByLabelText(/^add activity$/i, { selector: 'button' })).not.toBeInTheDocument()
   })
 
   it('keeps the desktop day heading and compact add action', async () => {
@@ -805,7 +936,7 @@ describe('<TripWorkspacePage>', () => {
     expect(apiMock.history.get.map(({ url }) => url)).not.toContain('/trips/abc234def567/members')
   })
 
-  it('moves a mobile activity through the explicit day-picker action', async () => {
+  it('edits and moves a mobile activity by selecting its card', async () => {
     mockViewport(true)
     mockWorkspace([SAMPLE_ACTIVITY])
     apiMock.onPost('/activities/10/move?publicId=abc234def567').reply((config) => {
@@ -818,8 +949,22 @@ describe('<TripWorkspacePage>', () => {
 
     renderWorkspace('/trips/abc234def567/d/2026-05-01')
 
-    expect(await screen.findByRole('button', { name: /move to day/i })).toBeInTheDocument()
-    await userEvent.click(screen.getByRole('button', { name: /move to day/i }))
+    await screen.findByRole('article', { name: /expand tsukiji sushi/i })
+    expect(screen.queryByRole('button', { name: /edit tsukiji sushi/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /move to day/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /reorder tsukiji sushi/i })).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('article', { name: /expand tsukiji sushi/i }))
+    expect(screen.getByText(/^edit activity$/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^delete$/i })).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: /^done$/i }))
+
+    await userEvent.click(screen.getByRole('article', { name: /expand tsukiji sushi/i }))
+    expect(screen.getByText(/^edit activity$/i)).toBeInTheDocument()
+    const changeDay = screen.getByRole('button', { name: /^change day$/i })
+    expect(changeDay).toBeInTheDocument()
+
+    await userEvent.click(changeDay)
     expect(screen.getByRole('dialog', { name: /move tsukiji sushi/i })).toBeInTheDocument()
 
     await userEvent.click(screen.getByTitle('2026-05-02 (0 activities)'))
@@ -827,6 +972,66 @@ describe('<TripWorkspacePage>', () => {
       expect(apiMock.history.post.some((request) => request.url?.startsWith('/activities/10/move'))).toBe(true)
       expect(screen.getByTestId('current-location')).toHaveTextContent('/trips/abc234def567/d/2026-05-02')
     })
+  })
+
+  it('clears sortable positioning while the mobile activity editor is expanded', async () => {
+    mockViewport(true)
+    dndMockState.sortableTransform = { x: 12, y: 18, scaleX: 1, scaleY: 1 }
+    dndMockState.sortableTransition = 'transform 200ms ease'
+    mockWorkspace([SAMPLE_ACTIVITY])
+
+    renderWorkspace('/trips/abc234def567/d/2026-05-01')
+
+    const collapsedCard = await screen.findByRole('article', { name: /expand tsukiji sushi/i })
+    const collapsedSlot = collapsedCard.parentElement as HTMLElement
+    expect(collapsedSlot.style.transform).toBe('translate3d(12px, 18px, 0)')
+    expect(collapsedSlot.style.transition).toBe('transform 200ms ease')
+
+    await userEvent.click(collapsedCard)
+
+    const expandedCard = screen.getByRole('article', { name: /collapse tsukiji sushi/i })
+    const expandedSlot = expandedCard.parentElement as HTMLElement
+    expect(expandedSlot.style.transform).toBe('')
+    expect(expandedSlot.style.transition).toBe('')
+    expect(screen.getByText(/^edit activity$/i)).toBeInTheDocument()
+  })
+
+  it('keeps mobile viewer cards free of edit and move actions', async () => {
+    mockViewport(true)
+    mockWorkspace([SAMPLE_ACTIVITY], { ...SAMPLE_TRIP, role: 'VIEWER' })
+
+    renderWorkspace('/trips/abc234def567/d/2026-05-01')
+
+    await screen.findByRole('heading', { level: 2, name: /friday, may 1/i })
+    expect(screen.queryByRole('button', { name: /edit tsukiji sushi/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /move to day/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /change day/i })).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('article', { name: /expand tsukiji sushi/i }))
+    expect(screen.queryByRole('button', { name: /change day/i })).not.toBeInTheDocument()
+  })
+
+  it('preserves the mobile Ideas schedule quick action', async () => {
+    const savedIdea = {
+      ...SAMPLE_ACTIVITY,
+      id: 33,
+      dayDate: null,
+      title: 'Save teamLab',
+      orderIndex: 0,
+    }
+    mockViewport(true)
+    mockWorkspace([savedIdea])
+
+    renderWorkspace('/trips/abc234def567/d/2026-05-01')
+
+    await screen.findByRole('heading', { level: 2, name: /friday, may 1/i })
+    await userEvent.click(screen.getByRole('button', { name: /^ideas$/i }))
+    expect(screen.getByRole('button', { name: /^schedule$/i })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /edit save teamlab/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('article', { name: /expand save teamlab/i })).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: /^schedule$/i }))
+    expect(screen.getByRole('dialog', { name: /move save teamlab/i })).toBeInTheDocument()
   })
 
   it('renders workspace shell when trip is loaded', async () => {
@@ -1092,6 +1297,154 @@ describe('<TripWorkspacePage>', () => {
     expect(HTMLElement.prototype.scrollIntoView).toHaveBeenCalled()
   })
 
+  it('uses the painted sidebar day under the pointer and clears a stale target over a gap', async () => {
+    const dayTwoActivity = {
+      ...SAMPLE_ACTIVITY,
+      id: 22,
+      dayDate: '2026-05-02',
+      title: 'Tokyo Tower',
+      orderIndex: 0,
+    }
+    mockWorkspace([SAMPLE_ACTIVITY, dayTwoActivity])
+
+    renderWorkspace('/trips/abc234def567/d/2026-05-01')
+
+    await screen.findByRole('heading', { level: 2, name: /friday, may 1/i })
+    const sidebar = screen.getByLabelText('Trip workspace navigation')
+    vi.spyOn(sidebar, 'getBoundingClientRect').mockReturnValue(domRect({
+      bottom: 700,
+      left: 0,
+      right: 300,
+      top: 0,
+    }))
+    const paintedDay = screen.getByTitle('2026-05-02 (1 activities)')
+    expect(paintedDay).not.toHaveAttribute('data-sidebar-drop-target')
+
+    triggerDragStart(activityDragId(10), 400, 200)
+    const paintedDayChild = paintedDay.querySelector('span')
+    expect(paintedDayChild).not.toBeNull()
+    expect(paintedDay).toHaveAttribute(
+      'data-sidebar-drop-target',
+      sidebarDayDropId('2026-05-02'),
+    )
+    vi.mocked(document.elementFromPoint).mockReturnValue(paintedDayChild)
+    dndMockState.pointerCollisions = [{ id: sidebarDayDropId('2026-05-03') }]
+    expect(runCollisionDetection(activityDragId(10), { x: 120, y: 400 })).toEqual([
+      { id: sidebarDayDropId('2026-05-02') },
+    ])
+    triggerDragOver(activityDragId(10), sidebarDayDropId('2026-05-02'))
+
+    vi.mocked(document.elementFromPoint).mockReturnValue(null)
+    dndMockState.pointerCollisions = [{ id: sidebarDayDropId('2026-05-02') }]
+    expect(runCollisionDetection(activityDragId(10), { x: 120, y: 440 })).toEqual([])
+    triggerDragOver(activityDragId(10), null)
+    triggerDragEnd(activityDragId(10), null)
+
+    expect(screen.getByTestId('current-location')).toHaveTextContent(
+      '/trips/abc234def567/d/2026-05-01',
+    )
+    expect(apiMock.history.post.some((request) => request.url?.startsWith('/activities/10/move')))
+      .toBe(false)
+  })
+
+  it('keeps the fixed drag overlay wrapper out of pointer hit testing', async () => {
+    mockWorkspace([SAMPLE_ACTIVITY])
+
+    renderWorkspace('/trips/abc234def567/d/2026-05-01')
+
+    await screen.findByRole('heading', { level: 2, name: /friday, may 1/i })
+    triggerDragStart(activityDragId(10), 400, 200)
+
+    expect(screen.getByTestId('drag-overlay')).toHaveTextContent(/tsukiji sushi/i)
+    expect(dndMockState.dragOverlayStyle).toEqual({ pointerEvents: 'none' })
+  })
+
+  it('rejects an out-of-range sidebar calendar day under the pointer', async () => {
+    mockWorkspace([SAMPLE_ACTIVITY])
+
+    renderWorkspace('/trips/abc234def567/d/2026-05-01')
+
+    await screen.findByRole('heading', { level: 2, name: /friday, may 1/i })
+    const sidebar = screen.getByLabelText('Trip workspace navigation')
+    vi.spyOn(sidebar, 'getBoundingClientRect').mockReturnValue(domRect({
+      bottom: 700,
+      left: 0,
+      right: 300,
+      top: 0,
+    }))
+    const outOfRangeDay = screen.getByTitle('2026-04-30 (0 activities)')
+    expect(outOfRangeDay).toBeDisabled()
+    expect(outOfRangeDay).not.toHaveAttribute('data-sidebar-drop-target')
+
+    triggerDragStart(activityDragId(10), 400, 200)
+    expect(outOfRangeDay).not.toHaveAttribute('data-sidebar-drop-target')
+    vi.mocked(document.elementFromPoint).mockReturnValue(outOfRangeDay.querySelector('span'))
+    dndMockState.pointerCollisions = [{ id: sidebarDayDropId('2026-05-02') }]
+
+    expect(runCollisionDetection(activityDragId(10), { x: 120, y: 400 })).toEqual([])
+  })
+
+  it('accepts the enabled Ideas rail target at the exact pointer position', async () => {
+    mockWorkspace([SAMPLE_ACTIVITY])
+
+    renderWorkspace('/trips/abc234def567/d/2026-05-01')
+
+    await screen.findByRole('heading', { level: 2, name: /friday, may 1/i })
+    const sidebar = screen.getByLabelText('Trip workspace navigation')
+    vi.spyOn(sidebar, 'getBoundingClientRect').mockReturnValue(domRect({
+      bottom: 700,
+      left: 0,
+      right: 300,
+      top: 0,
+    }))
+    const ideasButton = screen.getByRole('button', { name: /^ideas$/i })
+    expect(ideasButton).not.toHaveAttribute('data-sidebar-drop-target')
+
+    triggerDragStart(activityDragId(10), 400, 200)
+    expect(ideasButton).toHaveAttribute('data-sidebar-drop-target', sidebarIdeasDropId())
+    vi.mocked(document.elementFromPoint).mockReturnValue(ideasButton.querySelector('span'))
+    dndMockState.pointerCollisions = [{ id: sidebarDayDropId('2026-05-02') }]
+
+    expect(runCollisionDetection(activityDragId(10), { x: 120, y: 400 })).toEqual([
+      { id: sidebarIdeasDropId() },
+    ])
+  })
+
+  it('excludes calendar days from pointer proximity fallback but keeps sortable and keyboard fallback', async () => {
+    const secondActivity = {
+      ...SAMPLE_ACTIVITY,
+      id: 11,
+      title: 'Morning market',
+      orderIndex: 1,
+    }
+    mockWorkspace([SAMPLE_ACTIVITY, secondActivity])
+
+    renderWorkspace('/trips/abc234def567/d/2026-05-01')
+
+    await screen.findByRole('heading', { level: 2, name: /friday, may 1/i })
+    const sidebar = screen.getByLabelText('Trip workspace navigation')
+    vi.spyOn(sidebar, 'getBoundingClientRect').mockReturnValue(domRect({
+      bottom: 700,
+      left: 0,
+      right: 300,
+      top: 0,
+    }))
+    dndMockState.pointerCollisions = []
+    dndMockState.closestCenterCollisions = [
+      { id: sidebarDayDropId('2026-05-02') },
+      { id: activityDragId(11) },
+    ]
+
+    expect(runCollisionDetection(activityDragId(10), { x: 500, y: 400 })).toEqual([
+      { id: activityDragId(11) },
+    ])
+
+    dndMockState.closestCenterCollisions = [{ id: sidebarDayDropId('2026-05-02') }]
+    expect(runCollisionDetection(activityDragId(10), null)).toEqual([
+      { id: sidebarDayDropId('2026-05-02') },
+    ])
+  })
+
   it('uses the last valid drop target when an activity drop ends with no current target', async () => {
     const dayTwoActivity = {
       ...SAMPLE_ACTIVITY,
@@ -1124,6 +1477,34 @@ describe('<TripWorkspacePage>', () => {
 
     expect(await screen.findByRole('heading', { level: 2, name: /saturday, may 2/i })).toBeInTheDocument()
     expect(screen.getByRole('article', { name: /expand tsukiji sushi/i })).toBeInTheDocument()
+  })
+
+  it('keeps the last sortable activity target across a transient null drag-over', async () => {
+    const secondActivity = {
+      ...SAMPLE_ACTIVITY,
+      id: 11,
+      title: 'Morning market',
+      orderIndex: 1,
+    }
+    mockWorkspace([SAMPLE_ACTIVITY, secondActivity])
+    apiMock.onPost('/trips/abc234def567/days/2026-05-01/order').reply((config) => {
+      expect(JSON.parse(config.data as string)).toEqual({ activityIds: [11, 10] })
+      return [204]
+    })
+
+    renderWorkspace('/trips/abc234def567/d/2026-05-01')
+
+    await screen.findByRole('heading', { level: 2, name: /friday, may 1/i })
+    triggerDragStart(activityDragId(11))
+    triggerDragOver(activityDragId(11), activityDragId(10))
+    triggerDragOver(activityDragId(11), null)
+    triggerDragEnd(activityDragId(11), null)
+
+    await waitFor(() => {
+      expect(apiMock.history.post.some(
+        (request) => request.url === '/trips/abc234def567/days/2026-05-01/order',
+      )).toBe(true)
+    })
   })
 
   it('jumps to Ideas after dragging a scheduled activity to ideas', async () => {
@@ -1476,6 +1857,7 @@ describe('<TripWorkspacePage>', () => {
     expect(within(fullTimeline).queryByText(/^day \d/i)).not.toBeInTheDocument()
 
     const selectedMapActivities = within(screen.getByTestId('selected-map-activities'))
+    const fallbackMapActivities = within(screen.getByTestId('fallback-map-activities'))
     const routeMapActivities = within(screen.getByTestId('route-map-activities'))
     expect(selectedMapActivities.getByText('Tsukiji sushi')).toBeInTheDocument()
     expect(selectedMapActivities.getByText('Tokyo Tower')).toBeInTheDocument()
@@ -1503,18 +1885,37 @@ describe('<TripWorkspacePage>', () => {
     const tokyoTowerButton = within(fullTimeline).getByRole('button', { name: /^tokyo tower/i })
     fireEvent.mouseEnter(tokyoTowerButton)
     expect(screen.getByTestId('active-map-activity')).toHaveTextContent('22')
-    fireEvent.mouseLeave(tokyoTowerButton)
-    expect(screen.getByTestId('active-map-activity')).toHaveTextContent('none')
+    await userEvent.click(tokyoTowerButton)
+    expect(screen.getByTestId('focused-map-activity')).toHaveTextContent('22')
+    expect(screen.getByLabelText(/selected map place/i)).toBeInTheDocument()
 
     const dayTwoToggle = within(fullTimeline).getByRole('button', { name: /saturday, may 2/i })
     await userEvent.click(dayTwoToggle)
     expect(dayTwoToggle).toHaveAttribute('aria-expanded', 'false')
     expect(within(fullTimeline).queryByRole('button', { name: /^tokyo tower/i })).not.toBeInTheDocument()
-    expect(selectedMapActivities.getByText('Tokyo Tower')).toBeInTheDocument()
-    expect(routeMapActivities.getByText('Tokyo Tower')).toBeInTheDocument()
+    expect(selectedMapActivities.queryByText('Tokyo Tower')).not.toBeInTheDocument()
+    expect(routeMapActivities.queryByText('Tokyo Tower')).not.toBeInTheDocument()
+    expect(fallbackMapActivities.queryByText('Tokyo Tower')).not.toBeInTheDocument()
+    expect(selectedMapActivities.getByText('Tsukiji sushi')).toBeInTheDocument()
+    expect(routeMapActivities.getByText('Tsukiji sushi')).toBeInTheDocument()
+    expect(screen.getByTestId('active-map-activity')).toHaveTextContent('none')
+    expect(screen.getByTestId('focused-map-activity')).toHaveTextContent('none')
+    expect(screen.queryByLabelText(/selected map place/i)).not.toBeInTheDocument()
+    expect(screen.getByTestId('map-viewport-fit-key')).toHaveAttribute(
+      'data-viewport-fit-key',
+      'timeline:timeline:2026-05-02:Tokyo, Japan',
+    )
 
     await userEvent.click(dayTwoToggle)
     expect(dayTwoToggle).toHaveAttribute('aria-expanded', 'true')
+    expect(selectedMapActivities.getByText('Tokyo Tower')).toBeInTheDocument()
+    expect(routeMapActivities.getByText('Tokyo Tower')).toBeInTheDocument()
+    expect(screen.getByTestId('active-map-activity')).toHaveTextContent('none')
+    expect(screen.getByTestId('focused-map-activity')).toHaveTextContent('none')
+    expect(screen.getByTestId('map-viewport-fit-key')).toHaveAttribute(
+      'data-viewport-fit-key',
+      'timeline:timeline::Tokyo, Japan',
+    )
 
     await userEvent.click(within(fullTimeline).getByRole('button', { name: /^tokyo tower/i }))
     expect(screen.getByTestId('active-map-activity')).toHaveTextContent('22')
@@ -1525,7 +1926,7 @@ describe('<TripWorkspacePage>', () => {
     })).toBeInTheDocument()
   })
 
-  it('toggles scheduled days on the mobile map without collapsing the timeline', async () => {
+  it('keeps the mobile map on all scheduled days with persistent contextual filters', async () => {
     mockViewport(true)
     const dayOneActivity = {
       ...SAMPLE_ACTIVITY,
@@ -1548,44 +1949,64 @@ describe('<TripWorkspacePage>', () => {
 
     renderWorkspace('/trips/abc234def567/d/2026-05-01')
 
-    await userEvent.click(await screen.findByRole('button', { name: /^timeline$/i }))
-    const fullTimeline = screen.getByLabelText(/trip days timeline/i)
-    await userEvent.click(within(fullTimeline).getByRole('button', { name: /^tokyo tower/i }))
+    await userEvent.click(await screen.findByRole('button', { name: /^map$/i }))
 
     const selectedMapActivities = within(await screen.findByTestId('selected-map-activities'))
     const routeMapActivities = within(screen.getByTestId('route-map-activities'))
     expect(selectedMapActivities.getByText('Tsukiji sushi')).toBeInTheDocument()
     expect(selectedMapActivities.getByText('Tokyo Tower')).toBeInTheDocument()
     expect(routeMapActivities.getByText('Tokyo Tower')).toBeInTheDocument()
+    expect(screen.getByRole('checkbox', { name: /routes/i })).toBeChecked()
+    expect(screen.getByRole('button', { name: /days 5\/5/i })).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: /mock activate second marker/i }))
     expect(screen.getByLabelText(/selected map place/i)).toBeInTheDocument()
 
-    await userEvent.click(screen.getByRole('button', { name: /open trip menu/i }))
-    expect(screen.getByRole('heading', { name: /^map days$/i })).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: /days 5\/5/i }))
+    expect(screen.getByRole('dialog', { name: /^map days$/i })).toBeInTheDocument()
     const dayTwoVisibility = screen.getByRole('button', {
-      name: /saturday, may 2.*1 activity/i,
+      name: /day 2.*saturday, may 2.*1 activity/i,
     })
     expect(dayTwoVisibility).toHaveAttribute('aria-pressed', 'true')
-    expect(screen.getByRole('button', { name: /show all days/i })).toBeDisabled()
+    expect(screen.getByRole('button', { name: /show all/i })).toBeDisabled()
 
     await userEvent.click(dayTwoVisibility)
     expect(screen.getByRole('button', {
-      name: /saturday, may 2.*1 activity/i,
+      name: /day 2.*saturday, may 2.*1 activity/i,
     })).toHaveAttribute('aria-pressed', 'false')
     expect(selectedMapActivities.queryByText('Tokyo Tower')).not.toBeInTheDocument()
     expect(routeMapActivities.queryByText('Tokyo Tower')).not.toBeInTheDocument()
     expect(selectedMapActivities.getByText('Tsukiji sushi')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /show all/i })).toBeEnabled()
+    expect(screen.getByRole('button', { name: /days 4\/5/i })).toBeInTheDocument()
     expect(screen.queryByLabelText(/selected map place/i)).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /show all days/i })).toBeEnabled()
 
-    await userEvent.click(screen.getByRole('button', { name: /show all days/i }))
+    await userEvent.click(screen.getByRole('button', { name: /show all/i }))
+    expect(screen.getByRole('button', { name: /days 5\/5/i })).toBeInTheDocument()
     expect(selectedMapActivities.getByText('Tokyo Tower')).toBeInTheDocument()
-    expect(routeMapActivities.getByText('Tokyo Tower')).toBeInTheDocument()
+    await userEvent.click(dayTwoVisibility)
 
-    await userEvent.click(screen.getByRole('button', { name: /close trip menu/i }))
+    await userEvent.click(screen.getByRole('button', { name: /^plan$/i }))
+    await userEvent.click(screen.getByRole('button', { name: /^map$/i }))
+    expect(screen.getByRole('button', { name: /days 4\/5/i })).toBeInTheDocument()
+    expect(within(screen.getByTestId('selected-map-activities')).queryByText('Tokyo Tower')).not.toBeInTheDocument()
+
     await userEvent.click(screen.getByRole('button', { name: /^timeline$/i }))
-    expect(within(screen.getByLabelText(/trip days timeline/i)).getByRole('button', {
+    const fullTimeline = screen.getByLabelText(/trip days timeline/i)
+    await userEvent.click(within(fullTimeline).getByRole('button', {
       name: /^tokyo tower/i,
-    })).toBeInTheDocument()
+    }))
+
+    expect(screen.getByRole('button', { name: /days 5\/5/i })).toBeInTheDocument()
+    expect(within(screen.getByTestId('selected-map-activities')).getByText('Tokyo Tower')).toBeInTheDocument()
+    expect(within(screen.getByTestId('route-map-activities')).getByText('Tokyo Tower')).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: /open map layers and export/i }))
+    const mapLayersDialog = screen.getByRole('dialog', { name: /map layers and export/i })
+    expect(mapLayersDialog).toBeInTheDocument()
+    expect(within(mapLayersDialog).getByRole('link', { name: /open in google maps/i })).toBeInTheDocument()
+    await userEvent.click(within(mapLayersDialog).getByRole('button', { name: /terrain/i }))
+    expect(screen.getByTestId('map-style')).toHaveTextContent('terrain')
   })
 
   it('keeps Ideas out of day maps and routes and shows them in the Ideas tab', async () => {
@@ -1706,15 +2127,22 @@ describe('<TripWorkspacePage>', () => {
     expect(screen.getByRole('button', { name: /^timeline$/i })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByRole('heading', { name: /full trip timeline/i })).toBeInTheDocument()
     expect(screen.getByTestId('active-map-activity')).toHaveTextContent('22')
+    expect(screen.getByTestId('preview-map-place')).toHaveTextContent('none')
     await waitFor(() => {
       expect(within(screen.getByLabelText(/selected map place/i)).getByRole('heading', {
         name: /tokyo tower/i,
       })).toBeInTheDocument()
     })
+    expect(screen.getByTestId('preview-map-place')).toHaveTextContent('none')
     expect(within(screen.getByTestId('selected-map-activities')).getByText('Tokyo Tower'))
       .toBeInTheDocument()
     expect(within(screen.getByTestId('selected-map-activities')).getByText('Tsukiji sushi'))
       .toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: /mock map place click/i }))
+    await waitFor(() => {
+      expect(screen.getByTestId('preview-map-place')).toHaveTextContent('Clicked Place')
+    })
   })
 
   it('syncs active activity state between cards and map controls', async () => {
@@ -1796,6 +2224,7 @@ describe('<TripWorkspacePage>', () => {
 
     await userEvent.click(screen.getByRole('button', { name: /mock activate marker/i }))
     expect(screen.getByTestId('active-map-activity')).toHaveTextContent('22')
+    expect(screen.getByTestId('preview-map-place')).toHaveTextContent('none')
     await waitFor(() => {
       expect(document.activeElement).toHaveAttribute('id', 'activity-22')
     })
@@ -1818,6 +2247,7 @@ describe('<TripWorkspacePage>', () => {
     })
     expect(googleMapsLink).toHaveAttribute('href', 'https://maps.google.com/?cid=tokyo-tower')
     expect(googleMapsLink).not.toHaveTextContent(/open in google maps/i)
+    expect(screen.getByTestId('preview-map-place')).toHaveTextContent('none')
 
     await userEvent.click(screen.getByRole('button', { name: /mock activate marker/i }))
     expect(activityCard).toHaveAttribute('aria-expanded', 'true')
@@ -1875,6 +2305,12 @@ describe('<TripWorkspacePage>', () => {
     expect(screen.queryByRole('button', { name: /edit: tsukiji sushi/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /delete: tsukiji sushi/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /move tsukiji sushi up/i })).not.toBeInTheDocument()
+
+    const calendarDay = screen.getByTitle('2026-05-02 (0 activities)')
+    const ideasButton = screen.getByRole('button', { name: /^ideas$/i })
+    triggerDragStart(activityDragId(10))
+    expect(calendarDay).not.toHaveAttribute('data-sidebar-drop-target')
+    expect(ideasButton).not.toHaveAttribute('data-sidebar-drop-target')
   })
 
   it('opens the empty-day composer and closes it when create is canceled', async () => {
@@ -1922,6 +2358,141 @@ describe('<TripWorkspacePage>', () => {
       lat: null,
       lng: null,
     })
+  })
+
+  it('replaces the create composer with the optimistic activity while creation is pending', async () => {
+    const response = createDeferred<[number, Activity]>()
+    const createdActivity = {
+      ...SAMPLE_ACTIVITY,
+      id: 20,
+      title: 'Latency-free activity',
+    }
+    mockWorkspace()
+    apiMock.onPost('/trips/abc234def567/activities?dayDate=2026-05-01')
+      .reply(() => response.promise)
+
+    renderWorkspace('/trips/abc234def567')
+
+    await userEvent.click((await screen.findAllByRole('button', { name: /add activity/i }))[0])
+    await userEvent.type(screen.getByLabelText(/activity name/i), createdActivity.title)
+    await userEvent.click(screen.getByRole('button', { name: /^create activity$/i }))
+
+    await waitFor(() => {
+      expect(screen.getAllByRole('article', { name: /latency-free activity/i })).toHaveLength(1)
+    })
+    expect(screen.queryByLabelText(/activity name/i)).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /saving/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^add activity$/i })).toBeDisabled()
+    expect(screen.getByRole('status')).toHaveTextContent('Creating activity…')
+    await waitFor(() => {
+      expect(document.getElementById('timeline-panel')).toHaveFocus()
+    })
+
+    act(() => response.resolve([201, createdActivity]))
+
+    await waitFor(() => {
+      expect(screen.getAllByRole('article', { name: /latency-free activity/i })).toHaveLength(1)
+      expect(screen.getByRole('button', { name: /^add activity$/i })).toBeEnabled()
+    })
+    expect(screen.queryByLabelText(/activity name/i)).not.toBeInTheDocument()
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+  })
+
+  it('restores the populated composer after a create failure and hides it again on retry', async () => {
+    const failedResponse = createDeferred<[number, { error: string }]>()
+    const retryResponse = createDeferred<[number, Activity]>()
+    const createdActivity = {
+      ...SAMPLE_ACTIVITY,
+      id: 21,
+      category: 'MEAL' as const,
+      title: 'Retry activity',
+    }
+    let attempt = 0
+    mockWorkspace()
+    apiMock.onPost('/trips/abc234def567/activities?dayDate=2026-05-01').reply(() => {
+      attempt += 1
+      return attempt === 1 ? failedResponse.promise : retryResponse.promise
+    })
+
+    renderWorkspace('/trips/abc234def567')
+
+    await userEvent.click((await screen.findAllByRole('button', { name: /add activity/i }))[0])
+    await userEvent.click(screen.getByRole('button', { name: /category: other/i }))
+    await userEvent.click(screen.getByRole('menuitemradio', { name: /meal/i }))
+    await userEvent.type(screen.getByLabelText(/activity name/i), createdActivity.title)
+    await userEvent.click(screen.getByRole('button', { name: /^create activity$/i }))
+
+    await waitFor(() => {
+      expect(screen.getAllByRole('article', { name: /retry activity/i })).toHaveLength(1)
+    })
+    expect(screen.queryByLabelText(/activity name/i)).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /saving/i })).not.toBeInTheDocument()
+
+    act(() => failedResponse.resolve([500, { error: 'create_failed' }]))
+
+    const restoredTitleInput = await screen.findByLabelText(/activity name/i)
+    expect(restoredTitleInput).toHaveValue(createdActivity.title)
+    expect(restoredTitleInput).toHaveFocus()
+    expect(screen.getByRole('button', { name: /category: meal/i })).toBeInTheDocument()
+    expect(screen.queryByRole('article', { name: /retry activity/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('alert')).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: /^create activity$/i }))
+
+    await waitFor(() => {
+      expect(screen.getAllByRole('article', { name: /retry activity/i })).toHaveLength(1)
+    })
+    expect(screen.queryByLabelText(/activity name/i)).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /saving/i })).not.toBeInTheDocument()
+
+    act(() => retryResponse.resolve([201, createdActivity]))
+
+    await waitFor(() => {
+      expect(screen.getAllByRole('article', { name: /retry activity/i })).toHaveLength(1)
+      expect(apiMock.history.post).toHaveLength(2)
+    })
+    expect(screen.queryByLabelText(/activity name/i)).not.toBeInTheDocument()
+  })
+
+  it('keeps the Ideas pending status stable when switching workspaces', async () => {
+    const response = createDeferred<[number, Omit<Activity, 'dayDate'>]>()
+    const createdIdea = withoutDayDate({
+      ...SAMPLE_ACTIVITY,
+      id: 22,
+      dayDate: null,
+      title: 'Save ramen shop',
+    })
+    mockWorkspace()
+    apiMock.onPost('/trips/abc234def567/activities').reply(() => response.promise)
+
+    renderWorkspace('/trips/abc234def567')
+
+    await userEvent.click(await screen.findByRole('button', { name: /^ideas$/i }))
+    await userEvent.click(screen.getAllByRole('button', { name: /^add idea$/i })[0])
+    await userEvent.type(screen.getByLabelText(/activity name/i), createdIdea.title)
+    await userEvent.click(screen.getByRole('button', { name: /^save idea$/i }))
+
+    await waitFor(() => {
+      expect(screen.getAllByRole('article', { name: /save ramen shop/i })).toHaveLength(1)
+    })
+    expect(screen.queryByLabelText(/activity name/i)).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^save idea$/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('Saving idea…')
+
+    await userEvent.click(screen.getByRole('button', { name: /^timeline$/i }))
+
+    expect(screen.getByRole('status')).toHaveTextContent('Saving idea…')
+
+    act(() => response.resolve([201, createdIdea]))
+
+    await waitFor(() => {
+      expect(screen.queryByRole('status')).not.toBeInTheDocument()
+      expect(apiMock.history.post).toHaveLength(1)
+    })
+
+    await userEvent.click(screen.getByRole('button', { name: /^ideas$/i }))
+    expect(screen.getAllByRole('article', { name: /save ramen shop/i })).toHaveLength(1)
+    expect(screen.queryByLabelText(/activity name/i)).not.toBeInTheDocument()
   })
 
   it('creates an activity from a selected Google place', async () => {
@@ -2278,6 +2849,7 @@ describe('<TripWorkspacePage>', () => {
     renderWorkspace('/trips/abc234def567/d/2026-05-01')
 
     await screen.findByTestId('trip-map')
+    await userEvent.click(screen.getByRole('button', { name: /mock viewport center/i }))
     await userEvent.click(screen.getByRole('button', { name: /mock type ramen search/i }))
     expect(screen.getByTestId('place-search-value')).toHaveTextContent('ramen')
     await userEvent.click(screen.getByRole('button', { name: /mock submit place search/i }))
@@ -2297,7 +2869,16 @@ describe('<TripWorkspacePage>', () => {
     const mapSearchResults = screen.getByLabelText(/map search results/i)
     expect(within(mapSearchResults).getByRole('button', { name: /ramen street/i })).toBeInTheDocument()
     expect(within(mapSearchResults).queryByRole('img', { name: /ramen street/i })).not.toBeInTheDocument()
-    expect(googlePlacesMockState.imageUrlFromGooglePhotoName).not.toHaveBeenCalled()
+    await waitFor(() => {
+      expect(googlePlacesMockState.imageUrlFromGooglePhotoName).toHaveBeenCalledWith({
+        maxHeightPx: 240,
+        maxWidthPx: 320,
+        photoName: 'places/google.ramen-street/photos/main',
+      })
+    })
+
+    const initialSearchOptions = googlePlacesMockState.fetchGooglePlaceTextSearch.mock.calls[0]?.[0].options
+    await userEvent.click(screen.getByRole('button', { name: /mock move map viewport/i }))
 
     const searchResultPlaces = screen.getByLabelText(/search result places/i)
     Object.defineProperties(searchResultPlaces, {
@@ -2308,11 +2889,10 @@ describe('<TripWorkspacePage>', () => {
     await waitFor(() => {
       expect(googlePlacesMockState.fetchGooglePlaceTextSearch).toHaveBeenLastCalledWith({
         includePhoto: false,
-        options: expect.objectContaining({
-          language: 'en',
+        options: {
+          ...initialSearchOptions,
           pageToken: 'next-page',
-          rankPreference: 'RELEVANCE',
-        }),
+        },
         pageSize: 10,
         query: 'ramen',
       })
@@ -2381,6 +2961,86 @@ describe('<TripWorkspacePage>', () => {
     expect(screen.queryByLabelText(/selected map place/i)).not.toBeInTheDocument()
   })
 
+  it('keeps loaded search results and requires explicit retry after pagination fails', async () => {
+    mockWorkspace()
+    const ramenPlace = {
+      businessStatus: 'OPERATIONAL',
+      currentOpeningHours: null,
+      displayName: 'Ramen Street',
+      formattedAddress: '1 Chome Marunouchi, Tokyo',
+      googleMapsUri: null,
+      id: 'google.ramen-street',
+      lat: 35.6812,
+      lng: 139.7671,
+      photoName: null,
+      photoUrl: null,
+      primaryType: 'restaurant',
+      primaryTypeDisplayName: 'Restaurant',
+      priceLevel: null,
+      rating: 4.4,
+      regularOpeningHours: null,
+      reviews: [],
+      text: 'Ramen Street, 1 Chome Marunouchi, Tokyo',
+      types: ['restaurant'],
+      userRatingCount: 1200,
+      websiteUri: null,
+    }
+    googlePlacesMockState.fetchGooglePlaceTextSearch
+      .mockResolvedValueOnce({ nextPageToken: 'retry-page', places: [ramenPlace] })
+      .mockRejectedValueOnce(new Error('Google Places returned 400'))
+      .mockResolvedValueOnce({
+        nextPageToken: null,
+        places: [{
+          ...ramenPlace,
+          displayName: 'Udon Alley',
+          formattedAddress: '2 Chome Marunouchi, Tokyo',
+          id: 'google.udon-alley',
+          text: 'Udon Alley, 2 Chome Marunouchi, Tokyo',
+        }],
+      })
+
+    renderWorkspace('/trips/abc234def567/d/2026-05-01')
+    await screen.findByTestId('trip-map')
+    await userEvent.click(screen.getByRole('button', { name: /mock type ramen search/i }))
+    await userEvent.click(screen.getByRole('button', { name: /mock submit place search/i }))
+
+    const results = await screen.findByLabelText(/search result places/i)
+    const initialSearchOptions = googlePlacesMockState.fetchGooglePlaceTextSearch.mock.calls[0]?.[0].options
+    Object.defineProperties(results, {
+      clientWidth: { configurable: true, value: 900 },
+      scrollLeft: { configurable: true, value: 850, writable: true },
+      scrollWidth: { configurable: true, value: 1000 },
+    })
+    fireEvent.scroll(results)
+
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent(/couldn’t load more places/i)
+    expect(within(screen.getByLabelText(/map search results/i)).getByText('Ramen Street'))
+      .toBeInTheDocument()
+    expect(googlePlacesMockState.fetchGooglePlaceTextSearch).toHaveBeenCalledTimes(2)
+
+    fireEvent.scroll(results)
+    fireEvent.scroll(results)
+    expect(googlePlacesMockState.fetchGooglePlaceTextSearch).toHaveBeenCalledTimes(2)
+
+    await userEvent.click(within(alert).getByRole('button', { name: /^retry$/i }))
+    await waitFor(() => {
+      expect(googlePlacesMockState.fetchGooglePlaceTextSearch).toHaveBeenCalledTimes(3)
+      expect(within(screen.getByLabelText(/map search results/i)).getByText('Udon Alley'))
+        .toBeInTheDocument()
+    })
+    expect(screen.queryByText(/couldn’t load more places/i)).not.toBeInTheDocument()
+    expect(googlePlacesMockState.fetchGooglePlaceTextSearch).toHaveBeenLastCalledWith({
+      includePhoto: false,
+      options: {
+        ...initialSearchOptions,
+        pageToken: 'retry-page',
+      },
+      pageSize: 10,
+      query: 'ramen',
+    })
+  })
+
   it('keeps mobile search results and place details as exclusive sheets', async () => {
     mockViewport(true)
     mockWorkspace()
@@ -2441,6 +3101,19 @@ describe('<TripWorkspacePage>', () => {
     expect(screen.queryByLabelText(/map search results/i)).not.toBeInTheDocument()
     expect(within(detailSheet).getByRole('button', { name: /back to results/i })).toBeInTheDocument()
     expect(within(detailSheet).getAllByRole('button', { name: /close place details/i })).toHaveLength(1)
+    const placeImage = within(detailSheet).getByRole('img', { name: /ramen street/i })
+    const hero = placeImage.parentElement?.parentElement
+    expect(hero).toContainElement(within(detailSheet).getByRole('button', { name: /back to results/i }))
+    expect(hero).toContainElement(
+      within(detailSheet).getByRole('button', { name: /close place details/i }),
+    )
+    expect(detailSheet.querySelector('[class*="placeDetailMobileHeader"]')).not.toBeInTheDocument()
+
+    fireEvent.error(placeImage)
+    await waitFor(() => {
+      expect(within(detailSheet).queryByRole('img', { name: /ramen street/i })).not.toBeInTheDocument()
+      expect(detailSheet.querySelector('[data-photo-state="fallback"]')).toBeInTheDocument()
+    })
     const detailHeading = within(detailSheet).getByRole('heading', { name: /ramen street/i })
     await waitFor(() => {
       expect(detailHeading).toHaveFocus()
