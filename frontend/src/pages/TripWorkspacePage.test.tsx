@@ -138,6 +138,7 @@ vi.mock('../components/TripMap', () => ({
     activities,
     coordinatePreviewPlace,
     fallbackActivities,
+    focusedActivityId,
     mapStyle,
     onActivityActivate,
     onActiveActivityChange,
@@ -152,11 +153,13 @@ vi.mock('../components/TripMap', () => ({
     searchResults = [],
     selectedSearchResultId,
     showDestinationFallback = true,
+    viewportFitKey,
   }: {
     activeActivityId?: number | null
     activities: Array<{ id: number; title: string }>
     coordinatePreviewPlace?: { placeName?: string | null; title?: string | null } | null
     fallbackActivities: Array<{ id: number; title: string }>
+    focusedActivityId?: number | null
     mapStyle?: string
     onActivityActivate?: (activityId: number) => void
     onActiveActivityChange?: (activityId: number | null) => void
@@ -181,9 +184,12 @@ vi.mock('../components/TripMap', () => ({
     searchResults?: Array<Record<string, unknown>>
     selectedSearchResultId?: string | null
     showDestinationFallback?: boolean
+    viewportFitKey?: string
   }) => (
     <div id="trip-map-focus-target" data-testid="trip-map" tabIndex={-1}>
       <div data-testid="active-map-activity">{activeActivityId ?? 'none'}</div>
+      <div data-testid="focused-map-activity">{focusedActivityId ?? 'none'}</div>
+      <div data-testid="map-viewport-fit-key" data-viewport-fit-key={viewportFitKey ?? 'none'} />
       <div data-testid="map-style">{mapStyle}</div>
       <div data-testid="preview-map-place">
         {previewPlace?.placeName ?? previewPlace?.title ?? 'none'}
@@ -1626,6 +1632,7 @@ describe('<TripWorkspacePage>', () => {
     expect(within(fullTimeline).queryByText(/^day \d/i)).not.toBeInTheDocument()
 
     const selectedMapActivities = within(screen.getByTestId('selected-map-activities'))
+    const fallbackMapActivities = within(screen.getByTestId('fallback-map-activities'))
     const routeMapActivities = within(screen.getByTestId('route-map-activities'))
     expect(selectedMapActivities.getByText('Tsukiji sushi')).toBeInTheDocument()
     expect(selectedMapActivities.getByText('Tokyo Tower')).toBeInTheDocument()
@@ -1653,18 +1660,37 @@ describe('<TripWorkspacePage>', () => {
     const tokyoTowerButton = within(fullTimeline).getByRole('button', { name: /^tokyo tower/i })
     fireEvent.mouseEnter(tokyoTowerButton)
     expect(screen.getByTestId('active-map-activity')).toHaveTextContent('22')
-    fireEvent.mouseLeave(tokyoTowerButton)
-    expect(screen.getByTestId('active-map-activity')).toHaveTextContent('none')
+    await userEvent.click(tokyoTowerButton)
+    expect(screen.getByTestId('focused-map-activity')).toHaveTextContent('22')
+    expect(screen.getByLabelText(/selected map place/i)).toBeInTheDocument()
 
     const dayTwoToggle = within(fullTimeline).getByRole('button', { name: /saturday, may 2/i })
     await userEvent.click(dayTwoToggle)
     expect(dayTwoToggle).toHaveAttribute('aria-expanded', 'false')
     expect(within(fullTimeline).queryByRole('button', { name: /^tokyo tower/i })).not.toBeInTheDocument()
-    expect(selectedMapActivities.getByText('Tokyo Tower')).toBeInTheDocument()
-    expect(routeMapActivities.getByText('Tokyo Tower')).toBeInTheDocument()
+    expect(selectedMapActivities.queryByText('Tokyo Tower')).not.toBeInTheDocument()
+    expect(routeMapActivities.queryByText('Tokyo Tower')).not.toBeInTheDocument()
+    expect(fallbackMapActivities.queryByText('Tokyo Tower')).not.toBeInTheDocument()
+    expect(selectedMapActivities.getByText('Tsukiji sushi')).toBeInTheDocument()
+    expect(routeMapActivities.getByText('Tsukiji sushi')).toBeInTheDocument()
+    expect(screen.getByTestId('active-map-activity')).toHaveTextContent('none')
+    expect(screen.getByTestId('focused-map-activity')).toHaveTextContent('none')
+    expect(screen.queryByLabelText(/selected map place/i)).not.toBeInTheDocument()
+    expect(screen.getByTestId('map-viewport-fit-key')).toHaveAttribute(
+      'data-viewport-fit-key',
+      'timeline:timeline:2026-05-02:Tokyo, Japan',
+    )
 
     await userEvent.click(dayTwoToggle)
     expect(dayTwoToggle).toHaveAttribute('aria-expanded', 'true')
+    expect(selectedMapActivities.getByText('Tokyo Tower')).toBeInTheDocument()
+    expect(routeMapActivities.getByText('Tokyo Tower')).toBeInTheDocument()
+    expect(screen.getByTestId('active-map-activity')).toHaveTextContent('none')
+    expect(screen.getByTestId('focused-map-activity')).toHaveTextContent('none')
+    expect(screen.getByTestId('map-viewport-fit-key')).toHaveAttribute(
+      'data-viewport-fit-key',
+      'timeline:timeline::Tokyo, Japan',
+    )
 
     await userEvent.click(within(fullTimeline).getByRole('button', { name: /^tokyo tower/i }))
     expect(screen.getByTestId('active-map-activity')).toHaveTextContent('22')
