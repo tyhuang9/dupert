@@ -253,7 +253,6 @@
   color: var(--date-picker-text);
   font-size: var(--font-size-sm);
   font-weight: 700;
-  isolation: isolate;
 }
 
 .calendarDateButton::before {
@@ -261,8 +260,8 @@
   position: absolute;
   z-index: 0;
   top: 50%;
-  right: 0;
-  left: 0;
+  right: -1px;
+  left: -1px;
   height: 2.5rem;
   background: transparent;
   transform: translateY(-50%);

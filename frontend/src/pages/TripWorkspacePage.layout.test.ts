@@ -235,8 +235,8 @@ describe('TripWorkspacePage layout scroll contract', () => {
     expect(gridBlock).toMatch(/min-height:\s*var\(--date-picker-grid-height\)/)
     expect(gridBlock).toMatch(/grid-auto-rows:\s*var\(--date-picker-day-size\)/)
     expect(buttonBlock).toMatch(/border:\s*0/)
-    expect(rangeBlock).toMatch(/right:\s*0/)
-    expect(rangeBlock).toMatch(/left:\s*0/)
+    expect(rangeBlock).toMatch(/right:\s*-1px/)
+    expect(rangeBlock).toMatch(/left:\s*-1px/)
     expect(previousButtonBlock).toMatch(
       /left:\s*calc\(-1 \* \(var\(--space-5\) \+ var\(--date-nav-overlap\)\)\)/,
     )
