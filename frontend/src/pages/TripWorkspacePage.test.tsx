@@ -865,7 +865,7 @@ describe('<TripWorkspacePage>', () => {
     const nextDayPicker = within(nextHeading).getByRole('button', {
       name: /choose trip day: saturday, may 2/i,
     })
-    vi.spyOn(nextDayPicker, 'getBoundingClientRect').mockReturnValue(domRect({
+    const nextDayPickerRect = vi.spyOn(nextDayPicker, 'getBoundingClientRect').mockReturnValue(domRect({
       bottom: 164,
       left: 60,
       right: 330,
@@ -881,6 +881,40 @@ describe('<TripWorkspacePage>', () => {
       width: '360px',
     })
     expect(screen.getByRole('button', { name: /close day picker/i })).toHaveFocus()
+
+    nextDayPickerRect.mockReturnValue(domRect({
+      bottom: 744,
+      left: 220,
+      right: 360,
+      top: 700,
+    }))
+    fireEvent(window, new Event('resize'))
+    await waitFor(() => {
+      expect(dayPickerDialog).toHaveAttribute('data-placement', 'above')
+      expect(dayPickerDialog).toHaveStyle({
+        bottom: '152px',
+        left: '18px',
+        maxHeight: '672px',
+        width: '360px',
+      })
+    })
+
+    nextDayPickerRect.mockReturnValue(domRect({
+      bottom: 164,
+      left: 60,
+      right: 330,
+      top: 120,
+    }))
+    fireEvent.scroll(window)
+    await waitFor(() => {
+      expect(dayPickerDialog).toHaveAttribute('data-placement', 'below')
+      expect(dayPickerDialog).toHaveStyle({
+        left: '15px',
+        maxHeight: '660px',
+        top: '172px',
+        width: '360px',
+      })
+    })
 
     fireEvent.keyDown(window, { key: 'Escape' })
     await waitFor(() => {
