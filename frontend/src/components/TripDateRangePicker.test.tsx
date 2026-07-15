@@ -37,9 +37,11 @@ describe('<TripDateRangePicker>', () => {
     )
     mockFieldRect()
 
-    await userEvent.click(screen.getByRole('button', { name: /trip dates/i }))
+    const trigger = screen.getByRole('button', { name: /trip dates/i })
+    await userEvent.click(trigger)
 
     const dialog = screen.getByRole('dialog', { name: /trip dates/i })
+    expect(trigger).toHaveAttribute('data-panel-placement', 'below')
     expect(screen.getByTestId('settings-popup')).not.toContainElement(dialog)
     expect(document.body).toContainElement(dialog)
     expect(dialog).toContainElement(screen.getByRole('button', { name: /previous month/i }))
@@ -76,9 +78,11 @@ describe('<TripDateRangePicker>', () => {
       y: 620,
     })
 
-    await userEvent.click(screen.getByRole('button', { name: /trip dates/i }))
+    const trigger = screen.getByRole('button', { name: /trip dates/i })
+    await userEvent.click(trigger)
 
     const dialog = screen.getByRole('dialog', { name: /trip dates/i })
+    expect(trigger).toHaveAttribute('data-panel-placement', 'above')
     expect(dialog).toHaveAttribute('data-placement', 'above')
     expect(dialog.style.bottom).toBe('')
     expect(dialog).toHaveStyle({

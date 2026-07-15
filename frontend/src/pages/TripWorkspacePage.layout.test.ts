@@ -245,6 +245,32 @@ describe('TripWorkspacePage layout scroll contract', () => {
     )
   })
 
+  it('joins the date picker to the trigger and keeps mobile dates compact', () => {
+    const belowTriggerBlock = cssBlocks(
+      datePickerCss,
+      ".dateRangeTrigger[aria-expanded='true'][data-panel-placement='below']",
+    )[0] ?? ''
+    const aboveTriggerBlock = cssBlocks(
+      datePickerCss,
+      ".dateRangeTrigger[aria-expanded='true'][data-panel-placement='above']",
+    )[0] ?? ''
+    const triggerBlocks = cssBlocks(datePickerCss, '.dateRangeTrigger')
+    const summaryBlocks = cssBlocks(datePickerCss, '.dateRangeSummary')
+    const mobileTriggerBlock = triggerBlocks.at(-1) ?? ''
+    const mobileSummaryBlock = summaryBlocks.at(-1) ?? ''
+
+    expect(belowTriggerBlock).toMatch(/border-bottom-right-radius:\s*0/)
+    expect(belowTriggerBlock).toMatch(/border-bottom-left-radius:\s*0/)
+    expect(aboveTriggerBlock).toMatch(/border-top-left-radius:\s*0/)
+    expect(aboveTriggerBlock).toMatch(/border-top-right-radius:\s*0/)
+    expect(mobileTriggerBlock).toMatch(/min-height:\s*3\.75rem/)
+    expect(mobileTriggerBlock).toMatch(/padding-block:\s*var\(--space-2\)/)
+    expect(mobileSummaryBlock).toMatch(
+      /grid-template-columns:\s*minmax\(0,\s*1fr\) auto minmax\(0,\s*1fr\)/,
+    )
+    expect(mobileSummaryBlock).not.toMatch(/grid-template-columns:\s*1fr/)
+  })
+
   it('keeps the selected-place detail card compact above search results', () => {
     const cardBlock = cssBlocks(workspaceCss, '.placeDetailCard')[0] ?? ''
     const raisedBlock = cssBlocks(workspaceCss, '.placeDetailCardRaised')[0] ?? ''

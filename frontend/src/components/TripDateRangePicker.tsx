@@ -363,6 +363,7 @@ export function TripDateRangePicker({
         aria-labelledby={dateRangeId}
         aria-describedby={errorIds}
         aria-invalid={Boolean(startDateError || endDateError)}
+        data-panel-placement={isOpen ? panelPlacement : undefined}
       >
         <CalendarDays size={18} aria-hidden="true" />
         <span className={styles.dateRangeSummary}>

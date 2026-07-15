@@ -43,9 +43,14 @@
   box-shadow: var(--shadow-sm);
 }
 
-.dateRangeTrigger[aria-expanded='true'] {
+.dateRangeTrigger[aria-expanded='true'][data-panel-placement='below'] {
   border-bottom-right-radius: 0;
   border-bottom-left-radius: 0;
+}
+
+.dateRangeTrigger[aria-expanded='true'][data-panel-placement='above'] {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
 }
 
 .dateRangeTrigger[aria-invalid='true'] {
@@ -331,8 +336,15 @@
     --date-picker-day-size: 2.375rem;
   }
 
+  .dateRangeTrigger {
+    min-height: 3.75rem;
+    gap: var(--space-2);
+    padding-block: var(--space-2);
+  }
+
   .dateRangeSummary {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    gap: var(--space-2);
   }
 
   .datePickerCalendarArea {
