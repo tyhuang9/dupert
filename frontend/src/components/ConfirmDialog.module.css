@@ -41,6 +41,10 @@
   line-height: 1.5;
 }
 
+.body .error {
+  color: var(--color-danger-fg);
+}
+
 .actions {
   display: flex;
   justify-content: flex-end;

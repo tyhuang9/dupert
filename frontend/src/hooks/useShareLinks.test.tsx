@@ -4,7 +4,7 @@ import MockAdapter from 'axios-mock-adapter'
 import type { PropsWithChildren } from 'react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { apiClient } from '../api/client'
-import type { ShareLink } from '../types/share'
+import type { ShareLink, TripMember } from '../types/share'
 import type { Trip } from '../types/trip'
 import { tripKeys } from './useTrips'
 import {
@@ -12,6 +12,7 @@ import {
   useAcceptShareLink,
   useClaimGuestSession,
   useCreateShareLink,
+  useRemoveTripMember,
 } from './useShareLinks'
 
 let apiMock: MockAdapter
@@ -44,6 +45,20 @@ const SAMPLE_TRIP: Trip = {
   createdAt: '2026-05-22T16:00:00Z',
   role: 'VIEWER',
   version: 0,
+}
+
+const OWNER: TripMember = {
+  userId: 42,
+  email: 'alice@example.com',
+  displayName: 'Alice',
+  role: 'OWNER',
+}
+
+const EDITOR: TripMember = {
+  userId: 84,
+  email: 'bob@example.com',
+  displayName: 'Bob',
+  role: 'EDITOR',
 }
 
 function wrapper({ children }: PropsWithChildren) {
@@ -98,6 +113,26 @@ describe('useShareLinks', () => {
         revokedAt: CREATED_LINK.revokedAt,
       },
     ])
+  })
+
+  it('removes a member from cache and invalidates the member query', async () => {
+    queryClient.setQueryData(shareKeys.members('abc234def567'), [OWNER, EDITOR])
+    apiMock.onDelete('/trips/abc234def567/members/84').reply(204)
+
+    const { result } = renderHook(() => useRemoveTripMember(), { wrapper })
+
+    await act(async () => {
+      await result.current.mutateAsync({
+        publicId: 'abc234def567',
+        userId: EDITOR.userId,
+      })
+    })
+
+    expect(queryClient.getQueryData(shareKeys.members('abc234def567'))).toEqual([
+      OWNER,
+    ])
+    expect(queryClient.getQueryState(shareKeys.members('abc234def567'))?.isInvalidated)
+      .toBe(true)
   })
 
   it('invalidates trips after accepting a share link as an authenticated user', async () => {

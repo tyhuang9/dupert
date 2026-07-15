@@ -25,6 +25,15 @@ export async function listTripMembers(publicId: string): Promise<TripMember[]> {
   return data
 }
 
+export async function removeTripMember(
+  publicId: string,
+  userId: number,
+): Promise<void> {
+  await apiClient.delete(
+    `/trips/${encodeURIComponent(publicId)}/members/${userId}`,
+  )
+}
+
 export async function createShareLink(
   publicId: string,
   body: CreateShareLinkRequest,
