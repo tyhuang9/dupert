@@ -265,8 +265,8 @@
   overflow-wrap: anywhere;
 }
 
-.listItem > .itemMeta {
-  justify-self: start;
+.roleBadge {
+  margin: 0;
   padding: var(--space-1) var(--space-2);
   border-radius: var(--radius-md);
   background-color: var(--color-primary-softer);
@@ -275,6 +275,40 @@
   font-weight: 700;
   line-height: var(--line-height-tight);
   text-transform: uppercase;
+}
+
+.memberActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.dangerButton {
+  min-height: 2.25rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--color-danger) 45%, var(--color-surface-border));
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-danger-fg);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.dangerButton:hover,
+.dangerButton:focus-visible {
+  border-color: var(--color-danger);
+  background: var(--color-danger-bg);
+}
+
+.dangerButton:focus-visible {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
 }
 
 .state,
@@ -306,6 +340,10 @@
   .header,
   .listItem {
     grid-template-columns: 1fr;
+  }
+
+  .memberActions {
+    justify-content: space-between;
   }
 
   .header {

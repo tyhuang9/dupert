@@ -176,8 +176,13 @@ export function useTripStream(
               return
             }
 
+            if (event.type === 'members.changed') {
+              invalidateTripAccessState(queryClient, streamPublicId)
+              return
+            }
+
             if (event.type === 'share-links.changed') {
-              invalidateShareState(queryClient, streamPublicId)
+              invalidateTripAccessState(queryClient, streamPublicId)
               scheduleActivityInvalidation(streamPublicId)
             }
           },
@@ -225,7 +230,7 @@ function assertStreamResponse(response: Response): void {
   }
 }
 
-function invalidateShareState(
+function invalidateTripAccessState(
   queryClient: ReturnType<typeof useQueryClient>,
   publicId: string,
 ) {

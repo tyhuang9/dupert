@@ -1,6 +1,10 @@
 package com.trip.web;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -40,6 +44,7 @@ class TripMemberControllerTest {
 
     private static final long ALICE_ID = 100L;
     private static final long BOB_ID = 200L;
+    private static final long CHARLIE_ID = 300L;
     private static final long TRIP_PK = 42L;
     private static final String TRIP_PUBLIC_ID = "abc23def45gh";
 
@@ -119,6 +124,56 @@ class TripMemberControllerTest {
                 .header("Authorization", bearerFor(BOB_ID)))
             .andExpect(status().isNotFound())
             .andExpect(jsonPath("$.error").value("not_found"));
+    }
+
+    @Test
+    void ownerRemovesMember() throws Exception {
+        TripMember editor = new TripMember(TRIP_PK, BOB_ID, TripRole.EDITOR);
+        when(tripMemberRepository.findByIdTripIdAndIdUserId(TRIP_PK, BOB_ID))
+            .thenReturn(Optional.of(editor));
+
+        mvc.perform(delete("/api/trips/" + TRIP_PUBLIC_ID + "/members/" + BOB_ID)
+                .header("Authorization", bearerFor(ALICE_ID)))
+            .andExpect(status().isNoContent());
+
+        verify(tripMemberRepository).delete(editor);
+    }
+
+    @Test
+    void nonOwnerCannotRemoveMember() throws Exception {
+        when(tripMemberRepository.findByIdTripIdAndIdUserId(TRIP_PK, BOB_ID))
+            .thenReturn(Optional.of(new TripMember(TRIP_PK, BOB_ID, TripRole.EDITOR)));
+
+        mvc.perform(delete("/api/trips/" + TRIP_PUBLIC_ID + "/members/" + CHARLIE_ID)
+                .header("Authorization", bearerFor(BOB_ID)))
+            .andExpect(status().isForbidden())
+            .andExpect(jsonPath("$.error").value("forbidden"));
+
+        verify(tripMemberRepository, never()).delete(any());
+    }
+
+    @Test
+    void ownerCannotRemoveSelf() throws Exception {
+        mvc.perform(delete("/api/trips/" + TRIP_PUBLIC_ID + "/members/" + ALICE_ID)
+                .header("Authorization", bearerFor(ALICE_ID)))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.error").value("cannot_remove_owner"));
+
+        verify(tripMemberRepository, never()).delete(any());
+    }
+
+    @Test
+    void missingOrCrossTripTargetReturns404() throws Exception {
+        when(tripMemberRepository.findByIdTripIdAndIdUserId(TRIP_PK, BOB_ID))
+            .thenReturn(Optional.empty());
+
+        mvc.perform(delete("/api/trips/" + TRIP_PUBLIC_ID + "/members/" + BOB_ID)
+                .header("Authorization", bearerFor(ALICE_ID)))
+            .andExpect(status().isNotFound())
+            .andExpect(jsonPath("$.error").value("not_found"));
+
+        verify(tripMemberRepository).findByIdTripIdAndIdUserId(TRIP_PK, BOB_ID);
+        verify(tripMemberRepository, never()).delete(any());
     }
 
     private String bearerFor(long userId) {
