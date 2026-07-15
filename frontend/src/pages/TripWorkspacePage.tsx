@@ -4429,7 +4429,7 @@ export function TripWorkspacePage() {
                   onViewportContextChange={setMapViewportContext}
                   routeSummaryClassName={isMobileViewport ? styles.mapRouteSummary : undefined}
                   routeSummaryContainer={isMobileViewport ? mapRouteSummaryHost : undefined}
-                  routeSummaryLabel={hasMobileMapDayScope ? 'Visible-days route' : undefined}
+                  routeSummaryLabel={hasMobileMapDayScope ? 'Visible-days routes' : undefined}
                   viewportFitKey={viewportFitKey}
                 />
                 </GoogleMapsProvider>

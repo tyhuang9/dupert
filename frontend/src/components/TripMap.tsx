@@ -7,7 +7,7 @@ import {
   type CSSProperties,
   type ReactNode,
 } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQueries, useQuery } from '@tanstack/react-query'
 import { createPortal } from 'react-dom'
 import {
   APILoadingStatus,
@@ -159,9 +159,34 @@ interface MapCamera {
 interface RouteLegDisplay {
   fallbackPosition: LatLng
   id: string
-  index: number
   label: string
   path: LatLng[]
+}
+
+interface RouteActivityGroup {
+  activities: CoordinateActivity[]
+  dayDate: string
+  key: string
+}
+
+interface LoadedDayRoute {
+  activities: CoordinateActivity[]
+  dayDate: string
+  route: NonNullable<Awaited<ReturnType<typeof getDrivingDirections>>>
+}
+
+type RouteQueryData = Awaited<ReturnType<typeof getDrivingDirections>>
+
+interface RouteQueryResultSnapshot {
+  data: RouteQueryData | undefined
+  error: unknown
+  isLoading: boolean
+  status: 'pending' | 'error' | 'success'
+}
+
+interface CombinedRouteQueryResults {
+  isLoading: boolean
+  results: RouteQueryResultSnapshot[]
 }
 
 interface ActiveRouteLeg {
@@ -191,6 +216,8 @@ const ACTIVE_ROUTE_STYLE = {
 
 const MAP_ROUTE_STALE_TIME_MS = 60 * 60 * 1000
 const MAP_ROUTE_GC_TIME_MS = 60 * 60 * 1000
+const MAX_CONCURRENT_ROUTE_REQUESTS = 4
+const MIN_ROUTE_REQUEST_START_INTERVAL_MS = 600
 const MAP_GEOCODE_STALE_TIME_MS = 30 * 24 * 60 * 60 * 1000
 const MAP_GEOCODE_GC_TIME_MS = 60 * 60 * 1000
 
@@ -200,6 +227,126 @@ function isFiniteCoordinate(value: unknown): value is number {
 
 function hasCoordinates(activity: Activity): activity is CoordinateActivity {
   return isFiniteCoordinate(activity.lat) && isFiniteCoordinate(activity.lng)
+}
+
+class RouteRequestScheduler {
+  private activeRequests = 0
+  private readonly concurrency: number
+  private readonly minimumStartIntervalMs: number
+  private nextStartAt = 0
+  private readonly waiting: Array<() => void> = []
+  private wakeTimer: ReturnType<typeof globalThis.setTimeout> | null = null
+
+  constructor(concurrency: number, minimumStartIntervalMs: number) {
+    this.concurrency = concurrency
+    this.minimumStartIntervalMs = minimumStartIntervalMs
+  }
+
+  async run<T>(request: () => Promise<T>, signal?: AbortSignal): Promise<T> {
+    await this.acquire(signal)
+    try {
+      return await request()
+    } finally {
+      this.activeRequests -= 1
+      this.scheduleNext()
+    }
+  }
+
+  private acquire(signal?: AbortSignal): Promise<void> {
+    if (signal?.aborted) {
+      return Promise.reject(new DOMException('The route request was aborted.', 'AbortError'))
+    }
+
+    return new Promise((resolve, reject) => {
+      const start = () => {
+        signal?.removeEventListener('abort', abort)
+        if (signal?.aborted) {
+          reject(new DOMException('The route request was aborted.', 'AbortError'))
+          this.scheduleNext()
+          return
+        }
+        this.activeRequests += 1
+        this.nextStartAt = Date.now() + this.minimumStartIntervalMs
+        resolve()
+        this.scheduleNext()
+      }
+      const abort = () => {
+        const index = this.waiting.indexOf(start)
+        if (index >= 0) this.waiting.splice(index, 1)
+        reject(new DOMException('The route request was aborted.', 'AbortError'))
+        this.scheduleNext()
+      }
+
+      signal?.addEventListener('abort', abort, { once: true })
+      this.waiting.push(start)
+      this.scheduleNext()
+    })
+  }
+
+  private scheduleNext() {
+    if (this.waiting.length === 0) {
+      this.clearWakeTimer()
+      return
+    }
+    if (this.activeRequests >= this.concurrency) return
+
+    const waitMs = Math.max(0, this.nextStartAt - Date.now())
+    if (waitMs > 0) {
+      if (this.wakeTimer === null) {
+        this.wakeTimer = globalThis.setTimeout(() => {
+          this.wakeTimer = null
+          this.scheduleNext()
+        }, waitMs)
+      }
+      return
+    }
+
+    const next = this.waiting.shift()
+    next?.()
+  }
+
+  private clearWakeTimer() {
+    if (this.wakeTimer === null) return
+    globalThis.clearTimeout(this.wakeTimer)
+    this.wakeTimer = null
+  }
+}
+
+function combineRouteQueryResults(
+  results: RouteQueryResultSnapshot[],
+): CombinedRouteQueryResults {
+  return {
+    isLoading: results.some((result) => result.isLoading),
+    results: results.map(({ data, error, isLoading, status }) => ({
+      data,
+      error,
+      isLoading,
+      status,
+    })),
+  }
+}
+
+function groupRouteActivitiesByDay(activities: Activity[]): RouteActivityGroup[] {
+  const groups = new globalThis.Map<string, CoordinateActivity[]>()
+
+  activities.forEach((activity) => {
+    if (!hasCoordinates(activity) || activity.dayDate == null) return
+    const group = groups.get(activity.dayDate)
+    if (group) {
+      group.push(activity)
+      return
+    }
+    groups.set(activity.dayDate, [activity])
+  })
+
+  return Array.from(groups, ([dayDate, dayActivities]) => {
+    const sortedActivities = sortActivitiesByTripOrder(dayActivities)
+    return {
+      activities: sortedActivities,
+      dayDate,
+      key: sortedActivities.map((activity) => `${activity.lng},${activity.lat}`).join(';'),
+    }
+  }).filter((group) => group.activities.length >= 2)
 }
 
 function normalizeClickedLocation(
@@ -537,7 +684,7 @@ function TripMapContent({
   onViewportContextChange,
   routeSummaryClassName,
   routeSummaryContainer,
-  routeSummaryLabel = 'Selected-day route',
+  routeSummaryLabel,
 }: TripMapProps) {
   const mapId = googleMapsMapId()
   const map = useMap('trip-map')
@@ -551,9 +698,16 @@ function TripMapContent({
         .filter((activity) => activityMarkerMode !== 'timeline-days' || activity.dayDate != null),
     [activities, activityMarkerMode],
   )
-  const routeMappedActivities = useMemo(
-    () => routeActivities.filter(hasCoordinates),
+  const routeActivityGroups = useMemo(
+    () => groupRouteActivitiesByDay(routeActivities),
     [routeActivities],
+  )
+  const routeRequestScheduler = useMemo(
+    () => new RouteRequestScheduler(
+      MAX_CONCURRENT_ROUTE_REQUESTS,
+      MIN_ROUTE_REQUEST_START_INTERVAL_MS,
+    ),
+    [],
   )
   const fallbackMappedActivities = useMemo(
     () => sortActivitiesByTripOrder(fallbackActivities.filter(hasCoordinates)),
@@ -659,22 +813,62 @@ function TripMapContent({
     () => initialCamera(baseDisplayStops.length > 0 ? baseDisplayStops : displayStops),
     [baseDisplayStops, displayStops],
   )
-  const routeKey = useMemo(
-    () =>
-      routeMappedActivities.map((activity) => `${activity.lng},${activity.lat}`).join(';'),
-    [routeMappedActivities],
+  const routeQueryOptions = useMemo(
+    () => routeActivityGroups.map((group) => ({
+      queryKey: ['maps', 'driving-route', group.dayDate, group.key] as const,
+      queryFn: ({ signal }: { signal: AbortSignal }) =>
+        routeRequestScheduler.run(
+          () => getDrivingDirections(group.activities, signal),
+          signal,
+        ),
+      staleTime: MAP_ROUTE_STALE_TIME_MS,
+      gcTime: MAP_ROUTE_GC_TIME_MS,
+      retry: false,
+    })),
+    [routeActivityGroups, routeRequestScheduler],
   )
-  const routeQuery = useQuery({
-    queryKey: ['maps', 'driving-route', routeKey],
-    queryFn: ({ signal }) => getDrivingDirections(routeMappedActivities, signal),
-    enabled: routeMappedActivities.length >= 2,
-    staleTime: MAP_ROUTE_STALE_TIME_MS,
-    gcTime: MAP_ROUTE_GC_TIME_MS,
-    retry: false,
+  const routeQueryState = useQueries({
+    queries: routeQueryOptions,
+    combine: combineRouteQueryResults,
   })
-  const currentRoute = routeQuery.data ?? null
-  const routeError = routeQuery.isError ? googleRoutesFailureMessage(routeQuery.error) : null
-  const routeLoading = routeQuery.isLoading
+  const loadedDayRoutes = useMemo(
+    () => routeQueryState.results.flatMap<LoadedDayRoute>((query, index) => {
+      const group = routeActivityGroups[index]
+      return query.data && group
+        ? [{ activities: group.activities, dayDate: group.dayDate, route: query.data }]
+        : []
+    }),
+    [routeActivityGroups, routeQueryState.results],
+  )
+  const routeFailureState = useMemo(
+    () => routeQueryState.results.reduce<{
+      firstError: unknown
+      hasError: boolean
+      unavailableCount: number
+    }>((state, query) => {
+      if (query.status === 'error') {
+        return {
+          firstError: state.firstError ?? query.error,
+          hasError: true,
+          unavailableCount: state.unavailableCount + 1,
+        }
+      }
+      if (query.status === 'success' && query.data === null) {
+        return {
+          ...state,
+          unavailableCount: state.unavailableCount + 1,
+        }
+      }
+      return state
+    }, { firstError: null, hasError: false, unavailableCount: 0 }),
+    [routeQueryState.results],
+  )
+  const routeError = routeFailureState.hasError
+    ? googleRoutesFailureMessage(routeFailureState.firstError)
+    : routeFailureState.unavailableCount > 0
+      ? `Route unavailable for ${routeFailureState.unavailableCount} ${routeFailureState.unavailableCount === 1 ? 'day' : 'days'}.`
+    : null
+  const routeLoading = routeQueryState.isLoading
   const mapLoadFailed =
     apiLoadingStatus === APILoadingStatus.FAILED ||
     apiLoadingStatus === APILoadingStatus.AUTH_FAILURE
@@ -711,25 +905,49 @@ function TripMapContent({
     routeLoading,
     selectedMappedActivities.length,
   ])
-  const routeLegs = useMemo<RouteLegDisplay[]>(
-    () =>
-      (currentRoute?.legs ?? []).flatMap((leg, index) => {
-        if (!leg) return []
-        const from = routeMappedActivities[index]
-        const to = routeMappedActivities[index + 1]
-        const legPath = Array.isArray(leg.path) ? leg.path : []
-        if (!from || !to || legPath.length < 2) return []
-        const fallbackPosition = midpointOfPath(legPath) ?? midpointOfPoints(from, to)
-        return [{
-          fallbackPosition,
-          id: `${from.id}-${to.id}`,
-          index,
-          label: formatTravelTime(leg.duration),
-          path: legPath,
-        }]
-      }) ?? [],
-    [currentRoute, routeMappedActivities],
+  const routePresentation = useMemo(
+    () => {
+      const routeLegs: RouteLegDisplay[] = []
+      const fallbackRoutePaths: Array<{ dayDate: string; path: LatLng[] }> = []
+      let distance = 0
+      let duration = 0
+
+      loadedDayRoutes.forEach(({ activities: dayActivities, dayDate, route }) => {
+        distance += route.distance
+        duration += route.duration
+        const hasLegPath = route.legs?.some(
+          (leg) => Array.isArray(leg?.path) && leg.path.length >= 2,
+        ) ?? false
+        const legsWithPaths = (route.legs ?? []).flatMap((leg, index) => {
+          if (!leg) return []
+          const from = dayActivities[index]
+          const to = dayActivities[index + 1]
+          const legPath = Array.isArray(leg.path) ? leg.path : []
+          if (!from || !to || legPath.length < 2) return []
+          const fallbackPosition = midpointOfPath(legPath) ?? midpointOfPoints(from, to)
+          return [{
+            fallbackPosition,
+            id: `${dayDate}:${from.id}-${to.id}`,
+            label: formatTravelTime(leg.duration),
+            path: legPath,
+          }]
+        })
+        routeLegs.push(...legsWithPaths)
+
+        if (!hasLegPath && Array.isArray(route.path) && route.path.length > 0) {
+          fallbackRoutePaths.push({ dayDate, path: route.path })
+        }
+      })
+
+      return {
+        fallbackRoutePaths,
+        routeLegs,
+        routeTotals: { distance, duration },
+      }
+    },
+    [loadedDayRoutes],
   )
+  const { fallbackRoutePaths, routeLegs, routeTotals } = routePresentation
   const activeRouteLegMarker = activeRouteLeg
     ? routeLegs.find((leg) => leg.id === activeRouteLeg.id) ?? null
     : null
@@ -887,14 +1105,23 @@ function TripMapContent({
     window.requestAnimationFrame(reportViewportContext)
   }, [focusedActivityDisplayStop, focusedActivityKey, map, reportViewportContext])
 
-  const routeSummary = currentRoute ? (
+  const routeDaySummary = routeActivityGroups.length > 1
+    ? loadedDayRoutes.length === routeActivityGroups.length
+      ? ` across ${loadedDayRoutes.length} days`
+      : ` across ${loadedDayRoutes.length} of ${routeActivityGroups.length} days`
+    : ''
+  const effectiveRouteSummaryLabel = routeSummaryLabel ?? (
+    routeActivityGroups.length > 1 ? 'Visible-days routes' : 'Selected-day route'
+  )
+  const routeSummary = loadedDayRoutes.length > 0 ? (
     <div className={[styles.routeSummary, routeSummaryClassName].filter(Boolean).join(' ')} aria-live="polite">
       <div className={styles.routeSummaryHeader}>
         <Route size={15} aria-hidden="true" />
-        <span>{routeSummaryLabel}</span>
+        <span>{effectiveRouteSummaryLabel}</span>
       </div>
       <strong>
-        {formatTravelTime(currentRoute.duration)} total · {(currentRoute.distance / 1000).toFixed(1)} km
+        {formatTravelTime(routeTotals.duration)} total · {(routeTotals.distance / 1000).toFixed(1)} km
+        {routeDaySummary}
       </strong>
     </div>
   ) : null
@@ -965,14 +1192,16 @@ function TripMapContent({
                 }
               />
             )
-          }) : currentRoute && Array.isArray(currentRoute.path) && currentRoute.path.length > 0 && (
+          }) : null}
+          {fallbackRoutePaths.map((route) => (
             <Polyline
-              path={currentRoute.path}
+              key={`fallback-${route.dayDate}`}
+              path={route.path}
               strokeColor={ROUTE_STYLE.strokeColor}
               strokeOpacity={ROUTE_STYLE.strokeOpacity}
               strokeWeight={ROUTE_STYLE.strokeWeight}
             />
-          )}
+          ))}
           {displayStops.map((stop) => (
             <GoogleOverlayMarker
               anchor="bottom"
