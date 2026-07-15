@@ -464,8 +464,10 @@ describe('<TripsPage>', () => {
 
     await waitFor(() => {
       expect(auth.updateProfile).toHaveBeenCalledWith({ displayName: 'Alice Chen' })
+      expect(
+        screen.queryByRole('dialog', { name: /account settings/i }),
+      ).not.toBeInTheDocument()
     })
-    expect(screen.getByText(/account settings saved/i)).toBeInTheDocument()
   })
 
   it('requires typing delete before deleting the account and returning to login', async () => {
