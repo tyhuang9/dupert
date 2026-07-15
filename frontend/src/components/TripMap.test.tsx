@@ -1628,12 +1628,12 @@ describe('<TripMap>', () => {
     expect(directionsMock).not.toHaveBeenCalled()
   })
 
-  it('links activity markers to hover callbacks', async () => {
+  it('activates one activity marker without creating a preview marker', async () => {
     const onActiveActivityChange = vi.fn()
     const onActivityActivate = vi.fn()
     render(
       <TripMap
-        activities={ACTIVITIES}
+        activities={[ACTIVITIES[0]]}
         fallbackActivities={[]}
         activeActivityId={10}
         destination="Tokyo"
@@ -1643,6 +1643,8 @@ describe('<TripMap>', () => {
     )
 
     const marker = screen.getByRole('button', { name: /stop 1: tokyo tower/i })
+    expect(screen.getAllByRole('button', { name: /show place details for stop/i })).toHaveLength(1)
+    expect(screen.queryByRole('img', { name: /search preview/i })).not.toBeInTheDocument()
     expect(mapMockState.preventMapHitsAndGesturesFrom).toHaveBeenCalledWith(
       expect.any(HTMLDivElement),
     )
@@ -1659,6 +1661,8 @@ describe('<TripMap>', () => {
     fireEvent.pointerDown(marker)
     expect(onActivityActivate).toHaveBeenCalledWith(10)
     expect(onActivityActivate).toHaveBeenCalledTimes(1)
+    expect(screen.getAllByRole('button', { name: /show place details for stop/i })).toHaveLength(1)
+    expect(screen.queryByRole('img', { name: /search preview/i })).not.toBeInTheDocument()
 
     fireEvent.click(marker)
     expect(onActivityActivate).toHaveBeenCalledTimes(1)
