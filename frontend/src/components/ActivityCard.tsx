@@ -40,8 +40,8 @@ interface ActivityCardProps {
   onActiveChange?: (activityId: number | null) => void
   onDelete: (activityId: number) => void
   onRequestMapLocation?: (activity: Activity, payload: CreateActivityRequest) => void
-  onMoveToDay?: (activity: Activity) => void
-  onScheduleForSelectedDay?: (activity: Activity) => void
+  onMoveToDay?: (activity: Activity, anchor: HTMLElement) => void
+  onScheduleForSelectedDay?: (activity: Activity, anchor: HTMLElement) => void
   onSubmitEdit: (activity: Activity, payload: CreateActivityRequest) => Promise<void> | void
   onToggleExpand: (activity: Activity) => void
 }
@@ -201,7 +201,7 @@ export function ActivityCard({
   const quickAction = activity.dayDate === null && onScheduleForSelectedDay
     ? {
         label: 'Schedule',
-        onClick: () => onScheduleForSelectedDay(activity),
+        onClick: (anchor: HTMLElement) => onScheduleForSelectedDay(activity, anchor),
       }
     : null
   const handleKeyDown = (event: KeyboardEvent<HTMLElement>) => {
@@ -263,7 +263,7 @@ export function ActivityCard({
                   className={styles.cardQuickAction}
                   onClick={(event) => {
                     event.stopPropagation()
-                    quickAction.onClick()
+                    quickAction.onClick(event.currentTarget)
                   }}
                 >
                   {quickAction.label}
@@ -308,7 +308,7 @@ export function ActivityCard({
                     disabled={busy}
                     onClick={(event) => {
                       event.stopPropagation()
-                      onMoveToDay(activity)
+                      onMoveToDay(activity, event.currentTarget)
                     }}
                   >
                     <CalendarDays size={17} aria-hidden="true" />

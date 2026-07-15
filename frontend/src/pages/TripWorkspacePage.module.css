@@ -2555,17 +2555,16 @@
     position: fixed;
     inset: 0;
     z-index: 200;
-    display: flex;
-    align-items: flex-end;
+    display: block;
     background: rgb(26 33 31 / 42%);
   }
 
   .mobileDayPickerSheet {
-    width: 100%;
-    max-height: min(82dvh, 42rem);
+    position: fixed;
     overflow-y: auto;
+    overscroll-behavior: contain;
     border: 1px solid var(--color-surface-border);
-    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+    border-radius: var(--radius-xl);
     background: var(--color-surface);
     box-shadow: var(--shadow-lg);
   }

@@ -134,6 +134,24 @@ describe('TripWorkspacePage layout scroll contract', () => {
       .toMatch(/grid-area:\s*summary/)
   })
 
+  it('positions the mobile day picker as an anchored viewport-contained surface', () => {
+    const backdropBlock = cssBlocks(workspaceCss, '.mobileDayPickerBackdrop').find((block) =>
+      /position:\s*fixed/.test(block),
+    ) ?? ''
+    const sheetBlock = cssBlocks(workspaceCss, '.mobileDayPickerSheet').find((block) =>
+      /position:\s*fixed/.test(block),
+    ) ?? ''
+
+    expect(backdropBlock).toMatch(/display:\s*block/)
+    expect(backdropBlock).not.toMatch(/align-items:\s*flex-end/)
+    expect(sheetBlock).toMatch(/position:\s*fixed/)
+    expect(sheetBlock).toMatch(/overflow-y:\s*auto/)
+    expect(sheetBlock).toMatch(/overscroll-behavior:\s*contain/)
+    expect(sheetBlock).toMatch(/border-radius:\s*var\(--radius-xl\)/)
+    expect(sheetBlock).not.toMatch(/width:\s*100%/)
+    expect(sheetBlock).not.toMatch(/border-radius:[^;]*0 0/)
+  })
+
   it('removes sortable containing-block hints from an expanded activity editor', () => {
     const expandedSlotBlock = cssBlocks(activityListCss, '.expandedItem .cardSlot')[0] ?? ''
 

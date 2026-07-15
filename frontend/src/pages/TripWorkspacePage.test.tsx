@@ -591,6 +591,16 @@ function mockViewport(isMobile: boolean) {
     value: matchMedia,
     writable: true,
   })
+  Object.defineProperty(window, 'innerWidth', {
+    configurable: true,
+    value: isMobile ? 390 : 1024,
+    writable: true,
+  })
+  Object.defineProperty(window, 'innerHeight', {
+    configurable: true,
+    value: isMobile ? 844 : 768,
+    writable: true,
+  })
 }
 
 function triggerDragEnd(activeId: string, overId: string | null) {
@@ -855,8 +865,30 @@ describe('<TripWorkspacePage>', () => {
     const nextDayPicker = within(nextHeading).getByRole('button', {
       name: /choose trip day: saturday, may 2/i,
     })
+    vi.spyOn(nextDayPicker, 'getBoundingClientRect').mockReturnValue(domRect({
+      bottom: 164,
+      left: 60,
+      right: 330,
+      top: 120,
+    }))
     await userEvent.click(nextDayPicker)
-    expect(screen.getByRole('dialog', { name: /choose a trip day/i })).toBeInTheDocument()
+    const dayPickerDialog = screen.getByRole('dialog', { name: /choose a trip day/i })
+    expect(dayPickerDialog).toHaveAttribute('data-placement', 'below')
+    expect(dayPickerDialog).toHaveStyle({
+      left: '15px',
+      maxHeight: '660px',
+      top: '172px',
+      width: '360px',
+    })
+    expect(screen.getByRole('button', { name: /close day picker/i })).toHaveFocus()
+
+    fireEvent.keyDown(window, { key: 'Escape' })
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: /choose a trip day/i })).not.toBeInTheDocument()
+      expect(nextDayPicker).toHaveFocus()
+    })
+
+    await userEvent.click(nextDayPicker)
     await userEvent.click(screen.getByTitle('2026-05-03 (0 activities)'))
     await waitFor(() => {
       expect(screen.getByTestId('current-location')).toHaveTextContent('/trips/abc234def567/d/2026-05-03')
@@ -963,9 +995,23 @@ describe('<TripWorkspacePage>', () => {
     expect(screen.getByText(/^edit activity$/i)).toBeInTheDocument()
     const changeDay = screen.getByRole('button', { name: /^change day$/i })
     expect(changeDay).toBeInTheDocument()
+    vi.spyOn(changeDay, 'getBoundingClientRect').mockReturnValue(domRect({
+      bottom: 744,
+      left: 220,
+      right: 360,
+      top: 700,
+    }))
 
     await userEvent.click(changeDay)
-    expect(screen.getByRole('dialog', { name: /move tsukiji sushi/i })).toBeInTheDocument()
+    const moveDialog = screen.getByRole('dialog', { name: /move tsukiji sushi/i })
+    expect(moveDialog).toHaveAttribute('data-placement', 'above')
+    expect(moveDialog).toHaveStyle({
+      bottom: '152px',
+      left: '18px',
+      maxHeight: '672px',
+      width: '360px',
+    })
+    expect(screen.getByRole('button', { name: /close day picker/i })).toHaveFocus()
 
     await userEvent.click(screen.getByTitle('2026-05-02 (0 activities)'))
     await waitFor(() => {
@@ -1030,8 +1076,22 @@ describe('<TripWorkspacePage>', () => {
     expect(screen.queryByRole('button', { name: /edit save teamlab/i })).not.toBeInTheDocument()
     expect(screen.getByRole('article', { name: /expand save teamlab/i })).toBeInTheDocument()
 
-    await userEvent.click(screen.getByRole('button', { name: /^schedule$/i }))
-    expect(screen.getByRole('dialog', { name: /move save teamlab/i })).toBeInTheDocument()
+    const schedule = screen.getByRole('button', { name: /^schedule$/i })
+    vi.spyOn(schedule, 'getBoundingClientRect').mockReturnValue(domRect({
+      bottom: 236,
+      left: 244,
+      right: 360,
+      top: 192,
+    }))
+    await userEvent.click(schedule)
+    const scheduleDialog = screen.getByRole('dialog', { name: /move save teamlab/i })
+    expect(scheduleDialog).toHaveAttribute('data-placement', 'below')
+    expect(scheduleDialog).toHaveStyle({
+      left: '18px',
+      maxHeight: '588px',
+      top: '244px',
+      width: '360px',
+    })
   })
 
   it('renders workspace shell when trip is loaded', async () => {
