@@ -224,9 +224,6 @@ export function AccountSettingsDialog({
               </section>
             </div>
             <footer className={styles.accountSettingsFooter}>
-              <button type="button" className={styles.secondaryAction} onClick={onClose}>
-                Cancel
-              </button>
               <button type="submit" className={styles.primaryAction} disabled={saving}>
                 {saving ? 'Saving...' : 'Save changes'}
               </button>

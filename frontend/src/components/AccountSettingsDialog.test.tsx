@@ -88,6 +88,17 @@ afterEach(() => {
 })
 
 describe('<AccountSettingsDialog>', () => {
+  it('uses the header close button as the only dismiss action', async () => {
+    const onClose = vi.fn()
+    renderDialog({ onClose })
+
+    expect(screen.queryByRole('button', { name: 'Cancel' })).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Close account settings' }))
+
+    expect(onClose).toHaveBeenCalledOnce()
+  })
+
   it('closes after account settings are saved successfully', async () => {
     const onClose = vi.fn()
     const { auth } = renderDialog({ onClose })
