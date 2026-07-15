@@ -7,6 +7,7 @@ import {
   createShareLink,
   listTripMembers,
   listShareLinks,
+  removeTripMember,
   revokeShareLink,
 } from './share'
 import type { CreatedShareLink, ShareLink } from '../types/share'
@@ -60,6 +61,12 @@ describe('share api', () => {
         role: 'OWNER',
       },
     ])
+  })
+
+  it('removes a trip member from the encoded trip path', async () => {
+    apiMock.onDelete('/trips/abc%2F234/members/7').reply(204)
+
+    await expect(removeTripMember('abc/234', 7)).resolves.toBeUndefined()
   })
 
   it('creates a share link', async () => {

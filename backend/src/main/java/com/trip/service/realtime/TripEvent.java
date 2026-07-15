@@ -38,6 +38,10 @@ public record TripEvent(
         return new TripEvent("share-links.changed", publicId, null, null, Instant.now());
     }
 
+    public static TripEvent membersChanged(String publicId) {
+        return new TripEvent("members.changed", publicId, null, null, Instant.now());
+    }
+
     private static TripEvent activityEvent(String type, String publicId, Long activityId, LocalDate dayDate) {
         return new TripEvent(type, publicId, activityId, dayDate, Instant.now());
     }

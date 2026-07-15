@@ -5,8 +5,10 @@ interface ConfirmDialogProps {
   title: string
   description: string
   confirmLabel: string
+  confirmingLabel?: string
   cancelLabel?: string
   confirming?: boolean
+  errorMessage?: string | null
   onCancel: () => void
   onConfirm: () => void
 }
@@ -15,8 +17,10 @@ export function ConfirmDialog({
   title,
   description,
   confirmLabel,
+  confirmingLabel = 'Deleting...',
   cancelLabel = 'Cancel',
   confirming = false,
+  errorMessage,
   onCancel,
   onConfirm,
 }: ConfirmDialogProps) {
@@ -72,6 +76,11 @@ export function ConfirmDialog({
         <div className={styles.body}>
           <h2 id={titleId}>{title}</h2>
           <p id={descriptionId}>{description}</p>
+          {errorMessage ? (
+            <p className={styles.error} role="alert">
+              {errorMessage}
+            </p>
+          ) : null}
         </div>
         <div className={styles.actions}>
           <button
@@ -88,7 +97,7 @@ export function ConfirmDialog({
             onClick={onConfirm}
             disabled={confirming}
           >
-            {confirming ? 'Deleting...' : confirmLabel}
+            {confirming ? confirmingLabel : confirmLabel}
           </button>
         </div>
       </section>

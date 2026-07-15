@@ -278,6 +278,36 @@ describe('useTripStream', () => {
     })
   })
 
+  it('invalidates trip sharing and access caches without activities for member events', async () => {
+    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries')
+    renderHook(() => useTripStream('abc234def567'), { wrapper })
+
+    await waitFor(() => {
+      expect(fetchEventSourceMock).toHaveBeenCalled()
+    })
+
+    act(() => {
+      streamOptions().onmessage({
+        event: 'trip-event',
+        data: JSON.stringify(tripEvent('members.changed')),
+      })
+    })
+
+    expect(invalidateSpy).toHaveBeenCalledTimes(3)
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: shareKeys.forTrip('abc234def567'),
+    })
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: shareKeys.members('abc234def567'),
+    })
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: tripKeys.detail('abc234def567'),
+    })
+    expect(invalidateSpy).not.toHaveBeenCalledWith({
+      queryKey: activityKeys.list('abc234def567'),
+    })
+  })
+
   it('closes while hidden and resynchronizes once after reconnecting', async () => {
     const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries')
     renderHook(() => useTripStream('abc234def567'), { wrapper })
