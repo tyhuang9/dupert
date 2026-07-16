@@ -12,10 +12,10 @@ description = 'Dupert backend'
 // Dependency-Check matches Log4j API/SLF4J bridge artifacts to generic Log4j
 // CPEs. Keep the managed Log4j 2.x line on the release that fixes the flagged
 // Core/1.x-bridge CVEs until the Spring Boot BOM catches up.
-ext['log4j2.version'] = '2.25.4'
+ext['log4j2.version'] = '2.25.5'
 // Keep all Jackson modules on patched BOM 2.22.1; it fixes CVE-2026-54515.
 ext['jackson-bom.version'] = '2.22.1'
-ext['tomcat.version'] = '10.1.56'
+ext['tomcat.version'] = '10.1.57'
 
 java {
 	toolchain {
