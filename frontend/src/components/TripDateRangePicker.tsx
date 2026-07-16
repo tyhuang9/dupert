@@ -186,7 +186,20 @@ export function TripDateRangePicker({
       Math.max(viewportPadding, rect.left),
       Math.max(viewportPadding, window.innerWidth - width - viewportPadding),
     )
-    const preferredTop = openAbove ? rect.top - gap - preferredHeight : rect.bottom + gap
+    if (openAbove) {
+      // Anchor the bottom edge instead of calculating a top from an estimated
+      // height. The single-month mobile calendar is slightly taller than that
+      // estimate, which otherwise leaves a gap between the panel and trigger.
+      setPanelStyle({
+        bottom: window.innerHeight - rect.top + gap,
+        left,
+        position: 'fixed',
+        width,
+      })
+      return
+    }
+
+    const preferredTop = rect.bottom + gap
     const maxTop = Math.max(viewportPadding, window.innerHeight - preferredHeight - viewportPadding)
     const top = Math.min(Math.max(viewportPadding, preferredTop), maxTop)
 
@@ -363,6 +376,7 @@ export function TripDateRangePicker({
         aria-labelledby={dateRangeId}
         aria-describedby={errorIds}
         aria-invalid={Boolean(startDateError || endDateError)}
+        data-panel-placement={isOpen ? panelPlacement : undefined}
       >
         <CalendarDays size={18} aria-hidden="true" />
         <span className={styles.dateRangeSummary}>

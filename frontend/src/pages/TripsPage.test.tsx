@@ -533,6 +533,13 @@ describe('selectTripVisualKey', () => {
 })
 
 describe('<NewTripPage>', () => {
+  it('uses the form cancel action as the only return navigation', () => {
+    renderNewTrip()
+
+    expect(screen.queryByRole('link', { name: /back to trips/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /^cancel$/i })).toHaveAttribute('href', '/trips')
+  })
+
   it('validates required fields before submitting', async () => {
     renderNewTrip()
 

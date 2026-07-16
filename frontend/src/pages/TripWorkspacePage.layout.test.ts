@@ -91,9 +91,13 @@ describe('TripWorkspacePage layout scroll contract', () => {
     const dayPickerBlock = cssBlocks(workspaceCss, '.mobileDayPickerHeadingButton').find((block) =>
       /min-height:\s*44px/.test(block),
     ) ?? ''
-    const editorActionBlock = cssBlocks(activityCardCss, '.mobileEditorActions button').find((block) =>
+    const editorActionBlock = cssBlocks(activityCardCss, '.mobileEditorClose').find((block) =>
       /min-height:\s*44px/.test(block),
     ) ?? ''
+    const editorFooterActionBlock = cssBlocks(
+      activityFormCss,
+      '.autosaveActions .changeDayButton',
+    ).find((block) => /min-height:\s*44px/.test(block)) ?? ''
     const mobileHeaderBlock = cssBlocks(
       workspaceCss,
       '.workspaceShellMobile .timelineHeader.mobileDayPlanHeader',
@@ -118,6 +122,7 @@ describe('TripWorkspacePage layout scroll contract', () => {
     expect(dayNavigationBlock).toMatch(/min-height:\s*44px/)
     expect(dayPickerBlock).toMatch(/min-height:\s*44px/)
     expect(editorActionBlock).toMatch(/min-height:\s*44px/)
+    expect(editorFooterActionBlock).toMatch(/min-height:\s*44px/)
     expect(mobileHeaderBlock).toMatch(/display:\s*grid/)
     expect(mobileHeaderBlock).toMatch(
       /grid-template-areas:\s*'kicker'\s*'navigator'\s*'summary'/,
@@ -160,7 +165,11 @@ describe('TripWorkspacePage layout scroll contract', () => {
     expect(activityListSource).toMatch(/isDragging && !isExpanded \? styles\.dragging : ''/)
   })
 
-  it('keeps the mobile activity editor fully opaque without a pencil action', () => {
+  it('presents the mobile activity editor as the same opaque bottom sheet as create', () => {
+    const mobileCreateComposerBlock = cssBlocks(
+      workspaceCss,
+      '.workspaceShellMobile .composer',
+    )[0] ?? ''
     const mobileExpandedCardBlock = cssBlocks(activityCardCss, '.cardExpanded').find((block) =>
       /position:\s*fixed/.test(block),
     ) ?? ''
@@ -171,10 +180,26 @@ describe('TripWorkspacePage layout scroll contract', () => {
     const mobileExpandedEditorBlock = cssBlocks(activityCardCss, '.cardExpanded .editorPanel')[0] ?? ''
 
     expect(activityCardCss).not.toMatch(/mobileEditAction/)
+    for (const bottomSheetBlock of [mobileCreateComposerBlock, mobileExpandedCardBlock]) {
+      expect(bottomSheetBlock).toMatch(
+        /inset:\s*auto 0 calc\(64px \+ env\(safe-area-inset-bottom\)\)/,
+      )
+      expect(bottomSheetBlock).toMatch(/max-height:\s*min\(78dvh,\s*42rem\)/)
+      expect(bottomSheetBlock).toMatch(/overflow-y:\s*auto/)
+      expect(bottomSheetBlock).toMatch(
+        /border-radius:\s*var\(--radius-xl\) var\(--radius-xl\) 0 0/,
+      )
+      expect(bottomSheetBlock).toMatch(
+        /box-shadow:\s*0 -12px 34px rgb\(26 33 31 \/ 24%\)/,
+      )
+    }
+    expect(mobileExpandedCardBlock).toMatch(/padding:\s*var\(--space-5\)/)
     expect(mobileExpandedCardBlock).toMatch(/background-color:\s*var\(--color-surface\)/)
     expect(mobileExpandedCardBlock).toMatch(/opacity:\s*1/)
     expect(mobileExpandedCardBlock).toMatch(/animation:\s*none/)
     expect(mobileExpandedCardInteractionBlock).toMatch(/background-color:\s*var\(--color-surface\)/)
+    expect(mobileExpandedEditorBlock).toMatch(/width:\s*100%/)
+    expect(mobileExpandedEditorBlock).toMatch(/max-width:\s*none/)
     expect(mobileExpandedEditorBlock).toMatch(/background-color:\s*var\(--color-surface\)/)
     expect(mobileExpandedEditorBlock).toMatch(/opacity:\s*1/)
     expect(mobileExpandedEditorBlock).toMatch(/animation:\s*none/)
@@ -253,14 +278,40 @@ describe('TripWorkspacePage layout scroll contract', () => {
     expect(gridBlock).toMatch(/min-height:\s*var\(--date-picker-grid-height\)/)
     expect(gridBlock).toMatch(/grid-auto-rows:\s*var\(--date-picker-day-size\)/)
     expect(buttonBlock).toMatch(/border:\s*0/)
-    expect(rangeBlock).toMatch(/right:\s*0/)
-    expect(rangeBlock).toMatch(/left:\s*0/)
+    expect(rangeBlock).toMatch(/right:\s*-1px/)
+    expect(rangeBlock).toMatch(/left:\s*-1px/)
     expect(previousButtonBlock).toMatch(
       /left:\s*calc\(-1 \* \(var\(--space-5\) \+ var\(--date-nav-overlap\)\)\)/,
     )
     expect(nextButtonBlock).toMatch(
       /right:\s*calc\(-1 \* \(var\(--space-5\) \+ var\(--date-nav-overlap\)\)\)/,
     )
+  })
+
+  it('joins the date picker to the trigger and keeps mobile dates compact', () => {
+    const belowTriggerBlock = cssBlocks(
+      datePickerCss,
+      ".dateRangeTrigger[aria-expanded='true'][data-panel-placement='below']",
+    )[0] ?? ''
+    const aboveTriggerBlock = cssBlocks(
+      datePickerCss,
+      ".dateRangeTrigger[aria-expanded='true'][data-panel-placement='above']",
+    )[0] ?? ''
+    const triggerBlocks = cssBlocks(datePickerCss, '.dateRangeTrigger')
+    const summaryBlocks = cssBlocks(datePickerCss, '.dateRangeSummary')
+    const mobileTriggerBlock = triggerBlocks.at(-1) ?? ''
+    const mobileSummaryBlock = summaryBlocks.at(-1) ?? ''
+
+    expect(belowTriggerBlock).toMatch(/border-bottom-right-radius:\s*0/)
+    expect(belowTriggerBlock).toMatch(/border-bottom-left-radius:\s*0/)
+    expect(aboveTriggerBlock).toMatch(/border-top-left-radius:\s*0/)
+    expect(aboveTriggerBlock).toMatch(/border-top-right-radius:\s*0/)
+    expect(mobileTriggerBlock).toMatch(/min-height:\s*3\.75rem/)
+    expect(mobileTriggerBlock).toMatch(/padding-block:\s*var\(--space-2\)/)
+    expect(mobileSummaryBlock).toMatch(
+      /grid-template-columns:\s*minmax\(0,\s*1fr\) auto minmax\(0,\s*1fr\)/,
+    )
+    expect(mobileSummaryBlock).not.toMatch(/grid-template-columns:\s*1fr/)
   })
 
   it('keeps the selected-place detail card compact above search results', () => {
