@@ -2015,7 +2015,7 @@ describe('<TripWorkspacePage>', () => {
     })).toBeInTheDocument()
   })
 
-  it('keeps the mobile map on all scheduled days with persistent contextual filters', async () => {
+  it('lists only active mobile map days while preserving trip-day numbers and filters', async () => {
     mockViewport(true)
     const dayOneActivity = {
       ...SAMPLE_ACTIVITY,
@@ -2025,16 +2025,16 @@ describe('<TripWorkspacePage>', () => {
       lat: 35.6654,
       lng: 139.7707,
     }
-    const dayTwoActivity = {
+    const dayThreeActivity = {
       ...SAMPLE_ACTIVITY,
       id: 22,
-      dayDate: '2026-05-02',
+      dayDate: '2026-05-03',
       title: 'Tokyo Tower',
       lat: 35.6586,
       lng: 139.7454,
       orderIndex: 0,
     }
-    mockWorkspace([dayOneActivity, dayTwoActivity])
+    mockWorkspace([dayOneActivity, dayThreeActivity])
 
     renderWorkspace('/trips/abc234def567/d/2026-05-01')
 
@@ -2046,38 +2046,41 @@ describe('<TripWorkspacePage>', () => {
     expect(selectedMapActivities.getByText('Tokyo Tower')).toBeInTheDocument()
     expect(routeMapActivities.getByText('Tokyo Tower')).toBeInTheDocument()
     expect(screen.getByRole('checkbox', { name: /routes/i })).toBeChecked()
-    expect(screen.getByRole('button', { name: /days 5\/5/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /days 2\/2/i })).toBeInTheDocument()
 
     await userEvent.click(screen.getByRole('button', { name: /mock activate second marker/i }))
     expect(screen.getByLabelText(/selected map place/i)).toBeInTheDocument()
 
-    await userEvent.click(screen.getByRole('button', { name: /days 5\/5/i }))
+    await userEvent.click(screen.getByRole('button', { name: /days 2\/2/i }))
     expect(screen.getByRole('dialog', { name: /^map days$/i })).toBeInTheDocument()
-    const dayTwoVisibility = screen.getByRole('button', {
-      name: /day 2.*saturday, may 2.*1 activity/i,
+    const dayThreeVisibility = screen.getByRole('button', {
+      name: /day 3.*sunday, may 3.*1 activity/i,
     })
-    expect(dayTwoVisibility).toHaveAttribute('aria-pressed', 'true')
+    expect(dayThreeVisibility).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.queryByRole('button', { name: /day 2.*saturday, may 2/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /day 4.*monday, may 4/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /day 5.*tuesday, may 5/i })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: /show all/i })).toBeDisabled()
 
-    await userEvent.click(dayTwoVisibility)
+    await userEvent.click(dayThreeVisibility)
     expect(screen.getByRole('button', {
-      name: /day 2.*saturday, may 2.*1 activity/i,
+      name: /day 3.*sunday, may 3.*1 activity/i,
     })).toHaveAttribute('aria-pressed', 'false')
     expect(selectedMapActivities.queryByText('Tokyo Tower')).not.toBeInTheDocument()
     expect(routeMapActivities.queryByText('Tokyo Tower')).not.toBeInTheDocument()
     expect(selectedMapActivities.getByText('Tsukiji sushi')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /show all/i })).toBeEnabled()
-    expect(screen.getByRole('button', { name: /days 4\/5/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /days 1\/2/i })).toBeInTheDocument()
     expect(screen.queryByLabelText(/selected map place/i)).not.toBeInTheDocument()
 
     await userEvent.click(screen.getByRole('button', { name: /show all/i }))
-    expect(screen.getByRole('button', { name: /days 5\/5/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /days 2\/2/i })).toBeInTheDocument()
     expect(selectedMapActivities.getByText('Tokyo Tower')).toBeInTheDocument()
-    await userEvent.click(dayTwoVisibility)
+    await userEvent.click(dayThreeVisibility)
 
     await userEvent.click(screen.getByRole('button', { name: /^plan$/i }))
     await userEvent.click(screen.getByRole('button', { name: /^map$/i }))
-    expect(screen.getByRole('button', { name: /days 4\/5/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /days 1\/2/i })).toBeInTheDocument()
     expect(within(screen.getByTestId('selected-map-activities')).queryByText('Tokyo Tower')).not.toBeInTheDocument()
 
     await userEvent.click(screen.getByRole('button', { name: /^timeline$/i }))
@@ -2086,7 +2089,7 @@ describe('<TripWorkspacePage>', () => {
       name: /^tokyo tower/i,
     }))
 
-    expect(screen.getByRole('button', { name: /days 5\/5/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /days 2\/2/i })).toBeInTheDocument()
     expect(within(screen.getByTestId('selected-map-activities')).getByText('Tokyo Tower')).toBeInTheDocument()
     expect(within(screen.getByTestId('route-map-activities')).getByText('Tokyo Tower')).toBeInTheDocument()
 
@@ -2096,6 +2099,23 @@ describe('<TripWorkspacePage>', () => {
     expect(within(mapLayersDialog).getByRole('link', { name: /open in google maps/i })).toBeInTheDocument()
     await userEvent.click(within(mapLayersDialog).getByRole('button', { name: /terrain/i }))
     expect(screen.getByTestId('map-style')).toHaveTextContent('terrain')
+  })
+
+  it('keeps the mobile map day control empty when the trip has no scheduled activities', async () => {
+    mockViewport(true)
+    mockWorkspace([])
+
+    renderWorkspace('/trips/abc234def567/d/2026-05-01')
+
+    await userEvent.click(await screen.findByRole('button', { name: /^map$/i }))
+    const daysControl = screen.getByRole('button', { name: /days 0\/0/i })
+    expect(daysControl).toBeInTheDocument()
+
+    await userEvent.click(daysControl)
+    const mapDaysDialog = screen.getByRole('dialog', { name: /^map days$/i })
+    expect(within(mapDaysDialog).getByText('0 of 0 on map')).toBeInTheDocument()
+    expect(within(mapDaysDialog).getByRole('button', { name: /show all/i })).toBeDisabled()
+    expect(within(mapDaysDialog).getByLabelText(/map day visibility/i)).toBeEmptyDOMElement()
   })
 
   it('keeps Ideas out of day maps and routes and shows them in the Ideas tab', async () => {

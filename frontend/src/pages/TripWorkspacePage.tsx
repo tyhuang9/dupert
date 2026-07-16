@@ -2198,14 +2198,17 @@ export function TripWorkspacePage() {
   )
   const hasMobileMapDayScope = isMobileViewport && mobileTab === 'map'
   const mobileMapDayOptions = useMemo(
-    () => tripDays.map((dayDate, index) => {
+    () => tripDays.flatMap((dayDate, index) => {
       const activityCount = scheduledActivityCountsByDay.get(dayDate) ?? 0
-      return {
-        activityCount,
-        dayDate,
-        isVisible: !hiddenMapDayDates.has(dayDate),
-        label: `Day ${index + 1} · ${formatReadableDate(dayDate)} · ${pluralize(activityCount, 'activity')}`,
-      }
+      if (activityCount === 0) return []
+      return [
+        {
+          activityCount,
+          dayDate,
+          isVisible: !hiddenMapDayDates.has(dayDate),
+          label: `Day ${index + 1} · ${formatReadableDate(dayDate)} · ${pluralize(activityCount, 'activity')}`,
+        },
+      ]
     }),
     [hiddenMapDayDates, scheduledActivityCountsByDay, tripDays],
   )
