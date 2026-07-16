@@ -308,6 +308,7 @@ describe('TripWorkspacePage layout scroll contract', () => {
     expect(cardBlock).toMatch(/width:\s*min\(18\.75rem,\s*calc\(100% - var\(--space-8\)\)\)/)
     expect(cardBlock).toMatch(/max-height:\s*min\(28rem,\s*80dvh\)/)
     expect(cardBlock).toMatch(/grid-template-rows:\s*auto minmax\(0,\s*1fr\)/)
+    expect(cardBlock).toMatch(/background:\s*var\(--color-floating-surface\)/)
     expect(raisedBlock).toMatch(
       /bottom:\s*calc\(var\(--map-search-results-height\) \+ var\(--map-search-results-gap\)\)/,
     )
@@ -370,6 +371,10 @@ describe('TripWorkspacePage layout scroll contract', () => {
       workspaceCss,
       '.workspaceShellMobileMap .placeDetailActions',
     )
+    const mobileCloseBlocks = cssBlocks(
+      workspaceCss,
+      '.workspaceShellMobileMap .placeDetailMobileClose',
+    )
     const mobileShelfBlock = shelfBlocks[shelfBlocks.length - 1] ?? ''
     const mobileListBlock = listBlocks[listBlocks.length - 1] ?? ''
     const mobileCloseBlock = closeBlocks[closeBlocks.length - 1] ?? ''
@@ -378,6 +383,13 @@ describe('TripWorkspacePage layout scroll contract', () => {
     const mobileHeroBlock = heroBlocks[heroBlocks.length - 1] ?? ''
     const mobileBodyBlock = mobileBodyBlocks[mobileBodyBlocks.length - 1] ?? ''
     const mobileActionsBlock = mobileActionsBlocks[mobileActionsBlocks.length - 1] ?? ''
+    const mobileDetailCloseBlock = mobileCloseBlocks[mobileCloseBlocks.length - 1] ?? ''
+    const mobileControlButtonBlock = workspaceCss.match(
+      /\.workspaceShellMobileMap \.placeDetailBack,\s*\.workspaceShellMobileMap \.placeDetailMobileClose\s*\{([^}]*)\}/,
+    )?.[1] ?? ''
+    const mobileControlFocusBlock = workspaceCss.match(
+      /\.workspaceShellMobileMap \.placeDetailBack:focus-visible,\s*\.workspaceShellMobileMap \.placeDetailMobileClose:focus-visible\s*\{([^}]*)\}/,
+    )?.[1] ?? ''
 
     expect(mobileShelfBlock).toMatch(/position:\s*static/)
     expect(mobileShelfBlock).toMatch(/flex:\s*0 1 auto/)
@@ -399,9 +411,20 @@ describe('TripWorkspacePage layout scroll contract', () => {
       /max-height:\s*min\(calc\(100dvh - 128px - env\(safe-area-inset-bottom\)\),\s*42rem\)/,
     )
     expect(mobileDetailCardBlock).toMatch(/grid-template-rows:\s*auto minmax\(0,\s*1fr\)/)
+    expect(mobileDetailCardBlock).toMatch(/background:\s*var\(--color-surface\)/)
     expect(mobileControlBlock).toMatch(/position:\s*absolute/)
     expect(mobileControlBlock).toMatch(/inset:\s*var\(--space-3\) var\(--space-3\) auto/)
     expect(mobileControlBlock).toMatch(/justify-content:\s*flex-end/)
+    expect(mobileControlButtonBlock).toMatch(/min-height:\s*44px/)
+    expect(mobileControlButtonBlock).toMatch(/border:\s*1px solid var\(--color-border-strong\)/)
+    expect(mobileControlButtonBlock).toMatch(/background:\s*var\(--color-surface\)/)
+    expect(mobileControlButtonBlock).toMatch(/color:\s*var\(--color-text\)/)
+    expect(mobileControlButtonBlock).not.toMatch(/rgb\(/)
+    expect(mobileDetailCloseBlock).toMatch(/width:\s*44px/)
+    expect(mobileControlFocusBlock).toMatch(
+      /outline:\s*var\(--focus-ring-width\) solid var\(--focus-ring-color\)/,
+    )
+    expect(mobileControlFocusBlock).toMatch(/outline-offset:\s*var\(--focus-ring-offset\)/)
     expect(mobileHeroBlock).toMatch(/display:\s*block/)
     expect(mobileHeroBlock).toMatch(/width:\s*100%/)
     expect(mobileHeroBlock).toMatch(/max-height:\s*none/)
@@ -412,6 +435,7 @@ describe('TripWorkspacePage layout scroll contract', () => {
     expect(mobileBodyBlock).toMatch(/padding:\s*var\(--space-3\) var\(--space-4\) var\(--space-4\)/)
     expect(mobileActionsBlock).toMatch(/position:\s*sticky/)
     expect(mobileActionsBlock).toMatch(/bottom:\s*calc\(var\(--space-4\) \* -1\)/)
+    expect(mobileActionsBlock).toMatch(/background:\s*var\(--color-surface\)/)
   })
 
   it('uses a bounded mobile map overlay flow for chrome, route feedback, search, and results', () => {
