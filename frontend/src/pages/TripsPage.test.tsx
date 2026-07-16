@@ -464,8 +464,10 @@ describe('<TripsPage>', () => {
 
     await waitFor(() => {
       expect(auth.updateProfile).toHaveBeenCalledWith({ displayName: 'Alice Chen' })
+      expect(
+        screen.queryByRole('dialog', { name: /account settings/i }),
+      ).not.toBeInTheDocument()
     })
-    expect(screen.getByText(/account settings saved/i)).toBeInTheDocument()
   })
 
   it('requires typing delete before deleting the account and returning to login', async () => {
@@ -533,6 +535,13 @@ describe('selectTripVisualKey', () => {
 })
 
 describe('<NewTripPage>', () => {
+  it('uses the form cancel action as the only return navigation', () => {
+    renderNewTrip()
+
+    expect(screen.queryByRole('link', { name: /back to trips/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /^cancel$/i })).toHaveAttribute('href', '/trips')
+  })
+
   it('validates required fields before submitting', async () => {
     renderNewTrip()
 

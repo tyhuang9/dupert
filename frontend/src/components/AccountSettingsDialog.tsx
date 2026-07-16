@@ -46,7 +46,7 @@ export function AccountSettingsDialog({
     try {
       await auth.updateProfile({ displayName })
       window.localStorage.setItem('dupert.marketingEmails', String(marketingEmails))
-      setStatusMessage('Account settings saved.')
+      onClose()
     } catch (error) {
       setErrorMessage(parseApiError(error).topMessage)
     } finally {
@@ -224,9 +224,6 @@ export function AccountSettingsDialog({
               </section>
             </div>
             <footer className={styles.accountSettingsFooter}>
-              <button type="button" className={styles.secondaryAction} onClick={onClose}>
-                Cancel
-              </button>
               <button type="submit" className={styles.primaryAction} disabled={saving}>
                 {saving ? 'Saving...' : 'Save changes'}
               </button>

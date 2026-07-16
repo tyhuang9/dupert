@@ -37,9 +37,11 @@ describe('<TripDateRangePicker>', () => {
     )
     mockFieldRect()
 
-    await userEvent.click(screen.getByRole('button', { name: /trip dates/i }))
+    const trigger = screen.getByRole('button', { name: /trip dates/i })
+    await userEvent.click(trigger)
 
     const dialog = screen.getByRole('dialog', { name: /trip dates/i })
+    expect(trigger).toHaveAttribute('data-panel-placement', 'below')
     expect(screen.getByTestId('settings-popup')).not.toContainElement(dialog)
     expect(document.body).toContainElement(dialog)
     expect(dialog).toContainElement(screen.getByRole('button', { name: /previous month/i }))
@@ -76,18 +78,60 @@ describe('<TripDateRangePicker>', () => {
       y: 620,
     })
 
-    await userEvent.click(screen.getByRole('button', { name: /trip dates/i }))
+    const trigger = screen.getByRole('button', { name: /trip dates/i })
+    await userEvent.click(trigger)
 
     const dialog = screen.getByRole('dialog', { name: /trip dates/i })
+    expect(trigger).toHaveAttribute('data-panel-placement', 'above')
     expect(dialog).toHaveAttribute('data-placement', 'above')
-    expect(dialog.style.bottom).toBe('')
+    expect(dialog.style.top).toBe('')
     expect(dialog).toHaveStyle({
+      bottom: '147px',
       left: '82px',
       position: 'fixed',
-      top: '237px',
       width: '760px',
     })
     expect(dialog.style.maxHeight).toBe('')
+  })
+
+  it('keeps a compact above-field calendar connected to its trigger', async () => {
+    vi.stubGlobal('innerWidth', 390)
+    vi.stubGlobal('innerHeight', 768)
+
+    try {
+      render(
+        <TripDateRangePicker
+          startDate="2026-05-01"
+          endDate=""
+          onChange={vi.fn()}
+        />,
+      )
+      mockFieldRect({
+        bottom: 690,
+        height: 70,
+        left: 16,
+        right: 374,
+        top: 620,
+        width: 358,
+        x: 16,
+        y: 620,
+      })
+
+      const trigger = screen.getByRole('button', { name: /trip dates/i })
+      await userEvent.click(trigger)
+
+      const dialog = screen.getByRole('dialog', { name: /trip dates/i })
+      expect(trigger).toHaveAttribute('data-panel-placement', 'above')
+      expect(dialog).toHaveStyle({
+        bottom: '147px',
+        left: '12px',
+        position: 'fixed',
+        width: '366px',
+      })
+      expect(dialog.querySelector('[data-month-count="1"]')).toBeInTheDocument()
+    } finally {
+      vi.unstubAllGlobals()
+    }
   })
 
   it('keeps date selection working inside the portaled calendar', async () => {

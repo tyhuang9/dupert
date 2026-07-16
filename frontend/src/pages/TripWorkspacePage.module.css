@@ -2555,17 +2555,16 @@
     position: fixed;
     inset: 0;
     z-index: 200;
-    display: flex;
-    align-items: flex-end;
+    display: block;
     background: rgb(26 33 31 / 42%);
   }
 
   .mobileDayPickerSheet {
-    width: 100%;
-    max-height: min(82dvh, 42rem);
+    position: fixed;
     overflow-y: auto;
+    overscroll-behavior: contain;
     border: 1px solid var(--color-surface-border);
-    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+    border-radius: var(--radius-xl);
     background: var(--color-surface);
     box-shadow: var(--shadow-lg);
   }
@@ -3131,6 +3130,7 @@
     border-bottom: 0;
     border-left: 0;
     border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+    background: var(--color-surface);
   }
 
   .workspaceShellMobileMap .placeDetailMobileControls {
@@ -3151,9 +3151,9 @@
     align-items: center;
     justify-content: center;
     gap: var(--space-1);
-    border: 1px solid var(--color-surface-border);
+    border: 1px solid var(--color-border-strong);
     border-radius: var(--radius-lg);
-    background: rgb(255 255 255 / 92%);
+    background: var(--color-surface);
     color: var(--color-text);
     font: inherit;
     font-size: var(--font-size-xs);
@@ -3222,7 +3222,7 @@
     bottom: calc(var(--space-4) * -1);
     margin-top: auto;
     padding: var(--space-2) 0 var(--space-4);
-    background: var(--color-floating-surface);
+    background: var(--color-surface);
   }
 
   .workspaceShellMobileMap .placeDetailActions .primaryAction {

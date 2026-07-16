@@ -12,6 +12,7 @@ import {
   createShareLink,
   listTripMembers,
   listShareLinks,
+  removeTripMember,
   renameShareLink,
   revokeShareLink,
 } from '../api/share'
@@ -71,6 +72,25 @@ export function useTripMembers(
     queryKey: shareKeys.members(publicId ?? ''),
     queryFn: () => listTripMembers(publicId as string),
     enabled: Boolean(publicId),
+  })
+}
+
+export function useRemoveTripMember(): UseMutationResult<
+  void,
+  Error,
+  { publicId: string; userId: number }
+> {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ publicId, userId }) => removeTripMember(publicId, userId),
+    onSuccess: (_unused, { publicId, userId }) => {
+      queryClient.setQueryData<TripMember[]>(
+        shareKeys.members(publicId),
+        (existing) => existing?.filter((member) => member.userId !== userId) ?? existing,
+      )
+      void queryClient.invalidateQueries({ queryKey: shareKeys.members(publicId) })
+    },
   })
 }
 

@@ -132,9 +132,6 @@ export function NewTripPage() {
           <p className={styles.eyebrow}>New trip</p>
           <h1 className={styles.heading}>Create trip</h1>
         </div>
-        <Link to="/trips" className={styles.secondaryLink}>
-          Back to trips
-        </Link>
       </header>
 
       <form className={styles.form} onSubmit={onSubmit} noValidate>

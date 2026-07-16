@@ -1,4 +1,5 @@
 import {
+  useRef,
   useState,
   type FocusEvent,
   type KeyboardEvent,
@@ -11,15 +12,15 @@ import type {
 } from '@dnd-kit/core'
 import {
   BedDouble,
-  CalendarDays,
   Coffee,
   GripVertical,
   Landmark,
   MapPin,
   Plane,
   Utensils,
+  X,
 } from 'lucide-react'
-import { ActivityForm } from './ActivityForm'
+import { ActivityForm, type ActivityFormHandle } from './ActivityForm'
 import { ConfirmDialog } from './ConfirmDialog'
 import type { Activity, CreateActivityRequest } from '../types/activity'
 import styles from './ActivityCard.module.css'
@@ -40,8 +41,8 @@ interface ActivityCardProps {
   onActiveChange?: (activityId: number | null) => void
   onDelete: (activityId: number) => void
   onRequestMapLocation?: (activity: Activity, payload: CreateActivityRequest) => void
-  onMoveToDay?: (activity: Activity) => void
-  onScheduleForSelectedDay?: (activity: Activity) => void
+  onMoveToDay?: (activity: Activity, anchor: HTMLElement) => void
+  onScheduleForSelectedDay?: (activity: Activity, anchor: HTMLElement) => void
   onSubmitEdit: (activity: Activity, payload: CreateActivityRequest) => Promise<void> | void
   onToggleExpand: (activity: Activity) => void
 }
@@ -164,6 +165,8 @@ export function ActivityCard({
   onToggleExpand,
 }: ActivityCardProps) {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [closePending, setClosePending] = useState(false)
+  const activityFormRef = useRef<ActivityFormHandle>(null)
   const timeDisplay = getTimeDisplay(activity)
   const categoryLabel = getCategoryLabel(activity.category)
   const canDrag = !presentation && !readOnly && !busy && !dragDisabled && !expanded
@@ -177,6 +180,17 @@ export function ActivityCard({
   ].filter(Boolean).join(' ')
   const handleDelete = () => {
     setDeleteDialogOpen(true)
+  }
+  const handleCloseEditor = async (event: MouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation()
+    if (closePending) return
+    setClosePending(true)
+    try {
+      const saved = await activityFormRef.current?.flushAutosave() ?? true
+      if (saved) onToggleExpand(activity)
+    } finally {
+      setClosePending(false)
+    }
   }
   const handleBlurCapture = (event: FocusEvent<HTMLElement>) => {
     if (presentation) return
@@ -201,7 +215,7 @@ export function ActivityCard({
   const quickAction = activity.dayDate === null && onScheduleForSelectedDay
     ? {
         label: 'Schedule',
-        onClick: () => onScheduleForSelectedDay(activity),
+        onClick: (anchor: HTMLElement) => onScheduleForSelectedDay(activity, anchor),
       }
     : null
   const handleKeyDown = (event: KeyboardEvent<HTMLElement>) => {
@@ -263,7 +277,7 @@ export function ActivityCard({
                   className={styles.cardQuickAction}
                   onClick={(event) => {
                     event.stopPropagation()
-                    quickAction.onClick()
+                    quickAction.onClick(event.currentTarget)
                   }}
                 >
                   {quickAction.label}
@@ -301,37 +315,28 @@ export function ActivityCard({
           {mobileDragHandle ? (
             <div className={styles.mobileEditorHeader}>
               <p>Edit activity</p>
-              <div className={styles.mobileEditorActions}>
-                {onMoveToDay && activity.dayDate !== null ? (
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={(event) => {
-                      event.stopPropagation()
-                      onMoveToDay(activity)
-                    }}
-                  >
-                    <CalendarDays size={17} aria-hidden="true" />
-                    Change day
-                  </button>
-                ) : null}
-                <button
-                  type="button"
-                  onClick={(event) => {
-                    event.stopPropagation()
-                    onToggleExpand(activity)
-                  }}
-                >
-                  Done
-                </button>
-              </div>
+              <button
+                type="button"
+                className={styles.mobileEditorClose}
+                aria-label="Close activity editor"
+                disabled={closePending}
+                onClick={(event) => void handleCloseEditor(event)}
+              >
+                <X size={20} aria-hidden="true" />
+              </button>
             </div>
           ) : null}
           <ActivityForm
+            ref={activityFormRef}
             key={editFormKey(activity)}
             initialValues={editInitialValues(activity)}
             onSubmit={(payload) => onSubmitEdit(activity, payload)}
             onDelete={handleDelete}
+            onChangeDay={
+              mobileDragHandle && onMoveToDay && activity.dayDate !== null
+                ? (anchor) => onMoveToDay(activity, anchor)
+                : undefined
+            }
             onRequestMapLocation={
               onRequestMapLocation
                 ? (payload) => onRequestMapLocation(activity, payload)
