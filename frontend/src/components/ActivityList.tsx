@@ -27,7 +27,7 @@ interface ActivityListProps {
   onAddActivity?: () => void
   onDelete: (activityId: number) => void
   onRequestMapLocation?: (activity: Activity, payload: CreateActivityRequest) => void
-  onMoveToDay?: (activity: Activity) => void
+  onMoveToDay?: (activity: Activity, anchor: HTMLElement) => void
   onScheduleForSelectedDay?: (activity: Activity) => void
   onSubmitEdit: (activity: Activity, payload: CreateActivityRequest) => Promise<void> | void
   onToggleExpand: (activity: Activity) => void
