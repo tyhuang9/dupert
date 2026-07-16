@@ -169,6 +169,66 @@ const MAP_SEARCH_PAGE_SIZE = 10
 const GOOGLE_MAPS_DIRECTIONS_URL = 'https://www.google.com/maps/dir/'
 const GOOGLE_MAPS_MAX_WAYPOINTS = 9
 const GOOGLE_MAPS_MAX_DIRECTIONS_URL_LENGTH = 2048
+const MOBILE_DAY_PICKER_GAP_PX = 8
+const MOBILE_DAY_PICKER_MARGIN_PX = 12
+const MOBILE_DAY_PICKER_MAX_HEIGHT_PX = 672
+const MOBILE_DAY_PICKER_MAX_WIDTH_PX = 512
+const MOBILE_DAY_PICKER_MIN_WIDTH_PX = 360
+const MOBILE_DAY_PICKER_PREFERRED_HEIGHT_PX = 360
+
+interface MobileDayPickerPosition {
+  placement: 'above' | 'below'
+  style: CSSProperties
+}
+
+function mobileDayPickerPosition(
+  anchorRect: DOMRect,
+  viewportWidth: number,
+  viewportHeight: number,
+): MobileDayPickerPosition {
+  const availableWidth = Math.max(0, viewportWidth - MOBILE_DAY_PICKER_MARGIN_PX * 2)
+  const width = Math.min(
+    availableWidth,
+    MOBILE_DAY_PICKER_MAX_WIDTH_PX,
+    Math.max(MOBILE_DAY_PICKER_MIN_WIDTH_PX, anchorRect.width),
+  )
+  const minimumLeft = MOBILE_DAY_PICKER_MARGIN_PX
+  const maximumLeft = Math.max(minimumLeft, viewportWidth - MOBILE_DAY_PICKER_MARGIN_PX - width)
+  const centeredLeft = anchorRect.left + (anchorRect.width - width) / 2
+  const left = Math.round(Math.min(maximumLeft, Math.max(minimumLeft, centeredLeft)))
+
+  const top = Math.round(Math.min(
+    viewportHeight - MOBILE_DAY_PICKER_MARGIN_PX,
+    Math.max(MOBILE_DAY_PICKER_MARGIN_PX, anchorRect.bottom + MOBILE_DAY_PICKER_GAP_PX),
+  ))
+  const bottom = Math.round(Math.min(
+    viewportHeight - MOBILE_DAY_PICKER_MARGIN_PX,
+    Math.max(
+      MOBILE_DAY_PICKER_MARGIN_PX,
+      viewportHeight - anchorRect.top + MOBILE_DAY_PICKER_GAP_PX,
+    ),
+  ))
+  const spaceBelow = Math.max(0, viewportHeight - MOBILE_DAY_PICKER_MARGIN_PX - top)
+  const spaceAbove = Math.max(0, viewportHeight - MOBILE_DAY_PICKER_MARGIN_PX - bottom)
+  const placement = spaceBelow >= MOBILE_DAY_PICKER_PREFERRED_HEIGHT_PX || spaceBelow >= spaceAbove
+    ? 'below'
+    : 'above'
+  const maxHeight = Math.round(Math.min(
+    MOBILE_DAY_PICKER_MAX_HEIGHT_PX,
+    placement === 'below' ? spaceBelow : spaceAbove,
+  ))
+
+  return {
+    placement,
+    style: {
+      bottom: placement === 'above' ? bottom : undefined,
+      left,
+      maxHeight,
+      top: placement === 'below' ? top : undefined,
+      width: Math.round(width),
+    },
+  }
+}
 
 interface MapStyleOption {
   id: MapStyleId
@@ -1921,7 +1981,49 @@ export function TripWorkspacePage() {
   )
   const [isMobileDayPickerOpen, setIsMobileDayPickerOpen] = useState(false)
   const [mobileMoveActivity, setMobileMoveActivity] = useState<Activity | null>(null)
+  const [mobileDayPickerLayout, setMobileDayPickerLayout] =
+    useState<MobileDayPickerPosition | null>(null)
+  const mobileDayPickerAnchorRef = useRef<HTMLElement | null>(null)
+  const mobileDayPickerCloseRef = useRef<HTMLButtonElement | null>(null)
   const isMobileViewport = useMediaQuery('(max-width: 820px)')
+
+  const updateMobileDayPickerLayout = useCallback(() => {
+    const anchor = mobileDayPickerAnchorRef.current
+    if (!anchor) return
+    setMobileDayPickerLayout(mobileDayPickerPosition(
+      anchor.getBoundingClientRect(),
+      window.innerWidth,
+      window.innerHeight,
+    ))
+  }, [])
+
+  const closeMobileDayPicker = useCallback((restoreFocus = true) => {
+    const anchor = mobileDayPickerAnchorRef.current
+    setIsMobileDayPickerOpen(false)
+    setMobileMoveActivity(null)
+    if (restoreFocus) anchor?.focus()
+  }, [])
+
+  useLayoutEffect(() => {
+    if (!isMobileDayPickerOpen) return
+
+    updateMobileDayPickerLayout()
+    mobileDayPickerCloseRef.current?.focus()
+    const handleViewportChange = () => updateMobileDayPickerLayout()
+    const handleKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      event.preventDefault()
+      closeMobileDayPicker()
+    }
+    window.addEventListener('resize', handleViewportChange)
+    window.addEventListener('scroll', handleViewportChange, true)
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      window.removeEventListener('resize', handleViewportChange)
+      window.removeEventListener('scroll', handleViewportChange, true)
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [closeMobileDayPicker, isMobileDayPickerOpen, updateMobileDayPickerLayout])
   // Public share routes are rendered under AuthProvider in the app, but keeping
   // this optional preserves the component's standalone test and preview usage.
   const isInitializing = useContext(AuthContext)?.isInitializing ?? false
@@ -2613,14 +2715,26 @@ export function TripWorkspacePage() {
     }
   }
 
-  const openMobileDayPicker = () => {
+  const openMobileDayPicker = (anchor: HTMLElement) => {
+    mobileDayPickerAnchorRef.current = anchor
+    setMobileDayPickerLayout(mobileDayPickerPosition(
+      anchor.getBoundingClientRect(),
+      window.innerWidth,
+      window.innerHeight,
+    ))
     setMobileMoveActivity(null)
     setCalendarMonth(getMonthKey(selectedDay ?? tripQuery.data?.startDate ?? new Date().toISOString().slice(0, 10)))
     setIsMobileDayPickerOpen(true)
   }
 
-  const openMobileMoveDayPicker = (activity: Activity) => {
+  const openMobileMoveDayPicker = (activity: Activity, anchor: HTMLElement) => {
     if (!canEditTrip) return
+    mobileDayPickerAnchorRef.current = anchor
+    setMobileDayPickerLayout(mobileDayPickerPosition(
+      anchor.getBoundingClientRect(),
+      window.innerWidth,
+      window.innerHeight,
+    ))
     setMobileMoveActivity(activity)
     setCalendarMonth(getMonthKey(selectedDay ?? tripQuery.data?.startDate ?? new Date().toISOString().slice(0, 10)))
     setIsMobileDayPickerOpen(true)
@@ -3446,10 +3560,10 @@ export function TripWorkspacePage() {
     })
   }
 
-  const handleScheduleIdeaForSelectedDay = (activity: Activity) => {
+  const handleScheduleIdeaForSelectedDay = (activity: Activity, anchor: HTMLElement) => {
     if (!canEditTrip || activity.dayDate !== null) return
     if (isMobileViewport) {
-      openMobileMoveDayPicker(activity)
+      openMobileMoveDayPicker(activity, anchor)
       return
     }
     setSchedulingIdeaActivityId(activity.id)
@@ -3973,7 +4087,7 @@ export function TripWorkspacePage() {
                           <button
                             type="button"
                             className={styles.mobileDayPickerHeadingButton}
-                            onClick={openMobileDayPicker}
+                            onClick={(event) => openMobileDayPicker(event.currentTarget)}
                             aria-label={`Choose trip day: ${formatReadableDate(selectedDay)}`}
                           >
                             <CalendarDays size={17} aria-hidden="true" />
@@ -4558,17 +4672,16 @@ export function TripWorkspacePage() {
           {isMobileViewport && isMobileDayPickerOpen ? (
             <div
               className={styles.mobileDayPickerBackdrop}
-              onMouseDown={() => {
-                setIsMobileDayPickerOpen(false)
-                setMobileMoveActivity(null)
-              }}
+              onMouseDown={() => closeMobileDayPicker()}
             >
               <section
                 className={styles.mobileDayPickerSheet}
+                data-placement={mobileDayPickerLayout?.placement}
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="mobile-day-picker-title"
                 onMouseDown={(event) => event.stopPropagation()}
+                style={mobileDayPickerLayout?.style}
               >
                 <div className={styles.mobileDayPickerHeader}>
                   <div>
@@ -4580,13 +4693,11 @@ export function TripWorkspacePage() {
                     </h2>
                   </div>
                   <button
+                    ref={mobileDayPickerCloseRef}
                     type="button"
                     className={styles.mobileDayPickerClose}
                     aria-label="Close day picker"
-                    onClick={() => {
-                      setIsMobileDayPickerOpen(false)
-                      setMobileMoveActivity(null)
-                    }}
+                    onClick={() => closeMobileDayPicker()}
                   >
                     <X size={20} aria-hidden="true" />
                   </button>
