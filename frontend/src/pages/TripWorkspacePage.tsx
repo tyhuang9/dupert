@@ -99,7 +99,6 @@ import { ActivityList } from '../components/ActivityList'
 import { MapSearchResultsShelf } from '../components/MapSearchResultsShelf'
 import { createMapSearchThumbnailSession } from '../components/mapSearchThumbnailSession'
 import { PlaceSearch } from '../components/PlaceSearch'
-import { GoogleMapsProvider } from '../components/GoogleMapsProvider'
 import { TripDateRangePicker } from '../components/TripDateRangePicker'
 import {
   fetchGooglePlaceById,
@@ -109,11 +108,11 @@ import {
 } from '../components/googlePlaces'
 import { googlePlaceToPlaceSelection } from '../components/placeSelection'
 import {
-  TripMap,
   type MapPlaceClickEvent,
   type MapStyleId,
   type MapViewportContext,
 } from '../components/TripMap'
+import { TripMapSurface } from '@dupert/trip-map-surface'
 import type { Activity, CreateActivityRequest } from '../types/activity'
 import type { PlaceSelection } from '../types/place'
 import type { CreateShareLinkRequest, ShareLink } from '../types/share'
@@ -4616,8 +4615,7 @@ export function TripWorkspacePage() {
                   />
                 )}
                 </div>
-                <GoogleMapsProvider>
-                <TripMap
+                <TripMapSurface
                   activities={mapActivities}
                   activityMarkerColors={usesTimelineMapPresentation ? timelineActivityMarkerColors : undefined}
                   activityMarkerMode={usesTimelineMapPresentation ? 'timeline-days' : 'default'}
@@ -4648,7 +4646,6 @@ export function TripWorkspacePage() {
                   routeSummaryLabel={hasMobileMapDayScope ? 'Visible-days routes' : undefined}
                   viewportFitKey={viewportFitKey}
                 />
-                </GoogleMapsProvider>
               </aside>
               ) : null}
             </section>

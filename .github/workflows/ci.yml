@@ -71,6 +71,16 @@ jobs:
   frontend:
     name: Frontend
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        profile:
+          - web-development
+          - web-staging
+          - web-production
+          - native-development
+          - native-staging
+          - native-production
 
     steps:
       - name: Checkout
@@ -95,9 +105,15 @@ jobs:
         working-directory: frontend
         run: npm run test
 
-      - name: Build
+      - name: Build ${{ matrix.profile }}
         working-directory: frontend
-        run: npm run build
+        env:
+          # Safe build-only values. Production native builds also prove that
+          # browser Maps and app-wall configuration stay absent.
+          VITE_BACKEND_API_URL: https://api.dupert.test
+          VITE_GOOGLE_MAPS_API_KEY: ''
+          VITE_APP_ACCESS_PASSWORD: ''
+        run: npm run build:${{ matrix.profile }}
 
       - name: Enforce bundle budgets
         working-directory: frontend

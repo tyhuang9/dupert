@@ -116,6 +116,9 @@ The frontend client defaults to the same-origin API root `/api`. In local develo
 
 `ALLOWED_ORIGINS` controls browser CORS. `APP_PUBLIC_FRONTEND_URL` is separate: the backend uses it to build email verification and password-reset links.
 
+For the explicit web/native profile matrix, public-configuration rules, and
+deferred native setup, see [Web and native build profiles](docs/mobile/build-profiles.md).
+
 ## Other commands
 
 **Backend** (run from `backend/`):
@@ -135,6 +138,8 @@ The frontend client defaults to the same-origin API root `/api`. In local develo
 |---|---|
 | `npm run dev` | Vite dev server with HMR on port 3000 |
 | `npm run build` | Production build to `dist/` |
+| `npm run build:web:<development\|staging\|production>` | Explicit web profile build |
+| `npm run build:native:<development\|staging\|production>` | Explicit native profile build plus browser-only artifact inspection |
 | `npm run preview` | Serve the production build locally |
 | `npm run lint` | ESLint |
 | `npm run test` | Vitest unit/component tests |
