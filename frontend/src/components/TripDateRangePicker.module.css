@@ -43,9 +43,14 @@
   box-shadow: var(--shadow-sm);
 }
 
-.dateRangeTrigger[aria-expanded='true'] {
+.dateRangeTrigger[aria-expanded='true'][data-panel-placement='below'] {
   border-bottom-right-radius: 0;
   border-bottom-left-radius: 0;
+}
+
+.dateRangeTrigger[aria-expanded='true'][data-panel-placement='above'] {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
 }
 
 .dateRangeTrigger[aria-invalid='true'] {
@@ -248,7 +253,6 @@
   color: var(--date-picker-text);
   font-size: var(--font-size-sm);
   font-weight: 700;
-  isolation: isolate;
 }
 
 .calendarDateButton::before {
@@ -256,8 +260,8 @@
   position: absolute;
   z-index: 0;
   top: 50%;
-  right: 0;
-  left: 0;
+  right: -1px;
+  left: -1px;
   height: 2.5rem;
   background: transparent;
   transform: translateY(-50%);
@@ -331,8 +335,15 @@
     --date-picker-day-size: 2.375rem;
   }
 
+  .dateRangeTrigger {
+    min-height: 3.75rem;
+    gap: var(--space-2);
+    padding-block: var(--space-2);
+  }
+
   .dateRangeSummary {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    gap: var(--space-2);
   }
 
   .datePickerCalendarArea {
