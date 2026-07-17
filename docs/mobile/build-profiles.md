@@ -23,6 +23,73 @@ relative, uses credentials/query/fragment data, targets localhost/loopback, or
 uses a placeholder in staging or production. `VITE_*` values are public build
 configuration, never a secret transport.
 
+## Capacitor projects and native deployment profiles
+
+The native projects live in `frontend/ios/` and `frontend/android/`. They are
+generated from the committed `frontend/capacitor.config.ts` with the permanent
+identity `io.github.tyhuang9.dupert`, the app name `Dupert`, and `webDir: dist`.
+The config bundles the compiled files and deliberately has no `server.url`;
+Capacitor documents a hosted URL as a live-reload feature rather than a
+production setting. Its explicit bundled origins are `capacitor://localhost`
+on iOS and `https://localhost` on Android.
+
+| Native mode | Backend base URL | Source |
+| --- | --- | --- |
+| `native-development` | Explicit URL required | `.env.native-development.local` (copy the example first) |
+| `native-staging` | `https://dupert-pm90.onrender.com` | `.env.native-staging` |
+| `native-production` | `https://dupert.onrender.com` | `.env.native-production` |
+
+The frontend appends `/api`; never add `/api` to these backend-base values.
+Staging and production origins are public configuration, not secrets. Build and
+sync an exact profile with one command:
+
+```bash
+npm run sync:native:development
+npm run sync:native:staging
+npm run sync:native:production
+```
+
+Each command builds the selected native profile, runs the native artifact policy,
+then runs `npx cap sync` to copy that bundle to both generated projects. CI runs
+the staging variant with a non-secret test URL and verifies the sync inputs; it
+does not claim to compile or launch an iOS/Android app.
+
+After a matching sync, use the native platform tools when available:
+
+```bash
+npx cap run ios
+npx cap run android
+```
+
+Those commands need Xcode/simulator or Android SDK/emulator support respectively;
+they are not substituted by a Linux CI sync check.
+
+## Backend CORS deployment
+
+`ALLOWED_ORIGINS` remains the browser-origin list used by CORS, share links, and
+email-link configuration. Native WebView origins are a separate comma-separated
+`NATIVE_ALLOWED_ORIGINS` list. Set the following exact value on both the staging
+and production Render backends:
+
+```bash
+NATIVE_ALLOWED_ORIGINS=capacitor://localhost,https://localhost
+```
+
+The CORS configuration deduplicates configured values but never expands native
+origins or accepts `*`; a near-match such as `capacitor://localhost.evil` is
+rejected. For production, use the canonical browser origin in both settings:
+
+```bash
+ALLOWED_ORIGINS=https://dupert.vercel.app
+APP_PUBLIC_FRONTEND_URL=https://dupert.vercel.app
+```
+
+The staging browser origin is not inferred here: deployers must set it to the
+actual staging web origin. Before release, use a packaged build and browser/dev
+tools network inspection to record the actual `Origin` header for authentication
+and API preflights on each platform. If a runtime reports a different origin,
+change the deployed exact allowlist and tests—never broaden it with a wildcard.
+
 ## Target boundaries
 
 Native entry aliases omit the browser AppAccessGate, Vercel Speed Insights, and
@@ -33,15 +100,15 @@ scan that rejects service-worker registration, browser Maps, AppAccessGate
 configuration, analytics, and configured browser-value leakage.
 
 The platform facade owns foreground/background lifecycle subscription. Native
-bridge events will be connected only after the native projects exist; callers
-must use this facade rather than adding direct Capacitor globals.
+builds subscribe through the Capacitor App plugin; callers must use this facade
+rather than adding direct Capacitor globals.
 
-## Deferred native setup
+## Deferred native qualification
 
-Capacitor packages, `capacitor.config`, generated iOS/Android projects, native
-origins, signing, and `cap sync` commands intentionally remain absent until the
-permanent iOS bundle ID and Android application ID are confirmed. Once real
-devices are available, record the observed native origins before adding exact
-backend CORS entries (normally `capacitor://localhost` on iOS and
-`https://localhost` on Android). No native HTTP/cookie/storage patches,
-permissions, or Maps permissions are authorized by this issue.
+This issue deliberately does not add Apple Team/distribution signing, Android
+release signing fingerprints, Maps key restrictions, App/Universal Links,
+association files, privacy/support/deletion URLs, permissions, native
+HTTP/cookie/storage changes, or a native Maps renderer. iOS simulator/unsigned
+build and Android compile/emulator qualification are manual checks when those
+toolchains are available; physical-device qualification belongs to the later
+issues named in the mobile-foundation sequence.

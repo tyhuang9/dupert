@@ -50,6 +50,7 @@ cp frontend/.env.example frontend/.env
 #   JWT_SECRET            (generate: openssl rand -hex 32)
 #   LOG_EMAIL_PEPPER      (generate: openssl rand -hex 16)
 #   ALLOWED_ORIGINS       (exact frontend origin, e.g. http://localhost:3000)
+#   NATIVE_ALLOWED_ORIGINS (exact Capacitor origins for deployed native CORS)
 #   APP_PUBLIC_FRONTEND_URL (same public frontend origin used in email links)
 #   SPRING_PROFILES_ACTIVE=local for local development
 #   GOOGLE_MAPS_API_KEY   (backend key for Places, Geocoding, Routes, and photos)
@@ -114,10 +115,14 @@ The frontend client defaults to the same-origin API root `/api`. In local develo
 
 `VITE_BACKEND_API_URL` is only needed when the browser must call a separate backend origin directly. Set it to the backend base URL only, such as `https://backend.example.com`; the frontend appends `/api` when building requests. Also set backend `ALLOWED_ORIGINS` to the exact frontend browser origin.
 
-`ALLOWED_ORIGINS` controls browser CORS. `APP_PUBLIC_FRONTEND_URL` is separate: the backend uses it to build email verification and password-reset links.
+`ALLOWED_ORIGINS` controls browser CORS. `NATIVE_ALLOWED_ORIGINS` is a separate
+exact allowlist for bundled Capacitor WebViews; use
+`capacitor://localhost,https://localhost` on the deployed staging and production
+backends, never a wildcard. `APP_PUBLIC_FRONTEND_URL` remains separate: the
+backend uses it to build email verification and password-reset links.
 
 For the explicit web/native profile matrix, public-configuration rules, and
-deferred native setup, see [Web and native build profiles](docs/mobile/build-profiles.md).
+Capacitor/deployment setup, see [Web and native build profiles](docs/mobile/build-profiles.md).
 
 ## Other commands
 
@@ -140,6 +145,7 @@ deferred native setup, see [Web and native build profiles](docs/mobile/build-pro
 | `npm run build` | Production build to `dist/` |
 | `npm run build:web:<development\|staging\|production>` | Explicit web profile build |
 | `npm run build:native:<development\|staging\|production>` | Explicit native profile build plus browser-only artifact inspection |
+| `npm run sync:native:<development\|staging\|production>` | Build that native profile, inspect it, then sync it into both Capacitor projects |
 | `npm run preview` | Serve the production build locally |
 | `npm run lint` | ESLint |
 | `npm run test` | Vitest unit/component tests |
@@ -170,7 +176,8 @@ On pushes to `main`, pull requests, and manual dispatches CI runs:
 
 - backend tests on Java 21
 - backend OWASP Dependency-Check against the cached vulnerability database, with HTML/JSON reports uploaded as artifacts
-- frontend `npm ci`, lint, tests, production build, and production dependency audit
+- frontend `npm ci`, lint, tests, all six web/native profile builds, bundle-budget enforcement, and production dependency audit
+- a native staging build plus deterministic Capacitor sync using a non-secret CI URL; this does not compile or launch a simulator/emulator
 
 The CI workflow does not require app runtime secrets. Backend tests use the test profile and do not require a Neon URL, Google Maps key, or local `.env`. Dependency-Check scans do not call NVD during push or pull request CI; they restore `~/.gradle/dependency-check-data` from the latest successful data refresh. If that cache is missing, CI warns and skips the scan for that run.
 
@@ -193,7 +200,9 @@ dupert/
 │       ├── pages/   Top-level routes
 │       ├── components/  UI building blocks
 │       └── hooks/   Trip data, SSE stream, …
-│   └── .env.example Frontend config template — copy to frontend/.env
+│   ├── .env.example Frontend config template — copy to frontend/.env
+│   ├── ios/         Generated Capacitor iOS project
+│   └── android/     Generated Capacitor Android project
 ├── backend/.env.example Backend config template — copy to backend/.env
 └── README.md
 ```
@@ -211,6 +220,7 @@ dupert/
 | `JWT_SECRET` | backend | 32 random bytes (hex) for signing access tokens |
 | `LOG_EMAIL_PEPPER` | backend | 16 random bytes (hex) for hashing emails in logs |
 | `ALLOWED_ORIGINS` | backend | Exact frontend origins allowed by CORS, comma-separated (no `*`) |
+| `NATIVE_ALLOWED_ORIGINS` | backend | Exact bundled Capacitor origins allowed by CORS, comma-separated (normally `capacitor://localhost,https://localhost`; no `*`) |
 | `APP_PUBLIC_FRONTEND_URL` | backend | Public frontend origin used in password reset and email verification links |
 | `APP_TRUST_PROXY` | backend | Set `true` only behind a trusted platform proxy such as Render so rate limits use the real client IP |
 | `APP_COOKIES_SECURE` | backend | Set `true` in production so refresh and guest cookies are HTTPS-only |
@@ -236,11 +246,12 @@ Set these backend environment variables on Render for production:
 ```bash
 SPRING_PROFILES_ACTIVE=prod
 APP_TRUST_PROXY=true
-ALLOWED_ORIGINS=https://<frontend-origin>
+ALLOWED_ORIGINS=https://dupert.vercel.app
+NATIVE_ALLOWED_ORIGINS=capacitor://localhost,https://localhost
 APP_COOKIES_SECURE=true
 APP_COOKIES_SAME_SITE=None
 SECURE_HSTS_ENABLED=true
-APP_PUBLIC_FRONTEND_URL=https://<frontend-origin>
+APP_PUBLIC_FRONTEND_URL=https://dupert.vercel.app
 SIGNUP_ENABLED=false
 DB_POOL_MAX_SIZE=4
 DB_POOL_MIN_IDLE=0
@@ -250,7 +261,15 @@ DB_VALIDATION_TIMEOUT_MS=3000
 
 `SPRING_PROFILES_ACTIVE=prod` loads `application-prod.yml`, which sets secure cookies, `SameSite=None`, and HSTS. Keep `APP_COOKIES_SECURE=true`, `APP_COOKIES_SAME_SITE=None` for split-origin deployments, and `SECURE_HSTS_ENABLED=true` explicit on Render as a deployment guard against missing or overridden profile config.
 
-`APP_TRUST_PROXY=true` is required on Render because the backend is behind Render's proxy and rate limiting must use the trusted forwarded client IP. `ALLOWED_ORIGINS` must be the exact frontend browser origin with no wildcard and no trailing slash. `APP_PUBLIC_FRONTEND_URL` must be the same frontend origin used for auth email and reset links.
+`APP_TRUST_PROXY=true` is required on Render because the backend is behind Render's proxy and rate limiting must use the trusted forwarded client IP. `ALLOWED_ORIGINS` must be the exact frontend browser origin with no wildcard and no trailing slash. `NATIVE_ALLOWED_ORIGINS` must contain only the exact observed Capacitor WebView origins; do not replace it with a wildcard. `APP_PUBLIC_FRONTEND_URL` must be the same frontend origin used for auth email and reset links.
+
+For staging, use the same exact `NATIVE_ALLOWED_ORIGINS` value with the staging
+backend `https://dupert-pm90.onrender.com`; set `ALLOWED_ORIGINS` and
+`APP_PUBLIC_FRONTEND_URL` to the actual staging browser origin rather than
+guessing a preview URL. Native staging and production frontend profiles already
+use their respective backend base URLs without `/api`. Before deployment or
+release, inspect packaged-app network requests to verify each platform's actual
+`Origin` header and update only the precise deployed allowlist if needed.
 
 Use Neon's direct database endpoint with this one Hikari pool; do not layer the
 Neon pooled endpoint over it for a single Render instance. Keep Render and Neon
