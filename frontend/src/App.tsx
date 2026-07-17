@@ -5,6 +5,7 @@ import { RequireAuth } from './auth/RequireAuth'
 import { SkipLink } from './components/SkipLink'
 import { RouteAnnouncer } from './components/RouteAnnouncer'
 import { RouteLoadingFallback } from './components/RouteLoadingFallback'
+import { TripRealtimeBoundary } from './realtime/TripRealtimeBoundary'
 
 const AcceptInvitePage = lazy(() => import('./pages/AcceptInvitePage'))
 const EmailVerificationPage = lazy(() => import('./pages/EmailVerificationPage').then(({ EmailVerificationPage: Page }) => ({ default: Page })))
@@ -68,15 +69,19 @@ export default function App() {
         <Route path="/share/:token/guest" element={<LazyRoute kind="auth"><GuestOnboardingPage /></LazyRoute>} />
         <Route path="/404" element={<NotFoundPage />} />
         <Route path="/403" element={<ForbiddenPage />} />
-        <Route path="/trips/:publicId" element={<LazyRoute kind="workspace"><TripWorkspacePage /></LazyRoute>} />
-        <Route path="/trips/:publicId/d/:day" element={<LazyRoute kind="workspace"><TripWorkspacePage /></LazyRoute>} />
+        <Route path="/trips/:publicId" element={<TripRealtimeBoundary />}>
+          <Route index element={<LazyRoute kind="workspace"><TripWorkspacePage /></LazyRoute>} />
+          <Route path="d/:day" element={<LazyRoute kind="workspace"><TripWorkspacePage /></LazyRoute>} />
+          <Route element={<RequireAuth />}>
+            <Route path="members" element={<LazyRoute kind="members"><MembersPage /></LazyRoute>} />
+          </Route>
+        </Route>
 
         {/* Authenticated routes — wrapped in RequireAuth */}
         <Route element={<RequireAuth />}>
           <Route path="/" element={<Navigate to="/trips" replace />} />
           <Route path="/trips" element={<LazyRoute kind="trips"><TripsPage /></LazyRoute>} />
           <Route path="/trips/new" element={<LazyRoute kind="trips"><NewTripPage /></LazyRoute>} />
-          <Route path="/trips/:publicId/members" element={<LazyRoute kind="members"><MembersPage /></LazyRoute>} />
         </Route>
 
         {/* Catch-all */}

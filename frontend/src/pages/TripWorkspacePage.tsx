@@ -77,7 +77,6 @@ import {
   useReorderIdeas,
   useUpdateActivity,
 } from '../hooks/useActivities'
-import { useTripStream } from '../hooks/useTripStream'
 import { useMediaQuery } from '../hooks/useMediaQuery'
 import {
   useCreateShareLink,
@@ -140,6 +139,7 @@ import {
   placeDetailsNowMs,
 } from '../utils/placeDetailsTiming'
 import { timelineDayColor } from '../utils/timelineDayColors'
+import { useTripRealtimeActivityBuffer } from '../realtime/tripRealtimeActivityBuffer'
 
 const SIDEBAR_DROP_TARGET_SELECTOR = '[data-sidebar-drop-target]'
 
@@ -2055,10 +2055,7 @@ export function TripWorkspacePage() {
   const reorderActivitiesMutation = useReorderActivities()
   const reorderIdeasMutation = useReorderIdeas()
   const moveActivityMutation = useMoveActivity()
-  useTripStream(queryPublicId, {
-    bufferActivityEvents: isDraggingActivity,
-    enabled: tripQuery.isSuccess,
-  })
+  useTripRealtimeActivityBuffer(isDraggingActivity)
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: { distance: 8 },
