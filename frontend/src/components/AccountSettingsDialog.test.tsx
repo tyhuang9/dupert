@@ -8,6 +8,7 @@ import { AccountSettingsDialog } from './AccountSettingsDialog'
 
 function makeAuth(): AuthContextValue {
   return {
+    authStatus: 'authenticated',
     user: {
       id: 1,
       email: 'alice@example.com',
@@ -16,6 +17,7 @@ function makeAuth(): AuthContextValue {
     },
     isAuthenticated: true,
     isInitializing: false,
+    retryAuthResolution: vi.fn(async () => {}),
     login: vi.fn(async () => ({
       id: 1,
       email: 'alice@example.com',

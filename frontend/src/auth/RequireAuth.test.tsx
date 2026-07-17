@@ -1,14 +1,16 @@
-import { describe, expect, it } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { describe, expect, it, vi } from 'vitest'
+import { fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { RequireAuth } from './RequireAuth'
 import { AuthContext, type AuthContextValue } from './authContextValue'
 
 function makeAuth(overrides: Partial<AuthContextValue> = {}): AuthContextValue {
   return {
+    authStatus: 'unauthenticated',
     user: null,
     isAuthenticated: false,
     isInitializing: false,
+    retryAuthResolution: async () => {},
     login: async () => ({
       id: 1,
       email: 'a@b.com',
@@ -61,7 +63,11 @@ describe('<RequireAuth>', () => {
   it('renders an aria-busy placeholder while initializing', () => {
     renderWithAuth(
       '/protected',
-      makeAuth({ isInitializing: true, isAuthenticated: false }),
+      makeAuth({
+        authStatus: 'restoring',
+        isInitializing: true,
+        isAuthenticated: false,
+      }),
     )
     expect(screen.queryByTestId('protected')).toBeNull()
     expect(screen.queryByTestId('login')).toBeNull()
@@ -80,10 +86,32 @@ describe('<RequireAuth>', () => {
     // honouring end-to-end.
   })
 
+  it('hides protected content while auth is unresolved and offers retry', () => {
+    const retryAuthResolution = vi.fn(async () => {})
+    renderWithAuth(
+      '/protected',
+      makeAuth({
+        authStatus: 'offline-unknown',
+        isInitializing: true,
+        retryAuthResolution,
+      }),
+    )
+
+    expect(screen.queryByTestId('protected')).toBeNull()
+    expect(screen.queryByTestId('login')).toBeNull()
+    expect(
+      screen.getByRole('heading', { name: /could not confirm your session/i }),
+    ).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /try again/i }))
+    expect(retryAuthResolution).toHaveBeenCalledOnce()
+  })
+
   it('renders the matched outlet when authenticated', () => {
     renderWithAuth(
       '/protected',
       makeAuth({
+        authStatus: 'authenticated',
         isInitializing: false,
         isAuthenticated: true,
         user: { id: 1, email: 'a@b.com', displayName: 'A', emailVerified: true },

@@ -18,9 +18,10 @@ const SAMPLE_USER = {
 let refreshMock: MockAdapter
 
 function Probe() {
-  const { isInitializing, isAuthenticated, user } = useAuth()
+  const { authStatus, isInitializing, isAuthenticated, user } = useAuth()
   return (
     <div>
+      <span data-testid="status">{authStatus}</span>
       <span data-testid="initializing">{String(isInitializing)}</span>
       <span data-testid="authenticated">{String(isAuthenticated)}</span>
       <span data-testid="email">{user?.email ?? 'none'}</span>
@@ -30,7 +31,7 @@ function Probe() {
 
 beforeEach(() => {
   __resetRefreshSingletonForTests()
-  useAuthStore.getState().clearSession()
+  useAuthStore.getState().clearSession('restoring')
   // The provider's silent-refresh path goes through `refreshSession()`,
   // which uses a fresh axios instance instead of the shared `apiClient` so it
   // bypasses the response interceptor. Mount the mock on the same global axios,
@@ -84,8 +85,40 @@ describe('<AuthProvider> silent refresh on mount', () => {
     })
 
     expect(screen.getByTestId('authenticated').textContent).toBe('false')
+    expect(screen.getByTestId('status').textContent).toBe('unauthenticated')
     expect(screen.getByTestId('email').textContent).toBe('none')
     expect(useAuthStore.getState().accessToken).toBeNull()
+  })
+
+  it('keeps auth unresolved when the refresh probe cannot reach the server', async () => {
+    refreshMock.onPost('/api/auth/refresh').networkError()
+
+    render(
+      <AuthProvider>
+        <Probe />
+      </AuthProvider>,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByTestId('status').textContent).toBe('offline-unknown')
+    })
+
+    expect(screen.getByTestId('initializing').textContent).toBe('true')
+    expect(screen.getByTestId('authenticated').textContent).toBe('false')
+  })
+
+  it('keeps auth unresolved when the refresh server fails', async () => {
+    refreshMock.onPost('/api/auth/refresh').reply(503, { error: 'unavailable' })
+
+    render(
+      <AuthProvider>
+        <Probe />
+      </AuthProvider>,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByTestId('status').textContent).toBe('offline-unknown')
+    })
   })
 
   it('only fires a single refresh probe per mount (StrictMode safe)', async () => {

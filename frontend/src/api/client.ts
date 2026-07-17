@@ -272,10 +272,17 @@ async function performRefresh(): Promise<AuthResponse> {
     return response.data
   } catch (err) {
     if (useAuthStore.getState().accessToken === accessTokenAtStart) {
-      useAuthStore.getState().clearSession()
+      useAuthStore
+        .getState()
+        .clearSession(isConfirmedUnauthenticated(err) ? 'unauthenticated' : 'offline-unknown')
     }
     throw err
   }
+}
+
+/** A 401 is the only refresh response that definitively rejects the session. */
+export function isConfirmedUnauthenticated(error: unknown): boolean {
+  return axios.isAxiosError(error) && error.response?.status === 401
 }
 
 /**

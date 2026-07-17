@@ -279,6 +279,25 @@ describe('apiClient response interceptor — refresh on 401', () => {
     })
     expect(useAuthStore.getState().accessToken).toBeNull()
     expect(useAuthStore.getState().user).toBeNull()
+    expect(useAuthStore.getState().authStatus).toBe('unauthenticated')
+  })
+
+  it.each([
+    ['network failure', () => refreshMock.onPost('/api/auth/refresh').networkError()],
+    ['server failure', () => refreshMock.onPost('/api/auth/refresh').reply(503)],
+  ])('marks auth unresolved after a %s during refresh', async (_label, arrangeFailure) => {
+    useAuthStore.getState().setSession({
+      accessToken: 'stale-tok',
+      expiresInSeconds: 900,
+      user: SAMPLE_USER,
+    })
+    apiMock.onGet('/protected').reply(401, { error: 'unauthenticated' })
+    arrangeFailure()
+
+    await expect(apiClient.get('/protected')).rejects.toBeDefined()
+
+    expect(useAuthStore.getState().accessToken).toBeNull()
+    expect(useAuthStore.getState().authStatus).toBe('offline-unknown')
   })
 
   it('does not retry the same request more than once (no infinite loop)', async () => {

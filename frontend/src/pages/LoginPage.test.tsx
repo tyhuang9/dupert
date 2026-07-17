@@ -18,9 +18,11 @@ vi.mock('../api/trips', async () => {
 
 function makeAuth(overrides: Partial<AuthContextValue> = {}): AuthContextValue {
   return {
+    authStatus: 'unauthenticated',
     user: null,
     isAuthenticated: false,
     isInitializing: false,
+    retryAuthResolution: vi.fn(async () => {}),
     login: vi.fn(async () => ({
       id: 1,
       email: 'a@b.com',

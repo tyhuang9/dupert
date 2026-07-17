@@ -77,9 +77,11 @@ const COASTAL_TRIP: Trip = {
 
 function makeAuth(overrides: Partial<AuthContextValue> = {}): AuthContextValue {
   return {
+    authStatus: 'authenticated',
     user: { id: 1, email: 'a@b.com', displayName: 'A', emailVerified: true },
     isAuthenticated: true,
     isInitializing: false,
+    retryAuthResolution: vi.fn(async () => {}),
     login: vi.fn(async () => ({
       id: 1,
       email: 'a@b.com',

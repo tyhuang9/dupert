@@ -18,9 +18,11 @@ vi.mock('../hooks/useShareLinks', () => ({
 
 function makeAuth(overrides: Partial<AuthContextValue> = {}): AuthContextValue {
   return {
+    authStatus: 'unauthenticated',
     user: null,
     isAuthenticated: false,
     isInitializing: false,
+    retryAuthResolution: vi.fn(),
     login: vi.fn(),
     register: vi.fn(),
     updateProfile: vi.fn(),

@@ -3,7 +3,6 @@ import {
   useEffect,
   useMemo,
   useRef,
-  useState,
   type ReactNode,
 } from 'react'
 import * as authApi from '../api/auth'
@@ -37,18 +36,14 @@ function shouldRefreshSessionSoon(expiresAt: number): boolean {
 export function AuthProvider({ children }: AuthProviderProps) {
   const user = useUser()
   const isAuthenticated = useIsAuthenticated()
+  const authStatus = useAuthStore((s) => s.authStatus)
   const expiresAt = useAuthStore((s) => s.expiresAt)
   const setSession = useAuthStore((s) => s.setSession)
   const setUser = useAuthStore((s) => s.setUser)
+  const setAuthStatus = useAuthStore((s) => s.setAuthStatus)
   const clearSession = useAuthStore((s) => s.clearSession)
-
-  // Skip the probe (and the initializing-window) if a session was
-  // pre-seeded — e.g. tests, or a hypothetical SSR rehydration. Reading
-  // the store synchronously in the lazy initializer is safe and keeps us
-  // off the "set state synchronously inside an effect" lint.
-  const [isInitializing, setIsInitializing] = useState<boolean>(
-    () => useAuthStore.getState().accessToken === null,
-  )
+  const isInitializing =
+    authStatus === 'restoring' || authStatus === 'offline-unknown'
   // Guard against StrictMode double-invoke: useEffect runs twice in dev,
   // we don't want two refresh probes on cold start. `probedRef` blocks
   // the second run; `cancelledRef` is shared across both runs so that
@@ -62,10 +57,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
     probedRef.current = true
 
     if (useAuthStore.getState().accessToken !== null) {
-      // Session was pre-seeded; nothing to probe. `isInitializing` was
-      // already initialized to false in that case.
+      // Session was pre-seeded; setSession already marked it authenticated.
       return
     }
+
+    setAuthStatus('restoring')
 
     // `refreshSession()` is the single funnel for `/auth/refresh` calls
     // — same code path the response interceptor uses on 401, deduped by
@@ -82,19 +78,16 @@ export function AuthProvider({ children }: AuthProviderProps) {
         })
       })
       .catch(() => {
-        // No prior session, expired cookie, or revoked chain — all the
-        // same outcome from the user's perspective.
+        // refreshSession classifies 401 as confirmed unauthenticated and
+        // ambiguous transport/server failures as offline-unknown.
       })
-      .finally(() => {
-        if (!cancelledRef.current) setIsInitializing(false)
-      })
-  }, [setSession])
+  }, [setAuthStatus, setSession])
 
   useEffect(() => {
-    if (!isInitializing) {
+    if (authStatus === 'authenticated' || authStatus === 'unauthenticated') {
       markPerformance('auth-restored')
     }
-  }, [isInitializing])
+  }, [authStatus])
 
   // Real-unmount guard: flip cancel only on a true unmount. StrictMode
   // dev double-invokes ALL effects (mount → cleanup → mount); resetting
@@ -160,6 +153,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
     [setSession],
   )
 
+  const retryAuthResolution = useCallback(async () => {
+    setAuthStatus('restoring')
+    try {
+      await refreshSession()
+    } catch {
+      // refreshSession owns the resulting unauthenticated/offline state.
+    }
+  }, [setAuthStatus])
+
   const register = useCallback(
     async (body: RegisterRequest) => {
       return authApi.register(body)
@@ -216,9 +218,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const value = useMemo<AuthContextValue>(
     () => ({
+      authStatus,
       user,
       isAuthenticated,
       isInitializing,
+      retryAuthResolution,
       login,
       register,
       updateProfile,
@@ -230,8 +234,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }),
     [
       user,
+      authStatus,
       isAuthenticated,
       isInitializing,
+      retryAuthResolution,
       login,
       register,
       updateProfile,
