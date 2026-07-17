@@ -38,7 +38,7 @@ import {
 import { timelineDayColor } from '../utils/timelineDayColors'
 import styles from './TripMap.module.css'
 
-interface TripMapProps {
+export interface TripMapProps {
   activities: Activity[]
   activityMarkerColors?: Record<number, string>
   activityMarkerMode?: 'default' | 'timeline-days'

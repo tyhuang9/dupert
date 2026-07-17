@@ -16,6 +16,9 @@ public class AppProperties {
     /** Comma-separated list of exact origins allowed by CORS. */
     private String frontendOrigin = "";
 
+    /** Comma-separated native WebView origins allowed by CORS. */
+    private String nativeAllowedOrigins = "";
+
     /** Public frontend origin used to build links sent in transactional emails. */
     private String publicFrontendUrl = "";
 
@@ -58,6 +61,14 @@ public class AppProperties {
 
     public void setFrontendOrigin(String frontendOrigin) {
         this.frontendOrigin = frontendOrigin == null ? "" : frontendOrigin;
+    }
+
+    public String getNativeAllowedOrigins() {
+        return nativeAllowedOrigins;
+    }
+
+    public void setNativeAllowedOrigins(String nativeAllowedOrigins) {
+        this.nativeAllowedOrigins = nativeAllowedOrigins == null ? "" : nativeAllowedOrigins;
     }
 
     public String getPublicFrontendUrl() {
