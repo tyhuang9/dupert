@@ -9,6 +9,7 @@ import {
   validateBuildConfiguration,
 } from './src/platform/buildProfile'
 import { assertNativeBundlePolicy } from './scripts/check-native-bundle-policy.mjs'
+import { assertPwaBundlePolicy } from './scripts/check-pwa-bundle-policy.mjs'
 import { WEB_APP_MANIFEST } from './src/pwa/manifest'
 
 // https://vite.dev/config/
@@ -40,6 +41,18 @@ export default defineConfig(({ mode }) => {
         },
       })
     : undefined
+  const webPwaPolicyPlugin = profile.target === 'web'
+    ? {
+        name: 'dupert-pwa-bundle-policy',
+        closeBundle: {
+          order: 'post' as const,
+          sequential: true,
+          handler() {
+            assertPwaBundlePolicy(source('./dist'))
+          },
+        },
+      }
+    : undefined
   const nativeBundlePolicyPlugin = profile.target === 'native'
     ? {
         name: 'dupert-native-bundle-policy',
@@ -60,6 +73,7 @@ export default defineConfig(({ mode }) => {
       react(),
       babel({ presets: [reactCompilerPreset()] }),
       ...(webPwaPlugin ? [webPwaPlugin] : []),
+      ...(webPwaPolicyPlugin ? [webPwaPolicyPlugin] : []),
       ...(nativeBundlePolicyPlugin ? [nativeBundlePolicyPlugin] : []),
     ],
     define: {
