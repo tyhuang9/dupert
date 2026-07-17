@@ -76,6 +76,9 @@ app:
   cookies:
     secure: false
     same-site: ${APP_COOKIES_SAME_SITE:Strict}
+  # Keep the persisted anonymous credential and browser cookie on one lifetime.
+  guest-session:
+    ttl: ${GUEST_SESSION_TTL:14d}
   signup-enabled: ${SIGNUP_ENABLED:true}
   email:
     brevo-api-key: ${BREVO_API_KEY:}

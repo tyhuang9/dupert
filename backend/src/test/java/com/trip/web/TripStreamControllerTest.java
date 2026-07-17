@@ -89,6 +89,8 @@ class TripStreamControllerTest {
     @MockitoBean
     ShareLinkRepository shareLinkRepository;
 
+    private GuestSession guestSession;
+
     @BeforeEach
     void wireDefaults() {
         Trip trip = new Trip(
@@ -100,10 +102,11 @@ class TripStreamControllerTest {
             LocalDate.of(2026, 5, 3));
         ReflectionIds.setId(trip, TRIP_PK);
         when(tripRepository.findByPublicId(TRIP_PUBLIC_ID)).thenReturn(Optional.of(trip));
+        when(tripRepository.findById(TRIP_PK)).thenReturn(Optional.of(trip));
         when(tripMemberRepository.findByIdTripIdAndIdUserId(TRIP_PK, ALICE_ID))
             .thenReturn(Optional.of(new TripMember(TRIP_PK, ALICE_ID, TripRole.VIEWER)));
 
-        GuestSession guestSession = new GuestSession(
+        guestSession = new GuestSession(
             SHARE_LINK_ID,
             shareTokenService.sha256Hex(RAW_GUEST_TOKEN),
             "Guest Alice");
@@ -148,6 +151,16 @@ class TripStreamControllerTest {
                 .header(TripStreamController.STREAM_CLIENT_HEADER, STREAM_CLIENT_ID))
             .andExpect(status().isOk())
             .andExpect(request().asyncStarted());
+    }
+
+    @Test
+    void streamRejectsClaimedGuestCredential() throws Exception {
+        guestSession.invalidateCredential(java.time.OffsetDateTime.now());
+
+        mvc.perform(get("/api/trips/" + TRIP_PUBLIC_ID + "/stream")
+                .cookie(new Cookie(GuestSessionCookie.COOKIE_NAME, RAW_GUEST_TOKEN))
+                .header(TripStreamController.STREAM_CLIENT_HEADER, STREAM_CLIENT_ID))
+            .andExpect(status().isUnauthorized());
     }
 
     @Test
