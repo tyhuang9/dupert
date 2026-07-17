@@ -19,9 +19,10 @@
     "sync:native:production": "npm run build:native:production && npx cap sync",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test": "vitest run && node --test scripts/check-native-bundle-policy.node-test.mjs",
+    "test": "vitest run && node --test scripts/check-native-bundle-policy.node-test.mjs scripts/check-pwa-bundle-policy.node-test.mjs",
     "check:bundle-budget": "node scripts/check-bundle-budget.mjs",
-    "check:native-bundle-policy": "node scripts/check-native-bundle-policy.mjs"
+    "check:native-bundle-policy": "node scripts/check-native-bundle-policy.mjs",
+    "check:pwa-bundle-policy": "node scripts/check-pwa-bundle-policy.mjs"
   },
   "dependencies": {
     "@capacitor/android": "8.4.2",
@@ -68,7 +69,11 @@
     "typescript": "~6.0.2",
     "typescript-eslint": "^8.58.2",
     "vite": "^8.0.10",
-    "vitest": "^4.1.5"
+    "vite-plugin-pwa": "^1.3.0",
+    "vitest": "^4.1.5",
+    "workbox-core": "^7.4.1",
+    "workbox-precaching": "^7.4.1",
+    "workbox-routing": "^7.4.1"
   },
   "allowScripts": {
     "fsevents@2.3.3": true,
