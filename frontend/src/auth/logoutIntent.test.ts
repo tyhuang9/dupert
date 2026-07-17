@@ -1,7 +1,8 @@
-import { beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   clearPendingLogoutIntent,
   getPendingLogoutIntent,
+  getPendingLogoutPersistence,
   hasPendingLogoutIntent,
   PENDING_LOGOUT_STORAGE_KEY,
   persistPendingLogoutIntent,
@@ -10,6 +11,10 @@ import {
 beforeEach(() => {
   localStorage.clear()
   clearPendingLogoutIntent()
+})
+
+afterEach(() => {
+  vi.restoreAllMocks()
 })
 
 describe('pending logout intent', () => {
@@ -47,5 +52,16 @@ describe('pending logout intent', () => {
     localStorage.removeItem(PENDING_LOGOUT_STORAGE_KEY)
 
     expect(hasPendingLogoutIntent()).toBe(false)
+  })
+
+  it('reports when storage failure leaves only a running-app fallback', () => {
+    vi.spyOn(Object.getPrototypeOf(localStorage), 'setItem').mockImplementation(() => {
+      throw new DOMException('Storage quota exceeded', 'QuotaExceededError')
+    })
+
+    expect(persistPendingLogoutIntent()).toBe('memory-only')
+    expect(hasPendingLogoutIntent()).toBe(true)
+    expect(getPendingLogoutPersistence()).toBe('memory-only')
+    expect(localStorage.getItem(PENDING_LOGOUT_STORAGE_KEY)).toBeNull()
   })
 })

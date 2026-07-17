@@ -1,6 +1,13 @@
-import { StrictMode } from 'react'
+import { StrictMode, type ReactElement } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import {
+  act,
+  fireEvent,
+  render as rtlRender,
+  screen,
+  waitFor,
+} from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import MockAdapter from 'axios-mock-adapter'
 import axios from 'axios'
 import { AuthProvider } from './AuthContext'
@@ -23,6 +30,13 @@ const SAMPLE_USER = {
 
 let refreshMock: MockAdapter
 let apiMock: MockAdapter
+let queryClient: QueryClient
+
+function render(ui: ReactElement) {
+  return rtlRender(
+    <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>,
+  )
+}
 
 function Probe() {
   const { authStatus, isInitializing, isAuthenticated, logout, user } = useAuth()
@@ -43,6 +57,9 @@ beforeEach(() => {
   clearPendingLogoutIntent()
   __resetRefreshSingletonForTests()
   useAuthStore.getState().clearSession('restoring')
+  queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  })
   // The provider's silent-refresh path goes through `refreshSession()`,
   // which uses a fresh axios instance instead of the shared `apiClient` so it
   // bypasses the response interceptor. Mount the mock on the same global axios,
@@ -105,6 +122,12 @@ describe('<AuthProvider> silent refresh on mount', () => {
   })
 
   it('keeps auth unresolved when the refresh probe cannot reach the server', async () => {
+    queryClient.setQueryData(['trips', 'detail', 'private-trip'], {
+      name: 'Private cached trip',
+    })
+    queryClient.setQueryData(['activities', 'private-trip'], [
+      { id: 1, title: 'Private cached activity' },
+    ])
     refreshMock.onPost('/api/auth/refresh').networkError()
 
     render(
@@ -119,6 +142,7 @@ describe('<AuthProvider> silent refresh on mount', () => {
 
     expect(screen.getByTestId('initializing').textContent).toBe('true')
     expect(screen.getByTestId('authenticated').textContent).toBe('false')
+    expect(queryClient.getQueryCache().getAll()).toHaveLength(0)
   })
 
   it('keeps auth unresolved when the refresh server fails', async () => {
@@ -251,6 +275,12 @@ describe('<AuthProvider> silent refresh on mount', () => {
       expiresInSeconds: 900,
       user: SAMPLE_USER,
     })
+    queryClient.setQueryData(['trips', 'detail', 'private-trip'], {
+      name: 'Private cached trip',
+    })
+    queryClient.setQueryData(['activities', 'private-trip'], [
+      { id: 1, title: 'Private cached activity' },
+    ])
     apiMock.onPost('/auth/logout').networkError()
 
     render(
@@ -269,6 +299,7 @@ describe('<AuthProvider> silent refresh on mount', () => {
     )
     expect(useAuthStore.getState().accessToken).toBeNull()
     expect(useAuthStore.getState().user).toBeNull()
+    expect(queryClient.getQueryCache().getAll()).toHaveLength(0)
   })
 
   it('retries a pending logout on launch without probing refresh', async () => {

@@ -195,7 +195,9 @@ function releaseStorageRefreshLock(storage: Storage, owner: string): void {
   }
 }
 
-async function withStorageRefreshLock<T>(callback: () => Promise<T>): Promise<T> {
+async function withStorageAuthSessionLock<T>(
+  callback: () => Promise<T>,
+): Promise<T> {
   const storage = getRefreshLockStorage()
   if (storage === null) {
     return callback()
@@ -236,15 +238,21 @@ async function withStorageRefreshLock<T>(callback: () => Promise<T>): Promise<T>
   }
 }
 
-function refreshWithCrossTabLock(): Promise<AuthResponse> {
+/**
+ * Serializes refresh-cookie rotation and revocation across browser contexts.
+ *
+ * The legacy refresh-oriented lock name and storage key are intentionally
+ * retained so a newly deployed tab still coordinates with older open tabs.
+ */
+export function withAuthSessionLock<T>(
+  callback: () => Promise<T>,
+): Promise<T> {
   const locks = getWebLocks()
   if (locks !== null) {
-    return locks.request(REFRESH_LOCK_NAME, { mode: 'exclusive' }, () =>
-      performRefresh(),
-    )
+    return locks.request(REFRESH_LOCK_NAME, { mode: 'exclusive' }, callback)
   }
 
-  return withStorageRefreshLock(() => performRefresh())
+  return withStorageAuthSessionLock(callback)
 }
 
 /**
@@ -315,7 +323,7 @@ export function refreshSession(): Promise<AuthResponse> {
     return Promise.reject(new AuthResolutionPendingError())
   }
   if (refreshPromise === null) {
-    refreshPromise = refreshWithCrossTabLock().finally(() => {
+    refreshPromise = withAuthSessionLock(() => performRefresh()).finally(() => {
       refreshPromise = null
     })
   }

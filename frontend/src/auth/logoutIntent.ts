@@ -7,6 +7,9 @@ interface PendingLogoutIntent {
 }
 
 let memoryFallback: PendingLogoutIntent | null = null
+let memoryFallbackIsOnlyCopy = false
+
+export type PendingLogoutPersistence = 'durable' | 'memory-only'
 
 function getStorage(): Storage | null {
   try {
@@ -37,7 +40,11 @@ export function getPendingLogoutIntent(): PendingLogoutIntent | null {
   } catch {
     return memoryFallback
   }
-  if (raw === null) return memoryFallback
+  if (raw === null) {
+    if (memoryFallbackIsOnlyCopy) return memoryFallback
+    memoryFallback = null
+    return null
+  }
 
   try {
     const parsed = JSON.parse(raw) as Partial<PendingLogoutIntent>
@@ -46,35 +53,55 @@ export function getPendingLogoutIntent(): PendingLogoutIntent | null {
       typeof parsed.createdAt === 'number' &&
       Number.isFinite(parsed.createdAt)
     ) {
-      return { version: 1, createdAt: parsed.createdAt }
+      const intent = { version: 1 as const, createdAt: parsed.createdAt }
+      memoryFallback = intent
+      memoryFallbackIsOnlyCopy = false
+      return intent
     }
   } catch {
     // Fall through to the conservative marker below.
   }
-  return { version: 1, createdAt: 0 }
+  const conservativeIntent = { version: 1 as const, createdAt: 0 }
+  memoryFallback = conservativeIntent
+  memoryFallbackIsOnlyCopy = false
+  return conservativeIntent
 }
 
 export function hasPendingLogoutIntent(): boolean {
   return getPendingLogoutIntent() !== null
 }
 
-/** Persists no credential material, only the fact that revocation is owed. */
-export function persistPendingLogoutIntent(): void {
+/**
+ * Persists no credential material, only the fact that revocation is owed.
+ * The return value lets the UI distinguish reload-safe intent from the
+ * running-app-only fallback used when web storage is unavailable.
+ */
+export function persistPendingLogoutIntent(): PendingLogoutPersistence {
   const intent: PendingLogoutIntent = { version: 1, createdAt: Date.now() }
+  memoryFallback = intent
+  memoryFallbackIsOnlyCopy = true
   try {
     const storage = getStorage()
-    if (storage === null) {
-      memoryFallback = intent
-    } else {
+    if (storage !== null) {
       storage.setItem(PENDING_LOGOUT_STORAGE_KEY, JSON.stringify(intent))
-      memoryFallback = null
+      if (storage.getItem(PENDING_LOGOUT_STORAGE_KEY) !== null) {
+        memoryFallbackIsOnlyCopy = false
+      }
     }
   } catch {
-    // The in-memory fallback still protects this running app. Durable web
-    // storage is retried on the next explicit logout attempt.
-    memoryFallback = intent
+    // The in-memory fallback still protects this running app. The UI makes
+    // this degraded, non-reload-safe state explicit until revocation succeeds.
   }
   notifyChanged()
+  return memoryFallbackIsOnlyCopy ? 'memory-only' : 'durable'
+}
+
+export function getPendingLogoutPersistence(): PendingLogoutPersistence | null {
+  return getPendingLogoutIntent() === null
+    ? null
+    : memoryFallbackIsOnlyCopy
+      ? 'memory-only'
+      : 'durable'
 }
 
 export function clearPendingLogoutIntent(): boolean {
@@ -86,7 +113,10 @@ export function clearPendingLogoutIntent(): boolean {
   } catch {
     removed = false
   }
-  memoryFallback = removed ? null : memoryFallback ?? { version: 1, createdAt: 0 }
+  memoryFallback = removed
+    ? null
+    : memoryFallback ?? { version: 1, createdAt: 0 }
+  memoryFallbackIsOnlyCopy = !removed
   if (removed) notifyChanged()
   return removed
 }

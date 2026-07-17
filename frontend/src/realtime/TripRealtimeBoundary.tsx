@@ -1,6 +1,7 @@
 import { useCallback, useContext, useState } from 'react'
 import { Outlet, useLocation, useParams, useSearchParams } from 'react-router-dom'
 import { AuthContext } from '../auth/authContextValue'
+import { AuthBootstrapShell } from '../auth/AuthBootstrapShell'
 import { useIsAuthenticated } from '../auth/authStore'
 import { useTripStream } from '../hooks/useTripStream'
 import { useTrip } from '../hooks/useTrips'
@@ -29,12 +30,16 @@ export function TripRealtimeBoundary() {
 
   useTripStream(streamPublicId, {
     bufferActivityEvents,
-    enabled: tripQuery.isSuccess,
+    enabled: mayResolveTrip && tripQuery.isSuccess,
   })
 
   const updateActivityBuffer = useCallback((buffering: boolean) => {
     setBufferActivityEvents(buffering)
   }, [])
+
+  if (isInitializing) {
+    return <AuthBootstrapShell />
+  }
 
   return (
     <ActivityBufferContext.Provider value={updateActivityBuffer}>

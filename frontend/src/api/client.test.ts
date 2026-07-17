@@ -8,6 +8,7 @@ import {
   AUTH_COOKIE_ACTION_HEADER,
   AUTH_COOKIE_ACTION_VALUE,
   refreshSession,
+  withAuthSessionLock,
 } from './client'
 import { useAuthStore } from '../auth/authStore'
 import {
@@ -403,6 +404,68 @@ describe('apiClient response interceptor — refresh on 401', () => {
 })
 
 describe('refreshSession cross-tab coordination', () => {
+  it('serializes delayed refresh work before another tab can revoke the session', async () => {
+    let lockTail = Promise.resolve<unknown>(undefined)
+    const request = vi.fn(
+      <T,>(
+        _name: string,
+        _options: { mode: 'exclusive' },
+        callback: () => T | Promise<T>,
+      ): Promise<T> => {
+        const run = lockTail.then(callback)
+        lockTail = run.then(
+          () => undefined,
+          () => undefined,
+        )
+        return run
+      },
+    )
+    Object.defineProperty(globalThis.navigator, 'locks', {
+      configurable: true,
+      value: { request },
+    })
+
+    let resolveRefresh:
+      | ((value: [number, Record<string, unknown>]) => void)
+      | undefined
+    refreshMock.onPost('/api/auth/refresh').reply(
+      () =>
+        new Promise((resolve) => {
+          resolveRefresh = resolve
+        }),
+    )
+
+    const refreshResult = refreshSession().then(
+      () => 'resolved' as const,
+      () => 'rejected' as const,
+    )
+    await vi.waitFor(() => expect(refreshMock.history.post).toHaveLength(1))
+
+    persistPendingLogoutIntent()
+    const revoke = vi.fn(async () => undefined)
+    const logoutWork = withAuthSessionLock(revoke)
+    await Promise.resolve()
+
+    expect(revoke).not.toHaveBeenCalled()
+    expect(request).toHaveBeenCalledTimes(2)
+    expect(request.mock.calls[0][0]).toBe(request.mock.calls[1][0])
+
+    resolveRefresh?.([
+      200,
+      {
+        accessToken: 'must-not-survive',
+        tokenType: 'Bearer',
+        expiresInSeconds: 900,
+        user: SAMPLE_USER,
+      },
+    ])
+
+    await expect(refreshResult).resolves.toBe('rejected')
+    await logoutWork
+    expect(revoke).toHaveBeenCalledOnce()
+    expect(useAuthStore.getState().accessToken).toBeNull()
+  })
+
   it('does not refresh while logout revocation is pending', async () => {
     persistPendingLogoutIntent()
 

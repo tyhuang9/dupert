@@ -10,7 +10,9 @@ import {
   isConfirmedUnauthenticated,
   refreshSession,
   waitForRefreshToSettle,
+  withAuthSessionLock,
 } from '../api/client'
+import { useQueryClient } from '@tanstack/react-query'
 import { useAuthStore, useIsAuthenticated, useUser } from './authStore'
 import { AuthContext, type AuthContextValue } from './authContextValue'
 import { markPerformance } from '../performance/timing'
@@ -44,11 +46,13 @@ function revokePendingLogout(): Promise<void> {
 
   logoutRevocationPromise = (async () => {
     await waitForRefreshToSettle()
-    try {
-      await authApi.logout()
-    } catch (error) {
-      if (!isConfirmedUnauthenticated(error)) throw error
-    }
+    await withAuthSessionLock(async () => {
+      try {
+        await authApi.logout()
+      } catch (error) {
+        if (!isConfirmedUnauthenticated(error)) throw error
+      }
+    })
     if (!clearPendingLogoutIntent()) {
       throw new Error('Could not clear the pending logout marker.')
     }
@@ -67,6 +71,7 @@ function revokePendingLogout(): Promise<void> {
  * surfaced because "no prior session" looks identical to "expired".
  */
 export function AuthProvider({ children }: AuthProviderProps) {
+  const queryClient = useQueryClient()
   const user = useUser()
   const isAuthenticated = useIsAuthenticated()
   const authStatus = useAuthStore((s) => s.authStatus)
@@ -162,6 +167,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
       window.removeEventListener(PENDING_LOGOUT_CHANGED_EVENT, retryPendingLogout)
     }
   }, [clearSession, syncPendingLogout])
+
+  useEffect(() => {
+    if (authStatus === 'offline-unknown' || authStatus === 'unauthenticated') {
+      // Trip, activity, membership, and map query keys are not partitioned by
+      // identity. Clear the whole in-memory cache at the auth boundary so a
+      // prior member's protected workspace can never remain visible offline.
+      queryClient.clear()
+    }
+  }, [authStatus, queryClient])
 
   useEffect(() => {
     if (authStatus === 'authenticated' || authStatus === 'unauthenticated') {

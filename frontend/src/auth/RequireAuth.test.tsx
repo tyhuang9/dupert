@@ -10,6 +10,7 @@ import {
 
 afterEach(() => {
   clearPendingLogoutIntent()
+  vi.restoreAllMocks()
 })
 
 function makeAuth(overrides: Partial<AuthContextValue> = {}): AuthContextValue {
@@ -128,6 +129,22 @@ describe('<RequireAuth>', () => {
     expect(screen.getByRole('alert')).toHaveTextContent(
       /signed out on this device/i,
     )
+    expect(screen.queryByTestId('protected')).toBeNull()
+  })
+
+  it('warns the user to keep the app open when logout intent is memory-only', () => {
+    vi.spyOn(Object.getPrototypeOf(localStorage), 'setItem').mockImplementation(() => {
+      throw new DOMException('Storage blocked', 'SecurityError')
+    })
+    persistPendingLogoutIntent()
+
+    renderWithAuth(
+      '/protected',
+      makeAuth({ authStatus: 'offline-unknown', isInitializing: true }),
+    )
+
+    expect(screen.getByRole('alert')).toHaveTextContent(/keep dupert open/i)
+    expect(screen.getByRole('alert')).toHaveTextContent(/could not save/i)
     expect(screen.queryByTestId('protected')).toBeNull()
   })
 

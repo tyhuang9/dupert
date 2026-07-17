@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from './useAuth'
-import { hasPendingLogoutIntent } from './logoutIntent'
+import {
+  getPendingLogoutPersistence,
+  hasPendingLogoutIntent,
+} from './logoutIntent'
 import styles from './AuthBootstrapShell.module.css'
 
 const SLOW_SERVER_MESSAGE_DELAY_MS = 2_500
@@ -14,6 +17,8 @@ export function AuthBootstrapShell() {
   const [isSlow, setIsSlow] = useState(false)
   const isOfflineUnknown = authStatus === 'offline-unknown'
   const isPendingLogout = isOfflineUnknown && hasPendingLogoutIntent()
+  const isMemoryOnlyLogout =
+    isPendingLogout && getPendingLogoutPersistence() === 'memory-only'
 
   useEffect(() => {
     if (isOfflineUnknown) return undefined
@@ -39,7 +44,9 @@ export function AuthBootstrapShell() {
         </h1>
         <p>
           {isPendingLogout
-            ? 'You are signed out on this device. Dupert will finish revoking the server session when the connection returns.'
+            ? isMemoryOnlyLogout
+              ? 'You are signed out in this open app, but this device could not save the pending sign-out. Keep Dupert open and reconnect so it can revoke the server session.'
+              : 'You are signed out on this device. Dupert will finish revoking the server session when the connection returns.'
             : isOfflineUnknown
             ? 'Your private trips are hidden until Dupert can reach the server.'
             : isSlow
