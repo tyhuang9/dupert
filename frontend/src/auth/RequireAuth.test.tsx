@@ -116,6 +116,21 @@ describe('<RequireAuth>', () => {
     expect(retryAuthResolution).toHaveBeenCalledOnce()
   })
 
+  it('unmounts protected content while rejected session data is cleared', () => {
+    renderWithAuth(
+      '/protected',
+      makeAuth({
+        authStatus: 'clearing-session',
+        isInitializing: true,
+        isAuthenticated: false,
+      }),
+    )
+
+    expect(screen.queryByTestId('protected')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('login')).not.toBeInTheDocument()
+    expect(document.querySelector('[aria-busy="true"]')).not.toBeNull()
+  })
+
   it('explains that an offline logout is locally enforced', () => {
     persistPendingLogoutIntent()
     renderWithAuth(

@@ -7,13 +7,21 @@ import {
   screen,
   waitFor,
 } from '@testing-library/react'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import {
+  QueryClient,
+  QueryClientProvider,
+  useQuery,
+} from '@tanstack/react-query'
 import MockAdapter from 'axios-mock-adapter'
 import axios from 'axios'
 import { AuthProvider } from './AuthContext'
 import { useAuth } from './useAuth'
 import { useAuthStore } from './authStore'
-import { __resetRefreshSingletonForTests, apiClient } from '../api/client'
+import {
+  __resetRefreshSingletonForTests,
+  apiClient,
+  refreshSession,
+} from '../api/client'
 import {
   clearPendingLogoutIntent,
   hasPendingLogoutIntent,
@@ -51,6 +59,45 @@ function Probe() {
       </button>
     </div>
   )
+}
+
+function GuestQueryProbe({ queryFn }: { queryFn: () => Promise<string> }) {
+  const { authStatus } = useAuth()
+  const query = useQuery({
+    queryKey: ['guest', 'bootstrap'],
+    queryFn,
+    enabled: authStatus === 'unauthenticated',
+  })
+  return <span data-testid="guest-query">{query.data ?? 'none'}</span>
+}
+
+function PrivateWorkspaceProbe() {
+  const query = useQuery({
+    queryKey: ['trips', 'detail', 'private-trip'],
+    queryFn: async () => 'private-refetched',
+  })
+  return <span>{String(query.data ?? 'private-loading')}</span>
+}
+
+function GuestWorkspaceProbe({ queryFn }: { queryFn: () => Promise<string> }) {
+  const query = useQuery({
+    queryKey: ['guest', 'workspace'],
+    queryFn,
+  })
+  return <span data-testid="guest-workspace">{query.data ?? 'guest-loading'}</span>
+}
+
+function SessionBoundaryProbe({
+  guestQuery,
+}: {
+  guestQuery: () => Promise<string>
+}) {
+  const { authStatus, isInitializing } = useAuth()
+  if (isInitializing) return <span data-testid="session-boundary">Clearing</span>
+  if (authStatus === 'unauthenticated') {
+    return <GuestWorkspaceProbe queryFn={guestQuery} />
+  }
+  return <PrivateWorkspaceProbe />
 }
 
 beforeEach(() => {
@@ -119,6 +166,67 @@ describe('<AuthProvider> silent refresh on mount', () => {
     expect(screen.getByTestId('status').textContent).toBe('unauthenticated')
     expect(screen.getByTestId('email').textContent).toBe('none')
     expect(useAuthStore.getState().accessToken).toBeNull()
+  })
+
+  it('does not discard a guest query started after unauthenticated resolution', async () => {
+    const guestQuery = vi.fn(async () => 'guest-ready')
+    refreshMock.onPost('/api/auth/refresh').reply(401, { error: 'unauthenticated' })
+
+    render(
+      <AuthProvider>
+        <Probe />
+        <GuestQueryProbe queryFn={guestQuery} />
+      </AuthProvider>,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByTestId('guest-query')).toHaveTextContent('guest-ready')
+    })
+    expect(guestQuery).toHaveBeenCalledOnce()
+    expect(queryClient.getQueryData(['guest', 'bootstrap'])).toBe('guest-ready')
+  })
+
+  it('unmounts private workspace data before guest access resumes after refresh rejection', async () => {
+    useAuthStore.getState().setSession({
+      accessToken: 'member-token',
+      expiresInSeconds: 900,
+      user: SAMPLE_USER,
+    })
+    queryClient.setQueryData(
+      ['trips', 'detail', 'private-trip'],
+      'private-cached',
+    )
+    refreshMock.onPost('/api/auth/refresh').reply(401, { error: 'unauthenticated' })
+    const guestQuery = vi.fn(async () => {
+      expect(screen.queryByText('private-cached')).not.toBeInTheDocument()
+      return 'guest-ready'
+    })
+
+    render(
+      <AuthProvider>
+        <button
+          type="button"
+          onClick={() => void refreshSession().catch(() => undefined)}
+        >
+          Refresh session
+        </button>
+        <SessionBoundaryProbe guestQuery={guestQuery} />
+      </AuthProvider>,
+    )
+
+    expect(screen.getByText('private-cached')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Refresh session' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('guest-workspace')).toHaveTextContent(
+        'guest-ready',
+      )
+    })
+    expect(screen.queryByText('private-cached')).not.toBeInTheDocument()
+    expect(
+      queryClient.getQueryData(['trips', 'detail', 'private-trip']),
+    ).toBeUndefined()
+    expect(guestQuery).toHaveBeenCalledOnce()
   })
 
   it('keeps auth unresolved when the refresh probe cannot reach the server', async () => {

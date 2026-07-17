@@ -81,7 +81,33 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const setAuthStatus = useAuthStore((s) => s.setAuthStatus)
   const clearSession = useAuthStore((s) => s.clearSession)
   const isInitializing =
-    authStatus === 'restoring' || authStatus === 'offline-unknown'
+    authStatus === 'restoring' ||
+    authStatus === 'clearing-session' ||
+    authStatus === 'offline-unknown'
+  const identityCacheSnapshot = useMemo(() => {
+    if (
+      authStatus !== 'clearing-session' &&
+      authStatus !== 'offline-unknown' &&
+      authStatus !== 'unauthenticated'
+    ) {
+      return null
+    }
+    return {
+      queryHashes: new Set(
+        queryClient
+          .getQueryCache()
+          .getAll()
+          .filter(
+            (query) =>
+              query.state.data !== undefined ||
+              query.state.fetchStatus === 'fetching' ||
+              query.state.status === 'error',
+          )
+          .map((query) => query.queryHash),
+      ),
+      mutations: queryClient.getMutationCache().getAll(),
+    }
+  }, [authStatus, queryClient])
   // Guard against StrictMode double-invoke: useEffect runs twice in dev,
   // we don't want two refresh probes on cold start. `probedRef` blocks
   // the second run; `cancelledRef` is shared across both runs so that
@@ -169,13 +195,23 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, [clearSession, syncPendingLogout])
 
   useEffect(() => {
-    if (authStatus === 'offline-unknown' || authStatus === 'unauthenticated') {
-      // Trip, activity, membership, and map query keys are not partitioned by
-      // identity. Clear the whole in-memory cache at the auth boundary so a
-      // prior member's protected workspace can never remain visible offline.
-      queryClient.clear()
+    if (identityCacheSnapshot === null) return
+
+    // Existing query keys are not partitioned by identity. Remove the queries
+    // and mutations captured before children rendered this auth boundary, so a
+    // prior member's protected workspace cannot remain visible offline while
+    // a newly enabled guest query is allowed to start normally.
+    queryClient.removeQueries({
+      predicate: (query) =>
+        identityCacheSnapshot.queryHashes.has(query.queryHash),
+    })
+    for (const mutation of identityCacheSnapshot.mutations) {
+      queryClient.getMutationCache().remove(mutation)
     }
-  }, [authStatus, queryClient])
+    if (authStatus === 'clearing-session') {
+      clearSession('unauthenticated')
+    }
+  }, [authStatus, clearSession, identityCacheSnapshot, queryClient])
 
   useEffect(() => {
     if (authStatus === 'authenticated' || authStatus === 'unauthenticated') {
@@ -314,7 +350,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const deleteAccount = useCallback(async () => {
     await authApi.deleteMe()
-    clearSession()
+    clearSession('clearing-session')
   }, [clearSession])
 
   const value = useMemo<AuthContextValue>(

@@ -89,10 +89,14 @@ export class AuthResolutionPendingError extends Error {
   }
 }
 
+export class AuthCoordinationUnavailableError extends Error {
+  constructor() {
+    super('Secure cross-context authentication coordination is unavailable.')
+    this.name = 'AuthCoordinationUnavailableError'
+  }
+}
+
 const REFRESH_LOCK_NAME = 'dupert:auth-refresh'
-const REFRESH_LOCK_STORAGE_KEY = 'dupert:auth-refresh-lock'
-const REFRESH_LOCK_TTL_MS = 10_000
-const REFRESH_LOCK_POLL_MS = 50
 
 interface LockManagerLike {
   request<T>(
@@ -102,147 +106,18 @@ interface LockManagerLike {
   ): Promise<T>
 }
 
-interface RefreshLockLease {
-  owner: string
-  expiresAt: number
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => {
-    setTimeout(resolve, ms)
-  })
-}
-
-function createLockOwner(): string {
-  return (
-    globalThis.crypto?.randomUUID?.() ??
-    `owner-${Date.now()}-${Math.random().toString(36).slice(2)}`
-  )
-}
-
-function parseRefreshLockLease(raw: string | null): RefreshLockLease | null {
-  if (raw === null) {
-    return null
-  }
-  try {
-    const value = JSON.parse(raw) as Partial<RefreshLockLease>
-    if (typeof value.owner !== 'string' || typeof value.expiresAt !== 'number') {
-      return null
-    }
-    return { owner: value.owner, expiresAt: value.expiresAt }
-  } catch {
-    return null
-  }
-}
-
 function getWebLocks(): LockManagerLike | null {
   const locks = (globalThis.navigator as { locks?: LockManagerLike } | undefined)
     ?.locks
   return locks?.request ? locks : null
 }
 
-function getRefreshLockStorage(): Storage | null {
-  try {
-    return globalThis.localStorage ?? null
-  } catch {
-    return null
-  }
-}
-
-function tryAcquireStorageRefreshLock(storage: Storage, owner: string): boolean {
-  const now = Date.now()
-  const current = parseRefreshLockLease(
-    storage.getItem(REFRESH_LOCK_STORAGE_KEY),
-  )
-  if (current !== null && current.owner !== owner && current.expiresAt > now) {
-    return false
-  }
-
-  const next: RefreshLockLease = {
-    owner,
-    expiresAt: now + REFRESH_LOCK_TTL_MS,
-  }
-  storage.setItem(REFRESH_LOCK_STORAGE_KEY, JSON.stringify(next))
-
-  return (
-    parseRefreshLockLease(storage.getItem(REFRESH_LOCK_STORAGE_KEY))?.owner ===
-    owner
-  )
-}
-
-function renewStorageRefreshLock(storage: Storage, owner: string): boolean {
-  const current = parseRefreshLockLease(
-    storage.getItem(REFRESH_LOCK_STORAGE_KEY),
-  )
-  if (current?.owner !== owner) {
-    return false
-  }
-
-  const next: RefreshLockLease = {
-    owner,
-    expiresAt: Date.now() + REFRESH_LOCK_TTL_MS,
-  }
-  storage.setItem(REFRESH_LOCK_STORAGE_KEY, JSON.stringify(next))
-  return true
-}
-
-function releaseStorageRefreshLock(storage: Storage, owner: string): void {
-  const current = parseRefreshLockLease(
-    storage.getItem(REFRESH_LOCK_STORAGE_KEY),
-  )
-  if (current?.owner === owner) {
-    storage.removeItem(REFRESH_LOCK_STORAGE_KEY)
-  }
-}
-
-async function withStorageAuthSessionLock<T>(
-  callback: () => Promise<T>,
-): Promise<T> {
-  const storage = getRefreshLockStorage()
-  if (storage === null) {
-    return callback()
-  }
-
-  const owner = createLockOwner()
-
-  while (true) {
-    let acquired: boolean
-    try {
-      acquired = tryAcquireStorageRefreshLock(storage, owner)
-    } catch {
-      return callback()
-    }
-
-    if (acquired) {
-      const renewTimer = window.setInterval(() => {
-        try {
-          renewStorageRefreshLock(storage, owner)
-        } catch {
-          window.clearInterval(renewTimer)
-        }
-      }, REFRESH_LOCK_TTL_MS / 2)
-      try {
-        return await callback()
-      } finally {
-        window.clearInterval(renewTimer)
-        try {
-          releaseStorageRefreshLock(storage, owner)
-        } catch {
-          // If storage becomes unavailable mid-refresh, the short lease
-          // expires by itself and contains no auth material.
-        }
-      }
-    }
-
-    await sleep(REFRESH_LOCK_POLL_MS)
-  }
-}
-
 /**
  * Serializes refresh-cookie rotation and revocation across browser contexts.
  *
- * The legacy refresh-oriented lock name and storage key are intentionally
- * retained so a newly deployed tab still coordinates with older open tabs.
+ * The legacy refresh-oriented lock name is intentionally retained so a newly
+ * deployed tab still coordinates with older open tabs that support Web Locks.
+ * Browsers without Web Locks fail closed instead of using a racy storage lease.
  */
 export function withAuthSessionLock<T>(
   callback: () => Promise<T>,
@@ -252,7 +127,7 @@ export function withAuthSessionLock<T>(
     return locks.request(REFRESH_LOCK_NAME, { mode: 'exclusive' }, callback)
   }
 
-  return withStorageAuthSessionLock(callback)
+  return Promise.reject(new AuthCoordinationUnavailableError())
 }
 
 /**
@@ -299,7 +174,11 @@ async function performRefresh(): Promise<AuthResponse> {
     if (useAuthStore.getState().accessToken === accessTokenAtStart) {
       useAuthStore
         .getState()
-        .clearSession(isConfirmedUnauthenticated(err) ? 'unauthenticated' : 'offline-unknown')
+        .clearSession(
+          isConfirmedUnauthenticated(err)
+            ? 'clearing-session'
+            : 'offline-unknown',
+        )
     }
     throw err
   }
@@ -323,9 +202,16 @@ export function refreshSession(): Promise<AuthResponse> {
     return Promise.reject(new AuthResolutionPendingError())
   }
   if (refreshPromise === null) {
-    refreshPromise = withAuthSessionLock(() => performRefresh()).finally(() => {
-      refreshPromise = null
-    })
+    refreshPromise = withAuthSessionLock(() => performRefresh())
+      .catch((error) => {
+        if (error instanceof AuthCoordinationUnavailableError) {
+          useAuthStore.getState().clearSession('offline-unknown')
+        }
+        throw error
+      })
+      .finally(() => {
+        refreshPromise = null
+      })
   }
   return refreshPromise
 }
@@ -436,5 +322,4 @@ apiClient.interceptors.response.use(
  */
 export function __resetRefreshSingletonForTests(): void {
   refreshPromise = null
-  getRefreshLockStorage()?.removeItem(REFRESH_LOCK_STORAGE_KEY)
 }

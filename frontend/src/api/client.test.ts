@@ -4,6 +4,7 @@ import axios from 'axios'
 import {
   __resetRefreshSingletonForTests,
   apiClient,
+  AuthCoordinationUnavailableError,
   AuthResolutionPendingError,
   AUTH_COOKIE_ACTION_HEADER,
   AUTH_COOKIE_ACTION_VALUE,
@@ -31,13 +32,7 @@ const SAMPLE_USER = {
   displayName: 'Q',
   emailVerified: true,
 }
-const REFRESH_LOCK_STORAGE_KEY = 'dupert:auth-refresh-lock'
 let originalLocksDescriptor: PropertyDescriptor | undefined
-
-function readStorageLock() {
-  const raw = localStorage.getItem(REFRESH_LOCK_STORAGE_KEY)
-  return raw ? (JSON.parse(raw) as { owner: string; expiresAt: number }) : null
-}
 
 beforeEach(() => {
   clearPendingLogoutIntent()
@@ -45,7 +40,6 @@ beforeEach(() => {
     globalThis.navigator,
     'locks',
   )
-  Reflect.deleteProperty(globalThis.navigator, 'locks')
   __resetRefreshSingletonForTests()
   useAuthStore.getState().clearSession()
   apiMock = new MockAdapter(apiClient)
@@ -64,7 +58,6 @@ afterEach(() => {
   } else {
     Reflect.deleteProperty(globalThis.navigator, 'locks')
   }
-  localStorage.removeItem(REFRESH_LOCK_STORAGE_KEY)
   clearPendingLogoutIntent()
   vi.useRealTimers()
   vi.restoreAllMocks()
@@ -317,7 +310,7 @@ describe('apiClient response interceptor — refresh on 401', () => {
     })
     expect(useAuthStore.getState().accessToken).toBeNull()
     expect(useAuthStore.getState().user).toBeNull()
-    expect(useAuthStore.getState().authStatus).toBe('unauthenticated')
+    expect(useAuthStore.getState().authStatus).toBe('clearing-session')
   })
 
   it.each([
@@ -562,101 +555,14 @@ describe('refreshSession cross-tab coordination', () => {
     expect(refreshMock.history.post[0].withCredentials).toBe(true)
   })
 
-  it('waits on the localStorage lease fallback without storing secrets', async () => {
-    vi.useFakeTimers()
-    vi.setSystemTime(new Date('2026-05-05T12:00:00Z'))
-    localStorage.setItem(
-      REFRESH_LOCK_STORAGE_KEY,
-      JSON.stringify({ owner: 'other-tab', expiresAt: Date.now() + 5_000 }),
+  it('fails closed when secure cross-tab coordination is unavailable', async () => {
+    Reflect.deleteProperty(globalThis.navigator, 'locks')
+    useAuthStore.getState().clearSession('restoring')
+
+    await expect(refreshSession()).rejects.toBeInstanceOf(
+      AuthCoordinationUnavailableError,
     )
-    refreshMock.onPost('/api/auth/refresh').reply(200, {
-      accessToken: 'storage-lock-tok',
-      tokenType: 'Bearer',
-      expiresInSeconds: 900,
-      user: SAMPLE_USER,
-    })
-
-    const pending = refreshSession()
-
-    await vi.advanceTimersByTimeAsync(49)
     expect(refreshMock.history.post).toHaveLength(0)
-    expect(localStorage.getItem(REFRESH_LOCK_STORAGE_KEY)).not.toContain('tok')
-
-    localStorage.removeItem(REFRESH_LOCK_STORAGE_KEY)
-    await vi.advanceTimersByTimeAsync(1)
-
-    await expect(pending).resolves.toMatchObject({
-      accessToken: 'storage-lock-tok',
-    })
-    expect(refreshMock.history.post).toHaveLength(1)
-    expect(localStorage.getItem(REFRESH_LOCK_STORAGE_KEY)).toBeNull()
-  })
-
-  it('does not bypass an active localStorage lease after a long wait', async () => {
-    vi.useFakeTimers()
-    vi.setSystemTime(new Date('2026-05-05T12:00:00Z'))
-    localStorage.setItem(
-      REFRESH_LOCK_STORAGE_KEY,
-      JSON.stringify({ owner: 'other-tab', expiresAt: Date.now() + 30_000 }),
-    )
-    refreshMock.onPost('/api/auth/refresh').reply(200, {
-      accessToken: 'after-wait-tok',
-      tokenType: 'Bearer',
-      expiresInSeconds: 900,
-      user: SAMPLE_USER,
-    })
-
-    const pending = refreshSession()
-
-    await vi.advanceTimersByTimeAsync(20_000)
-    expect(refreshMock.history.post).toHaveLength(0)
-
-    localStorage.removeItem(REFRESH_LOCK_STORAGE_KEY)
-    await vi.advanceTimersByTimeAsync(50)
-
-    await expect(pending).resolves.toMatchObject({
-      accessToken: 'after-wait-tok',
-    })
-    expect(refreshMock.history.post).toHaveLength(1)
-  })
-
-  it('renews the localStorage lease while a slow refresh is pending', async () => {
-    vi.useFakeTimers()
-    vi.setSystemTime(new Date('2026-05-05T12:00:00Z'))
-    refreshMock.onPost('/api/auth/refresh').reply(
-      () =>
-        new Promise((resolve) => {
-          setTimeout(() => {
-            resolve([
-              200,
-              {
-                accessToken: 'slow-refresh-tok',
-                tokenType: 'Bearer',
-                expiresInSeconds: 900,
-                user: SAMPLE_USER,
-              },
-            ])
-          }, 12_000)
-        }),
-    )
-
-    const pending = refreshSession()
-    const initialLock = readStorageLock()
-    expect(initialLock).not.toBeNull()
-    expect(localStorage.getItem(REFRESH_LOCK_STORAGE_KEY)).not.toContain('tok')
-
-    await vi.advanceTimersByTimeAsync(5_000)
-    const renewedLock = readStorageLock()
-    expect(renewedLock?.owner).toBe(initialLock?.owner)
-    expect(renewedLock?.expiresAt).toBeGreaterThan(
-      initialLock?.expiresAt ?? 0,
-    )
-
-    await vi.advanceTimersByTimeAsync(7_000)
-
-    await expect(pending).resolves.toMatchObject({
-      accessToken: 'slow-refresh-tok',
-    })
-    expect(localStorage.getItem(REFRESH_LOCK_STORAGE_KEY)).toBeNull()
+    expect(useAuthStore.getState().authStatus).toBe('offline-unknown')
   })
 })

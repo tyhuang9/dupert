@@ -24,6 +24,7 @@ export type AuthStatus =
   | 'restoring'
   | 'authenticated'
   | 'unauthenticated'
+  | 'clearing-session'
   | 'offline-unknown'
 
 export interface AuthState {

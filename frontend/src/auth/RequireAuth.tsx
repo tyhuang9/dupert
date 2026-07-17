@@ -13,7 +13,11 @@ export function RequireAuth() {
   const { authStatus, isAuthenticated } = useAuth()
   const location = useLocation()
 
-  if (authStatus === 'restoring' || authStatus === 'offline-unknown') {
+  if (
+    authStatus === 'restoring' ||
+    authStatus === 'clearing-session' ||
+    authStatus === 'offline-unknown'
+  ) {
     return <AuthBootstrapShell />
   }
 

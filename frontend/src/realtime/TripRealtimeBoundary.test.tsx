@@ -153,4 +153,21 @@ describe('<TripRealtimeBoundary>', () => {
       enabled: false,
     })
   })
+
+  it('unmounts the workspace during the confirmed-session clearing boundary', () => {
+    queryClient.setQueryData(['trips', 'detail', 'abc234def567'], {
+      name: 'Cached private trip',
+    })
+
+    renderBoundary(
+      false,
+      makeAuth({ authStatus: 'clearing-session', isInitializing: true }),
+    )
+
+    expect(screen.queryByText('Trip child')).not.toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { name: /preparing your trip planner/i }),
+    ).toBeInTheDocument()
+    expect(useTripMock).toHaveBeenLastCalledWith(undefined, { enabled: false })
+  })
 })
