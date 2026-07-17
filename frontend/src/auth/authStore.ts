@@ -2,13 +2,14 @@ import { create } from 'zustand'
 import type { UserSummary } from '../types/auth'
 
 /**
- * In-memory auth store.
+ * In-memory credential store plus an explicit resolution status.
  *
  * Storage is deliberately RAM-only — no `persist` middleware, no
  * `localStorage`, no `sessionStorage`. PROJECT.md §5 mandates that an
  * XSS reading any web storage cannot steal the session, so the access
- * token never leaves React state. The refresh token is held by the
- * browser as an HttpOnly cookie and is never visible to JS.
+ * token never leaves React state. Durable logout intent is stored separately
+ * and contains no credential material; the credential transport remains an
+ * API-client concern.
  */
 
 /**

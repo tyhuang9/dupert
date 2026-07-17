@@ -4,11 +4,16 @@ import axios from 'axios'
 import {
   __resetRefreshSingletonForTests,
   apiClient,
+  AuthResolutionPendingError,
   AUTH_COOKIE_ACTION_HEADER,
   AUTH_COOKIE_ACTION_VALUE,
   refreshSession,
 } from './client'
 import { useAuthStore } from '../auth/authStore'
+import {
+  clearPendingLogoutIntent,
+  persistPendingLogoutIntent,
+} from '../auth/logoutIntent'
 
 /**
  * The interceptor calls the refresh endpoint with a fresh axios instance
@@ -34,6 +39,7 @@ function readStorageLock() {
 }
 
 beforeEach(() => {
+  clearPendingLogoutIntent()
   originalLocksDescriptor = Object.getOwnPropertyDescriptor(
     globalThis.navigator,
     'locks',
@@ -58,6 +64,7 @@ afterEach(() => {
     Reflect.deleteProperty(globalThis.navigator, 'locks')
   }
   localStorage.removeItem(REFRESH_LOCK_STORAGE_KEY)
+  clearPendingLogoutIntent()
   vi.useRealTimers()
   vi.restoreAllMocks()
 })
@@ -111,6 +118,36 @@ describe('apiClient request interceptor', () => {
       token: 'verification-token',
     })
     expect(verification.data.auth).toBeNull()
+  })
+
+  it('allows cookie-only logout while revocation is pending', async () => {
+    useAuthStore.getState().setSession({
+      accessToken: 'live-tok',
+      expiresInSeconds: 900,
+      user: SAMPLE_USER,
+    })
+    persistPendingLogoutIntent()
+    apiMock.onPost('/auth/logout').reply((config) => [
+      204,
+      {
+        auth:
+          config.headers?.['Authorization'] ??
+          config.headers?.['authorization'] ??
+          null,
+      },
+    ])
+
+    const response = await apiClient.post('/auth/logout')
+    expect(response.data.auth).toBeNull()
+  })
+
+  it('blocks protected requests while authentication is unresolved', async () => {
+    useAuthStore.getState().clearSession('offline-unknown')
+
+    await expect(apiClient.get('/protected')).rejects.toBeInstanceOf(
+      AuthResolutionPendingError,
+    )
+    expect(apiMock.history.get).toHaveLength(0)
   })
 
   it('keeps the guest bootstrap cookie-only even when member state is present', async () => {
@@ -366,6 +403,16 @@ describe('apiClient response interceptor — refresh on 401', () => {
 })
 
 describe('refreshSession cross-tab coordination', () => {
+  it('does not refresh while logout revocation is pending', async () => {
+    persistPendingLogoutIntent()
+
+    await expect(refreshSession()).rejects.toBeInstanceOf(
+      AuthResolutionPendingError,
+    )
+    expect(refreshMock.history.post).toHaveLength(0)
+    expect(useAuthStore.getState().authStatus).toBe('offline-unknown')
+  })
+
   it('coalesces direct in-tab refresh callers', async () => {
     let refreshCalls = 0
     refreshMock.onPost('/api/auth/refresh').reply(() => {

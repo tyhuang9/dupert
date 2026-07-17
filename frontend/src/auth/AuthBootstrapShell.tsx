@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from './useAuth'
+import { hasPendingLogoutIntent } from './logoutIntent'
 import styles from './AuthBootstrapShell.module.css'
 
 const SLOW_SERVER_MESSAGE_DELAY_MS = 2_500
@@ -12,6 +13,7 @@ export function AuthBootstrapShell() {
   const { authStatus, retryAuthResolution } = useAuth()
   const [isSlow, setIsSlow] = useState(false)
   const isOfflineUnknown = authStatus === 'offline-unknown'
+  const isPendingLogout = isOfflineUnknown && hasPendingLogoutIntent()
 
   useEffect(() => {
     if (isOfflineUnknown) return undefined
@@ -29,10 +31,16 @@ export function AuthBootstrapShell() {
       >
         {!isOfflineUnknown ? <span className={styles.spinner} aria-hidden="true" /> : null}
         <h1>
-          {isOfflineUnknown ? 'We could not confirm your session' : 'Preparing your trip planner'}
+          {isPendingLogout
+            ? 'Finishing sign out'
+            : isOfflineUnknown
+              ? 'We could not confirm your session'
+              : 'Preparing your trip planner'}
         </h1>
         <p>
-          {isOfflineUnknown
+          {isPendingLogout
+            ? 'You are signed out on this device. Dupert will finish revoking the server session when the connection returns.'
+            : isOfflineUnknown
             ? 'Your private trips are hidden until Dupert can reach the server.'
             : isSlow
               ? 'The server is taking longer than usual.'

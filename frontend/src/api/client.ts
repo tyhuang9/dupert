@@ -5,6 +5,7 @@ import axios, {
 } from 'axios'
 import { backendApiBaseUrl, buildApiUrl } from './baseUrl'
 import { useAuthStore } from '../auth/authStore'
+import { hasPendingLogoutIntent } from '../auth/logoutIntent'
 import type { AuthResponse } from '../types/auth'
 
 export const AUTH_COOKIE_ACTION_HEADER = 'X-Dupert-Auth-Cookie-Action'
@@ -37,6 +38,7 @@ const PUBLIC_PATHS = new Set<string>([
   '/auth/email/verify',
   '/auth/email/resend',
   '/auth/refresh',
+  '/auth/logout',
   '/guest-session/bootstrap',
 ])
 
@@ -79,6 +81,13 @@ function shouldSendGuestWriteHeader(config: InternalAxiosRequestConfig): boolean
  * Reset back to null when the refresh settles (success OR failure).
  */
 let refreshPromise: Promise<AuthResponse> | null = null
+
+export class AuthResolutionPendingError extends Error {
+  constructor() {
+    super('Authentication must be resolved before this request can run.')
+    this.name = 'AuthResolutionPendingError'
+  }
+}
 
 const REFRESH_LOCK_NAME = 'dupert:auth-refresh'
 const REFRESH_LOCK_STORAGE_KEY = 'dupert:auth-refresh-lock'
@@ -257,6 +266,10 @@ function refreshWithCrossTabLock(): Promise<AuthResponse> {
  * interceptor needs the refresh primitive. Keep them split.
  */
 async function performRefresh(): Promise<AuthResponse> {
+  if (hasPendingLogoutIntent()) {
+    useAuthStore.getState().clearSession('offline-unknown')
+    throw new AuthResolutionPendingError()
+  }
   const accessTokenAtStart = useAuthStore.getState().accessToken
   try {
     const response = await axios.post<AuthResponse>(
@@ -267,6 +280,10 @@ async function performRefresh(): Promise<AuthResponse> {
         headers: { [AUTH_COOKIE_ACTION_HEADER]: AUTH_COOKIE_ACTION_VALUE },
       },
     )
+    if (hasPendingLogoutIntent()) {
+      useAuthStore.getState().clearSession('offline-unknown')
+      throw new AuthResolutionPendingError()
+    }
     const { accessToken, expiresInSeconds, user } = response.data
     useAuthStore.getState().setSession({ accessToken, expiresInSeconds, user })
     return response.data
@@ -293,12 +310,24 @@ export function isConfirmedUnauthenticated(error: unknown): boolean {
  * This is the only function callers should use to hit `/auth/refresh`.
  */
 export function refreshSession(): Promise<AuthResponse> {
+  if (hasPendingLogoutIntent()) {
+    useAuthStore.getState().clearSession('offline-unknown')
+    return Promise.reject(new AuthResolutionPendingError())
+  }
   if (refreshPromise === null) {
     refreshPromise = refreshWithCrossTabLock().finally(() => {
       refreshPromise = null
     })
   }
   return refreshPromise
+}
+
+/** Lets logout serialize behind a refresh that started before its tombstone. */
+export async function waitForRefreshToSettle(): Promise<void> {
+  const inFlight = refreshPromise
+  if (inFlight !== null) {
+    await inFlight.catch(() => undefined)
+  }
 }
 
 type RetryableConfig = InternalAxiosRequestConfig & { _retry?: boolean }
@@ -314,6 +343,13 @@ function hasLocalSessionCandidate(): boolean {
 apiClient.interceptors.request.use(async (config) => {
   if (isPublicPath(config.url)) {
     return config
+  }
+
+  if (
+    hasPendingLogoutIntent() ||
+    useAuthStore.getState().authStatus === 'offline-unknown'
+  ) {
+    throw new AuthResolutionPendingError()
   }
 
   const startedWithSessionCandidate = hasLocalSessionCandidate()

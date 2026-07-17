@@ -6,7 +6,11 @@ import {
   type ReactNode,
 } from 'react'
 import * as authApi from '../api/auth'
-import { refreshSession } from '../api/client'
+import {
+  isConfirmedUnauthenticated,
+  refreshSession,
+  waitForRefreshToSettle,
+} from '../api/client'
 import { useAuthStore, useIsAuthenticated, useUser } from './authStore'
 import { AuthContext, type AuthContextValue } from './authContextValue'
 import { markPerformance } from '../performance/timing'
@@ -15,15 +19,44 @@ import type {
   LoginRequest,
   RegisterRequest,
 } from '../types/auth'
+import {
+  clearPendingLogoutIntent,
+  hasPendingLogoutIntent,
+  PENDING_LOGOUT_CHANGED_EVENT,
+  PENDING_LOGOUT_STORAGE_KEY,
+  persistPendingLogoutIntent,
+} from './logoutIntent'
 
 interface AuthProviderProps {
   children: ReactNode
 }
 
 const PROACTIVE_REFRESH_LEAD_MS = 60_000
+let logoutRevocationPromise: Promise<void> | null = null
 
 function shouldRefreshSessionSoon(expiresAt: number): boolean {
   return Date.now() >= expiresAt - PROACTIVE_REFRESH_LEAD_MS
+}
+
+function revokePendingLogout(): Promise<void> {
+  if (!hasPendingLogoutIntent()) return Promise.resolve()
+  if (logoutRevocationPromise !== null) return logoutRevocationPromise
+
+  logoutRevocationPromise = (async () => {
+    await waitForRefreshToSettle()
+    try {
+      await authApi.logout()
+    } catch (error) {
+      if (!isConfirmedUnauthenticated(error)) throw error
+    }
+    if (!clearPendingLogoutIntent()) {
+      throw new Error('Could not clear the pending logout marker.')
+    }
+  })().finally(() => {
+    logoutRevocationPromise = null
+  })
+
+  return logoutRevocationPromise
 }
 
 /**
@@ -52,9 +85,26 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const probedRef = useRef(false)
   const cancelledRef = useRef(false)
 
+  const syncPendingLogout = useCallback(async () => {
+    if (!hasPendingLogoutIntent()) return
+    clearSession('offline-unknown')
+    try {
+      await revokePendingLogout()
+      clearSession('unauthenticated')
+    } catch {
+      clearSession('offline-unknown')
+      throw new Error('Logout revocation is still pending.')
+    }
+  }, [clearSession])
+
   useEffect(() => {
     if (probedRef.current) return
     probedRef.current = true
+
+    if (hasPendingLogoutIntent()) {
+      void syncPendingLogout().catch(() => undefined)
+      return
+    }
 
     if (useAuthStore.getState().accessToken !== null) {
       // Session was pre-seeded; setSession already marked it authenticated.
@@ -81,7 +131,37 @@ export function AuthProvider({ children }: AuthProviderProps) {
         // refreshSession classifies 401 as confirmed unauthenticated and
         // ambiguous transport/server failures as offline-unknown.
       })
-  }, [setAuthStatus, setSession])
+  }, [setAuthStatus, setSession, syncPendingLogout])
+
+  useEffect(() => {
+    const retryPendingLogout = () => {
+      if (hasPendingLogoutIntent()) {
+        void syncPendingLogout().catch(() => undefined)
+      }
+    }
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key !== PENDING_LOGOUT_STORAGE_KEY) return
+      if (hasPendingLogoutIntent()) {
+        retryPendingLogout()
+      } else {
+        clearSession('unauthenticated')
+      }
+    }
+    const handleFocus = () => {
+      if (navigator.onLine !== false) retryPendingLogout()
+    }
+
+    window.addEventListener('online', retryPendingLogout)
+    window.addEventListener('focus', handleFocus)
+    window.addEventListener('storage', handleStorage)
+    window.addEventListener(PENDING_LOGOUT_CHANGED_EVENT, retryPendingLogout)
+    return () => {
+      window.removeEventListener('online', retryPendingLogout)
+      window.removeEventListener('focus', handleFocus)
+      window.removeEventListener('storage', handleStorage)
+      window.removeEventListener(PENDING_LOGOUT_CHANGED_EVENT, retryPendingLogout)
+    }
+  }, [clearSession, syncPendingLogout])
 
   useEffect(() => {
     if (authStatus === 'authenticated' || authStatus === 'unauthenticated') {
@@ -154,13 +234,21 @@ export function AuthProvider({ children }: AuthProviderProps) {
   )
 
   const retryAuthResolution = useCallback(async () => {
+    if (hasPendingLogoutIntent()) {
+      try {
+        await syncPendingLogout()
+      } catch {
+        // Keep the explicit pending-logout state visible.
+      }
+      return
+    }
     setAuthStatus('restoring')
     try {
       await refreshSession()
     } catch {
       // refreshSession owns the resulting unauthenticated/offline state.
     }
-  }, [setAuthStatus])
+  }, [setAuthStatus, syncPendingLogout])
 
   const register = useCallback(
     async (body: RegisterRequest) => {
@@ -170,16 +258,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
   )
 
   const logout = useCallback(async () => {
+    persistPendingLogoutIntent()
+    clearSession('offline-unknown')
     try {
-      await authApi.logout()
+      await syncPendingLogout()
     } catch {
-      // Always clear local state, even if the network call fails — a
-      // user who clicks "log out" must end up logged out from this tab
-      // regardless of server reachability.
-    } finally {
-      clearSession()
+      // The tombstone keeps this device locally signed out and blocks
+      // restoration until reconnect can finish server-side revocation.
     }
-  }, [clearSession])
+  }, [clearSession, syncPendingLogout])
 
   const updateProfile = useCallback(
     async (body: { displayName: string }) => {

@@ -1,12 +1,18 @@
 import { StrictMode } from 'react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import MockAdapter from 'axios-mock-adapter'
 import axios from 'axios'
 import { AuthProvider } from './AuthContext'
 import { useAuth } from './useAuth'
 import { useAuthStore } from './authStore'
-import { __resetRefreshSingletonForTests } from '../api/client'
+import { __resetRefreshSingletonForTests, apiClient } from '../api/client'
+import {
+  clearPendingLogoutIntent,
+  hasPendingLogoutIntent,
+  PENDING_LOGOUT_STORAGE_KEY,
+  persistPendingLogoutIntent,
+} from './logoutIntent'
 
 const SAMPLE_USER = {
   id: 11,
@@ -16,20 +22,25 @@ const SAMPLE_USER = {
 }
 
 let refreshMock: MockAdapter
+let apiMock: MockAdapter
 
 function Probe() {
-  const { authStatus, isInitializing, isAuthenticated, user } = useAuth()
+  const { authStatus, isInitializing, isAuthenticated, logout, user } = useAuth()
   return (
     <div>
       <span data-testid="status">{authStatus}</span>
       <span data-testid="initializing">{String(isInitializing)}</span>
       <span data-testid="authenticated">{String(isAuthenticated)}</span>
       <span data-testid="email">{user?.email ?? 'none'}</span>
+      <button type="button" onClick={() => void logout()}>
+        Log out
+      </button>
     </div>
   )
 }
 
 beforeEach(() => {
+  clearPendingLogoutIntent()
   __resetRefreshSingletonForTests()
   useAuthStore.getState().clearSession('restoring')
   // The provider's silent-refresh path goes through `refreshSession()`,
@@ -37,10 +48,13 @@ beforeEach(() => {
   // bypasses the response interceptor. Mount the mock on the same global axios,
   // the same approach `client.test.ts` takes for the interceptor's refresh.
   refreshMock = new MockAdapter(axios)
+  apiMock = new MockAdapter(apiClient)
 })
 
 afterEach(() => {
   refreshMock.restore()
+  apiMock.restore()
+  clearPendingLogoutIntent()
   vi.useRealTimers()
 })
 
@@ -109,6 +123,20 @@ describe('<AuthProvider> silent refresh on mount', () => {
 
   it('keeps auth unresolved when the refresh server fails', async () => {
     refreshMock.onPost('/api/auth/refresh').reply(503, { error: 'unavailable' })
+
+    render(
+      <AuthProvider>
+        <Probe />
+      </AuthProvider>,
+    )
+
+    await waitFor(() => {
+      expect(screen.getByTestId('status').textContent).toBe('offline-unknown')
+    })
+  })
+
+  it('keeps auth unresolved when the refresh request times out', async () => {
+    refreshMock.onPost('/api/auth/refresh').timeout()
 
     render(
       <AuthProvider>
@@ -215,5 +243,149 @@ describe('<AuthProvider> silent refresh on mount', () => {
 
     expect(refreshMock.history.post).toHaveLength(1)
     expect(useAuthStore.getState().accessToken).toBe('focus-refresh-tok')
+  })
+
+  it('keeps an offline logout durable and blocks local restoration', async () => {
+    useAuthStore.getState().setSession({
+      accessToken: 'member-token',
+      expiresInSeconds: 900,
+      user: SAMPLE_USER,
+    })
+    apiMock.onPost('/auth/logout').networkError()
+
+    render(
+      <AuthProvider>
+        <Probe />
+      </AuthProvider>,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Log out' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('status').textContent).toBe('offline-unknown')
+    })
+    expect(hasPendingLogoutIntent()).toBe(true)
+    expect(localStorage.getItem(PENDING_LOGOUT_STORAGE_KEY)).not.toContain(
+      'member-token',
+    )
+    expect(useAuthStore.getState().accessToken).toBeNull()
+    expect(useAuthStore.getState().user).toBeNull()
+  })
+
+  it('retries a pending logout on launch without probing refresh', async () => {
+    persistPendingLogoutIntent()
+    apiMock.onPost('/auth/logout').networkError()
+
+    render(
+      <AuthProvider>
+        <Probe />
+      </AuthProvider>,
+    )
+
+    await waitFor(() => expect(apiMock.history.post).toHaveLength(1))
+    expect(refreshMock.history.post).toHaveLength(0)
+    expect(screen.getByTestId('status').textContent).toBe('offline-unknown')
+    expect(hasPendingLogoutIntent()).toBe(true)
+  })
+
+  it('clears a pending logout after reconnect confirms revocation', async () => {
+    persistPendingLogoutIntent()
+    apiMock.onPost('/auth/logout').networkErrorOnce()
+    apiMock.onPost('/auth/logout').reply(204)
+
+    render(
+      <AuthProvider>
+        <Probe />
+      </AuthProvider>,
+    )
+
+    await waitFor(() => expect(apiMock.history.post).toHaveLength(1))
+    window.dispatchEvent(new Event('online'))
+
+    await waitFor(() => {
+      expect(hasPendingLogoutIntent()).toBe(false)
+      expect(screen.getByTestId('status').textContent).toBe('unauthenticated')
+    })
+    expect(apiMock.history.post).toHaveLength(2)
+  })
+
+  it('clears a pending logout when the server confirms no valid session', async () => {
+    persistPendingLogoutIntent()
+    apiMock.onPost('/auth/logout').reply(401, { error: 'unauthenticated' })
+
+    render(
+      <AuthProvider>
+        <Probe />
+      </AuthProvider>,
+    )
+
+    await waitFor(() => {
+      expect(hasPendingLogoutIntent()).toBe(false)
+      expect(screen.getByTestId('status').textContent).toBe('unauthenticated')
+    })
+    expect(refreshMock.history.post).toHaveLength(0)
+  })
+
+  it('accepts a pending logout cleared by another browser context', async () => {
+    persistPendingLogoutIntent()
+    apiMock.onPost('/auth/logout').networkError()
+
+    render(
+      <AuthProvider>
+        <Probe />
+      </AuthProvider>,
+    )
+    await waitFor(() => expect(apiMock.history.post).toHaveLength(1))
+
+    localStorage.removeItem(PENDING_LOGOUT_STORAGE_KEY)
+    window.dispatchEvent(
+      new StorageEvent('storage', {
+        key: PENDING_LOGOUT_STORAGE_KEY,
+        newValue: null,
+      }),
+    )
+
+    await waitFor(() => {
+      expect(screen.getByTestId('status').textContent).toBe('unauthenticated')
+    })
+  })
+
+  it('does not let a stale refresh restore auth after logout starts', async () => {
+    let resolveRefresh:
+      | ((value: [number, Record<string, unknown>]) => void)
+      | undefined
+    refreshMock.onPost('/api/auth/refresh').reply(
+      () =>
+        new Promise((resolve) => {
+          resolveRefresh = resolve
+        }),
+    )
+    apiMock.onPost('/auth/logout').reply(204)
+
+    render(
+      <AuthProvider>
+        <Probe />
+      </AuthProvider>,
+    )
+    await waitFor(() => expect(refreshMock.history.post).toHaveLength(1))
+    fireEvent.click(screen.getByRole('button', { name: 'Log out' }))
+
+    await act(async () => {
+      resolveRefresh?.([
+        200,
+        {
+          accessToken: 'stale-restored-token',
+          tokenType: 'Bearer',
+          expiresInSeconds: 900,
+          user: SAMPLE_USER,
+        },
+      ])
+    })
+
+    await waitFor(() => {
+      expect(screen.getByTestId('status').textContent).toBe('unauthenticated')
+    })
+    expect(useAuthStore.getState().accessToken).toBeNull()
+    expect(hasPendingLogoutIntent()).toBe(false)
+    expect(apiMock.history.post).toHaveLength(1)
   })
 })

@@ -1,8 +1,16 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { RequireAuth } from './RequireAuth'
 import { AuthContext, type AuthContextValue } from './authContextValue'
+import {
+  clearPendingLogoutIntent,
+  persistPendingLogoutIntent,
+} from './logoutIntent'
+
+afterEach(() => {
+  clearPendingLogoutIntent()
+})
 
 function makeAuth(overrides: Partial<AuthContextValue> = {}): AuthContextValue {
   return {
@@ -105,6 +113,22 @@ describe('<RequireAuth>', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /try again/i }))
     expect(retryAuthResolution).toHaveBeenCalledOnce()
+  })
+
+  it('explains that an offline logout is locally enforced', () => {
+    persistPendingLogoutIntent()
+    renderWithAuth(
+      '/protected',
+      makeAuth({ authStatus: 'offline-unknown', isInitializing: true }),
+    )
+
+    expect(
+      screen.getByRole('heading', { name: /finishing sign out/i }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      /signed out on this device/i,
+    )
+    expect(screen.queryByTestId('protected')).toBeNull()
   })
 
   it('renders the matched outlet when authenticated', () => {
