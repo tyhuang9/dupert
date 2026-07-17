@@ -113,6 +113,22 @@ describe('apiClient request interceptor', () => {
     expect(verification.data.auth).toBeNull()
   })
 
+  it('keeps the guest bootstrap cookie-only even when member state is present', async () => {
+    useAuthStore.getState().setSession({
+      accessToken: 'live-tok',
+      expiresInSeconds: 900,
+      user: SAMPLE_USER,
+    })
+
+    apiMock.onGet('/guest-session/bootstrap').reply((cfg) => {
+      const auth = cfg.headers?.['Authorization'] ?? cfg.headers?.['authorization']
+      return [204, { auth: auth ?? null }]
+    })
+
+    const response = await apiClient.get('/guest-session/bootstrap')
+    expect(response.data.auth).toBeNull()
+  })
+
   it('does NOT treat suffix matches like /admin/audit-auth/login as public (regression)', async () => {
     // The previous `path.endsWith(p)` check would have wrongly classified
     // this URL as public and stripped the bearer header. Exact-match

@@ -37,6 +37,7 @@ const PUBLIC_PATHS = new Set<string>([
   '/auth/email/verify',
   '/auth/email/resend',
   '/auth/refresh',
+  '/guest-session/bootstrap',
 ])
 
 const GUEST_WRITE_HEADER = 'X-Dupert-Guest-Write'

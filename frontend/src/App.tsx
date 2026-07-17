@@ -1,11 +1,12 @@
 import { lazy, Suspense } from 'react'
-import { BrowserRouter, Link, Navigate, Route, Routes } from 'react-router-dom'
+import { BrowserRouter, Link, Route, Routes } from 'react-router-dom'
 import './App.css'
 import { RequireAuth } from './auth/RequireAuth'
 import { SkipLink } from './components/SkipLink'
 import { RouteAnnouncer } from './components/RouteAnnouncer'
 import { RouteLoadingFallback } from './components/RouteLoadingFallback'
 import { TripRealtimeBoundary } from './realtime/TripRealtimeBoundary'
+import { LaunchRoute } from './launch/LaunchRoute'
 
 const AcceptInvitePage = lazy(() => import('./pages/AcceptInvitePage'))
 const EmailVerificationPage = lazy(() => import('./pages/EmailVerificationPage').then(({ EmailVerificationPage: Page }) => ({ default: Page })))
@@ -69,6 +70,7 @@ export default function App() {
         <Route path="/share/:token/guest" element={<LazyRoute kind="auth"><GuestOnboardingPage /></LazyRoute>} />
         <Route path="/404" element={<NotFoundPage />} />
         <Route path="/403" element={<ForbiddenPage />} />
+        <Route path="/" element={<LaunchRoute />} />
         <Route path="/trips/:publicId" element={<TripRealtimeBoundary />}>
           <Route index element={<LazyRoute kind="workspace"><TripWorkspacePage /></LazyRoute>} />
           <Route path="d/:day" element={<LazyRoute kind="workspace"><TripWorkspacePage /></LazyRoute>} />
@@ -79,7 +81,6 @@ export default function App() {
 
         {/* Authenticated routes — wrapped in RequireAuth */}
         <Route element={<RequireAuth />}>
-          <Route path="/" element={<Navigate to="/trips" replace />} />
           <Route path="/trips" element={<LazyRoute kind="trips"><TripsPage /></LazyRoute>} />
           <Route path="/trips/new" element={<LazyRoute kind="trips"><NewTripPage /></LazyRoute>} />
         </Route>
