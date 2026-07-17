@@ -86,6 +86,9 @@ public class SecurityConfig {
                     auth.requestMatchers("/api/dev/**").permitAll();
                 }
                 auth.requestMatchers("/api/auth/me").authenticated();
+                // Cookie-only guest launch probe. Missing and inactive credentials
+                // intentionally reach the controller and collapse to a uniform 204.
+                auth.requestMatchers(HttpMethod.GET, "/api/guest-session/bootstrap").permitAll();
                 // Share-link landing pages — token in URL, no bearer expected.
                 auth.requestMatchers("/api/share/*/**").permitAll();
                 // Everything else under /api/** requires a valid bearer.

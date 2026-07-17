@@ -416,6 +416,7 @@ class ShareLinkControllerTest {
                 org.hamcrest.Matchers.containsString("guest_session="),
                 org.hamcrest.Matchers.containsString("HttpOnly"),
                 org.hamcrest.Matchers.containsString("Path=/api"),
+                org.hamcrest.Matchers.containsString("Max-Age=1209600"),
                 org.hamcrest.Matchers.containsString("SameSite=Strict"))))
             .andExpect(jsonPath("$.publicId").value(TRIP_PUBLIC_ID))
             .andExpect(jsonPath("$.role").value("VIEWER"))
@@ -476,7 +477,7 @@ class ShareLinkControllerTest {
     void claimGuestSessionCreatesMembershipReturnsTripAndClearsCookie() throws Exception {
         ShareLink shareLink = link(501L, TRIP_PK, "share-hash", TripRole.VIEWER, true, ALICE_ID, null);
         GuestSession guestSession = guestSession(501L, RAW_GUEST_TOKEN);
-        when(guestSessionRepository.findByTokenHash(shareTokenService.sha256Hex(RAW_GUEST_TOKEN)))
+        when(guestSessionRepository.findByTokenHashForUpdate(shareTokenService.sha256Hex(RAW_GUEST_TOKEN)))
             .thenReturn(Optional.of(guestSession));
         when(shareLinkRepository.findById(501L)).thenReturn(Optional.of(shareLink));
         when(tripRepository.findById(TRIP_PK)).thenReturn(Optional.of(trip));
@@ -501,14 +502,46 @@ class ShareLinkControllerTest {
         assertThat(member.getValue().getId().getTripId()).isEqualTo(TRIP_PK);
         assertThat(member.getValue().getId().getUserId()).isEqualTo(BOB_ID);
         assertThat(member.getValue().getRole()).isEqualTo(TripRole.VIEWER);
+        assertThat(guestSession.getTokenHash()).isNull();
+        assertThat(guestSession.getClaimedAt()).isNotNull();
+        verify(guestSessionRepository).save(guestSession);
         verify(guestSessionRepository, never()).delete(any(GuestSession.class));
+        verify(tripEventPublisher).publishAndDisconnectAfterCommit(eq(TRIP_PK), argThat(event ->
+            event.type().equals("members.changed")
+                && event.publicId().equals(TRIP_PUBLIC_ID)));
     }
 
     @Test
-    void claimGuestSessionUpgradesLowerRoleButDoesNotDowngradeOwner() throws Exception {
+    void claimedGuestCredentialCannotBeReplayed() throws Exception {
+        ShareLink shareLink = link(501L, TRIP_PK, "share-hash", TripRole.VIEWER, true, ALICE_ID, null);
+        GuestSession guestSession = guestSession(501L, RAW_GUEST_TOKEN);
+        when(guestSessionRepository.findByTokenHashForUpdate(shareTokenService.sha256Hex(RAW_GUEST_TOKEN)))
+            .thenReturn(Optional.of(guestSession));
+        when(shareLinkRepository.findById(501L)).thenReturn(Optional.of(shareLink));
+        when(tripRepository.findById(TRIP_PK)).thenReturn(Optional.of(trip));
+        when(tripMemberRepository.findByIdTripIdAndIdUserId(TRIP_PK, BOB_ID))
+            .thenReturn(Optional.empty());
+
+        mvc.perform(post("/api/guest-session/claim")
+                .header("Authorization", bearerFor(BOB_ID))
+                .cookie(guestCookie()))
+            .andExpect(status().isOk());
+
+        mvc.perform(post("/api/guest-session/claim")
+                .header("Authorization", bearerFor(BOB_ID))
+                .cookie(guestCookie()))
+            .andExpect(status().isNotFound())
+            .andExpect(jsonPath("$.error").value("not_found"));
+
+        verify(tripMemberRepository).save(any(TripMember.class));
+        verify(guestSessionRepository).save(guestSession);
+    }
+
+    @Test
+    void claimGuestSessionUpgradesLowerRole() throws Exception {
         ShareLink shareLink = link(501L, TRIP_PK, "share-hash", TripRole.EDITOR, true, ALICE_ID, null);
         GuestSession guestSession = guestSession(501L, RAW_GUEST_TOKEN);
-        when(guestSessionRepository.findByTokenHash(shareTokenService.sha256Hex(RAW_GUEST_TOKEN)))
+        when(guestSessionRepository.findByTokenHashForUpdate(shareTokenService.sha256Hex(RAW_GUEST_TOKEN)))
             .thenReturn(Optional.of(guestSession));
         when(shareLinkRepository.findById(501L)).thenReturn(Optional.of(shareLink));
         when(tripRepository.findById(TRIP_PK)).thenReturn(Optional.of(trip));
@@ -525,6 +558,16 @@ class ShareLinkControllerTest {
 
         assertThat(viewer.getRole()).isEqualTo(TripRole.EDITOR);
         verify(tripMemberRepository).save(viewer);
+    }
+
+    @Test
+    void claimGuestSessionDoesNotDowngradeOwner() throws Exception {
+        ShareLink shareLink = link(501L, TRIP_PK, "share-hash", TripRole.EDITOR, true, ALICE_ID, null);
+        GuestSession guestSession = guestSession(501L, RAW_GUEST_TOKEN);
+        when(guestSessionRepository.findByTokenHashForUpdate(shareTokenService.sha256Hex(RAW_GUEST_TOKEN)))
+            .thenReturn(Optional.of(guestSession));
+        when(shareLinkRepository.findById(501L)).thenReturn(Optional.of(shareLink));
+        when(tripRepository.findById(TRIP_PK)).thenReturn(Optional.of(trip));
 
         TripMember owner = new TripMember(TRIP_PK, ALICE_ID, TripRole.OWNER);
         when(tripMemberRepository.findByIdTripIdAndIdUserId(TRIP_PK, ALICE_ID))
@@ -542,7 +585,7 @@ class ShareLinkControllerTest {
     @Test
     void claimGuestSessionRejectsRevokedOrExpiredLinkWithoutSavingMembership() throws Exception {
         GuestSession guestSession = guestSession(501L, RAW_GUEST_TOKEN);
-        when(guestSessionRepository.findByTokenHash(shareTokenService.sha256Hex(RAW_GUEST_TOKEN)))
+        when(guestSessionRepository.findByTokenHashForUpdate(shareTokenService.sha256Hex(RAW_GUEST_TOKEN)))
             .thenReturn(Optional.of(guestSession));
 
         ShareLink revoked = link(501L, TRIP_PK, "share-hash", TripRole.VIEWER, true, ALICE_ID, null);
