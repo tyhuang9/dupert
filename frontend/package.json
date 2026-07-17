@@ -14,6 +14,9 @@
     "build:native:development": "tsc -b && vite build --mode native-development && node scripts/check-native-bundle-policy.mjs",
     "build:native:staging": "tsc -b && vite build --mode native-staging && node scripts/check-native-bundle-policy.mjs",
     "build:native:production": "tsc -b && vite build --mode native-production && node scripts/check-native-bundle-policy.mjs",
+    "sync:native:development": "npm run build:native:development && npx cap sync",
+    "sync:native:staging": "npm run build:native:staging && npx cap sync",
+    "sync:native:production": "npm run build:native:production && npx cap sync",
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run && node --test scripts/check-native-bundle-policy.node-test.mjs",
@@ -21,6 +24,10 @@
     "check:native-bundle-policy": "node scripts/check-native-bundle-policy.mjs"
   },
   "dependencies": {
+    "@capacitor/android": "8.4.2",
+    "@capacitor/app": "8.1.1",
+    "@capacitor/core": "8.4.2",
+    "@capacitor/ios": "8.4.2",
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@microsoft/fetch-event-source": "^2.0.1",
@@ -37,6 +44,7 @@
   },
   "devDependencies": {
     "@babel/core": "^7.29.0",
+    "@capacitor/cli": "8.4.2",
     "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.61.1",
     "@rolldown/plugin-babel": "^0.2.3",

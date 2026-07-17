@@ -1,3 +1,6 @@
+import { App } from '@capacitor/app'
+import { Capacitor } from '@capacitor/core'
+
 import type { BuildTarget, DeploymentEnvironment } from './buildProfile'
 
 export type ActualPlatform = 'web' | 'ios' | 'android'
@@ -20,13 +23,8 @@ export interface PlatformRuntime {
   target: BuildTarget
 }
 
-interface CapacitorGlobal {
-  getPlatform?: () => string
-}
-
 function detectActualPlatform(): ActualPlatform {
-  const reported = (globalThis as typeof globalThis & { Capacitor?: CapacitorGlobal })
-    .Capacitor?.getPlatform?.()
+  const reported = Capacitor.getPlatform()
   if (reported === 'ios' || reported === 'android') {
     return reported
   }
@@ -51,13 +49,22 @@ export const platformRuntime: Readonly<PlatformRuntime> = Object.freeze({
 })
 
 /**
- * One app-lifecycle seam for browser visibility and future Capacitor foreground
- * events. Native bridges are deliberately added only after the app identity and
- * native projects exist; callers never need to scatter platform checks.
+ * One app-lifecycle seam for browser visibility and Capacitor foreground events.
+ * Callers never need to scatter native-platform checks.
  */
 export function subscribeToAppLifecycle(
   listener: (state: AppLifecycleState) => void,
 ): () => void {
+  if (target === 'native') {
+    const nativeListener = App.addListener('appStateChange', ({ isActive }) => {
+      listener(isActive ? 'foreground' : 'background')
+    }).catch(() => undefined)
+
+    return () => {
+      void nativeListener.then((handle) => handle?.remove())
+    }
+  }
+
   const emitVisibilityState = () => {
     listener(document.visibilityState === 'hidden' ? 'background' : 'foreground')
   }
