@@ -3,11 +3,13 @@ import { fileURLToPath, URL } from 'node:url'
 import { defineConfig, loadEnv } from 'vite'
 import react, { reactCompilerPreset } from '@vitejs/plugin-react'
 import babel from '@rolldown/plugin-babel'
+import { VitePWA } from 'vite-plugin-pwa'
 import {
   resolveBuildProfile,
   validateBuildConfiguration,
 } from './src/platform/buildProfile'
 import { assertNativeBundlePolicy } from './scripts/check-native-bundle-policy.mjs'
+import { WEB_APP_MANIFEST } from './src/pwa/manifest'
 
 // https://vite.dev/config/
 export default defineConfig(({ mode }) => {
@@ -19,6 +21,25 @@ export default defineConfig(({ mode }) => {
     appAccessPassword: env.VITE_APP_ACCESS_PASSWORD,
   })
   const source = (path: string) => fileURLToPath(new URL(path, import.meta.url))
+  const webPwaPlugin = profile.target === 'web'
+    ? VitePWA({
+        strategies: 'injectManifest',
+        srcDir: 'src/pwa',
+        filename: 'service-worker.ts',
+        injectRegister: false,
+        registerType: 'prompt',
+        integration: {
+          closeBundleOrder: 'pre',
+        },
+        includeAssets: ['offline.html'],
+        manifest: WEB_APP_MANIFEST,
+        injectManifest: {
+          // Only Vite's content-hashed static assets are discovered here.
+          // The plugin adds the revisioned offline shell, manifest, and icons.
+          globPatterns: ['assets/**/*.{js,css,png,svg,webp,woff2}'],
+        },
+      })
+    : undefined
   const nativeBundlePolicyPlugin = profile.target === 'native'
     ? {
         name: 'dupert-native-bundle-policy',
@@ -38,6 +59,7 @@ export default defineConfig(({ mode }) => {
     plugins: [
       react(),
       babel({ presets: [reactCompilerPreset()] }),
+      ...(webPwaPlugin ? [webPwaPlugin] : []),
       ...(nativeBundlePolicyPlugin ? [nativeBundlePolicyPlugin] : []),
     ],
     define: {
@@ -54,6 +76,9 @@ export default defineConfig(({ mode }) => {
     build: {
       manifest: true,
     },
+    // Browser-only public assets, including PWA metadata, must never enter a
+    // Capacitor bundle. Imported application assets still build normally.
+    publicDir: profile.target === 'web' ? 'public' : false,
     server: {
       port: 3000,
       strictPort: true,
