@@ -31,6 +31,9 @@ public class AppProperties {
     /** Cookie-related toggles. */
     private Cookies cookies = new Cookies();
 
+    /** Anonymous guest-session credential lifecycle. */
+    private GuestSession guestSession = new GuestSession();
+
     /** Enables open signup. Prod should keep this true only when email is configured. */
     private boolean signupEnabled = true;
 
@@ -104,6 +107,14 @@ public class AppProperties {
 
     public void setCookies(Cookies cookies) {
         this.cookies = cookies == null ? new Cookies() : cookies;
+    }
+
+    public GuestSession getGuestSession() {
+        return guestSession;
+    }
+
+    public void setGuestSession(GuestSession guestSession) {
+        this.guestSession = guestSession == null ? new GuestSession() : guestSession;
     }
 
     public boolean isSignupEnabled() {
@@ -285,6 +296,21 @@ public class AppProperties {
 
         public void setMaxLifetime(Duration maxLifetime) {
             this.maxLifetime = maxLifetime == null ? Duration.ofMinutes(2) : maxLifetime;
+        }
+    }
+
+    /** Lifetime shared by persisted guest credentials and their browser cookie. */
+    public static class GuestSession {
+        private Duration ttl = Duration.ofDays(14);
+
+        public Duration getTtl() {
+            return ttl;
+        }
+
+        public void setTtl(Duration ttl) {
+            this.ttl = ttl == null || ttl.isZero() || ttl.isNegative()
+                ? Duration.ofDays(14)
+                : ttl;
         }
     }
 
