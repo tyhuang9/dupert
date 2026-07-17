@@ -63,6 +63,8 @@ server:
 app:
   # CORS allowlist. Comma-separated list of exact origins. Required.
   frontend-origin: ${ALLOWED_ORIGINS:}
+  # Native WebView CORS allowlist. Comma-separated exact origins; never a wildcard.
+  native-allowed-origins: ${NATIVE_ALLOWED_ORIGINS:}
   # Public browser origin used when composing email links.
   public-frontend-url: ${APP_PUBLIC_FRONTEND_URL:}
   # JWT HS256 secret. Required — must be >= 32 bytes after decode. No default in prod.
