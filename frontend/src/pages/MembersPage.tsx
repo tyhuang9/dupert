@@ -3,7 +3,6 @@ import { Link, useParams } from 'react-router-dom'
 import { parseApiError } from '../api/errors'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { useRemoveTripMember, useTripMembers } from '../hooks/useShareLinks'
-import { useTripStream } from '../hooks/useTripStream'
 import { useTrip } from '../hooks/useTrips'
 import type { TripMember } from '../types/share'
 import { usePageTitle } from '../utils/usePageTitle'
@@ -16,8 +15,6 @@ export default function MembersPage() {
   const removeMemberMutation = useRemoveTripMember()
   const [memberPendingRemoval, setMemberPendingRemoval] =
     useState<TripMember | null>(null)
-  useTripStream(publicId)
-
   usePageTitle(
     tripQuery.data
       ? `Members for ${tripQuery.data.name} – Dupert`

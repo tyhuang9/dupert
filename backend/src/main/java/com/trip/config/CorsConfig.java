@@ -16,6 +16,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import com.trip.web.auth.AuthCookieAction;
 import com.trip.web.auth.GuestAuthenticationFilter;
+import com.trip.web.TripStreamController;
 
 /**
  * Exact-origin CORS allowlist. Browser origins come from {@code ALLOWED_ORIGINS}; native
@@ -44,6 +45,7 @@ public class CorsConfig {
             "Content-Type",
             AuthCookieAction.HEADER,
             GuestAuthenticationFilter.GUEST_WRITE_HEADER,
+            TripStreamController.STREAM_CLIENT_HEADER,
             "X-Requested-With",
             "Accept",
             "Origin"

@@ -46,6 +46,9 @@ public class AppProperties {
     /** Server-side Google Maps cache configuration. */
     private GoogleMapsCache googleMapsCache = new GoogleMapsCache();
 
+    /** Realtime stream lifecycle configuration. */
+    private Realtime realtime = new Realtime();
+
     /**
      * If {@code true}, trust {@code X-Forwarded-For} for client-IP resolution. Default
      * {@code false}: when the app is exposed directly (no reverse proxy in front), an
@@ -141,6 +144,14 @@ public class AppProperties {
 
     public void setGoogleMapsCache(GoogleMapsCache googleMapsCache) {
         this.googleMapsCache = googleMapsCache == null ? new GoogleMapsCache() : googleMapsCache;
+    }
+
+    public Realtime getRealtime() {
+        return realtime;
+    }
+
+    public void setRealtime(Realtime realtime) {
+        this.realtime = realtime == null ? new Realtime() : realtime;
     }
 
     public boolean isTrustProxy() {
@@ -241,6 +252,39 @@ public class AppProperties {
 
         public void setPhotoTtl(Duration photoTtl) {
             this.photoTtl = photoTtl == null ? Duration.ofDays(1) : photoTtl;
+        }
+    }
+
+    /** Heartbeat, stale-detection, and forced-renewal intervals for SSE streams. */
+    public static class Realtime {
+        private Duration heartbeatInterval = Duration.ofSeconds(15);
+        private Duration staleAfter = Duration.ofSeconds(30);
+        private Duration maxLifetime = Duration.ofMinutes(2);
+
+        public Duration getHeartbeatInterval() {
+            return heartbeatInterval;
+        }
+
+        public void setHeartbeatInterval(Duration heartbeatInterval) {
+            this.heartbeatInterval = heartbeatInterval == null
+                ? Duration.ofSeconds(15)
+                : heartbeatInterval;
+        }
+
+        public Duration getStaleAfter() {
+            return staleAfter;
+        }
+
+        public void setStaleAfter(Duration staleAfter) {
+            this.staleAfter = staleAfter == null ? Duration.ofSeconds(30) : staleAfter;
+        }
+
+        public Duration getMaxLifetime() {
+            return maxLifetime;
+        }
+
+        public void setMaxLifetime(Duration maxLifetime) {
+            this.maxLifetime = maxLifetime == null ? Duration.ofMinutes(2) : maxLifetime;
         }
     }
 

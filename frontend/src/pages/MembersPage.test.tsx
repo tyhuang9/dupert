@@ -4,15 +4,11 @@ import userEvent from '@testing-library/user-event'
 import MockAdapter from 'axios-mock-adapter'
 import type { PropsWithChildren } from 'react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { apiClient } from '../api/client'
 import type { TripMember } from '../types/share'
 import type { Trip } from '../types/trip'
 import MembersPage from './MembersPage'
-
-vi.mock('../hooks/useTripStream', () => ({
-  useTripStream: vi.fn(),
-}))
 
 let apiMock: MockAdapter
 let queryClient: QueryClient

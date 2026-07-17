@@ -12,6 +12,7 @@ import org.springframework.mock.web.MockHttpServletRequest;
 
 import com.trip.web.auth.AuthCookieAction;
 import com.trip.web.auth.GuestAuthenticationFilter;
+import com.trip.web.TripStreamController;
 
 class CorsConfigTest {
 
@@ -142,7 +143,8 @@ class CorsConfigTest {
                 "Authorization",
                 "Content-Type",
                 AuthCookieAction.HEADER,
-                GuestAuthenticationFilter.GUEST_WRITE_HEADER);
+                GuestAuthenticationFilter.GUEST_WRITE_HEADER,
+                TripStreamController.STREAM_CLIENT_HEADER);
         assertThat(config.getExposedHeaders())
             .contains("X-Correlation-Id", "Server-Timing");
     }
