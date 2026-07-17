@@ -150,6 +150,10 @@ jobs:
         working-directory: frontend
         run: npm ci
 
+      - name: Check mobile release-readiness preflight
+        working-directory: frontend
+        run: npm run check:mobile-release-readiness
+
       - name: Build and sync native staging bundle
         working-directory: frontend
         env:
