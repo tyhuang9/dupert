@@ -32,9 +32,8 @@ import com.trip.web.auth.DisplayNameSanitizer;
  * Share-link write/read operations for Piece 5.
  *
  * <p>Authenticated trip members with at least EDITOR privileges can manage links.
- * Accepting a link is public at the HTTP routing layer, but this first slice only
- * accepts into an authenticated user account. Anonymous guest sessions are added in
- * the next Piece 5 slice.
+ * Public acceptance supports either direct member enrollment or an anonymous guest
+ * credential that can later be claimed by an authenticated account.
  */
 @Service
 public class ShareLinkService {

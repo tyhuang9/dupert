@@ -22,10 +22,8 @@ import com.trip.web.exception.NotFoundException;
  * doesn't exist" from "trip exists but I'm not on it" — that distinction would make
  * {@code publicId} an enumerable existence oracle.
  *
- * <p>This chunk wires the JWT/user path. The guest-session path (Piece 5) will plug in
- * via a future {@code resolveForGuest(publicId, guestSessionId)} method on this same
- * class; the current method names are deliberately user-scoped so the guest variant
- * doesn't have to fight for naming space.
+ * <p>Both member JWTs and anonymous guest credentials converge here. Guest access is
+ * revalidated against the persisted session and share-link lifecycle on every request.
  */
 @Service
 public class TripAccessGuard {
