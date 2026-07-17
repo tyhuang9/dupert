@@ -1,5 +1,8 @@
 # Web and native build profiles
 
+For the source-controlled beta evidence contract and blocked release gates, see
+[Mobile release-readiness preflight](release-readiness.md).
+
 Dupert has six compile-time profiles. The selected target is never inferred from
 a user agent, URL, or a Capacitor global. Vite validates the mode and injects
 immutable target and environment constants; application code reads the typed
