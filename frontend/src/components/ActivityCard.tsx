@@ -252,7 +252,7 @@ export function ActivityCard({
       aria-label={`${expanded ? 'Collapse' : 'Expand'} ${activity.title}`}
       data-active={active ? 'true' : undefined}
     >
-      {(!expanded || readOnly) && (
+      {(!expanded || readOnly || mobileDragHandle) && (
         <div className={styles.summary}>
           <div className={styles.categoryBlock} data-category={activity.category}>
             <ActivityCategoryIcon category={activity.category} />
@@ -311,7 +311,7 @@ export function ActivityCard({
       )}
 
       {expanded && !readOnly && (
-        <div className={styles.editorPanel}>
+        <div className={styles.editorPanel} onClick={(event) => event.stopPropagation()}>
           {mobileDragHandle ? (
             <div className={styles.mobileEditorHeader}>
               <p>Edit activity</p>

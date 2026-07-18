@@ -1020,7 +1020,8 @@ describe('<TripWorkspacePage>', () => {
     expect(screen.queryByRole('button', { name: /move to day/i })).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: /reorder tsukiji sushi/i })).toBeInTheDocument()
 
-    await userEvent.click(screen.getByRole('article', { name: /expand tsukiji sushi/i }))
+    const activityCard = screen.getByRole('article', { name: /expand tsukiji sushi/i })
+    await userEvent.click(activityCard)
     const editorHeader = screen.getByText(/^edit activity$/i).parentElement
     expect(editorHeader).not.toBeNull()
     expect(within(editorHeader as HTMLElement).getByRole('button', { name: /^close activity editor$/i }))
@@ -1028,6 +1029,7 @@ describe('<TripWorkspacePage>', () => {
     expect(within(editorHeader as HTMLElement).queryByRole('button', { name: /^change day$/i }))
       .not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /^done$/i })).not.toBeInTheDocument()
+    expect(within(activityCard).getByRole('heading', { name: /tsukiji sushi/i })).toBeInTheDocument()
     const firstChangeDay = screen.getByRole('button', { name: /^change day$/i })
     const editFooter = firstChangeDay.parentElement
     expect(editFooter).not.toBeNull()

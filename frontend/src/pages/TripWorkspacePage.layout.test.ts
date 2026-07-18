@@ -8,6 +8,7 @@ const workspaceCss = readFileSync(join(currentDir, 'TripWorkspacePage.module.css
 const tripMapCss = readFileSync(join(currentDir, '../components/TripMap.module.css'), 'utf8')
 const activityFormCss = readFileSync(join(currentDir, '../components/ActivityForm.module.css'), 'utf8')
 const activityCardCss = readFileSync(join(currentDir, '../components/ActivityCard.module.css'), 'utf8')
+const activityCardSource = readFileSync(join(currentDir, '../components/ActivityCard.tsx'), 'utf8')
 const activityListCss = readFileSync(join(currentDir, '../components/ActivityList.module.css'), 'utf8')
 const activityListSource = readFileSync(join(currentDir, '../components/ActivityList.tsx'), 'utf8')
 const datePickerCss = readFileSync(join(currentDir, '../components/TripDateRangePicker.module.css'), 'utf8')
@@ -171,21 +172,17 @@ describe('TripWorkspacePage layout scroll contract', () => {
       '.workspaceShellMobile .composer',
     )[0] ?? ''
     const mobileExpandedCardBlock = cssBlocks(activityCardCss, '.cardExpanded').find((block) =>
+      /overflow:\s*visible/.test(block),
+    ) ?? ''
+    const mobileExpandedEditorBlock = cssBlocks(activityCardCss, '.cardExpanded .editorPanel').find((block) =>
       /position:\s*fixed/.test(block),
     ) ?? ''
-    const mobileExpandedCardInteractionBlock = cssBlocks(
-      activityCardCss,
-      '.cardExpanded:hover,\n  .cardExpanded:focus-within,\n  .cardExpanded:focus-visible',
-    )[0] ?? ''
-    const mobileExpandedEditorBlock = cssBlocks(activityCardCss, '.cardExpanded .editorPanel')[0] ?? ''
 
     expect(activityCardCss).not.toMatch(/mobileEditAction/)
     expect(mobileCreateComposerBlock).toMatch(/inset:\s*auto 0 var\(--mobile-bottom-nav-height\)/)
-    expect(mobileExpandedCardBlock).toMatch(
-      /inset:\s*auto 0 calc\(64px \+ env\(safe-area-inset-bottom\)\)/,
-    )
+    expect(mobileExpandedEditorBlock).toMatch(/inset:\s*auto 0 var\(--mobile-bottom-nav-height/)
 
-    for (const bottomSheetBlock of [mobileCreateComposerBlock, mobileExpandedCardBlock]) {
+    for (const bottomSheetBlock of [mobileCreateComposerBlock, mobileExpandedEditorBlock]) {
       expect(bottomSheetBlock).toMatch(/max-height:\s*min\(78dvh,\s*42rem\)/)
       expect(bottomSheetBlock).toMatch(/overflow-y:\s*auto/)
       expect(bottomSheetBlock).toMatch(
@@ -195,11 +192,12 @@ describe('TripWorkspacePage layout scroll contract', () => {
         /box-shadow:\s*0 -12px 34px rgb\(26 33 31 \/ 24%\)/,
       )
     }
-    expect(mobileExpandedCardBlock).toMatch(/padding:\s*var\(--space-5\)/)
-    expect(mobileExpandedCardBlock).toMatch(/background-color:\s*var\(--color-surface\)/)
-    expect(mobileExpandedCardBlock).toMatch(/opacity:\s*1/)
-    expect(mobileExpandedCardBlock).toMatch(/animation:\s*none/)
-    expect(mobileExpandedCardInteractionBlock).toMatch(/background-color:\s*var\(--color-surface\)/)
+    expect(mobileExpandedCardBlock).toMatch(/overflow:\s*visible/)
+    expect(activityCardSource).toMatch(/\(!expanded \|\| readOnly \|\| mobileDragHandle\)/)
+    expect(mobileExpandedEditorBlock).toMatch(/padding:\s*var\(--space-5\)/)
+    expect(mobileExpandedEditorBlock).toMatch(/background-color:\s*var\(--color-surface\)/)
+    expect(mobileExpandedEditorBlock).toMatch(/opacity:\s*1/)
+    expect(mobileExpandedEditorBlock).toMatch(/animation:\s*none/)
     expect(mobileExpandedEditorBlock).toMatch(/width:\s*100%/)
     expect(mobileExpandedEditorBlock).toMatch(/max-width:\s*none/)
     expect(mobileExpandedEditorBlock).toMatch(/background-color:\s*var\(--color-surface\)/)
