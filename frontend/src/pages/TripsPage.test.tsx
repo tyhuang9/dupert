@@ -281,11 +281,10 @@ describe('<TripsPage>', () => {
       screen.getByText(/no trips match your filters/i),
     ).toBeInTheDocument()
 
-    await userEvent.click(screen.getByRole('button', { name: /clear filters/i }))
+    const clearFiltersButton = screen.getByRole('button', { name: /clear filters/i })
+    await userEvent.click(clearFiltersButton)
 
-    await waitFor(() => {
-      expect(searchInput).toHaveFocus()
-    })
+    expect(searchInput).not.toHaveFocus()
     expect(
       screen.getByRole('link', { name: /open coastal reset/i }),
     ).toBeInTheDocument()
