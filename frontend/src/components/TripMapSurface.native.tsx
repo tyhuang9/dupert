@@ -1,4 +1,5 @@
 import type { TripMapProps } from './TripMap'
+import styles from './TripMapSurface.native.module.css'
 
 /**
  * A deliberately explicit native placeholder until the #66 renderer spike
@@ -14,9 +15,9 @@ export function TripMapSurface(props: TripMapProps) {
     <section
       aria-labelledby="native-map-unavailable-heading"
       data-testid="native-map-unavailable"
-      style={{ display: 'grid', minHeight: '16rem', padding: '1.5rem', placeItems: 'center', textAlign: 'center' }}
+      className={styles.unavailable}
     >
-      <div>
+      <div className={styles.content}>
         <h2 id="native-map-unavailable-heading">Map unavailable in this native evaluation build</h2>
         <p>Use the itinerary to review and edit the trip while native Maps feasibility is evaluated.</p>
       </div>

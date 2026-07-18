@@ -113,7 +113,7 @@ describe('TripWorkspacePage layout scroll contract', () => {
 
     expect(mobileAddActivityFabBlock).toMatch(/position:\s*fixed/)
     expect(mobileAddActivityFabBlock).toMatch(/right:\s*var\(--space-4\)/)
-    expect(mobileAddActivityFabBlock).toMatch(/bottom:\s*calc\(64px \+ var\(--space-4\) \+ env\(safe-area-inset-bottom\)\)/)
+    expect(mobileAddActivityFabBlock).toMatch(/bottom:\s*calc\(var\(--mobile-bottom-nav-height\) \+ var\(--space-4\)\)/)
     expect(mobileAddActivityFabBlock).toMatch(/width:\s*56px/)
     expect(mobileAddActivityFabBlock).toMatch(/height:\s*56px/)
     expect(mobileAddActivityFabBlock).toMatch(/min-height:\s*56px/)
@@ -180,10 +180,12 @@ describe('TripWorkspacePage layout scroll contract', () => {
     const mobileExpandedEditorBlock = cssBlocks(activityCardCss, '.cardExpanded .editorPanel')[0] ?? ''
 
     expect(activityCardCss).not.toMatch(/mobileEditAction/)
+    expect(mobileCreateComposerBlock).toMatch(/inset:\s*auto 0 var\(--mobile-bottom-nav-height\)/)
+    expect(mobileExpandedCardBlock).toMatch(
+      /inset:\s*auto 0 calc\(64px \+ env\(safe-area-inset-bottom\)\)/,
+    )
+
     for (const bottomSheetBlock of [mobileCreateComposerBlock, mobileExpandedCardBlock]) {
-      expect(bottomSheetBlock).toMatch(
-        /inset:\s*auto 0 calc\(64px \+ env\(safe-area-inset-bottom\)\)/,
-      )
       expect(bottomSheetBlock).toMatch(/max-height:\s*min\(78dvh,\s*42rem\)/)
       expect(bottomSheetBlock).toMatch(/overflow-y:\s*auto/)
       expect(bottomSheetBlock).toMatch(
@@ -482,10 +484,8 @@ describe('TripWorkspacePage layout scroll contract', () => {
     const mobileShelfBlock = mobileShelfBlocks[mobileShelfBlocks.length - 1] ?? ''
 
     expect(mobileOverlayLayoutBlock).toMatch(/position:\s*absolute/)
-    expect(mobileOverlayLayoutBlock).toMatch(/top:\s*calc\(64px \+ var\(--space-3\)\)/)
-    expect(mobileOverlayLayoutBlock).toMatch(
-      /bottom:\s*calc\(64px \+ env\(safe-area-inset-bottom\)\)/,
-    )
+    expect(mobileOverlayLayoutBlock).toMatch(/top:\s*calc\(var\(--mobile-header-height\) \+ var\(--space-3\)\)/)
+    expect(mobileOverlayLayoutBlock).toMatch(/bottom:\s*var\(--mobile-bottom-nav-height\)/)
     expect(mobileOverlayLayoutBlock).toMatch(/min-height:\s*0/)
     expect(mobileOverlayLayoutBlock).toMatch(/display:\s*flex/)
     expect(mobileOverlayLayoutBlock).toMatch(/flex-direction:\s*column/)

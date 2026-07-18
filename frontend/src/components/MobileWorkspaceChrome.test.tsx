@@ -159,4 +159,17 @@ describe('<MobileWorkspaceChrome>', () => {
     expect(headerBlock).toMatch(/padding:\s*var\(--menu-control-top\) var\(--space-4\) var\(--space-4\)/)
     expect(actionsBlock).toMatch(/overflow-y:\s*auto/)
   })
+
+  it('keeps the mobile chrome clear of the native safe areas', () => {
+    const headerBlock = cssBlocks(chromeCss, '.header').find((block) =>
+      /--mobile-header-height/.test(block),
+    ) ?? ''
+    const bottomNavBlock = cssBlocks(chromeCss, '.bottomNav').find((block) =>
+      /--mobile-bottom-nav-height/.test(block),
+    ) ?? ''
+
+    expect(headerBlock).toMatch(/min-height:\s*var\(--mobile-header-height,\s*64px\)/)
+    expect(headerBlock).toMatch(/padding:\s*calc\(var\(--space-2\) \+ env\(safe-area-inset-top\)\)/)
+    expect(bottomNavBlock).toMatch(/min-height:\s*var\(--mobile-bottom-nav-height/)
+  })
 })
