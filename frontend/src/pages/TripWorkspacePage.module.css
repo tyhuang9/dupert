@@ -1327,6 +1327,15 @@
   --map-search-max-width: 34rem;
 }
 
+/* Android's native Google map is a sibling below the WebView. Keep only the
+   map tab's structural layers transparent so the SDK view remains visible
+   while the controls and app chrome continue to float above it. */
+.nativeAndroidMapShell,
+.nativeAndroidMapWorkspace,
+.nativeAndroidMapPanel {
+  background: transparent;
+}
+
 .mapOverlayLayout {
   display: contents;
 }

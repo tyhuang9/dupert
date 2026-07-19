@@ -138,6 +138,7 @@ import {
   placeDetailsElapsedMs,
   placeDetailsNowMs,
 } from '../utils/placeDetailsTiming'
+import { platformRuntime } from '../platform/runtime'
 import { timelineDayColor } from '../utils/timelineDayColors'
 import { useTripRealtimeActivityBuffer } from '../realtime/tripRealtimeActivityBuffer'
 
@@ -1985,6 +1986,8 @@ export function TripWorkspacePage() {
   const mobileDayPickerAnchorRef = useRef<HTMLElement | null>(null)
   const mobileDayPickerCloseRef = useRef<HTMLButtonElement | null>(null)
   const isMobileViewport = useMediaQuery('(max-width: 820px)')
+  const isAndroidNativeMap =
+    isMobileViewport && mobileTab === 'map' && platformRuntime.actualPlatform === 'android'
 
   const updateMobileDayPickerLayout = useCallback(() => {
     const anchor = mobileDayPickerAnchorRef.current
@@ -3776,7 +3779,7 @@ export function TripWorkspacePage() {
   }
 
   return (
-    <main id="main" className={styles.shell}>
+    <main id="main" className={[styles.shell, isAndroidNativeMap ? styles.nativeAndroidMapShell : ''].filter(Boolean).join(' ')}>
       {shouldClaimGuestSession && !claimGuestSessionMutation.isError ? (
         <section className={styles.state} aria-live="polite">
           <p>Saving trip to your account...</p>
@@ -3852,6 +3855,7 @@ export function TripWorkspacePage() {
                 sidebarPinned ? styles.workspaceShellPinned : '',
                 isMobileViewport ? styles.workspaceShellMobile : '',
                 isMobileViewport && mobileTab === 'map' ? styles.workspaceShellMobileMap : '',
+                isAndroidNativeMap ? styles.nativeAndroidMapWorkspace : '',
               ].filter(Boolean).join(' ')}
             >
               {isMobileViewport ? (
@@ -4305,7 +4309,7 @@ export function TripWorkspacePage() {
 
               {!isMobileViewport || mobileTab === 'map' ? (
               <aside
-                className={`${styles.panel} ${styles.mapPanel}`}
+                className={[styles.panel, styles.mapPanel, isAndroidNativeMap ? styles.nativeAndroidMapPanel : ''].filter(Boolean).join(' ')}
                 aria-labelledby="map-panel-title"
               >
                 <div className={styles.mapOverlayLayout}>
