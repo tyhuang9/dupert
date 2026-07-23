@@ -71,7 +71,7 @@ capture_failure() {
 }
 
 db_with_fake() {
-  /usr/bin/env \
+  /usr/bin/env -u DOCKER_CONTEXT \
     PATH="$FAKE_BIN" \
     DOCKER_HOST="${TEST_DOCKER_HOST:-unix:///var/run/docker.sock}" \
     DUPERT_POSTGRES_MAJOR="${TEST_POSTGRES_MAJOR:-16}" \
@@ -116,7 +116,7 @@ capture_failure /usr/bin/env \
   FAKE_DOCKER_LOG="$FAKE_LOG" /bin/bash "$DB_SCRIPT" status
 assert_output "DUPERT_POSTGRES_PORT must be a whole number from 1 to 65535"
 
-capture_failure /usr/bin/env \
+capture_failure /usr/bin/env -u DOCKER_CONTEXT \
   PATH="$FAKE_BIN" DOCKER_HOST=ssh://developer@example.test \
   DUPERT_POSTGRES_MAJOR=16 DUPERT_POSTGRES_PORT=5432 \
   FAKE_DOCKER_LOG="$FAKE_LOG" /bin/bash "$DB_SCRIPT" status
@@ -125,6 +125,13 @@ assert_output "Refusing to use a remote Docker endpoint"
 capture_failure /usr/bin/env -u DOCKER_HOST \
   PATH="$FAKE_BIN" DUPERT_POSTGRES_MAJOR=16 DUPERT_POSTGRES_PORT=5432 \
   FAKE_DOCKER_LOG="$FAKE_LOG" FAKE_DOCKER_ENDPOINT=tcp://127.0.0.1:2375 \
+  /bin/bash "$DB_SCRIPT" status
+assert_output "Refusing to use a remote Docker endpoint"
+
+capture_failure /usr/bin/env \
+  PATH="$FAKE_BIN" DOCKER_CONTEXT=remote-context DOCKER_HOST=unix:///var/run/docker.sock \
+  DUPERT_POSTGRES_MAJOR=16 DUPERT_POSTGRES_PORT=5432 \
+  FAKE_DOCKER_LOG="$FAKE_LOG" FAKE_DOCKER_ENDPOINT=ssh://developer@example.test \
   /bin/bash "$DB_SCRIPT" status
 assert_output "Refusing to use a remote Docker endpoint"
 

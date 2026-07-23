@@ -47,7 +47,11 @@ require_docker_compose() {
     fail "Docker is required for the local database. Install and start Docker Desktop, then run npm run db:up."
   fi
 
-  if [[ -n "${DOCKER_HOST:-}" ]]; then
+  # Docker's DOCKER_CONTEXT takes precedence over DOCKER_HOST when both are set.
+  if [[ -n "${DOCKER_CONTEXT:-}" ]]; then
+    docker_endpoint="$(docker context inspect "$DOCKER_CONTEXT" --format '{{ (index .Endpoints "docker").Host }}' 2>/dev/null)" \
+      || fail "Could not resolve DOCKER_CONTEXT. Select a local Docker context, then run npm run db:up."
+  elif [[ -n "${DOCKER_HOST:-}" ]]; then
     docker_endpoint="$DOCKER_HOST"
   else
     docker_endpoint="$(docker context inspect --format '{{ (index .Endpoints "docker").Host }}' 2>/dev/null)" \
@@ -57,7 +61,7 @@ require_docker_compose() {
   case "$docker_endpoint" in
     unix://*|npipe://*) ;;
     *)
-      fail "Refusing to use a remote Docker endpoint for the local database. Unset DOCKER_HOST and select a local unix:// or npipe:// Docker context."
+      fail "Refusing to use a remote Docker endpoint for the local database. Unset DOCKER_CONTEXT and DOCKER_HOST, then select a local unix:// or npipe:// Docker context."
       ;;
   esac
 

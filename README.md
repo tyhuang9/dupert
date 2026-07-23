@@ -83,7 +83,7 @@ npm run dev
 
 `db:up` waits for PostgreSQL's health check. PostgreSQL 16 data lives in the named `dupert_local_postgres_16_data` Docker volume, so it persists across `npm run db:down` and later `npm run db:up` runs. Each configured major gets a separate volume (`dupert_local_postgres_<major>_data`), preventing a PostgreSQL 16 data directory from being reused by PostgreSQL 17. `npm run dev` deliberately does not start Docker or rewrite `DATABASE_URL`; this keeps developers who have a custom external database URL in control.
 
-The container and default `DATABASE_URL` use `127.0.0.1`; PostgreSQL is not exposed on other host interfaces. The lifecycle script also refuses SSH and TCP Docker endpoints, including loopback TCP, and accepts only local `unix://` or `npipe://` endpoints. Its `dupert` / `dupert_local_dev_password` credentials are intentionally weak and must remain local-only—never copy them to Neon, Render, or any shared environment.
+The container and default `DATABASE_URL` use `127.0.0.1`; PostgreSQL is not exposed on other host interfaces. The lifecycle script also refuses SSH and TCP Docker endpoints, including loopback TCP, and accepts only local `unix://` or `npipe://` endpoints. It accounts for Docker's precedence rule where `DOCKER_CONTEXT` overrides `DOCKER_HOST`. Its `dupert` / `dupert_local_dev_password` credentials are intentionally weak and must remain local-only—never copy them to Neon, Render, or any shared environment.
 
 | Command | What it does |
 |---|---|
