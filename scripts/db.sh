@@ -110,7 +110,7 @@ confirm_reset() {
 
 reset() {
   if ! docker volume inspect "$VOLUME_NAME" >/dev/null 2>&1; then
-    echo "No Dupert PostgreSQL $POSTGRES_MAJOR volume exists; nothing was stopped or deleted. Starting a fresh database."
+    echo "No Dupert PostgreSQL $POSTGRES_MAJOR volume exists; skipping explicit teardown and deletion before starting a fresh database."
     start_database
     return
   fi

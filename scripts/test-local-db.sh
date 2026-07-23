@@ -122,7 +122,7 @@ capture_failure /usr/bin/env -u DOCKER_CONTEXT \
   FAKE_DOCKER_LOG="$FAKE_LOG" /bin/bash "$DB_SCRIPT" status
 assert_output "Refusing to use a remote Docker endpoint"
 
-capture_failure /usr/bin/env -u DOCKER_HOST \
+capture_failure /usr/bin/env -u DOCKER_HOST -u DOCKER_CONTEXT \
   PATH="$FAKE_BIN" DUPERT_POSTGRES_MAJOR=16 DUPERT_POSTGRES_PORT=5432 \
   FAKE_DOCKER_LOG="$FAKE_LOG" FAKE_DOCKER_ENDPOINT=tcp://127.0.0.1:2375 \
   /bin/bash "$DB_SCRIPT" status
@@ -140,7 +140,7 @@ assert_output "must support 'up --wait'"
 
 capture_failure /usr/bin/env \
   PATH= DUPERT_POSTGRES_MAJOR=16 DUPERT_POSTGRES_PORT=5432 \
-  /bin/bash "$DB_SCRIPT" reset
+  /bin/bash "$DB_SCRIPT" reset </dev/null
 assert_output "Refusing to reset without an interactive terminal"
 
 : >"$FAKE_LOG"
