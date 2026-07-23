@@ -76,8 +76,8 @@ reset() {
     return
   fi
 
-  volume_project="$(docker volume inspect "$VOLUME_NAME" --format '{{ index .Labels "com.docker.compose.project" }}')"
-  volume_name="$(docker volume inspect "$VOLUME_NAME" --format '{{ index .Labels "com.docker.compose.volume" }}')"
+  volume_project="$(docker volume inspect "$VOLUME_NAME" --format '{{ index .Labels "com.docker.compose.project" }}' 2>/dev/null || true)"
+  volume_name="$(docker volume inspect "$VOLUME_NAME" --format '{{ index .Labels "com.docker.compose.volume" }}' 2>/dev/null || true)"
   [[ "$volume_project" == "$PROJECT_NAME" && "$volume_name" == "postgres_data" ]] \
     || fail "Refusing to delete $VOLUME_NAME because it is not this project's Compose volume."
 
