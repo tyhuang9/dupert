@@ -82,7 +82,7 @@ curl -i -X POST http://localhost:8000/api/dev/users/reseed
 
 `reseed` recreates the default `@test.local` users. It does not wipe the database.
 
-To wipe all local development data, use `npm run db:reset` from the repo root and confirm the prompt. It removes only Dupert's local PostgreSQL volume, starts an empty local database, and the next `npm run dev` applies Flyway migrations and recreates the default users. In non-interactive automation, use `npm run db:reset -- --force` only when deleting that local data is intended.
+To wipe all local development data for the selected PostgreSQL major, use `npm run db:reset` from the repo root and confirm the prompt. It verifies and removes only `dupert_local_postgres_<major>_data`, starts an empty local database, and the next `npm run dev` applies Flyway migrations and recreates the default users. Volumes for other majors remain intact. In non-interactive automation, use `npm run db:reset -- --force` only when deleting that local data is intended.
 
 ## Production Safety
 

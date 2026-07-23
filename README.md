@@ -74,16 +74,16 @@ The backend uses the Gradle wrapper, so the first `./gradlew` invocation will fe
 
 ## Local PostgreSQL database
 
-The checked-in `backend/.env.example` uses a local PostgreSQL 16 container. PostgreSQL 16 is a mature, supported major and keeps development on real PostgreSQL, so the existing PostgreSQL-specific Flyway migrations and JPA/Hibernate behavior run unchanged. Start it before the app:
+The checked-in `backend/.env.example` uses a local PostgreSQL 16 container. PostgreSQL 16 is a mature, supported major, and real PostgreSQL is the intended compatibility target for the existing PostgreSQL-specific Flyway migrations and JPA/Hibernate mappings. Start it before the app:
 
 ```bash
 npm run db:up
 npm run dev
 ```
 
-`db:up` waits for PostgreSQL's health check. The data lives in the named `dupert_local_postgres_data` Docker volume, so it persists across `npm run db:down` and later `npm run db:up` runs. `npm run dev` deliberately does not start Docker or rewrite `DATABASE_URL`; this keeps developers who have a custom external database URL in control.
+`db:up` waits for PostgreSQL's health check. PostgreSQL 16 data lives in the named `dupert_local_postgres_16_data` Docker volume, so it persists across `npm run db:down` and later `npm run db:up` runs. Each configured major gets a separate volume (`dupert_local_postgres_<major>_data`), preventing a PostgreSQL 16 data directory from being reused by PostgreSQL 17. `npm run dev` deliberately does not start Docker or rewrite `DATABASE_URL`; this keeps developers who have a custom external database URL in control.
 
-The container listens only on `127.0.0.1`. Its `dupert` / `dupert_local_dev_password` credentials are intentionally weak and must remain local-only—never copy them to Neon, Render, or any shared environment.
+The container and default `DATABASE_URL` use `127.0.0.1`; PostgreSQL is not exposed on other host interfaces. The lifecycle script also refuses SSH and TCP Docker endpoints, including loopback TCP, and accepts only local `unix://` or `npipe://` endpoints. Its `dupert` / `dupert_local_dev_password` credentials are intentionally weak and must remain local-only—never copy them to Neon, Render, or any shared environment.
 
 | Command | What it does |
 |---|---|
@@ -93,11 +93,18 @@ The container listens only on `127.0.0.1`. Its `dupert` / `dupert_local_dev_pass
 | `npm run db:logs` | Follow local PostgreSQL logs. |
 | `npm run db:reset` | Interactively delete only Dupert's local database volume, then start a fresh database. |
 
-`db:reset` requires typing `RESET`. For intentional non-interactive use, run `npm run db:reset -- --force`; it verifies that the named volume belongs to this Compose project before deleting it. On the next backend start, Flyway reapplies every migration and the local profile creates its usual seeded users. To reseed users without wiping other local data, use the `/api/dev/users/reseed` endpoint described in [Development Auth Testing](docs/development-testing.md).
+`db:reset` requires typing `RESET`. For intentional non-interactive use, run `npm run db:reset -- --force`; it verifies the selected major's volume before stopping Compose and again immediately before deletion. It deletes no other major's volume. If that volume does not exist, reset skips teardown and starts a fresh database. On the next backend start, Flyway should reapply every migration and the local profile should create its usual seeded users. To reseed users without wiping other local data, use the `/api/dev/users/reseed` endpoint described in [Development Auth Testing](docs/development-testing.md).
 
 To use Neon or another external PostgreSQL database instead, replace `DATABASE_URL` in your untracked `backend/.env` with that URL (quote shell metacharacters). The database lifecycle commands never read or overwrite it. Production Neon and Render configuration are unchanged.
 
-The image major is configurable for deliberate compatibility testing (the default is `16`): `DUPERT_POSTGRES_MAJOR=17 npm run db:up`. To use another free local port, run `DUPERT_POSTGRES_PORT=5433 npm run db:up` and change the port in your local `DATABASE_URL` to match. If Docker or Compose is missing, or Docker Desktop is not running, the DB commands stop with installation/startup guidance. Use `npm run db:logs` after startup failures.
+The image major is configurable for deliberate compatibility testing (the default is `16`): `DUPERT_POSTGRES_MAJOR=17 npm run db:up`. Run the reset command with the same variable to reset that major's volume. To use another free local port, run `DUPERT_POSTGRES_PORT=5433 npm run db:up` and change the port in your local `DATABASE_URL` to `127.0.0.1:5433`. Major and port inputs are validated before Docker runs. If Docker or Compose is missing, Docker Desktop is not running, the Docker endpoint is not local, or Compose lacks `up --wait`, the command stops with corrective guidance. Use `npm run db:logs` after startup failures.
+
+The Docker-free contract tests verify configuration and destructive-operation guards, not actual PostgreSQL startup or migration compatibility. Verify the runtime on a Docker-equipped machine before relying on it:
+
+1. Run `npm run db:up`, then `npm run db:status`; PostgreSQL should report healthy.
+2. Run `npm run dev`; confirm the backend logs show Flyway completing and Spring Boot starting without schema-validation errors.
+3. Create `david@test.local` using the command in [Development Auth Testing](docs/development-testing.md), stop the app, run `npm run db:down`, then `npm run db:up` and `npm run dev`; `curl -s http://localhost:8000/api/dev/users` should still list David.
+4. Stop the app, run `npm run db:reset`, restart with `npm run dev`, and list users again; David should be absent and the four default users should exist.
 
 ## Run (development)
 

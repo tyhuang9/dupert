@@ -19,4 +19,4 @@ services:
 
 volumes:
   postgres_data:
-    name: dupert_local_postgres_data
+    name: dupert_local_postgres_${DUPERT_POSTGRES_MAJOR:-16}_data
