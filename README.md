@@ -19,11 +19,11 @@ These screenshots use the local demo seed data described in [Development Auth Te
 
 ## Tech stack
 
-**Backend** — Java 21, Spring Boot 3.5, Gradle, Spring Security, Spring Data JPA, Flyway, JJWT, Bucket4j, PostgreSQL (hosted on [Neon](https://neon.tech)).
+**Backend** — Java 21, Spring Boot 3.5, Gradle, Spring Security, Spring Data JPA, Flyway, JJWT, Bucket4j, PostgreSQL (local Docker for development; [Neon](https://neon.tech) in production).
 
 **Frontend** — Vite, React 19, TypeScript, React Router, TanStack Query, Zustand, Axios, `@microsoft/fetch-event-source` (SSE), `@vis.gl/react-google-maps`, `@dnd-kit`, `date-fns`. Plain CSS Modules.
 
-**External services** — [Google Maps Platform](https://developers.google.com/maps) (browser map rendering plus backend-proxied Places, geocoding, photos, and routes); [Neon](https://neon.tech) (managed Postgres); [Brevo](https://www.brevo.com/) (transactional auth email in production).
+**External services** — [Google Maps Platform](https://developers.google.com/maps) (browser map rendering plus backend-proxied Places, geocoding, photos, and routes); [Neon](https://neon.tech) (managed production Postgres); [Brevo](https://www.brevo.com/) (transactional auth email in production).
 
 **Realtime** — Server-Sent Events (`/api/trips/{id}/stream`); events carry pointers, not payloads, so subscribers always refetch through the authenticated API.
 
@@ -31,11 +31,12 @@ These screenshots use the local demo seed data described in [Development Auth Te
 
 - **JDK 21** (Temurin recommended). Verify: `java -version` reports `21`.
 - **Node 20+** and **npm**.
-- A **Neon** project (free tier is fine). Grab the dev-branch connection string from the Neon dashboard.
+- **Docker Desktop** (or Docker Engine) with **Docker Compose v2** for the default local PostgreSQL database.
+- A **Neon** project only if you intentionally want to use a hosted database instead of the local default.
 - A **Google Maps Platform** browser API key for the Maps JavaScript API. Restrict this key by HTTP referrer to `http://localhost:3000/*` for local development and to your production origins later.
 - A **Google Maps Platform** backend API key for Places API (New), Geocoding API, and Routes API requests. Restrict this key for backend use only.
 
-No Docker, no local Postgres install, no global Gradle.
+No manual PostgreSQL or global Gradle installation is required.
 
 ## Setup
 
@@ -45,8 +46,8 @@ cd dupert
 cp backend/.env.example backend/.env
 cp frontend/.env.example frontend/.env
 # Edit backend/.env and fill in real values for:
-#   DATABASE_URL          (Neon connection string — wrap in single quotes if it
-#                          contains '&', e.g. '...?sslmode=require&channel_binding=require')
+#   DATABASE_URL          (local Postgres is pre-filled; use a quoted Neon URL
+#                          only when intentionally overriding it, e.g. '...?sslmode=require&channel_binding=require')
 #   JWT_SECRET            (generate: openssl rand -hex 32)
 #   LOG_EMAIL_PEPPER      (generate: openssl rand -hex 16)
 #   ALLOWED_ORIGINS       (exact frontend origin, e.g. http://localhost:3000)
@@ -70,6 +71,33 @@ npm install
 ```
 
 The backend uses the Gradle wrapper, so the first `./gradlew` invocation will fetch Gradle automatically — nothing to install ahead of time.
+
+## Local PostgreSQL database
+
+The checked-in `backend/.env.example` uses a local PostgreSQL 16 container. PostgreSQL 16 is a mature, supported major and keeps development on real PostgreSQL, so the existing PostgreSQL-specific Flyway migrations and JPA/Hibernate behavior run unchanged. Start it before the app:
+
+```bash
+npm run db:up
+npm run dev
+```
+
+`db:up` waits for PostgreSQL's health check. The data lives in the named `dupert_local_postgres_data` Docker volume, so it persists across `npm run db:down` and later `npm run db:up` runs. `npm run dev` deliberately does not start Docker or rewrite `DATABASE_URL`; this keeps developers who have a custom external database URL in control.
+
+The container listens only on `127.0.0.1`. Its `dupert` / `dupert_local_dev_password` credentials are intentionally weak and must remain local-only—never copy them to Neon, Render, or any shared environment.
+
+| Command | What it does |
+|---|---|
+| `npm run db:up` | Start PostgreSQL and wait until healthy. |
+| `npm run db:down` | Stop PostgreSQL without deleting data. |
+| `npm run db:status` | Show the local container status. |
+| `npm run db:logs` | Follow local PostgreSQL logs. |
+| `npm run db:reset` | Interactively delete only Dupert's local database volume, then start a fresh database. |
+
+`db:reset` requires typing `RESET`. For intentional non-interactive use, run `npm run db:reset -- --force`; it verifies that the named volume belongs to this Compose project before deleting it. On the next backend start, Flyway reapplies every migration and the local profile creates its usual seeded users. To reseed users without wiping other local data, use the `/api/dev/users/reseed` endpoint described in [Development Auth Testing](docs/development-testing.md).
+
+To use Neon or another external PostgreSQL database instead, replace `DATABASE_URL` in your untracked `backend/.env` with that URL (quote shell metacharacters). The database lifecycle commands never read or overwrite it. Production Neon and Render configuration are unchanged.
+
+The image major is configurable for deliberate compatibility testing (the default is `16`): `DUPERT_POSTGRES_MAJOR=17 npm run db:up`. To use another free local port, run `DUPERT_POSTGRES_PORT=5433 npm run db:up` and change the port in your local `DATABASE_URL` to match. If Docker or Compose is missing, or Docker Desktop is not running, the DB commands stop with installation/startup guidance. Use `npm run db:logs` after startup failures.
 
 ## Run (development)
 
@@ -106,7 +134,7 @@ If Gradle complains about Java, export `JAVA_HOME` explicitly:
 export JAVA_HOME="<path-to-your-jdk-21>"
 ```
 
-Flyway will run the V1 migration against your Neon database on first boot.
+Flyway will run all migrations against the database selected by `DATABASE_URL` on first boot.
 
 ## Frontend/backend connection
 
@@ -139,6 +167,12 @@ The frontend client defaults to the same-origin API root `/api`. In local develo
 | `npm run lint` | ESLint |
 | `npm run test` | Vitest unit/component tests |
 | `npm audit --omit=dev` | Audit production dependency tree |
+
+**Local database** (run from the repo root):
+
+| Command | What it does |
+|---|---|
+| `npm run test:local-db` | Run Docker-free lifecycle/configuration contract checks. |
 
 Before pushing a feature, run:
 
@@ -197,7 +231,7 @@ dupert/
 
 | Variable | Used by | Description |
 |---|---|---|
-| `DATABASE_URL` | backend | Neon (or any Postgres) connection string |
+| `DATABASE_URL` | backend | Local Postgres by default; Neon or any PostgreSQL URL when intentionally overridden |
 | `DB_POOL_MAX_SIZE` | backend | Hikari maximum connections for one backend instance; default `4` |
 | `DB_POOL_MIN_IDLE` | backend | Hikari minimum idle connections; default `0` so Neon can sleep |
 | `DB_CONNECTION_TIMEOUT_MS` | backend | Hikari acquisition timeout; default `10000` ms |
