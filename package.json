@@ -3,6 +3,12 @@
   "private": true,
   "scripts": {
     "dev": "bash scripts/dev.sh",
-    "dev:docker": "bash scripts/dev-docker.sh"
+    "dev:docker": "bash scripts/dev-docker.sh",
+    "db:up": "bash scripts/db.sh up",
+    "db:down": "bash scripts/db.sh down",
+    "db:status": "bash scripts/db.sh status",
+    "db:logs": "bash scripts/db.sh logs",
+    "db:reset": "bash scripts/db.sh reset",
+    "test:local-db": "bash scripts/test-local-db.sh"
   }
 }
