@@ -9,6 +9,7 @@ interface ConfirmDialogProps {
   cancelLabel?: string
   confirming?: boolean
   errorMessage?: string | null
+  modalFocusBranch?: boolean
   onCancel: () => void
   onConfirm: () => void
 }
@@ -21,6 +22,7 @@ export function ConfirmDialog({
   cancelLabel = 'Cancel',
   confirming = false,
   errorMessage,
+  modalFocusBranch = false,
   onCancel,
   onConfirm,
 }: ConfirmDialogProps) {
@@ -60,6 +62,7 @@ export function ConfirmDialog({
   return (
     <div
       className={styles.backdrop}
+      data-modal-focus-branch={modalFocusBranch ? 'true' : undefined}
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) {
           onCancel()

@@ -11,7 +11,7 @@ import {
   X,
 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import styles from './MobileWorkspaceChrome.module.css'
 
 export type MobileWorkspaceTab = 'plan' | 'map' | 'timeline' | 'ideas'
@@ -52,6 +52,7 @@ export function MobileWorkspaceChrome({
   publicId,
   tripName,
 }: Readonly<MobileWorkspaceChromeProps>) {
+  const location = useLocation()
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const menuTriggerRef = useRef<HTMLButtonElement>(null)
   const menuPopupRef = useRef<HTMLElement>(null)
@@ -177,7 +178,11 @@ export function MobileWorkspaceChrome({
                 My trips
               </Link>
               {isAuthenticated ? (
-                <Link to={`/trips/${encodeURIComponent(publicId)}/members`} onClick={closeMenu}>
+              <Link
+                to={`/trips/${encodeURIComponent(publicId)}/members`}
+                state={{ returnTo: `${location.pathname}${location.search}` }}
+                onClick={closeMenu}
+              >
                   <Users size={18} aria-hidden="true" />
                   Members
                 </Link>
