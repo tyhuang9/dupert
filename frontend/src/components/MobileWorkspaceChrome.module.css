@@ -86,6 +86,8 @@
 
   .headerActions {
     flex: 0 0 auto;
+    /* Pin the trigger to the shared control offset instead of flex-centering it within the header. */
+    align-self: flex-start;
   }
 
   .menuButton,
@@ -108,10 +110,16 @@
     z-index: 1000;
   }
 
+  .menuDialog {
+    position: absolute;
+    inset: 0;
+    /* Only the popup surface and overlaid close control should intercept backdrop input. */
+    pointer-events: none;
+  }
+
   .menuPopup {
     position: absolute;
-    /* Keep the popup shell inset below the safe area while aligning its close control with the header trigger. */
-    top: calc(var(--workspace-chrome-control-top) - var(--space-2));
+    top: calc(var(--space-3) + env(safe-area-inset-top));
     right: calc(var(--space-3) + env(safe-area-inset-right));
     width: min(22rem, calc(100vw - var(--space-6) - env(safe-area-inset-left) - env(safe-area-inset-right)));
     max-height: calc(100dvh - 8rem - var(--space-4) - env(safe-area-inset-bottom) - var(--space-3) - env(safe-area-inset-top));
@@ -124,6 +132,7 @@
     box-shadow:
       inset 0 0 0 1px var(--color-surface-border),
       var(--shadow-lg);
+    pointer-events: auto;
   }
 
   .menuHeader {
@@ -141,8 +150,19 @@
     min-width: 0;
   }
 
-  .menuHeader .closeButton {
+  .menuHeaderCloseSpacer {
     flex: 0 0 44px;
+    width: 44px;
+    height: 44px;
+  }
+
+  .menuDialog > .closeButton {
+    position: absolute;
+    /* Keep the full hit target outside the popup's rounded overflow clip. */
+    top: var(--workspace-chrome-control-top);
+    right: var(--workspace-chrome-control-right);
+    pointer-events: auto;
+    z-index: 1;
   }
 
   .menuHeader h2 {
