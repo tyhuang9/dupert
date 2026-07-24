@@ -2024,7 +2024,7 @@ export function TripWorkspacePage() {
   const [mapViewportContext, setMapViewportContext] = useState<MapViewportContext | null>(null)
   const [mapLocationTarget, setMapLocationTarget] = useState<MapLocationTarget | null>(null)
   const [mapSearchValue, setMapSearchValue] = useState('')
-  const [mapSearchFocusKey, setMapSearchFocusKey] = useState(0)
+  const [mapSearchFocusKey, setMapSearchFocusKey] = useState<number | undefined>()
   const [mapSearchPreview, setMapSearchPreview] = useState<PlaceSelection | null>(null)
   const [coordinateMapMarker, setCoordinateMapMarker] = useState<PlaceSelection | null>(null)
   const [mapSearchResults, setMapSearchResults] = useState<PlaceSelection[]>([])
@@ -2686,7 +2686,7 @@ export function TripWorkspacePage() {
     setIsMapSearchLoadingMore(false)
     setMapSearchLoadMoreError(false)
     if (isMobileViewport) {
-      setMapSearchFocusKey((current) => current + 1)
+      setMapSearchFocusKey((current) => (current ?? 0) + 1)
     }
   }
 
@@ -3148,7 +3148,7 @@ export function TripWorkspacePage() {
       payload,
     })
     setMapSearchValue(query)
-    setMapSearchFocusKey((current) => current + 1)
+    setMapSearchFocusKey((current) => (current ?? 0) + 1)
 
     const reducedMotion =
       typeof window.matchMedia === 'function' &&
@@ -3178,7 +3178,7 @@ export function TripWorkspacePage() {
     setPendingMapPlace(null)
     setPlaceDraftForBucket(draftDayDate, payload)
     setMapSearchValue(query)
-    setMapSearchFocusKey((current) => current + 1)
+    setMapSearchFocusKey((current) => (current ?? 0) + 1)
 
     const reducedMotion =
       typeof window.matchMedia === 'function' &&
@@ -3307,7 +3307,7 @@ export function TripWorkspacePage() {
       setCoordinateMapMarker(null)
     } catch (error) {
       if (mapSearchRequestIdRef.current === requestId && isMobileViewport) {
-        setMapSearchFocusKey((current) => current + 1)
+        setMapSearchFocusKey((current) => (current ?? 0) + 1)
       }
       if (mapSearchRequestIdRef.current === requestId) {
         mapTextSearchSessionRef.current = null
@@ -3896,6 +3896,9 @@ export function TripWorkspacePage() {
       setWorkspaceMode('days')
     }
     if (tab === 'map') {
+      // A normal tab switch should reveal the map without summoning the
+      // keyboard. Explicit location-edit/search flows request focus below.
+      setMapSearchFocusKey(undefined)
       setExpandedActivityId(null)
       clearPlaceDraft()
     }

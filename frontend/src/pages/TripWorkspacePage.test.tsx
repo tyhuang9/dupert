@@ -386,12 +386,8 @@ vi.mock('../components/PlaceSearch', () => ({
     }
   }) => {
     const inputRef = useRef<HTMLInputElement | null>(null)
-    const previousFocusKeyRef = useRef(focusKey)
     useEffect(() => {
-      if (previousFocusKeyRef.current !== focusKey) {
-        inputRef.current?.focus()
-      }
-      previousFocusKeyRef.current = focusKey
+      if (focusKey !== undefined) inputRef.current?.focus()
     }, [focusKey])
     placeSearchMockState.searchOptions = searchOptions ?? null
     const place = {
@@ -826,6 +822,7 @@ describe('<TripWorkspacePage>', () => {
     await userEvent.click(screen.getByRole('button', { name: /^map$/i }))
     expect(await screen.findByTestId('trip-map')).toBeInTheDocument()
     expect(screen.getAllByTestId('trip-map')).toHaveLength(1)
+    expect(screen.getByRole('textbox', { name: /map place search/i })).not.toHaveFocus()
 
     await userEvent.click(screen.getByRole('button', { name: /^timeline$/i }))
     expect(screen.queryByTestId('trip-map')).not.toBeInTheDocument()
