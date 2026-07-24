@@ -89,12 +89,12 @@ describe('<LaunchRoute>', () => {
     storageWrite.mockRestore()
   })
 
-  it('shows a stable recovery surface for a missing or inactive credential', async () => {
+  it('sends an absent or inactive guest credential to login', async () => {
     bootstrapGuestSessionMock.mockResolvedValue(null)
     renderLaunch()
 
-    expect(await screen.findByRole('heading', { name: /reopen your trip invite/i })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: /sign in/i })).toHaveAttribute('href', '/login')
+    expect(await screen.findByText('LOGIN DESTINATION')).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: /reopen your trip invite/i })).not.toBeInTheDocument()
     expect(bootstrapGuestSessionMock).toHaveBeenCalledTimes(1)
 
     await new Promise((resolve) => window.setTimeout(resolve, 0))
