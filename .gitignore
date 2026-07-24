@@ -29,7 +29,7 @@ Thumbs.db
 .agents/
 PROJECT.md
 
-# Worktree-local native shortcut ownership state
+# Worktree-local native, backend, and database shortcut runtime state and logs
 .dupert/
 
 # Graphify local analysis artifacts
