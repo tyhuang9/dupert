@@ -21,10 +21,10 @@ interface MobileWorkspaceChromeProps {
   canEditTrip: boolean
   guestActions?: ReactNode
   isAuthenticated: boolean
+  onOpenMembers: () => void
   onOpenSettings: () => void
   onOpenShare: () => void
   onSelectTab: (tab: MobileWorkspaceTab) => void
-  publicId: string
   tripName: string
 }
 
@@ -46,10 +46,10 @@ export function MobileWorkspaceChrome({
   canEditTrip,
   guestActions,
   isAuthenticated,
+  onOpenMembers,
   onOpenSettings,
   onOpenShare,
   onSelectTab,
-  publicId,
   tripName,
 }: Readonly<MobileWorkspaceChromeProps>) {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
@@ -177,10 +177,13 @@ export function MobileWorkspaceChrome({
                 My trips
               </Link>
               {isAuthenticated ? (
-                <Link to={`/trips/${encodeURIComponent(publicId)}/members`} onClick={closeMenu}>
+                <button
+                  type="button"
+                  onClick={() => handleMenuAction(onOpenMembers)}
+                >
                   <Users size={18} aria-hidden="true" />
                   Members
-                </Link>
+                </button>
               ) : null}
               {canEditTrip ? (
                 <button

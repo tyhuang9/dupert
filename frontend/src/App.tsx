@@ -12,7 +12,6 @@ const AcceptInvitePage = lazy(() => import('./pages/AcceptInvitePage'))
 const EmailVerificationPage = lazy(() => import('./pages/EmailVerificationPage').then(({ EmailVerificationPage: Page }) => ({ default: Page })))
 const GuestOnboardingPage = lazy(() => import('./pages/GuestOnboardingPage'))
 const LoginPage = lazy(() => import('./pages/LoginPage').then(({ LoginPage: Page }) => ({ default: Page })))
-const MembersPage = lazy(() => import('./pages/MembersPage'))
 const PasswordResetPage = lazy(() => import('./pages/PasswordResetPage'))
 const RegisterPage = lazy(() => import('./pages/RegisterPage').then(({ RegisterPage: Page }) => ({ default: Page })))
 const TripsPage = lazy(() => import('./pages/TripsPage').then(({ TripsPage: Page }) => ({ default: Page })))
@@ -75,7 +74,7 @@ export default function App() {
           <Route index element={<LazyRoute kind="workspace"><TripWorkspacePage /></LazyRoute>} />
           <Route path="d/:day" element={<LazyRoute kind="workspace"><TripWorkspacePage /></LazyRoute>} />
           <Route element={<RequireAuth />}>
-            <Route path="members" element={<LazyRoute kind="members"><MembersPage /></LazyRoute>} />
+            <Route path="members" element={<LazyRoute kind="members"><TripWorkspacePage /></LazyRoute>} />
           </Route>
         </Route>
 
