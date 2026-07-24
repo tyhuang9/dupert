@@ -121,7 +121,8 @@ wait_for_perl
 STARTED_PID="$(awk -F= '/^pid=/{print $2}' "$STATE_FILE")"
 [[ "$(awk -F= '/^pgid=/{print $2}' "$STATE_FILE")" == "$STARTED_PID" ]] || { echo "State was published before PGID equaled PID." >&2; exit 1; }
 [[ "$(<"$TEST_TEMP/presetsid-count")" -eq 2 ]] || { echo "Pre-setsid timing was not exercised." >&2; exit 1; }
-[[ "$(stat -f '%Lp' "$STATE_FILE")" == "600" ]] || { echo "State file permissions are not restrictive." >&2; exit 1; }
+STATE_MODE="$(node -e 'process.stdout.write((require("node:fs").statSync(process.argv[1]).mode & 0o777).toString(8))' "$STATE_FILE")"
+[[ "$STATE_MODE" == "600" ]] || { echo "State file permissions are not restrictive." >&2; exit 1; }
 [[ ! -d "$TEST_ROOT/.dupert/runtime/backend.lock" ]] || { echo "Lifecycle lock was not released." >&2; exit 1; }
 assert_contains "$FAKE_LOG" 'perl -MPOSIX=setsid -e POSIX::setsid() or die "setsid: $!"; exec @ARGV /bin/bash'
 assert_contains "$FAKE_LOG" "$BACKEND_SCRIPT run"
