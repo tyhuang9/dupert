@@ -33,3 +33,6 @@ PROJECT.md
 .graphify/
 .graphifyignore
 graphify-out/
+
+# Per-worktree local backend shortcut state and logs
+.dupert/
