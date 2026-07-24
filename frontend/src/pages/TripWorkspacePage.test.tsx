@@ -1146,7 +1146,7 @@ describe('<TripWorkspacePage>', () => {
       },
     ])
 
-    renderWorkspace('/trips/abc234def567/d/2026-05-03')
+    renderWorkspace('/trips/abc234def567/d/2026-05-01')
 
     await userEvent.click(await screen.findByRole('button', { name: /open trip menu/i }))
     await userEvent.click(screen.getByRole('link', { name: /^members$/i }))
@@ -1154,7 +1154,7 @@ describe('<TripWorkspacePage>', () => {
     await userEvent.click(within(membersDialog).getByRole('button', { name: /close members/i }))
 
     await waitFor(() => {
-      expect(screen.getByTestId('current-location')).toHaveTextContent('/trips/abc234def567/d/2026-05-03')
+      expect(screen.getByTestId('current-location')).toHaveTextContent('/trips/abc234def567/d/2026-05-01')
       expect(screen.queryByRole('dialog', { name: /^members$/i })).not.toBeInTheDocument()
     })
   })
@@ -1183,7 +1183,7 @@ describe('<TripWorkspacePage>', () => {
     renderWorkspace('/trips/abc234def567/members')
 
     const membersDialog = await screen.findByRole('dialog', { name: /^members$/i })
-    await userEvent.click(within(membersDialog).getByRole('button', { name: 'Remove Bob' }))
+    await userEvent.click(await within(membersDialog).findByRole('button', { name: 'Remove Bob' }))
     const confirmation = screen.getByRole('alertdialog', { name: 'Remove member?' })
     const cancelRemoval = within(confirmation).getByRole('button', { name: /^cancel$/i })
     await waitFor(() => expect(cancelRemoval).toHaveFocus())
