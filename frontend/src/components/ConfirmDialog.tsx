@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef } from 'react'
+import { useEffect, useId, useRef, type RefObject } from 'react'
 import styles from './ConfirmDialog.module.css'
 
 interface ConfirmDialogProps {
@@ -10,6 +10,7 @@ interface ConfirmDialogProps {
   confirming?: boolean
   errorMessage?: string | null
   modalFocusBranch?: boolean
+  restoreFocusFallbackRef?: RefObject<HTMLElement | null>
   onCancel: () => void
   onConfirm: () => void
 }
@@ -23,6 +24,7 @@ export function ConfirmDialog({
   confirming = false,
   errorMessage,
   modalFocusBranch = false,
+  restoreFocusFallbackRef,
   onCancel,
   onConfirm,
 }: ConfirmDialogProps) {
@@ -55,9 +57,13 @@ export function ConfirmDialog({
     return () => {
       window.clearTimeout(focusTimer)
       document.removeEventListener('keydown', handleKeyDown)
-      previousFocusRef.current?.focus()
+      if (previousFocusRef.current?.isConnected) {
+        previousFocusRef.current.focus()
+      } else {
+        restoreFocusFallbackRef?.current?.focus()
+      }
     }
-  }, [])
+  }, [restoreFocusFallbackRef])
 
   return (
     <div

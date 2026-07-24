@@ -2113,6 +2113,7 @@ function TripMembersModal({
       {memberPendingRemoval ? (
         <ConfirmDialog
           modalFocusBranch
+          restoreFocusFallbackRef={closeButtonRef}
           title="Remove member?"
           description={`Remove ${memberPendingRemoval.displayName} from this trip? They will no longer have access.`}
           confirmLabel="Remove member"
@@ -2138,11 +2139,16 @@ export function TripWorkspacePage() {
   const isMembersRoute = location.pathname.endsWith('/members')
   const workspaceRoute = publicId ? `/trips/${encodeURIComponent(publicId)}` : '/trips'
   const membersReturnTo = (() => {
-    const candidate = (location.state as { returnTo?: unknown } | null)?.returnTo
-    return typeof candidate === 'string' &&
+    const state = location.state as {
+      openedFromWorkspace?: unknown
+      returnTo?: unknown
+    } | null
+    const candidate = state?.returnTo
+    return state?.openedFromWorkspace === true &&
+      typeof candidate === 'string' &&
       (candidate === workspaceRoute || candidate.startsWith(`${workspaceRoute}/d/`))
       ? candidate
-      : workspaceRoute
+      : null
   })()
   const isAuthenticated = useIsAuthenticated()
   const [expandedActivityId, setExpandedActivityId] = useState<number | null>(null)
@@ -3992,13 +3998,20 @@ export function TripWorkspacePage() {
   }
 
   const closeMembers = () => {
-    navigate(membersReturnTo, { replace: true })
+    if (membersReturnTo) {
+      navigate(-1)
+      return
+    }
+    navigate(workspaceRoute, { replace: true })
   }
 
   const openMembers = () => {
     if (!publicId) return
     navigate(`/trips/${encodeURIComponent(publicId)}/members`, {
-      state: { returnTo: `${location.pathname}${location.search}` },
+      state: {
+        openedFromWorkspace: true,
+        returnTo: `${location.pathname}${location.search}`,
+      },
     })
   }
 

@@ -555,7 +555,11 @@ function authenticateUser() {
 function renderWorkspace(path: string) {
   function LocationProbe() {
     const location = useLocation()
-    return <div data-testid="current-location">{location.pathname}{location.search}</div>
+    return (
+      <div data-testid="current-location" data-location-key={location.key}>
+        {location.pathname}{location.search}
+      </div>
+    )
   }
 
   return render(
@@ -1147,6 +1151,7 @@ describe('<TripWorkspacePage>', () => {
     ])
 
     renderWorkspace('/trips/abc234def567/d/2026-05-01')
+    const originatingLocationKey = screen.getByTestId('current-location').dataset.locationKey
 
     await userEvent.click(await screen.findByRole('button', { name: /open trip menu/i }))
     await userEvent.click(screen.getByRole('button', { name: /^members$/i }))
@@ -1155,7 +1160,49 @@ describe('<TripWorkspacePage>', () => {
 
     await waitFor(() => {
       expect(screen.getByTestId('current-location')).toHaveTextContent('/trips/abc234def567/d/2026-05-01')
+      expect(screen.getByTestId('current-location')).toHaveAttribute(
+        'data-location-key',
+        originatingLocationKey,
+      )
       expect(screen.queryByRole('dialog', { name: /^members$/i })).not.toBeInTheDocument()
+    })
+  })
+
+  it('removes a member and restores focus inside the members overlay', async () => {
+    authenticateUser()
+    mockWorkspace()
+    const removalResponse = createDeferred<[number]>()
+    const owner = {
+      userId: 42,
+      email: 'alice@example.com',
+      displayName: 'Alice',
+      role: 'OWNER',
+    }
+    const member = {
+      userId: 84,
+      email: 'bob@example.com',
+      displayName: 'Bob',
+      role: 'EDITOR',
+    }
+    apiMock.onGet('/trips/abc234def567/members').replyOnce(200, [owner, member])
+    apiMock.onGet('/trips/abc234def567/members').reply(200, [owner])
+    apiMock.onDelete('/trips/abc234def567/members/84').reply(() => removalResponse.promise)
+
+    renderWorkspace('/trips/abc234def567/members')
+
+    const membersDialog = await screen.findByRole('dialog', { name: /^members$/i })
+    const closeMembers = within(membersDialog).getByRole('button', { name: /close members/i })
+    await userEvent.click(await within(membersDialog).findByRole('button', { name: 'Remove Bob' }))
+    const confirmation = await screen.findByRole('alertdialog', { name: 'Remove member?' })
+    await userEvent.click(within(confirmation).getByRole('button', { name: 'Remove member' }))
+
+    expect(within(confirmation).getByRole('button', { name: 'Removing...' })).toBeDisabled()
+    act(() => removalResponse.resolve([204]))
+
+    await waitFor(() => {
+      expect(screen.queryByRole('alertdialog', { name: 'Remove member?' })).not.toBeInTheDocument()
+      expect(within(membersDialog).queryByText('Bob')).not.toBeInTheDocument()
+      expect(closeMembers).toHaveFocus()
     })
   })
 
