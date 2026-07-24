@@ -1184,7 +1184,7 @@ describe('<TripWorkspacePage>', () => {
 
     const membersDialog = await screen.findByRole('dialog', { name: /^members$/i })
     await userEvent.click(await within(membersDialog).findByRole('button', { name: 'Remove Bob' }))
-    const confirmation = screen.getByRole('alertdialog', { name: 'Remove member?' })
+    const confirmation = await screen.findByRole('alertdialog', { name: 'Remove member?' })
     const cancelRemoval = within(confirmation).getByRole('button', { name: /^cancel$/i })
     await waitFor(() => expect(cancelRemoval).toHaveFocus())
     await userEvent.tab({ shift: true })
