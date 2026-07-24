@@ -11,7 +11,7 @@ const lifecycleScript = join(repositoryRoot, 'scripts/ios-lifecycle.sh')
 const simulatorUdid = '00000000-0000-0000-0000-000000000001'
 const reservationName = `${simulatorUdid}--io.github.tyhuang9.dupert.lock`
 
-async function fixture({ devices, reservationOwner, state } = {}) {
+async function fixture({ devices, pendingReservation, reservationOwner, state } = {}) {
   const root = await mkdtemp(join(tmpdir(), 'dupert-ios-lifecycle-'))
   const bin = join(root, 'bin')
   const log = join(root, 'commands.log')
@@ -32,11 +32,16 @@ async function fixture({ devices, reservationOwner, state } = {}) {
   }
   const hasValidStateShape = typeof state === 'object' && state !== null &&
     typeof state.simulatorUdid === 'string' && typeof state.bootedByShortcut === 'boolean'
-  if (reservationOwner !== undefined || hasValidStateShape) {
-    const owner = reservationOwner ?? state.repositoryRoot ?? root
+  if (pendingReservation || reservationOwner !== undefined || hasValidStateShape) {
+    const owner = reservationOwner ?? state?.repositoryRoot ?? root
     const reservation = join(root, '.git/dupert-ios-shortcuts', reservationName)
-    await mkdir(reservation, { recursive: true })
-    await writeFile(join(reservation, 'owner.json'), JSON.stringify({ repositoryRoot: owner }))
+    await mkdir(join(root, '.git/dupert-ios-shortcuts'), { recursive: true })
+    await writeFile(reservation, JSON.stringify(pendingReservation ? {
+      phase: 'pending',
+      repositoryRoot: pendingReservation.repositoryRoot === 'self' ? root : pendingReservation.repositoryRoot,
+      pid: pendingReservation.pid,
+      processStart: pendingReservation.processStart,
+    } : { phase: 'owned', repositoryRoot: owner }))
   }
   const payload = JSON.stringify({ devices: { 'iOS 26.0': devices ?? [] } })
   const commands = {
@@ -45,6 +50,16 @@ async function fixture({ devices, reservationOwner, state } = {}) {
     git: '#!/usr/bin/env bash\necho "$DUPERT_TEST_GIT_COMMON_DIR"\n',
     npm: `#!/usr/bin/env bash\necho "npm $*" >> "$DUPERT_TEST_LOG"\n`,
     npx: `#!/usr/bin/env bash\necho "npx $*" >> "$DUPERT_TEST_LOG"\nexit "\${DUPERT_TEST_NPX_EXIT:-0}"\n`,
+    ps: `#!/usr/bin/env bash
+pid=""
+while [[ $# -gt 0 ]]; do
+  if [[ "$1" == "-p" ]]; then pid="$2"; break; fi
+  shift
+done
+if [[ "$pid" == "999999" ]]; then exit 1; fi
+if [[ -n "\${DUPERT_TEST_LIVE_PID:-}" && "$pid" == "\$DUPERT_TEST_LIVE_PID" ]]; then echo "\$DUPERT_TEST_LIVE_START"; exit 0; fi
+echo test-current-process-start
+`,
     xcrun: `#!/usr/bin/env bash
 echo "xcrun $*" >> "$DUPERT_TEST_LOG"
 if [[ "$1" == "--find" ]]; then echo /usr/bin/simctl; exit 0; fi
@@ -114,6 +129,7 @@ test('reuses the worktree-owned booted simulator without a second boot', async (
   const result = subject.run('start')
   assert.equal(result.status, 0, result.stderr)
   assert.doesNotMatch(await subject.commandsRun(), /simctl boot /)
+  assert.doesNotMatch(await subject.commandsRun(), /npm |npx /)
   assert.equal(JSON.parse(await readFile(join(subject.root, '.dupert/ios-lifecycle.json'))).bootedByShortcut, true)
 })
 
@@ -160,7 +176,7 @@ test('does not record ownership when Simulator cannot boot the selected device',
   })
   assert.equal(result.status, 42)
   await assert.rejects(readFile(join(subject.root, '.dupert/ios-lifecycle.json')))
-  await assert.rejects(readFile(join(subject.reservation, 'owner.json')), result.stderr)
+  await assert.rejects(readFile(subject.reservation), result.stderr)
 })
 
 test('releases a pending reservation when Capacitor launch fails', async (t) => {
@@ -169,7 +185,34 @@ test('releases a pending reservation when Capacitor launch fails', async (t) => 
   const result = subject.run('start', { DUPERT_TEST_NPX_EXIT: '23' })
   assert.equal(result.status, 23)
   await assert.rejects(readFile(join(subject.root, '.dupert/ios-lifecycle.json')))
-  await assert.rejects(readFile(join(subject.reservation, 'owner.json')), result.stderr)
+  await assert.rejects(readFile(subject.reservation), result.stderr)
+})
+
+test('recovers a pending reservation abandoned by an interrupted first start', async (t) => {
+  const subject = await fixture({
+    devices: [iphone('Booted')],
+    pendingReservation: { repositoryRoot: 'self', pid: 999999, processStart: 'dead-process-start' },
+  })
+  t.after(subject.cleanup)
+  const result = subject.run('start')
+  assert.equal(result.status, 0, result.stderr)
+  assert.match(await subject.commandsRun(), /npm run sync:native:development/)
+  assert.equal(JSON.parse(await readFile(subject.reservation, 'utf8')).phase, 'owned')
+})
+
+test('serializes a same-worktree start while its pending owner is alive', async (t) => {
+  const subject = await fixture({
+    devices: [iphone('Booted')],
+    pendingReservation: { repositoryRoot: 'self', pid: 4242, processStart: 'live-process-start' },
+  })
+  t.after(subject.cleanup)
+  const result = subject.run('start', {
+    DUPERT_TEST_LIVE_PID: '4242', DUPERT_TEST_LIVE_START: 'live-process-start',
+  })
+  assert.notEqual(result.status, 0)
+  assert.match(result.stderr, /start in progress/)
+  assert.doesNotMatch(await subject.commandsRun(), /npm |npx /)
+  assert.equal(JSON.parse(await readFile(subject.reservation, 'utf8')).phase, 'pending')
 })
 
 test('rejects a concurrent start reserved by another worktree', async (t) => {
