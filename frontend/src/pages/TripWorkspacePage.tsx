@@ -2431,6 +2431,7 @@ export function TripWorkspacePage() {
 
   useEffect(() => {
     if (!publicId || !tripQuery.data) return
+    if (isMembersRoute) return
     if (!day) {
       navigate(
         `/trips/${encodeURIComponent(publicId)}/d/${encodeURIComponent(tripQuery.data.startDate)}`,
@@ -2445,7 +2446,7 @@ export function TripWorkspacePage() {
       `/trips/${encodeURIComponent(publicId)}/d/${encodeURIComponent(nextDay)}`,
       { replace: true },
     )
-  }, [day, navigate, publicId, tripQuery.data])
+  }, [day, isMembersRoute, navigate, publicId, tripQuery.data])
 
   const guestClaimReturnPath = useMemo(() => {
     const nextParams = new URLSearchParams(searchParams)
