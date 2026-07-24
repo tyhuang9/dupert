@@ -3,6 +3,8 @@
   "private": true,
   "scripts": {
     "dev": "bash scripts/dev.sh",
-    "dev:docker": "bash scripts/dev-docker.sh"
+    "dev:docker": "bash scripts/dev-docker.sh",
+    "startios": "bash scripts/ios-lifecycle.sh start",
+    "stopios": "bash scripts/ios-lifecycle.sh stop"
   }
 }

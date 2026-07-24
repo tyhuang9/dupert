@@ -67,6 +67,20 @@ npx cap run android
 Those commands need Xcode/simulator or Android SDK/emulator support respectively;
 they are not substituted by a Linux CI sync check.
 
+On macOS, the repository shortcut combines the development sync and iOS launch:
+
+```bash
+npm run startios
+npm run stopios
+```
+
+`startios` requires Xcode, `frontend/.env.native-development.local`, and installed
+frontend dependencies. Set `DUPERT_IOS_SIMULATOR` to a simulator UDID (recommended)
+or an unambiguous simulator name. Without it, the shortcut reuses the simulator it
+previously booted for this worktree, or selects exactly one already-booted iPhone
+Simulator; it otherwise fails instead of guessing. `stopios` only terminates Dupert
+on that recorded simulator and shuts it down only when `startios` booted it.
+
 ## Backend CORS deployment
 
 `ALLOWED_ORIGINS` remains the browser-origin list used by CORS, share links, and
