@@ -2155,6 +2155,7 @@ export function TripWorkspacePage() {
   const [placeDraft, setPlaceDraft] = useState<PlaceSelection | null>(null)
   const [placeDraftDayDate, setPlaceDraftDayDate] = useState<string | null | undefined>(undefined)
   const composerOpenerRef = useRef<HTMLElement | null>(null)
+  const itineraryFocusFrameRef = useRef<number | null>(null)
   const [pendingCreateKind, setPendingCreateKind] = useState<'activity' | 'idea' | null>(null)
   const isCreateComposerSubmitting = pendingCreateKind !== null
   const [isTripSettingsOpen, setIsTripSettingsOpen] = useState(false)
@@ -2229,6 +2230,12 @@ export function TripWorkspacePage() {
   const mobileDayPickerAnchorRef = useRef<HTMLElement | null>(null)
   const mobileDayPickerCloseRef = useRef<HTMLButtonElement | null>(null)
   const isMobileViewport = useMediaQuery('(max-width: 820px)')
+
+  useEffect(() => () => {
+    if (itineraryFocusFrameRef.current !== null) {
+      window.cancelAnimationFrame(itineraryFocusFrameRef.current)
+    }
+  }, [])
 
   useLayoutEffect(() => {
     if (!isMobileViewport || (window.scrollX === 0 && window.scrollY === 0)) return
@@ -2875,8 +2882,16 @@ export function TripWorkspacePage() {
     setMobileTab(dayDate === null ? 'ideas' : 'plan')
   }
 
+  const cancelItineraryPanelFocus = () => {
+    if (itineraryFocusFrameRef.current === null) return
+    window.cancelAnimationFrame(itineraryFocusFrameRef.current)
+    itineraryFocusFrameRef.current = null
+  }
+
   const focusItineraryPanel = () => {
-    window.requestAnimationFrame(() => {
+    cancelItineraryPanelFocus()
+    itineraryFocusFrameRef.current = window.requestAnimationFrame(() => {
+      itineraryFocusFrameRef.current = null
       document.getElementById('timeline-panel')?.focus({ preventScroll: true })
     })
   }
@@ -3103,6 +3118,7 @@ export function TripWorkspacePage() {
 
   const openActivityComposer = (event?: ReactMouseEvent<HTMLElement>) => {
     if (isCreateComposerSubmitting) return
+    cancelItineraryPanelFocus()
     rememberComposerOpener(event)
     setWorkspaceMode('days')
     setMobileTab('plan')
@@ -3125,6 +3141,7 @@ export function TripWorkspacePage() {
 
   const openIdeaComposer = (event?: ReactMouseEvent<HTMLElement>) => {
     if (isCreateComposerSubmitting) return
+    cancelItineraryPanelFocus()
     rememberComposerOpener(event)
     setWorkspaceMode('ideas')
     setMobileTab('ideas')
@@ -4059,6 +4076,7 @@ export function TripWorkspacePage() {
     : `create-${selectedDay ?? 'none'}`
 
   const selectMobileTab = (tab: MobileWorkspaceTab) => {
+    cancelItineraryPanelFocus()
     if (tab === 'timeline') {
       openTimelineMode()
       return
