@@ -78,8 +78,10 @@ npm run stopios
 frontend dependencies. Set `DUPERT_IOS_SIMULATOR` to a simulator UDID (recommended)
 or an unambiguous simulator name. Without it, the shortcut reuses the simulator it
 previously booted for this worktree, or selects exactly one already-booted iPhone
-Simulator; it otherwise fails instead of guessing. `stopios` only terminates Dupert
-on that recorded simulator and shuts it down only when `startios` booted it.
+Simulator; it otherwise fails instead of guessing. A repository-wide atomic
+reservation prevents another worktree from managing the same app and simulator.
+`stopios` verifies that reservation, terminates only Dupert on the recorded
+simulator, and never shuts down Simulator automatically.
 
 ## Backend CORS deployment
 

@@ -6,6 +6,10 @@ FRONTEND_DIR="$ROOT_DIR/frontend"
 STATE_DIR="$ROOT_DIR/.dupert"
 STATE_FILE="$STATE_DIR/ios-lifecycle.json"
 APP_ID="io.github.tyhuang9.dupert"
+GIT_COMMON_DIR="$(git -C "$ROOT_DIR" rev-parse --git-common-dir)"
+[[ "$GIT_COMMON_DIR" == /* ]] || GIT_COMMON_DIR="$ROOT_DIR/$GIT_COMMON_DIR"
+RESERVATIONS_DIR="$GIT_COMMON_DIR/dupert-ios-shortcuts"
+PENDING_RESERVATION=""
 
 fail() {
   echo "iOS shortcut: $*" >&2
@@ -38,22 +42,93 @@ device_rows() {
   '
 }
 
-state_value() {
-  local key="$1"
-  [[ -f "$STATE_FILE" ]] || return 0
-  node -e 'const fs=require("fs"); const state=JSON.parse(fs.readFileSync(process.argv[1], "utf8")); process.stdout.write(String(state[process.argv[2]] ?? ""));' "$STATE_FILE" "$key"
+read_state() {
+  [[ -f "$STATE_FILE" && ! -L "$STATE_DIR" && ! -L "$STATE_FILE" ]] || return 1
+  node -e '
+    const fs = require("fs");
+    try {
+      const state = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+      if (typeof state.repositoryRoot !== "string" || !state.repositoryRoot ||
+          typeof state.simulatorUdid !== "string" || !/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(state.simulatorUdid) ||
+          typeof state.bootedByShortcut !== "boolean") process.exit(1);
+      process.stdout.write([state.repositoryRoot, state.simulatorUdid, state.bootedByShortcut].join("\t"));
+    } catch { process.exit(1); }
+  ' "$STATE_FILE"
 }
 
 write_state() {
-  local udid="$1" booted_by_shortcut="$2"
+  local udid="$1" booted_by_shortcut="$2" temporary_state
+  [[ ! -L "$STATE_DIR" && ! -L "$STATE_FILE" ]] || fail "Refusing to write iOS shortcut state through a symbolic link."
+  umask 077
   mkdir -p "$STATE_DIR"
+  chmod 700 "$STATE_DIR"
+  temporary_state="$(mktemp "$STATE_DIR/ios-lifecycle.XXXXXX")"
   node -e '
     const fs = require("fs");
     fs.writeFileSync(process.argv[1], JSON.stringify({
       repositoryRoot: process.argv[2], simulatorUdid: process.argv[3], bootedByShortcut: process.argv[4] === "true",
     }, null, 2) + "\n");
-  ' "$STATE_FILE" "$ROOT_DIR" "$udid" "$booted_by_shortcut"
+  ' "$temporary_state" "$ROOT_DIR" "$udid" "$booted_by_shortcut"
+  mv "$temporary_state" "$STATE_FILE"
 }
+
+reservation_path() {
+  printf '%s/%s--%s.lock\n' "$RESERVATIONS_DIR" "$1" "$APP_ID"
+}
+
+reservation_owner() {
+  local reservation="$1" owner_file
+  owner_file="$reservation/owner.json"
+  [[ -d "$reservation" && ! -L "$reservation" && -f "$owner_file" && ! -L "$owner_file" ]] || return 1
+  node -e '
+    const fs = require("fs");
+    try {
+      const owner = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+      if (typeof owner.repositoryRoot !== "string" || !owner.repositoryRoot) process.exit(1);
+      process.stdout.write(owner.repositoryRoot);
+    } catch { process.exit(1); }
+  ' "$owner_file"
+}
+
+reserve_device() {
+  local udid="$1" reservation owner="" stored_state="" stored_root="" stored_udid="" stored_booted=""
+  reservation="$(reservation_path "$udid")"
+  [[ ! -L "$RESERVATIONS_DIR" ]] || fail "Refusing to use a symbolic-link reservation directory."
+  umask 077
+  mkdir -p "$RESERVATIONS_DIR"
+  chmod 700 "$RESERVATIONS_DIR"
+
+  if mkdir "$reservation" 2>/dev/null; then
+    node -e 'require("fs").writeFileSync(process.argv[1], JSON.stringify({ repositoryRoot: process.argv[2] }) + "\n", { mode: 0o600 });' "$reservation/owner.json" "$ROOT_DIR"
+    PENDING_RESERVATION="$reservation"
+    return
+  fi
+
+  owner="$(reservation_owner "$reservation")" || fail "Simulator reservation is invalid; refusing to take ownership."
+  if stored_state="$(read_state)"; then
+    IFS=$'\t' read -r stored_root stored_udid stored_booted <<< "$stored_state"
+  fi
+  [[ "$owner" == "$ROOT_DIR" && "$stored_root" == "$ROOT_DIR" && "$stored_udid" == "$udid" ]] || fail "Simulator $udid is reserved by another worktree or start is already in progress."
+}
+
+release_reservation() {
+  local udid="$1" reservation owner
+  reservation="$(reservation_path "$udid")"
+  owner="$(reservation_owner "$reservation")" || fail "Simulator reservation is missing or invalid; preserving local state."
+  [[ "$owner" == "$ROOT_DIR" ]] || fail "Simulator reservation belongs to another worktree; preserving local state."
+  rm -f "$reservation/owner.json"
+  rmdir "$reservation"
+}
+
+cleanup_pending_reservation() {
+  local owner=""
+  if [[ -n "$PENDING_RESERVATION" ]] && owner="$(reservation_owner "$PENDING_RESERVATION")" && [[ "$owner" == "$ROOT_DIR" ]]; then
+    rm -f "$PENDING_RESERVATION/owner.json"
+    rmdir "$PENDING_RESERVATION" 2>/dev/null || true
+  fi
+}
+
+trap 'status=$?; trap - EXIT; cleanup_pending_reservation; exit "$status"' EXIT
 
 find_device() {
   local selector="$1" rows matches
@@ -65,9 +140,10 @@ find_device() {
 }
 
 select_device() {
-  local stored_udid stored_root rows matches
-  stored_udid="$(state_value simulatorUdid)"
-  stored_root="$(state_value repositoryRoot)"
+  local stored_state="" stored_root="" stored_udid="" stored_booted="" rows matches
+  if stored_state="$(read_state)"; then
+    IFS=$'\t' read -r stored_root stored_udid stored_booted <<< "$stored_state"
+  fi
 
   if [[ -n "${DUPERT_IOS_SIMULATOR:-}" ]]; then
     find_device "$DUPERT_IOS_SIMULATOR"
@@ -95,6 +171,7 @@ start() {
   local row udid name state booted_by_shortcut="false"
   row="$(select_device)"
   IFS=$'\t' read -r udid name state <<< "$row"
+  reserve_device "$udid"
 
   if [[ "$state" != "Booted" ]]; then
     echo "Booting $name ($udid)"
@@ -104,34 +181,43 @@ start() {
   fi
 
   # Preserve ownership across repeated starts, even if a caller now provides the UDID explicitly.
-  if [[ "$(state_value repositoryRoot)" == "$ROOT_DIR" && "$(state_value simulatorUdid)" == "$udid" && "$(state_value bootedByShortcut)" == "true" ]]; then
-    booted_by_shortcut="true"
+  local stored_state="" stored_root="" stored_udid="" stored_booted=""
+  if stored_state="$(read_state)"; then
+    IFS=$'\t' read -r stored_root stored_udid stored_booted <<< "$stored_state"
+    if [[ "$stored_root" == "$ROOT_DIR" && "$stored_udid" == "$udid" && "$stored_booted" == "true" ]]; then
+      booted_by_shortcut="true"
+    fi
   fi
-  write_state "$udid" "$booted_by_shortcut"
-
   (
     cd "$FRONTEND_DIR"
     npm run sync:native:development
     npx cap run ios --target "$udid" --no-sync
   )
+  write_state "$udid" "$booted_by_shortcut"
+  PENDING_RESERVATION=""
 }
 
 stop() {
   [[ -f "$STATE_FILE" ]] || { echo "No iOS shortcut state for this worktree."; return 0; }
 
-  local recorded_root udid booted_by_shortcut state
-  recorded_root="$(state_value repositoryRoot)"
-  udid="$(state_value simulatorUdid)"
-  booted_by_shortcut="$(state_value bootedByShortcut)"
-  [[ "$recorded_root" == "$ROOT_DIR" && -n "$udid" ]] || fail "Ignoring iOS shortcut state that does not belong to this worktree."
+  local recorded_state recorded_root udid booted_by_shortcut state terminate_output reservation owner
+  recorded_state="$(read_state)" || fail "Invalid iOS shortcut state; preserving it without changing any simulator."
+  IFS=$'\t' read -r recorded_root udid booted_by_shortcut <<< "$recorded_state"
+  [[ "$recorded_root" == "$ROOT_DIR" ]] || fail "iOS shortcut state belongs to another worktree; preserving it without changing any simulator."
+  reservation="$(reservation_path "$udid")"
+  owner="$(reservation_owner "$reservation")" || fail "Simulator reservation is missing or invalid; preserving local state."
+  [[ "$owner" == "$ROOT_DIR" ]] || fail "Simulator reservation belongs to another worktree; preserving local state."
 
   state="$(device_rows | awk -F '\t' -v udid="$udid" '$1 == udid { print $3 }')"
   if [[ "$state" == "Booted" ]]; then
-    xcrun simctl terminate "$udid" "$APP_ID" || true
-    if [[ "$booted_by_shortcut" == "true" ]]; then
-      xcrun simctl shutdown "$udid"
+    if ! terminate_output="$(xcrun simctl terminate "$udid" "$APP_ID" 2>&1)"; then
+      if [[ "$terminate_output" != *"domain=NSPOSIXErrorDomain, code=3"* || "$terminate_output" != *"No such process"* ]]; then
+        [[ -z "$terminate_output" ]] || echo "$terminate_output" >&2
+        fail "Could not terminate Dupert; preserving state and leaving the simulator running."
+      fi
     fi
   fi
+  release_reservation "$udid"
   rm -f "$STATE_FILE"
 }
 

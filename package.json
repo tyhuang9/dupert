@@ -5,6 +5,7 @@
     "dev": "bash scripts/dev.sh",
     "dev:docker": "bash scripts/dev-docker.sh",
     "startios": "bash scripts/ios-lifecycle.sh start",
-    "stopios": "bash scripts/ios-lifecycle.sh stop"
+    "stopios": "bash scripts/ios-lifecycle.sh stop",
+    "test:ios-lifecycle": "node --test scripts/ios-lifecycle.node-test.mjs"
   }
 }
