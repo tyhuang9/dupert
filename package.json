@@ -9,6 +9,11 @@
     "db:status": "bash scripts/db.sh status",
     "db:logs": "bash scripts/db.sh logs",
     "db:reset": "bash scripts/db.sh reset",
-    "test:local-db": "bash scripts/test-local-db.sh"
+    "test:local-db": "bash scripts/test-local-db.sh",
+    "startdb": "bash scripts/db.sh up",
+    "stopdb": "bash scripts/db.sh down",
+    "startback": "bash scripts/backend.sh start",
+    "stopback": "bash scripts/backend.sh stop",
+    "test:dev-shortcuts": "bash scripts/test-dev-shortcuts.sh"
   }
 }
