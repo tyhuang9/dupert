@@ -789,6 +789,29 @@ afterEach(() => {
 })
 
 describe('<TripWorkspacePage>', () => {
+  it('resets stale document scrolling when a mobile workspace opens', () => {
+    mockViewport(true)
+    mockWorkspace()
+    const originalScrollY = Object.getOwnPropertyDescriptor(window, 'scrollY')
+    const scrollTo = vi.spyOn(window, 'scrollTo').mockImplementation(() => undefined)
+    Object.defineProperty(window, 'scrollY', {
+      configurable: true,
+      value: 64,
+    })
+
+    try {
+      renderWorkspace('/trips/abc234def567/d/2026-05-03')
+      expect(scrollTo).toHaveBeenCalledWith(0, 0)
+    } finally {
+      scrollTo.mockRestore()
+      if (originalScrollY) {
+        Object.defineProperty(window, 'scrollY', originalScrollY)
+      } else {
+        Reflect.deleteProperty(window, 'scrollY')
+      }
+    }
+  })
+
   it('uses the mobile bottom bar and mounts the map only for the Map tab', async () => {
     mockViewport(true)
     mockWorkspace()

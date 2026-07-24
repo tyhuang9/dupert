@@ -2057,6 +2057,11 @@ export function TripWorkspacePage() {
   const mobileDayPickerAnchorRef = useRef<HTMLElement | null>(null)
   const mobileDayPickerCloseRef = useRef<HTMLButtonElement | null>(null)
   const isMobileViewport = useMediaQuery('(max-width: 820px)')
+
+  useLayoutEffect(() => {
+    if (!isMobileViewport || (window.scrollX === 0 && window.scrollY === 0)) return
+    window.scrollTo(0, 0)
+  }, [isMobileViewport, publicId])
   const isAndroidNativeMap =
     isMobileViewport && mobileTab === 'map' && platformRuntime.actualPlatform === 'android'
 
