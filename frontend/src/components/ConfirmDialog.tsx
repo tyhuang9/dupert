@@ -41,6 +41,7 @@ export function ConfirmDialog({
   useEffect(() => {
     previousFocusRef.current =
       document.activeElement instanceof HTMLElement ? document.activeElement : null
+    const restoreFocusFallback = restoreFocusFallbackRef?.current
 
     const focusTimer = window.setTimeout(() => {
       cancelButtonRef.current?.focus()
@@ -60,7 +61,7 @@ export function ConfirmDialog({
       if (previousFocusRef.current?.isConnected) {
         previousFocusRef.current.focus()
       } else {
-        restoreFocusFallbackRef?.current?.focus()
+        restoreFocusFallback?.focus()
       }
     }
   }, [restoreFocusFallbackRef])
