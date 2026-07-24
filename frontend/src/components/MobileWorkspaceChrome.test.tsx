@@ -167,8 +167,10 @@ describe('<MobileWorkspaceChrome>', () => {
 
     expect(backdropBlock).toMatch(/background:\s*rgb\(26 33 31 \/ 22%\)/)
     expect(chromeBlock).toMatch(/--workspace-chrome-control-top:\s*calc\(var\(--space-2\) \+ env\(safe-area-inset-top\)\)/)
-    expect(chromeBlock).toMatch(/--workspace-chrome-control-right:\s*var\(--space-4\)/)
-    expect(chromeHeaderBlock).toMatch(/padding:\s*var\(--workspace-chrome-control-top\) var\(--workspace-chrome-control-right\) var\(--space-2\)/)
+    expect(chromeBlock).toMatch(/--workspace-chrome-control-right:\s*calc\(var\(--space-4\) \+ env\(safe-area-inset-right\)\)/)
+    expect(chromeHeaderBlock).toMatch(
+      /padding:\s*var\(--workspace-chrome-control-top\)\s*var\(--workspace-chrome-control-right\)\s*var\(--space-2\)\s*calc\(var\(--space-4\) \+ env\(safe-area-inset-left\)\)/,
+    )
     expect(brandBlock).toMatch(/width:\s*44px/)
     expect(brandBlock).toMatch(/height:\s*44px/)
     expect(popupBlock).toMatch(/position:\s*absolute/)
@@ -179,21 +181,19 @@ describe('<MobileWorkspaceChrome>', () => {
     expect(popupBlock).toMatch(/border-radius:\s*var\(--radius-xl\)/)
     expect(popupBlock).toMatch(/overflow:\s*hidden/)
     expect(popupBlock).not.toMatch(/height:\s*100dvh/)
-    expect(menuHeaderBlock).toMatch(/padding:\s*var\(--space-2\) var\(--workspace-chrome-control-right\) var\(--space-4\)/)
+    expect(menuHeaderBlock).toMatch(/padding:\s*var\(--space-2\) var\(--space-4\) var\(--space-4\)/)
     expect(actionsBlock).toMatch(/overflow-y:\s*auto/)
   })
 
   it('overlays the full close control at the menu trigger center without moving or unclipping the popup', () => {
-    const headerActionsBlock = cssBlocks(chromeCss, '.headerActions').find((block) =>
-      /align-self:\s*flex-start/.test(block),
-    ) ?? ''
+    const headerBlock = cssBlocks(chromeCss, '.header')[0] ?? ''
     const dialogBlock = cssBlocks(chromeCss, '.menuDialog')[0] ?? ''
     const popupBlock = cssBlocks(chromeCss, '.menuPopup')[0] ?? ''
     const closeButtonBlock = cssBlocks(chromeCss, '.menuDialog > .closeButton')[0] ?? ''
     const spacerBlock = cssBlocks(chromeCss, '.menuHeaderCloseSpacer')[0] ?? ''
     const controlBlock = chromeCss.match(/\.menuButton,\s*\.closeButton\s*\{([^}]*)\}/s)?.[1] ?? ''
 
-    expect(headerActionsBlock).toMatch(/align-self:\s*flex-start/)
+    expect(headerBlock).toMatch(/align-items:\s*flex-start/)
     expect(dialogBlock).toMatch(/inset:\s*0/)
     expect(dialogBlock).toMatch(/pointer-events:\s*none/)
     expect(closeButtonBlock).toMatch(/position:\s*absolute/)
@@ -211,6 +211,9 @@ describe('<MobileWorkspaceChrome>', () => {
     expect(chromeCss).toMatch(
       /--workspace-chrome-control-top:\s*calc\(var\(--space-2\) \+ env\(safe-area-inset-top\)\)/,
     )
+    expect(chromeCss).toMatch(
+      /--workspace-chrome-control-right:\s*calc\(var\(--space-4\) \+ env\(safe-area-inset-right\)\)/,
+    )
   })
 
   it('keeps the mobile chrome clear of the native safe areas', () => {
@@ -224,6 +227,8 @@ describe('<MobileWorkspaceChrome>', () => {
     expect(headerBlock).toMatch(/min-height:\s*var\(--mobile-header-height,\s*64px\)/)
     expect(headerBlock).toMatch(/padding:\s*var\(--workspace-chrome-control-top\)/)
     expect(chromeCss).toMatch(/--workspace-chrome-control-top:\s*calc\(var\(--space-2\) \+ env\(safe-area-inset-top\)\)/)
+    expect(chromeCss).toMatch(/--workspace-chrome-control-right:\s*calc\(var\(--space-4\) \+ env\(safe-area-inset-right\)\)/)
+    expect(headerBlock).toMatch(/calc\(var\(--space-4\) \+ env\(safe-area-inset-left\)\)/)
     expect(bottomNavBlock).toMatch(/min-height:\s*var\(--mobile-bottom-nav-height/)
     expect(bottomNavBlock).toMatch(/height:\s*var\(--mobile-bottom-nav-height,\s*calc\(56px \+ env\(safe-area-inset-bottom\)\)\)/)
     expect(bottomNavBlock).toMatch(/calc\(var\(--space-1\) \+ env\(safe-area-inset-bottom\)\)/)

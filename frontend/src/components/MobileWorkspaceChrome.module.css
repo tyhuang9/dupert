@@ -6,7 +6,7 @@
 @media (max-width: 820px) {
   .chrome {
     --workspace-chrome-control-top: calc(var(--space-2) + env(safe-area-inset-top));
-    --workspace-chrome-control-right: var(--space-4);
+    --workspace-chrome-control-right: calc(var(--space-4) + env(safe-area-inset-right));
     display: contents;
   }
 
@@ -15,10 +15,14 @@
     inset: 0 0 auto;
     min-height: var(--mobile-header-height, 64px);
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: space-between;
     gap: var(--space-3);
-    padding: var(--workspace-chrome-control-top) var(--workspace-chrome-control-right) var(--space-2);
+    padding:
+      var(--workspace-chrome-control-top)
+      var(--workspace-chrome-control-right)
+      var(--space-2)
+      calc(var(--space-4) + env(safe-area-inset-left));
     border-bottom: 1px solid var(--color-surface-border);
     background: color-mix(in srgb, var(--color-shell) 94%, var(--color-surface));
     box-shadow: var(--shadow-sm);
@@ -86,8 +90,6 @@
 
   .headerActions {
     flex: 0 0 auto;
-    /* Pin the trigger to the shared control offset instead of flex-centering it within the header. */
-    align-self: flex-start;
   }
 
   .menuButton,
@@ -141,8 +143,8 @@
     align-items: center;
     justify-content: space-between;
     gap: var(--space-3);
-    /* The popup shell already clears the native top safe area. */
-    padding: var(--space-2) var(--workspace-chrome-control-right) var(--space-4);
+    /* The popup shell already clears the native safe-area insets. */
+    padding: var(--space-2) var(--space-4) var(--space-4);
     border-bottom: 1px solid var(--color-surface-border);
   }
 
