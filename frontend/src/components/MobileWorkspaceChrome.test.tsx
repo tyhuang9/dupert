@@ -145,6 +145,7 @@ describe('<MobileWorkspaceChrome>', () => {
   it('keeps the menu as a right-aligned, viewport-bounded popup instead of a full-height drawer', () => {
     const chromeBlock = cssBlocks(chromeCss, '.chrome')[0] ?? ''
     const chromeHeaderBlock = cssBlocks(chromeCss, '.header')[0] ?? ''
+    const brandBlock = cssBlocks(chromeCss, '.brand')[0] ?? ''
     const backdropBlock = cssBlocks(chromeCss, '.menuBackdrop')[0] ?? ''
     const popupBlock = cssBlocks(chromeCss, '.menuPopup')[0] ?? ''
     const menuHeaderBlock = cssBlocks(chromeCss, '.menuHeader')[0] ?? ''
@@ -154,6 +155,8 @@ describe('<MobileWorkspaceChrome>', () => {
     expect(chromeBlock).toMatch(/--workspace-chrome-control-top:\s*calc\(var\(--space-2\) \+ env\(safe-area-inset-top\)\)/)
     expect(chromeBlock).toMatch(/--workspace-chrome-control-right:\s*var\(--space-4\)/)
     expect(chromeHeaderBlock).toMatch(/padding:\s*var\(--workspace-chrome-control-top\) var\(--workspace-chrome-control-right\) var\(--space-2\)/)
+    expect(brandBlock).toMatch(/width:\s*44px/)
+    expect(brandBlock).toMatch(/height:\s*44px/)
     expect(popupBlock).toMatch(/position:\s*absolute/)
     expect(popupBlock).toMatch(/top:\s*calc\(var\(--space-3\) \+ env\(safe-area-inset-top\)\)/)
     expect(popupBlock).toMatch(/right:\s*calc\(var\(--space-3\) \+ env\(safe-area-inset-right\)\)/)
