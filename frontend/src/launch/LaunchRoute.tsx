@@ -60,27 +60,25 @@ export function LaunchRoute() {
     return <Navigate to={`/trips/${encodeURIComponent(state.publicId)}`} replace />
   }
 
-  const unavailable = state.kind === 'missing'
+  if (state.kind === 'missing') {
+    return <Navigate to="/login" replace />
+  }
 
   return (
     <main id="main" className={styles.shell}>
-      <section className={styles.card} role={unavailable ? undefined : 'alert'}>
-        <h1>{unavailable ? 'Reopen your trip invite' : 'We could not restore your trip'}</h1>
+      <section className={styles.card} role="alert">
+        <h1>We could not restore your trip</h1>
         <p>
-          {unavailable
-            ? 'This guest session is missing or no longer active. Reopen the original invite, or sign in to continue.'
-            : 'Check your connection and try restoring the guest session again.'}
+          Check your connection and try restoring the guest session again.
         </p>
         <div className={styles.actions}>
-          {!unavailable && (
-            <button
-              className={styles.primaryButton}
-              type="button"
-              onClick={() => setAttempt((current) => current + 1)}
-            >
-              Try again
-            </button>
-          )}
+          <button
+            className={styles.primaryButton}
+            type="button"
+            onClick={() => setAttempt((current) => current + 1)}
+          >
+            Try again
+          </button>
           <Link className={styles.secondaryLink} to="/login">
             Sign in
           </Link>
