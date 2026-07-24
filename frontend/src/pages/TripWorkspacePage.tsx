@@ -33,6 +33,7 @@ import {
   useContext,
   type CSSProperties,
   type FormEvent,
+  type MouseEvent as ReactMouseEvent,
   type ReactNode,
 } from 'react'
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
@@ -1511,12 +1512,29 @@ function useModalFocus(onClose: () => void) {
     const getFocusableElements = () => {
       const dialog = dialogRef.current
       if (!dialog) return []
-      return Array.from(dialog.querySelectorAll<HTMLElement>(
+      const dialogElements = Array.from(dialog.querySelectorAll<HTMLElement>(
         'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
       ))
+      const branchElements = Array.from(document.querySelectorAll<HTMLElement>(
+        '[data-modal-focus-branch="true"] a[href], [data-modal-focus-branch="true"] button:not([disabled]), [data-modal-focus-branch="true"] input:not([disabled]), [data-modal-focus-branch="true"] select:not([disabled]), [data-modal-focus-branch="true"] textarea:not([disabled]), [data-modal-focus-branch="true"] [tabindex]:not([tabindex="-1"])',
+      ))
+      return Array.from(new Set([...dialogElements, ...branchElements]))
     }
+    const focusScopeContains = (element: Element | null) =>
+      Boolean(
+        element &&
+          (dialogRef.current?.contains(element) ||
+            element.closest('[data-modal-focus-branch="true"]')),
+      )
     const handleKeyDown = (event: globalThis.KeyboardEvent) => {
       if (event.key === 'Escape') {
+        if (
+          event.defaultPrevented ||
+          (event.target instanceof Element &&
+            event.target.closest('[data-modal-focus-branch="true"]'))
+        ) {
+          return
+        }
         event.preventDefault()
         onCloseRef.current()
         return
@@ -1529,10 +1547,10 @@ function useModalFocus(onClose: () => void) {
       const lastElement = focusableElements[focusableElements.length - 1]
       const activeElement = document.activeElement
 
-      if (event.shiftKey && (activeElement === firstElement || !dialogRef.current?.contains(activeElement))) {
+      if (event.shiftKey && (activeElement === firstElement || !focusScopeContains(activeElement))) {
         event.preventDefault()
         lastElement.focus()
-      } else if (!event.shiftKey && (activeElement === lastElement || !dialogRef.current?.contains(activeElement))) {
+      } else if (!event.shiftKey && (activeElement === lastElement || !focusScopeContains(activeElement))) {
         event.preventDefault()
         firstElement.focus()
       }
@@ -1983,6 +2001,7 @@ export function TripWorkspacePage() {
   const [expandedActivityId, setExpandedActivityId] = useState<number | null>(null)
   const [placeDraft, setPlaceDraft] = useState<PlaceSelection | null>(null)
   const [placeDraftDayDate, setPlaceDraftDayDate] = useState<string | null | undefined>(undefined)
+  const composerOpenerRef = useRef<HTMLElement | null>(null)
   const [pendingCreateKind, setPendingCreateKind] = useState<'activity' | 'idea' | null>(null)
   const isCreateComposerSubmitting = pendingCreateKind !== null
   const [isTripSettingsOpen, setIsTripSettingsOpen] = useState(false)
@@ -2903,8 +2922,28 @@ export function TripWorkspacePage() {
     scrollActivityIntoView(activityId)
   }
 
-  const openActivityComposer = () => {
+  const rememberComposerOpener = (event?: ReactMouseEvent<HTMLElement>) => {
+    composerOpenerRef.current = event?.currentTarget ?? (
+      document.activeElement instanceof HTMLElement ? document.activeElement : null
+    )
+  }
+
+  const restoreComposerOpenerFocus = (kind: 'activity' | 'idea') => {
+    const opener = composerOpenerRef.current
+    composerOpenerRef.current = null
+    window.requestAnimationFrame(() => {
+      const fallbackLabel = kind === 'idea' ? 'Add Idea' : 'Add Activity'
+      const fallback = document.querySelector<HTMLElement>(
+        `button[aria-label="${fallbackLabel}"]`,
+      )
+      const target = opener?.isConnected ? opener : fallback
+      target?.focus({ preventScroll: true })
+    })
+  }
+
+  const openActivityComposer = (event?: ReactMouseEvent<HTMLElement>) => {
     if (isCreateComposerSubmitting) return
+    rememberComposerOpener(event)
     setWorkspaceMode('days')
     setMobileTab('plan')
     setExpandedActivityId(null)
@@ -2924,8 +2963,9 @@ export function TripWorkspacePage() {
     })
   }
 
-  const openIdeaComposer = () => {
+  const openIdeaComposer = (event?: ReactMouseEvent<HTMLElement>) => {
     if (isCreateComposerSubmitting) return
+    rememberComposerOpener(event)
     setWorkspaceMode('ideas')
     setMobileTab('ideas')
     setExpandedActivityId(null)
@@ -3068,6 +3108,7 @@ export function TripWorkspacePage() {
       setMapSearchPreview(null)
       clearMapSearchState()
       setPendingMapPlace(null)
+      restoreComposerOpenerFocus(targetDayDate === null ? 'idea' : 'activity')
     } finally {
       setPendingCreateKind(null)
     }
@@ -3535,6 +3576,12 @@ export function TripWorkspacePage() {
     setPendingMapPlace(null)
     setMapLocationTarget(null)
     setIsMapSearchSubmitting(false)
+  }
+
+  const cancelCreateComposer = () => {
+    const kind = placeDraftDayDate === null ? 'idea' : 'activity'
+    clearMapSelection()
+    restoreComposerOpenerFocus(kind)
   }
 
   const returnToMapSearchResults = () => {
@@ -4307,7 +4354,7 @@ export function TripWorkspacePage() {
                                 key={createFormKey}
                                 initialValues={placeDraft ?? undefined}
                                 onSubmit={handleCreateActivity}
-                                onCancel={clearMapSelection}
+                                onCancel={cancelCreateComposer}
                                 onRequestMapLocation={handleRequestNewActivityLocationOnMap}
                                 submitting={createActivityMutation.isPending}
                                 submitLabel="Create Activity"
@@ -4322,10 +4369,12 @@ export function TripWorkspacePage() {
                       >
                         <div className={styles.sectionHeader}>
                           <h3 id="ideas-lane-title" className={styles.sectionTitle}>Saved ideas</h3>
-                          <span>
-                            <Landmark size={13} aria-hidden="true" />
-                            {pluralize(ideasActivities.length, 'idea')}
-                          </span>
+                          {!isMobileViewport && (
+                            <span>
+                              <Landmark size={13} aria-hidden="true" />
+                              {pluralize(ideasActivities.length, 'idea')}
+                            </span>
+                          )}
                         </div>
                         <ActivityList
                           activities={ideasActivities}
@@ -4359,7 +4408,7 @@ export function TripWorkspacePage() {
                                 key={createFormKey}
                                 initialValues={placeDraft ?? undefined}
                                 onSubmit={handleCreateActivity}
-                                onCancel={clearMapSelection}
+                                onCancel={cancelCreateComposer}
                                 onRequestMapLocation={handleRequestNewActivityLocationOnMap}
                                 submitting={createActivityMutation.isPending}
                                 submitLabel="Save Idea"

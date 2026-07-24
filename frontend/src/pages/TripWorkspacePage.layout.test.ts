@@ -202,6 +202,7 @@ describe('TripWorkspacePage layout scroll contract', () => {
     const backdropBlock = cssBlocks(workspaceCss, '.modalBackdrop')[0] ?? ''
     const modalBlock = cssBlocks(workspaceCss, '.tripSettingsModal')[0] ?? ''
     const bodyBlock = cssBlocks(workspaceCss, '.modalBody')[0] ?? ''
+    const closeButtonBlock = cssBlocks(workspaceCss, '.iconOnlyButton')[0] ?? ''
 
     expect(backdropBlock).toMatch(/z-index:\s*1200/)
     expect(backdropBlock).toMatch(/height:\s*100dvh/)
@@ -211,6 +212,8 @@ describe('TripWorkspacePage layout scroll contract', () => {
     expect(modalBlock).toMatch(/grid-template-rows:\s*auto minmax\(0,\s*1fr\)/)
     expect(bodyBlock).toMatch(/overflow-y:\s*auto/)
     expect(bodyBlock).toMatch(/overscroll-behavior:\s*contain/)
+    expect(closeButtonBlock).toMatch(/width:\s*44px/)
+    expect(closeButtonBlock).toMatch(/height:\s*44px/)
     expect(workspaceSource).toMatch(/function useModalFocus/)
     expect(workspaceSource).toMatch(/event\.key === 'Escape'/)
   })

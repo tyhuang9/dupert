@@ -981,7 +981,10 @@ describe('<TripWorkspacePage>', () => {
     expect(screen.queryByLabelText(/^add activity$/i, { selector: 'button' })).not.toBeInTheDocument()
 
     await userEvent.click(screen.getByRole('button', { name: /^cancel$/i }))
-    await screen.findByLabelText(/^add activity$/i, { selector: 'button' })
+    const restoredAddActivity = await screen.findByLabelText(/^add activity$/i, {
+      selector: 'button',
+    })
+    await waitFor(() => expect(restoredAddActivity).toHaveFocus())
 
     await userEvent.click(screen.getByRole('button', { name: /^map$/i }))
     await screen.findByTestId('trip-map')
@@ -993,12 +996,16 @@ describe('<TripWorkspacePage>', () => {
 
     await userEvent.click(screen.getByRole('button', { name: /^ideas$/i }))
     const addIdea = await screen.findByLabelText(/^add idea$/i, { selector: 'button' })
+    expect(screen.getAllByText(/^0 ideas$/i)).toHaveLength(1)
     expect(screen.getAllByRole('button', { name: /^add idea$/i })).toHaveLength(1)
     expect(addIdea).toHaveAttribute('title', 'Add Idea')
     expect(addIdea.querySelector('svg')).toBeInTheDocument()
     await userEvent.click(addIdea)
     await screen.findByRole('textbox', { name: /activity name/i })
     expect(screen.queryByLabelText(/^add idea$/i, { selector: 'button' })).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: /^cancel$/i }))
+    const restoredAddIdea = await screen.findByLabelText(/^add idea$/i, { selector: 'button' })
+    await waitFor(() => expect(restoredAddIdea).toHaveFocus())
   })
 
   it('uses the compact mobile timeline summary and guides empty trips into Plan', async () => {
@@ -1082,6 +1089,22 @@ describe('<TripWorkspacePage>', () => {
     await waitFor(() => expect(closeButton).toHaveFocus())
     await userEvent.tab({ shift: true })
     expect(within(settingsDialog).getByRole('button', { name: /save changes/i })).toHaveFocus()
+
+    const dateTrigger = within(settingsDialog).getByRole('button', { name: /trip dates/i })
+    await userEvent.click(dateTrigger)
+    const dateDialog = await screen.findByRole('dialog', { name: /trip dates/i })
+    expect(within(dateDialog).getByRole('button', {
+      name: /choose friday, may 1, 2026/i,
+    })).toHaveFocus()
+    await userEvent.tab()
+    expect(dateDialog).toContainElement(document.activeElement as HTMLElement)
+    await userEvent.keyboard('{Escape}')
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: /trip dates/i })).not.toBeInTheDocument()
+      expect(screen.getByRole('dialog', { name: /trip settings/i })).toBeInTheDocument()
+      expect(dateTrigger).toHaveFocus()
+    })
+
     await userEvent.keyboard('{Escape}')
     await waitFor(() => {
       expect(screen.queryByRole('dialog', { name: /trip settings/i })).not.toBeInTheDocument()
@@ -1123,6 +1146,9 @@ describe('<TripWorkspacePage>', () => {
     expect(within(editFooter as HTMLElement).getByRole('button', { name: /^delete$/i }))
       .toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: /^close activity editor$/i }))
+    await waitFor(() => {
+      expect(screen.getByRole('article', { name: /expand tsukiji sushi/i })).toHaveFocus()
+    })
 
     await userEvent.click(screen.getByRole('article', { name: /expand tsukiji sushi/i }))
     expect(screen.getByText(/^edit activity$/i)).toBeInTheDocument()
