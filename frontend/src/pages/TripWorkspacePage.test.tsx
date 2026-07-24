@@ -970,6 +970,7 @@ describe('<TripWorkspacePage>', () => {
 
     await userEvent.click(screen.getByRole('button', { name: /^ideas$/i }))
     const addIdea = await screen.findByLabelText(/^add idea$/i, { selector: 'button' })
+    expect(screen.getAllByRole('button', { name: /^add idea$/i })).toHaveLength(1)
     expect(addIdea).toHaveAttribute('title', 'Add Idea')
     expect(addIdea.querySelector('svg')).toBeInTheDocument()
     await userEvent.click(addIdea)

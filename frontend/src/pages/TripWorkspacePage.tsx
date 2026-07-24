@@ -4336,7 +4336,7 @@ export function TripWorkspacePage() {
                           mobileDragHandle={isMobileViewport}
                           readOnly={!canEditTrip}
                           onActiveActivityChange={handleActiveActivityChange}
-                          onAddActivity={openIdeaComposer}
+                          onAddActivity={isMobileViewport ? undefined : openIdeaComposer}
                           onDelete={handleDeleteActivity}
                           onRequestMapLocation={handleRequestActivityLocationOnMap}
                           onScheduleForSelectedDay={handleScheduleIdeaForSelectedDay}
