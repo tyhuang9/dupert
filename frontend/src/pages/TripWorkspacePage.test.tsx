@@ -1149,7 +1149,7 @@ describe('<TripWorkspacePage>', () => {
     renderWorkspace('/trips/abc234def567/d/2026-05-01')
 
     await userEvent.click(await screen.findByRole('button', { name: /open trip menu/i }))
-    await userEvent.click(screen.getByRole('link', { name: /^members$/i }))
+    await userEvent.click(screen.getByRole('button', { name: /^members$/i }))
     const membersDialog = await screen.findByRole('dialog', { name: /^members$/i })
     await userEvent.click(within(membersDialog).getByRole('button', { name: /close members/i }))
 

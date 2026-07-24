@@ -21,6 +21,7 @@ function cssBlocks(css: string, selector: string) {
 interface RenderChromeOptions {
   canEditTrip?: boolean
   isAuthenticated?: boolean
+  onOpenMembers?: () => void
   onOpenSettings?: () => void
   onOpenShare?: () => void
 }
@@ -28,6 +29,7 @@ interface RenderChromeOptions {
 function renderChrome({
   canEditTrip = true,
   isAuthenticated = true,
+  onOpenMembers = vi.fn(),
   onOpenSettings = vi.fn(),
   onOpenShare = vi.fn(),
 }: RenderChromeOptions = {}) {
@@ -37,10 +39,10 @@ function renderChrome({
         activeTab="map"
         canEditTrip={canEditTrip}
         isAuthenticated={isAuthenticated}
+        onOpenMembers={onOpenMembers}
         onOpenSettings={onOpenSettings}
         onOpenShare={onOpenShare}
         onSelectTab={vi.fn()}
-        publicId="abc123"
         tripName="Monterey"
       />
     </MemoryRouter>,
@@ -111,7 +113,7 @@ describe('<MobileWorkspaceChrome>', () => {
     })
 
     await user.click(screen.getByRole('button', { name: /open trip menu/i }))
-    expect(screen.getByRole('link', { name: /members/i })).toHaveAttribute('href', '/trips/abc123/members')
+    expect(screen.getByRole('button', { name: /members/i })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /share trip/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /trip settings/i })).not.toBeInTheDocument()
   })
@@ -121,16 +123,23 @@ describe('<MobileWorkspaceChrome>', () => {
     renderChrome({ isAuthenticated: false, canEditTrip: false })
 
     await user.click(screen.getByRole('button', { name: /open trip menu/i }))
-    expect(screen.queryByRole('link', { name: /members/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /members/i })).not.toBeInTheDocument()
   })
 
   it('routes editable actions through their callbacks', async () => {
     const user = userEvent.setup()
+    const onOpenMembers = vi.fn()
     const onOpenShare = vi.fn()
     const onOpenSettings = vi.fn()
-    renderChrome({ onOpenShare, onOpenSettings })
+    renderChrome({ onOpenMembers, onOpenShare, onOpenSettings })
 
     const { trigger } = await openDrawer()
+    await user.click(screen.getByRole('button', { name: /members/i }))
+    expect(onOpenMembers).toHaveBeenCalledOnce()
+    expect(screen.queryByRole('dialog', { name: /monterey/i })).not.toBeInTheDocument()
+    expect(trigger).toHaveFocus()
+
+    await user.click(trigger)
     await user.click(screen.getByRole('button', { name: /share trip/i }))
     expect(onOpenShare).toHaveBeenCalledOnce()
     expect(screen.queryByRole('dialog', { name: /monterey/i })).not.toBeInTheDocument()

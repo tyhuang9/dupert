@@ -3994,6 +3994,13 @@ export function TripWorkspacePage() {
     navigate(membersReturnTo, { replace: true })
   }
 
+  const openMembers = () => {
+    if (!publicId) return
+    navigate(`/trips/${encodeURIComponent(publicId)}/members`, {
+      state: { returnTo: `${location.pathname}${location.search}` },
+    })
+  }
+
   const handleSaveTripSettings = async (payload: UpdateTripRequest) => {
     if (!publicId || !tripQuery.data) return
     setTripEditConflict(false)
@@ -4154,10 +4161,10 @@ export function TripWorkspacePage() {
                     </Link>
                   ) : undefined}
                   isAuthenticated={isAuthenticated}
+                  onOpenMembers={openMembers}
                   onOpenSettings={openTripSettings}
                   onOpenShare={() => setIsShareTripOpen(true)}
                   onSelectTab={selectMobileTab}
-                  publicId={publicId ?? ''}
                   tripName={tripQuery.data.name}
                 />
               ) : null}

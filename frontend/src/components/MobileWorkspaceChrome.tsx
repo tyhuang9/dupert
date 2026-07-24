@@ -11,7 +11,7 @@ import {
   X,
 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
-import { Link, useLocation } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import styles from './MobileWorkspaceChrome.module.css'
 
 export type MobileWorkspaceTab = 'plan' | 'map' | 'timeline' | 'ideas'
@@ -21,10 +21,10 @@ interface MobileWorkspaceChromeProps {
   canEditTrip: boolean
   guestActions?: ReactNode
   isAuthenticated: boolean
+  onOpenMembers: () => void
   onOpenSettings: () => void
   onOpenShare: () => void
   onSelectTab: (tab: MobileWorkspaceTab) => void
-  publicId: string
   tripName: string
 }
 
@@ -46,13 +46,12 @@ export function MobileWorkspaceChrome({
   canEditTrip,
   guestActions,
   isAuthenticated,
+  onOpenMembers,
   onOpenSettings,
   onOpenShare,
   onSelectTab,
-  publicId,
   tripName,
 }: Readonly<MobileWorkspaceChromeProps>) {
-  const location = useLocation()
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const menuTriggerRef = useRef<HTMLButtonElement>(null)
   const menuPopupRef = useRef<HTMLElement>(null)
@@ -178,14 +177,13 @@ export function MobileWorkspaceChrome({
                 My trips
               </Link>
               {isAuthenticated ? (
-              <Link
-                to={`/trips/${encodeURIComponent(publicId)}/members`}
-                state={{ returnTo: `${location.pathname}${location.search}` }}
-                onClick={closeMenu}
-              >
+                <button
+                  type="button"
+                  onClick={() => handleMenuAction(onOpenMembers)}
+                >
                   <Users size={18} aria-hidden="true" />
                   Members
-                </Link>
+                </button>
               ) : null}
               {canEditTrip ? (
                 <button
