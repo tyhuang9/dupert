@@ -167,7 +167,9 @@ describe('<MobileWorkspaceChrome>', () => {
     expect(brandBlock).toMatch(/width:\s*44px/)
     expect(brandBlock).toMatch(/height:\s*44px/)
     expect(popupBlock).toMatch(/position:\s*absolute/)
-    expect(popupBlock).toMatch(/top:\s*calc\(var\(--space-3\) \+ env\(safe-area-inset-top\)\)/)
+    expect(popupBlock).toMatch(
+      /top:\s*calc\(var\(--workspace-chrome-control-top\) - var\(--space-2\)\)/,
+    )
     expect(popupBlock).toMatch(/right:\s*calc\(var\(--space-3\) \+ env\(safe-area-inset-right\)\)/)
     expect(popupBlock).toMatch(/width:\s*min\(22rem,\s*calc\(100vw - var\(--space-6\) - env\(safe-area-inset-left\) - env\(safe-area-inset-right\)\)\)/)
     expect(popupBlock).toMatch(/max-height:\s*calc\(100dvh - 8rem - var\(--space-4\) - env\(safe-area-inset-bottom\) - var\(--space-3\) - env\(safe-area-inset-top\)\)/)
@@ -176,6 +178,22 @@ describe('<MobileWorkspaceChrome>', () => {
     expect(popupBlock).not.toMatch(/height:\s*100dvh/)
     expect(menuHeaderBlock).toMatch(/padding:\s*var\(--space-2\) var\(--workspace-chrome-control-right\) var\(--space-4\)/)
     expect(actionsBlock).toMatch(/overflow-y:\s*auto/)
+  })
+
+  it('aligns the popup close control with the menu trigger while retaining the top safe-area offset', () => {
+    const popupBlock = cssBlocks(chromeCss, '.menuPopup')[0] ?? ''
+    const menuHeaderBlock = cssBlocks(chromeCss, '.menuHeader')[0] ?? ''
+    const controlBlock = chromeCss.match(/\.menuButton,\s*\.closeButton\s*\{([^}]*)\}/s)?.[1] ?? ''
+
+    expect(popupBlock).toMatch(
+      /top:\s*calc\(var\(--workspace-chrome-control-top\) - var\(--space-2\)\)/,
+    )
+    expect(menuHeaderBlock).toMatch(/padding:\s*var\(--space-2\) var\(--workspace-chrome-control-right\)/)
+    expect(controlBlock).toMatch(/width:\s*44px/)
+    expect(controlBlock).toMatch(/height:\s*44px/)
+    expect(chromeCss).toMatch(
+      /--workspace-chrome-control-top:\s*calc\(var\(--space-2\) \+ env\(safe-area-inset-top\)\)/,
+    )
   })
 
   it('keeps the mobile chrome clear of the native safe areas', () => {
