@@ -296,13 +296,16 @@
 
   .cardExpanded {
     overflow: visible;
+    /* A transformed parent turns the fixed editor into a card-anchored sheet. */
+    transform: none;
+    animation: none;
   }
 
   /* Keep the existing list card in place while its editor uses a fixed sheet.
      This prevents an expanded activity from leaving an empty timeline marker. */
   .cardExpanded .editorPanel {
     position: fixed;
-    inset: auto 0 var(--mobile-bottom-nav-height, calc(64px + env(safe-area-inset-bottom)));
+    inset: auto 0 var(--mobile-bottom-nav-height, calc(56px + env(safe-area-inset-bottom)));
     z-index: 190;
     max-height: min(78dvh, 42rem);
     display: grid;

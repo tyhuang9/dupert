@@ -109,11 +109,14 @@ export function MobileWorkspaceChrome({
 
   const handleMenuAction = useCallback((action: () => void) => {
     setIsMenuOpen(false)
+    // Keep the stable header trigger as the modal's restore target after the
+    // menu action button unmounts with the popup.
+    menuTriggerRef.current?.focus()
     action()
   }, [])
 
   return (
-    <>
+    <div className={styles.chrome}>
       <h1 className="sr-only">{tripName}</h1>
       <header className={styles.header} aria-label="Trip workspace header">
         <div className={styles.tripSummary}>
@@ -219,6 +222,6 @@ export function MobileWorkspaceChrome({
           )
         })}
       </nav>
-    </>
+    </div>
   )
 }
