@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import MockAdapter from 'axios-mock-adapter'
 import {
@@ -539,6 +539,19 @@ function mockWorkspace(
   apiMock.onGet('/trips/abc234def567/activities').reply(200, activities)
 }
 
+function authenticateUser() {
+  useAuthStore.getState().setSession({
+    accessToken: 'jwt-access-token',
+    expiresInSeconds: 900,
+    user: {
+      id: 200,
+      email: 'bob@example.com',
+      displayName: 'Bob',
+      emailVerified: true,
+    },
+  })
+}
+
 function renderWorkspace(path: string) {
   function LocationProbe() {
     const location = useLocation()
@@ -778,6 +791,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  cleanup()
   apiMock.restore()
   queryClient.clear()
   useAuthStore.getState().clearSession()
@@ -1074,6 +1088,7 @@ describe('<TripWorkspacePage>', () => {
   })
 
   it('renders the authenticated Members deep link as a contained workspace overlay', async () => {
+    authenticateUser()
     mockWorkspace()
     apiMock.onGet('/trips/abc234def567/members').reply(200, [
       {
@@ -1107,6 +1122,7 @@ describe('<TripWorkspacePage>', () => {
   })
 
   it('keeps the members retry state inside the workspace overlay', async () => {
+    authenticateUser()
     mockWorkspace()
     apiMock.onGet('/trips/abc234def567/members').reply(500, { error: 'internal_error' })
 
@@ -1118,6 +1134,7 @@ describe('<TripWorkspacePage>', () => {
   })
 
   it('returns to the originating trip day when Members opens from the mobile menu', async () => {
+    authenticateUser()
     mockViewport(true)
     mockWorkspace()
     apiMock.onGet('/trips/abc234def567/members').reply(200, [
@@ -1143,6 +1160,7 @@ describe('<TripWorkspacePage>', () => {
   })
 
   it('keeps member removal confirmation and errors within the members overlay', async () => {
+    authenticateUser()
     mockWorkspace()
     apiMock.onGet('/trips/abc234def567/members').reply(200, [
       {
