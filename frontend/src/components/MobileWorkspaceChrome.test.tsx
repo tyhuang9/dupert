@@ -134,21 +134,27 @@ describe('<MobileWorkspaceChrome>', () => {
     await user.click(screen.getByRole('button', { name: /share trip/i }))
     expect(onOpenShare).toHaveBeenCalledOnce()
     expect(screen.queryByRole('dialog', { name: /monterey/i })).not.toBeInTheDocument()
+    expect(trigger).toHaveFocus()
 
     await user.click(trigger)
     await user.click(screen.getByRole('button', { name: /trip settings/i }))
     expect(onOpenSettings).toHaveBeenCalledOnce()
+    expect(trigger).toHaveFocus()
   })
 
   it('keeps the menu as a right-aligned, viewport-bounded popup instead of a full-height drawer', () => {
+    const chromeBlock = cssBlocks(chromeCss, '.chrome')[0] ?? ''
+    const chromeHeaderBlock = cssBlocks(chromeCss, '.header')[0] ?? ''
     const backdropBlock = cssBlocks(chromeCss, '.menuBackdrop')[0] ?? ''
     const popupBlock = cssBlocks(chromeCss, '.menuPopup')[0] ?? ''
-    const headerBlock = cssBlocks(chromeCss, '.menuHeader')[0] ?? ''
+    const menuHeaderBlock = cssBlocks(chromeCss, '.menuHeader')[0] ?? ''
     const actionsBlock = cssBlocks(chromeCss, '.menuActions')[0] ?? ''
 
     expect(backdropBlock).toMatch(/background:\s*rgb\(26 33 31 \/ 22%\)/)
+    expect(chromeBlock).toMatch(/--workspace-chrome-control-top:\s*calc\(var\(--space-2\) \+ env\(safe-area-inset-top\)\)/)
+    expect(chromeBlock).toMatch(/--workspace-chrome-control-right:\s*var\(--space-4\)/)
+    expect(chromeHeaderBlock).toMatch(/padding:\s*var\(--workspace-chrome-control-top\) var\(--workspace-chrome-control-right\) var\(--space-2\)/)
     expect(popupBlock).toMatch(/position:\s*absolute/)
-    expect(popupBlock).toMatch(/--menu-control-top:\s*10px/)
     expect(popupBlock).toMatch(/top:\s*0/)
     expect(popupBlock).toMatch(/right:\s*0/)
     expect(popupBlock).toMatch(/width:\s*min\(22rem,\s*calc\(100vw - var\(--space-6\)\)\)/)
@@ -156,7 +162,7 @@ describe('<MobileWorkspaceChrome>', () => {
     expect(popupBlock).toMatch(/border-radius:\s*var\(--radius-xl\)/)
     expect(popupBlock).toMatch(/overflow:\s*hidden/)
     expect(popupBlock).not.toMatch(/height:\s*100dvh/)
-    expect(headerBlock).toMatch(/padding:\s*var\(--menu-control-top\) var\(--space-4\) var\(--space-4\)/)
+    expect(menuHeaderBlock).toMatch(/padding:\s*var\(--workspace-chrome-control-top\) var\(--workspace-chrome-control-right\) var\(--space-4\)/)
     expect(actionsBlock).toMatch(/overflow-y:\s*auto/)
   })
 
@@ -169,7 +175,11 @@ describe('<MobileWorkspaceChrome>', () => {
     ) ?? ''
 
     expect(headerBlock).toMatch(/min-height:\s*var\(--mobile-header-height,\s*64px\)/)
-    expect(headerBlock).toMatch(/padding:\s*calc\(var\(--space-2\) \+ env\(safe-area-inset-top\)\)/)
+    expect(headerBlock).toMatch(/padding:\s*var\(--workspace-chrome-control-top\)/)
+    expect(chromeCss).toMatch(/--workspace-chrome-control-top:\s*calc\(var\(--space-2\) \+ env\(safe-area-inset-top\)\)/)
     expect(bottomNavBlock).toMatch(/min-height:\s*var\(--mobile-bottom-nav-height/)
+    expect(bottomNavBlock).toMatch(/height:\s*var\(--mobile-bottom-nav-height,\s*calc\(56px \+ env\(safe-area-inset-bottom\)\)\)/)
+    expect(bottomNavBlock).toMatch(/calc\(var\(--space-1\) \+ env\(safe-area-inset-bottom\)\)/)
+    expect(cssBlocks(chromeCss, '.bottomNav button')[0] ?? '').toMatch(/min-height:\s*44px/)
   })
 })

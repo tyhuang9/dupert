@@ -1,4 +1,5 @@
 import {
+  useCallback,
   useRef,
   useState,
   type FocusEvent,
@@ -167,6 +168,7 @@ export function ActivityCard({
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [closePending, setClosePending] = useState(false)
   const activityFormRef = useRef<ActivityFormHandle>(null)
+  const cardRef = useRef<HTMLElement | null>(null)
   const timeDisplay = getTimeDisplay(activity)
   const categoryLabel = getCategoryLabel(activity.category)
   const canDrag = !presentation && !readOnly && !busy && !dragDisabled && !expanded
@@ -187,11 +189,20 @@ export function ActivityCard({
     setClosePending(true)
     try {
       const saved = await activityFormRef.current?.flushAutosave() ?? true
-      if (saved) onToggleExpand(activity)
+      if (saved) {
+        onToggleExpand(activity)
+        window.requestAnimationFrame(() => cardRef.current?.focus({ preventScroll: true }))
+      }
     } finally {
       setClosePending(false)
     }
   }
+  const setCardRef = useCallback((node: HTMLElement | null) => {
+    cardRef.current = node
+    if (canDrag && !usesMobileDragHandle) {
+      dragActivatorRef?.(node)
+    }
+  }, [canDrag, dragActivatorRef, usesMobileDragHandle])
   const handleBlurCapture = (event: FocusEvent<HTMLElement>) => {
     if (presentation) return
     const nextTarget = event.relatedTarget
@@ -236,7 +247,7 @@ export function ActivityCard({
 
   return (
     <article
-      ref={canDrag && !usesMobileDragHandle ? dragActivatorRef : undefined}
+      ref={setCardRef}
       id={domId ?? `activity-${activity.id}`}
       className={cardClassName}
       {...(canDrag && !usesMobileDragHandle ? dragAttributes : undefined)}

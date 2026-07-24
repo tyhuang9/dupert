@@ -33,6 +33,7 @@ import {
   useContext,
   type CSSProperties,
   type FormEvent,
+  type MouseEvent as ReactMouseEvent,
   type ReactNode,
 } from 'react'
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
@@ -51,6 +52,7 @@ import {
   Globe,
   Landmark,
   Layers,
+  ListTodo,
   MapPin,
   Navigation,
   Pencil,
@@ -1493,6 +1495,82 @@ interface TripSettingsModalProps {
   trip: Trip
 }
 
+function useModalFocus(onClose: () => void) {
+  const closeButtonRef = useRef<HTMLButtonElement>(null)
+  const dialogRef = useRef<HTMLElement>(null)
+  const onCloseRef = useRef(onClose)
+
+  useEffect(() => {
+    onCloseRef.current = onClose
+  }, [onClose])
+
+  useEffect(() => {
+    const previouslyFocused = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null
+    const focusCloseButton = () => closeButtonRef.current?.focus()
+    const getFocusableElements = () => {
+      const dialog = dialogRef.current
+      if (!dialog) return []
+      const dialogElements = Array.from(dialog.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      ))
+      const branchElements = Array.from(document.querySelectorAll<HTMLElement>(
+        '[data-modal-focus-branch="true"] a[href], [data-modal-focus-branch="true"] button:not([disabled]), [data-modal-focus-branch="true"] input:not([disabled]), [data-modal-focus-branch="true"] select:not([disabled]), [data-modal-focus-branch="true"] textarea:not([disabled]), [data-modal-focus-branch="true"] [tabindex]:not([tabindex="-1"])',
+      ))
+      return Array.from(new Set([...dialogElements, ...branchElements]))
+    }
+    const focusScopeContains = (element: Element | null) =>
+      Boolean(
+        element &&
+          (dialogRef.current?.contains(element) ||
+            element.closest('[data-modal-focus-branch="true"]')),
+      )
+    const handleKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        if (
+          event.defaultPrevented ||
+          (event.target instanceof Element &&
+            event.target.closest('[data-modal-focus-branch="true"]'))
+        ) {
+          return
+        }
+        event.preventDefault()
+        onCloseRef.current()
+        return
+      }
+      if (event.key !== 'Tab') return
+
+      const focusableElements = getFocusableElements()
+      if (focusableElements.length === 0) return
+      const firstElement = focusableElements[0]
+      const lastElement = focusableElements[focusableElements.length - 1]
+      const activeElement = document.activeElement
+
+      if (event.shiftKey && (activeElement === firstElement || !focusScopeContains(activeElement))) {
+        event.preventDefault()
+        lastElement.focus()
+      } else if (!event.shiftKey && (activeElement === lastElement || !focusScopeContains(activeElement))) {
+        event.preventDefault()
+        firstElement.focus()
+      }
+    }
+
+    const focusFrame = window.requestAnimationFrame(focusCloseButton)
+    window.addEventListener('keydown', handleKeyDown)
+
+    return () => {
+      window.cancelAnimationFrame(focusFrame)
+      window.removeEventListener('keydown', handleKeyDown)
+      if (previouslyFocused?.isConnected) {
+        window.requestAnimationFrame(() => previouslyFocused.focus())
+      }
+    }
+  }, [])
+
+  return { closeButtonRef, dialogRef }
+}
+
 function TripSettingsModal({
   activities,
   conflictNotice,
@@ -1502,6 +1580,7 @@ function TripSettingsModal({
   saving,
   trip,
 }: TripSettingsModalProps) {
+  const { closeButtonRef, dialogRef } = useModalFocus(onClose)
   const [name, setName] = useState(trip.name)
   const [destination, setDestination] = useState(trip.destination ?? '')
   const [imageUrl, setImageUrl] = useState(trip.imageUrl ?? '')
@@ -1558,6 +1637,7 @@ function TripSettingsModal({
   return (
     <div className={styles.modalBackdrop} role="presentation">
       <section
+        ref={dialogRef}
         className={styles.tripSettingsModal}
         role="dialog"
         aria-modal="true"
@@ -1569,6 +1649,7 @@ function TripSettingsModal({
             <p>Update logistics and dates</p>
           </div>
           <button
+            ref={closeButtonRef}
             type="button"
             className={styles.iconOnlyButton}
             onClick={onClose}
@@ -1683,6 +1764,7 @@ function ShareTripModal({
   publicId: string
   tripName: string
 }) {
+  const { closeButtonRef, dialogRef } = useModalFocus(onClose)
   const shareLinksQuery = useShareLinks(publicId)
   const createMutation = useCreateShareLink()
   const renameMutation = useRenameShareLink()
@@ -1745,6 +1827,7 @@ function ShareTripModal({
   return (
     <div className={styles.modalBackdrop} role="presentation">
       <section
+        ref={dialogRef}
         className={[styles.tripSettingsModal, styles.shareTripModal].join(' ')}
         role="dialog"
         aria-modal="true"
@@ -1755,7 +1838,13 @@ function ShareTripModal({
             <h2 id="share-trip-title">Share trip</h2>
             <p>{tripName}</p>
           </div>
-          <button type="button" className={styles.iconOnlyButton} onClick={onClose} aria-label="Close share trip">
+          <button
+            ref={closeButtonRef}
+            type="button"
+            className={styles.iconOnlyButton}
+            onClick={onClose}
+            aria-label="Close share trip"
+          >
             <X size={18} aria-hidden="true" />
           </button>
         </header>
@@ -1912,6 +2001,7 @@ export function TripWorkspacePage() {
   const [expandedActivityId, setExpandedActivityId] = useState<number | null>(null)
   const [placeDraft, setPlaceDraft] = useState<PlaceSelection | null>(null)
   const [placeDraftDayDate, setPlaceDraftDayDate] = useState<string | null | undefined>(undefined)
+  const composerOpenerRef = useRef<HTMLElement | null>(null)
   const [pendingCreateKind, setPendingCreateKind] = useState<'activity' | 'idea' | null>(null)
   const isCreateComposerSubmitting = pendingCreateKind !== null
   const [isTripSettingsOpen, setIsTripSettingsOpen] = useState(false)
@@ -1986,6 +2076,11 @@ export function TripWorkspacePage() {
   const mobileDayPickerAnchorRef = useRef<HTMLElement | null>(null)
   const mobileDayPickerCloseRef = useRef<HTMLButtonElement | null>(null)
   const isMobileViewport = useMediaQuery('(max-width: 820px)')
+
+  useLayoutEffect(() => {
+    if (!isMobileViewport || (window.scrollX === 0 && window.scrollY === 0)) return
+    window.scrollTo(0, 0)
+  }, [isMobileViewport, publicId])
   const isAndroidNativeMap =
     isMobileViewport && mobileTab === 'map' && platformRuntime.actualPlatform === 'android'
 
@@ -2827,8 +2922,28 @@ export function TripWorkspacePage() {
     scrollActivityIntoView(activityId)
   }
 
-  const openActivityComposer = () => {
+  const rememberComposerOpener = (event?: ReactMouseEvent<HTMLElement>) => {
+    composerOpenerRef.current = event?.currentTarget ?? (
+      document.activeElement instanceof HTMLElement ? document.activeElement : null
+    )
+  }
+
+  const restoreComposerOpenerFocus = (kind: 'activity' | 'idea') => {
+    const opener = composerOpenerRef.current
+    composerOpenerRef.current = null
+    window.requestAnimationFrame(() => {
+      const fallbackLabel = kind === 'idea' ? 'Add Idea' : 'Add Activity'
+      const fallback = document.querySelector<HTMLElement>(
+        `button[aria-label="${fallbackLabel}"]`,
+      )
+      const target = opener?.isConnected ? opener : fallback
+      target?.focus({ preventScroll: true })
+    })
+  }
+
+  const openActivityComposer = (event?: ReactMouseEvent<HTMLElement>) => {
     if (isCreateComposerSubmitting) return
+    rememberComposerOpener(event)
     setWorkspaceMode('days')
     setMobileTab('plan')
     setExpandedActivityId(null)
@@ -2848,8 +2963,9 @@ export function TripWorkspacePage() {
     })
   }
 
-  const openIdeaComposer = () => {
+  const openIdeaComposer = (event?: ReactMouseEvent<HTMLElement>) => {
     if (isCreateComposerSubmitting) return
+    rememberComposerOpener(event)
     setWorkspaceMode('ideas')
     setMobileTab('ideas')
     setExpandedActivityId(null)
@@ -2992,6 +3108,7 @@ export function TripWorkspacePage() {
       setMapSearchPreview(null)
       clearMapSearchState()
       setPendingMapPlace(null)
+      restoreComposerOpenerFocus(targetDayDate === null ? 'idea' : 'activity')
     } finally {
       setPendingCreateKind(null)
     }
@@ -3459,6 +3576,12 @@ export function TripWorkspacePage() {
     setPendingMapPlace(null)
     setMapLocationTarget(null)
     setIsMapSearchSubmitting(false)
+  }
+
+  const cancelCreateComposer = () => {
+    const kind = placeDraftDayDate === null ? 'idea' : 'activity'
+    clearMapSelection()
+    restoreComposerOpenerFocus(kind)
   }
 
   const returnToMapSearchResults = () => {
@@ -4057,18 +4180,13 @@ export function TripWorkspacePage() {
                 aria-labelledby="timeline-panel-title"
                 tabIndex={-1}
               >
-                <div
-                  className={`${styles.timelineHeader}${isMobileViewport && workspaceMode === 'days' ? ` ${styles.mobileDayPlanHeader}` : ''}`}
-                >
-                  <div>
-                    <p className={styles.panelKicker}>
-                      {workspaceMode === 'days' && selectedDayIndex > 0
-                          ? `Day ${selectedDayIndex} of ${tripDays.length}`
-                          : workspaceMode === 'ideas'
-                            ? 'Unscheduled'
-                          : tripQuery.data.name}
-                    </p>
-                    {isMobileViewport && workspaceMode === 'days' ? (
+                <div className={styles.timelineHeader}>
+                  {isMobileViewport && workspaceMode === 'days' ? (
+                    <div className={styles.mobilePlanHeaderContent}>
+                      <p className="sr-only">
+                        {selectedDayIndex > 0 ? `Day ${selectedDayIndex} of ${tripDays.length}. ` : ''}
+                        {tripQuery.data.destination || 'Destination TBD'}.
+                      </p>
                       <div className={styles.mobileDayNavigator}>
                         <button
                           type="button"
@@ -4108,24 +4226,53 @@ export function TripWorkspacePage() {
                           <ChevronRight size={18} aria-hidden="true" />
                         </button>
                       </div>
-                    ) : (
-                      <h2 id="timeline-panel-title" className={styles.panelTitle}>
+                    </div>
+                  ) : isMobileViewport ? (
+                    <div className={styles.mobileWorkspaceSummary}>
+                      <div>
+                        {workspaceMode === 'timeline' ? (
+                          <ListTodo size={20} aria-hidden="true" />
+                        ) : (
+                          <Landmark size={20} aria-hidden="true" />
+                        )}
+                        <h2 id="timeline-panel-title" className={styles.panelTitle}>
+                          {workspaceMode === 'timeline' ? 'Timeline' : 'Ideas'}
+                        </h2>
+                      </div>
+                      <p>
                         {workspaceMode === 'timeline'
-                          ? 'Full Trip Timeline'
-                          : workspaceMode === 'ideas'
-                            ? 'Ideas'
-                            : formatReadableDate(selectedDay)}
-                      </h2>
-                    )}
-                    <p className={styles.panelDescription}>
-                      {workspaceMode === 'timeline'
-                        ? `${pluralize(scheduledTimelineActivities.length, 'scheduled activity', 'scheduled activities')} across ${pluralize(scheduledTimelineDayCount, 'day')}`
-                        : workspaceMode === 'ideas'
-                          ? `${tripQuery.data.destination || 'Destination TBD'} · ${pluralize(ideasActivities.length, 'idea')} saved for later`
-                          : `${tripQuery.data.destination || 'Destination TBD'} · ${pluralize(dayActivities.length, 'activity', 'activities')} scheduled today · ${selectedDayMappedCount} mapped`}
-                    </p>
-                  </div>
-                  {(!isMobileViewport || workspaceMode !== 'days') && (
+                          ? `${pluralize(scheduledTimelineActivities.length, 'activity', 'activities')} · ${pluralize(scheduledTimelineDayCount, 'day')}`
+                          : pluralize(ideasActivities.length, 'idea')}
+                      </p>
+                    </div>
+                  ) : (
+                    <>
+                      <div>
+                        <p className={styles.panelKicker}>
+                          {workspaceMode === 'days' && selectedDayIndex > 0
+                            ? `Day ${selectedDayIndex} of ${tripDays.length}`
+                            : workspaceMode === 'ideas'
+                              ? 'Unscheduled'
+                              : tripQuery.data.name}
+                        </p>
+                        <h2 id="timeline-panel-title" className={styles.panelTitle}>
+                          {workspaceMode === 'timeline'
+                            ? 'Full Trip Timeline'
+                            : workspaceMode === 'ideas'
+                              ? 'Ideas'
+                              : formatReadableDate(selectedDay)}
+                        </h2>
+                        <p className={styles.panelDescription}>
+                          {workspaceMode === 'timeline'
+                            ? `${pluralize(scheduledTimelineActivities.length, 'scheduled activity', 'scheduled activities')} across ${pluralize(scheduledTimelineDayCount, 'day')}`
+                            : workspaceMode === 'ideas'
+                              ? `${tripQuery.data.destination || 'Destination TBD'} · ${pluralize(ideasActivities.length, 'idea')} saved for later`
+                              : `${tripQuery.data.destination || 'Destination TBD'} · ${pluralize(dayActivities.length, 'activity', 'activities')} scheduled today · ${selectedDayMappedCount} mapped`}
+                        </p>
+                      </div>
+                    </>
+                  )}
+                  {!isMobileViewport && (
                     <div className={styles.timelineHeaderActions}>
                       <div className={styles.avatarStack} aria-label="Recent collaborators">
                         {collaboratorNames.map((name) => (
@@ -4207,7 +4354,7 @@ export function TripWorkspacePage() {
                                 key={createFormKey}
                                 initialValues={placeDraft ?? undefined}
                                 onSubmit={handleCreateActivity}
-                                onCancel={clearMapSelection}
+                                onCancel={cancelCreateComposer}
                                 onRequestMapLocation={handleRequestNewActivityLocationOnMap}
                                 submitting={createActivityMutation.isPending}
                                 submitLabel="Create Activity"
@@ -4222,10 +4369,12 @@ export function TripWorkspacePage() {
                       >
                         <div className={styles.sectionHeader}>
                           <h3 id="ideas-lane-title" className={styles.sectionTitle}>Saved ideas</h3>
-                          <span>
-                            <Landmark size={13} aria-hidden="true" />
-                            {pluralize(ideasActivities.length, 'idea')}
-                          </span>
+                          {!isMobileViewport && (
+                            <span>
+                              <Landmark size={13} aria-hidden="true" />
+                              {pluralize(ideasActivities.length, 'idea')}
+                            </span>
+                          )}
                         </div>
                         <ActivityList
                           activities={ideasActivities}
@@ -4241,7 +4390,7 @@ export function TripWorkspacePage() {
                           mobileDragHandle={isMobileViewport}
                           readOnly={!canEditTrip}
                           onActiveActivityChange={handleActiveActivityChange}
-                          onAddActivity={openIdeaComposer}
+                          onAddActivity={isMobileViewport ? undefined : openIdeaComposer}
                           onDelete={handleDeleteActivity}
                           onRequestMapLocation={handleRequestActivityLocationOnMap}
                           onScheduleForSelectedDay={handleScheduleIdeaForSelectedDay}
@@ -4259,7 +4408,7 @@ export function TripWorkspacePage() {
                                 key={createFormKey}
                                 initialValues={placeDraft ?? undefined}
                                 onSubmit={handleCreateActivity}
-                                onCancel={clearMapSelection}
+                                onCancel={cancelCreateComposer}
                                 onRequestMapLocation={handleRequestNewActivityLocationOnMap}
                                 submitting={createActivityMutation.isPending}
                                 submitLabel="Save Idea"
@@ -4287,20 +4436,48 @@ export function TripWorkspacePage() {
                             />
                           ))
                         ) : (
-                          <p className={styles.emptyTimelineDay}>No scheduled activities yet.</p>
+                          isMobileViewport ? (
+                            <section className={styles.mobileTimelineEmpty} aria-labelledby="mobile-timeline-empty-title">
+                              <ListTodo size={54} aria-hidden="true" />
+                              <div>
+                                <h3 id="mobile-timeline-empty-title">No activities yet</h3>
+                                <p>Plan an activity or save an idea to start your trip timeline.</p>
+                              </div>
+                              <p className={styles.mobileTimelineEmptyCount}>
+                                {pluralize(scheduledTimelineDayCount, 'day')} planned
+                              </p>
+                              {canEditTrip ? (
+                                <button
+                                  type="button"
+                                  className={styles.primaryAction}
+                                  onClick={openActivityComposer}
+                                >
+                                  Add activity
+                                </button>
+                              ) : null}
+                            </section>
+                          ) : (
+                            <p className={styles.emptyTimelineDay}>No scheduled activities yet.</p>
+                          )
                         )}
                       </div>
                     )}
                   </div>
                 )}
               </section>
-              {canEditTrip && isMobileViewport && mobileTab === 'plan' && workspaceMode === 'days' && placeDraft === null && expandedActivityId === null && (
+              {canEditTrip &&
+                isMobileViewport &&
+                ((mobileTab === 'plan' && workspaceMode === 'days') ||
+                  (mobileTab === 'ideas' && workspaceMode === 'ideas')) &&
+                placeDraft === null &&
+                expandedActivityId === null &&
+                !isCreateComposerSubmitting && (
                 <button
                   type="button"
                   className={styles.mobileAddActivityFab}
-                  onClick={openActivityComposer}
-                  aria-label="Add Activity"
-                  title="Add Activity"
+                  onClick={workspaceMode === 'ideas' ? openIdeaComposer : openActivityComposer}
+                  aria-label={workspaceMode === 'ideas' ? 'Add Idea' : 'Add Activity'}
+                  title={workspaceMode === 'ideas' ? 'Add Idea' : 'Add Activity'}
                 >
                   <Plus size={24} aria-hidden="true" />
                 </button>
