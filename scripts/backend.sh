@@ -46,6 +46,15 @@ process_exists() {
   ps -o pid= -p "$1" 2>/dev/null | grep -Eq "^[[:space:]]*$1[[:space:]]*$"
 }
 
+group_has_processes() {
+  ps -o pid= -g "$pgid" 2>/dev/null | grep -q '[0-9]'
+}
+
+finish_stop() {
+  rm -f "$STATE_FILE"
+  echo "$1"
+}
+
 clear_stale_state() {
   if ! read_state; then
     rm -f "$STATE_FILE"
@@ -96,18 +105,22 @@ stop() {
   fi
   owned_process_group || fail "Refusing to stop: $STATE_FILE does not identify this worktree's backend process group."
 
-  kill -TERM -- "-$pgid"
+  kill -TERM -- "-$pgid" 2>/dev/null || true
   for _ in {1..30}; do
-    ps -o pid= -g "$pgid" 2>/dev/null | grep -q '[0-9]' || {
-      rm -f "$STATE_FILE"
-      echo "Backend stopped."
-      return
-    }
+    group_has_processes || { finish_stop "Backend stopped."; return; }
     sleep 0.1
   done
-  kill -KILL -- "-$pgid"
-  rm -f "$STATE_FILE"
-  echo "Backend did not stop after 3 seconds; sent KILL to its isolated process group."
+
+  if ! owned_process_group; then
+    group_has_processes || { finish_stop "Backend stopped."; return; }
+    fail "Refusing to send KILL: the recorded backend process group is no longer owned by this worktree. State was preserved."
+  fi
+  kill -KILL -- "-$pgid" 2>/dev/null || true
+  for _ in {1..10}; do
+    group_has_processes || { finish_stop "Backend stopped after KILL."; return; }
+    sleep 0.1
+  done
+  fail "Could not confirm that the backend process group stopped after KILL. State was preserved."
 }
 
 run() {

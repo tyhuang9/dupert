@@ -1,20 +1,22 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-BACKEND_SCRIPT="$ROOT_DIR/scripts/backend.sh"
-RUNTIME_DIR="$ROOT_DIR/.dupert/runtime"
-STATE_FILE="$RUNTIME_DIR/backend.state"
-FAKE_BIN="$(mktemp -d "${TMPDIR:-/tmp}/dupert-dev-shortcuts-test.XXXXXX")"
-FAKE_LOG="$FAKE_BIN/commands.log"
-FAKE_STOPPED="$FAKE_BIN/stopped"
-TEST_ENV_CREATED=false
-if [[ ! -f "$ROOT_DIR/backend/.env" ]]; then
-  : >"$ROOT_DIR/backend/.env"
-  TEST_ENV_CREATED=true
-fi
-trap 'rm -rf "$FAKE_BIN" "$ROOT_DIR/.dupert"; $TEST_ENV_CREATED && rm -f "$ROOT_DIR/backend/.env"' EXIT
-mkdir -p "$RUNTIME_DIR"
+PACKAGE_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+TEST_TEMP="$(mktemp -d "${TMPDIR:-/tmp}/dupert-dev-shortcuts-test.XXXXXX")"
+TEST_TEMP="$(cd "$TEST_TEMP" && pwd -P)"
+TEST_ROOT="$TEST_TEMP/repo"
+FAKE_BIN="$TEST_TEMP/bin"
+BACKEND_SCRIPT="$TEST_ROOT/scripts/backend.sh"
+STATE_FILE="$TEST_ROOT/.dupert/runtime/backend.state"
+FAKE_LOG="$TEST_TEMP/commands.log"
+FAKE_STOPPED="$TEST_TEMP/stopped"
+trap 'rm -rf "$TEST_TEMP"' EXIT
+
+mkdir -p "$TEST_ROOT/scripts" "$TEST_ROOT/backend" "$FAKE_BIN"
+cp "$PACKAGE_ROOT/scripts/backend.sh" "$BACKEND_SCRIPT"
+: >"$TEST_ROOT/backend/.env"
+: >"$TEST_ROOT/backend/gradlew"
+chmod +x "$TEST_ROOT/backend/gradlew"
 
 cat >"$FAKE_BIN/ps" <<'EOF'
 #!/usr/bin/env bash
@@ -38,10 +40,18 @@ EOF
 cat >"$FAKE_BIN/kill" <<'EOF'
 #!/usr/bin/env bash
 printf 'kill %s\n' "$*" >>"${FAKE_LOG:?}"
-[[ "$1" == "-0" ]] && exit 0
-[[ "$1" == "-TERM" ]] && touch "${FAKE_STOPPED:?}"
+if [[ "$1" == "-TERM" && "${FAKE_TERM_STOPS:-true}" == "true" ]]; then
+  touch "${FAKE_STOPPED:?}"
+elif [[ "$1" == "-KILL" ]]; then
+  touch "${FAKE_STOPPED:?}"
+  [[ "${FAKE_KILL_RACE:-false}" == "true" ]] && exit 1
+fi
 EOF
-chmod +x "$FAKE_BIN/ps" "$FAKE_BIN/perl" "$FAKE_BIN/kill"
+cat >"$FAKE_BIN/sleep" <<'EOF'
+#!/usr/bin/env bash
+exit 0
+EOF
+chmod +x "$FAKE_BIN/ps" "$FAKE_BIN/perl" "$FAKE_BIN/kill" "$FAKE_BIN/sleep"
 
 assert_contains() { grep -Fq "$2" "$1" || { echo "Expected $1 to contain: $2" >&2; exit 1; }; }
 wait_for_perl() {
@@ -57,37 +67,59 @@ capture_failure() {
   [[ $LAST_STATUS -ne 0 ]] || { echo "Expected command to fail: $*" >&2; exit 1; }
 }
 backend() {
-  PATH="$FAKE_BIN:$PATH" FAKE_LOG="$FAKE_LOG" FAKE_STOPPED="$FAKE_STOPPED" FAKE_STATE="$STATE_FILE" FAKE_STALE_FLAG="$FAKE_BIN/stale" \
-    FAKE_COMMAND="${FAKE_COMMAND_OVERRIDE:-$ROOT_DIR/backend/gradlew bootRun}" /bin/bash "$BACKEND_SCRIPT" "$@"
+  PATH="$FAKE_BIN:$PATH" FAKE_LOG="$FAKE_LOG" FAKE_STOPPED="$FAKE_STOPPED" FAKE_STATE="$STATE_FILE" FAKE_STALE_FLAG="$TEST_TEMP/stale" \
+    FAKE_TERM_STOPS="${FAKE_TERM_STOPS_OVERRIDE:-true}" FAKE_KILL_RACE="${FAKE_KILL_RACE_OVERRIDE:-false}" \
+    FAKE_COMMAND="${FAKE_COMMAND_OVERRIDE:-$TEST_ROOT/backend/gradlew bootRun}" /bin/bash "$BACKEND_SCRIPT" "$@"
 }
 
 bash -n "$BACKEND_SCRIPT"
-node -e 'const p=require("./package.json").scripts; if (p.startdb !== "bash scripts/db.sh up" || p.stopdb !== "bash scripts/db.sh down") process.exit(1)'
+(cd "$PACKAGE_ROOT" && node - <<'EOF'
+const scripts = require('./package.json').scripts
+const expected = {
+  startdb: 'bash scripts/db.sh up',
+  stopdb: 'bash scripts/db.sh down',
+  startback: 'bash scripts/backend.sh start',
+  stopback: 'bash scripts/backend.sh stop',
+}
+for (const [name, command] of Object.entries(expected)) {
+  if (scripts[name] !== command) throw new Error(`${name} must map to ${command}`)
+}
+EOF
+)
 
-rm -f "$STATE_FILE" "$FAKE_STOPPED"; : >"$FAKE_LOG"
+: >"$FAKE_LOG"
 backend start >/dev/null
 [[ -f "$STATE_FILE" ]] || { echo "Start did not create state." >&2; exit 1; }
 wait_for_perl
-backend start >"$FAKE_BIN/duplicate.out"
-assert_contains "$FAKE_BIN/duplicate.out" 'Backend is already running'
+assert_contains "$FAKE_LOG" 'perl -MPOSIX=setsid -e POSIX::setsid() or die "setsid: $!"; exec @ARGV /bin/bash'
+assert_contains "$FAKE_LOG" "$BACKEND_SCRIPT run"
+backend start >"$TEST_TEMP/duplicate.out"
+assert_contains "$TEST_TEMP/duplicate.out" 'Backend is already running'
 [[ "$(grep -c '^perl ' "$FAKE_LOG")" -eq 1 ]] || { echo "Duplicate start launched another backend." >&2; exit 1; }
 
-rm -f "$FAKE_STOPPED" "$FAKE_BIN/stale"; : >"$FAKE_LOG"
-printf 'root_dir=%s\npid=123\npgid=9001\n' "$ROOT_DIR" >"$STATE_FILE"
+rm -f "$FAKE_STOPPED" "$TEST_TEMP/stale"; : >"$FAKE_LOG"
+printf 'root_dir=%s\npid=123\npgid=9001\n' "$TEST_ROOT" >"$STATE_FILE"
 FAKE_STALE_ONCE=true backend start >/dev/null
 wait_for_perl
 [[ "$(grep -c '^perl ' "$FAKE_LOG")" -eq 1 ]] || { echo "Stale state did not launch a replacement backend." >&2; exit 1; }
 
-printf 'root_dir=%q\npid=123\npgid=9001\n' "$ROOT_DIR" >"$STATE_FILE"
+printf 'root_dir=%s\npid=123\npgid=9001\n' "$TEST_ROOT" >"$STATE_FILE"
 FAKE_COMMAND_OVERRIDE='/tmp/not-dupert/gradlew bootRun' capture_failure backend stop
 [[ "$LAST_OUTPUT" == *"does not identify this worktree's backend process group"* ]] || { echo "$LAST_OUTPUT" >&2; exit 1; }
 [[ -f "$STATE_FILE" ]] || { echo "Unowned state was unexpectedly removed." >&2; exit 1; }
 
 rm -f "$STATE_FILE" "$FAKE_STOPPED"; : >"$FAKE_LOG"
 backend start >/dev/null
-backend stop >"$FAKE_BIN/stop.out"
-assert_contains "$FAKE_BIN/stop.out" 'Backend stopped.'
+backend stop >"$TEST_TEMP/stop.out"
+assert_contains "$TEST_TEMP/stop.out" 'Backend stopped.'
 assert_contains "$FAKE_LOG" 'kill -TERM -- -9001'
 [[ ! -f "$STATE_FILE" ]] || { echo "Stop did not remove state." >&2; exit 1; }
+
+rm -f "$STATE_FILE" "$FAKE_STOPPED"; : >"$FAKE_LOG"
+backend start >/dev/null
+FAKE_TERM_STOPS_OVERRIDE=false FAKE_KILL_RACE_OVERRIDE=true backend stop >"$TEST_TEMP/kill-race.out"
+assert_contains "$FAKE_LOG" 'kill -KILL -- -9001'
+assert_contains "$TEST_TEMP/kill-race.out" 'Backend stopped after KILL.'
+[[ ! -f "$STATE_FILE" ]] || { echo "Confirmed KILL-race exit left stale state." >&2; exit 1; }
 
 echo "Development shortcut contracts passed."
