@@ -806,7 +806,8 @@ describe('<TripWorkspacePage>', () => {
 
     await userEvent.click(screen.getByRole('button', { name: /^timeline$/i }))
     expect(screen.queryByTestId('trip-map')).not.toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: /full trip timeline/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /^timeline$/i })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: /full trip timeline/i })).not.toBeInTheDocument()
 
     const menuButton = screen.getByRole('button', { name: /open trip menu/i })
     await userEvent.click(menuButton)
@@ -945,7 +946,7 @@ describe('<TripWorkspacePage>', () => {
     expect(within(dayNavigator).getByRole('button', { name: /next day/i })).toBeDisabled()
   })
 
-  it('shows the mobile add action only in Plan and hides it while composing', async () => {
+  it('keeps matching add actions in Plan and Ideas, and hides them while composing', async () => {
     mockViewport(true)
     mockWorkspace()
 
@@ -964,8 +965,49 @@ describe('<TripWorkspacePage>', () => {
     expect(screen.queryByLabelText(/^add activity$/i, { selector: 'button' })).not.toBeInTheDocument()
 
     await userEvent.click(screen.getByRole('button', { name: /^timeline$/i }))
-    expect(await screen.findByRole('heading', { name: /full trip timeline/i })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: /^timeline$/i })).toBeInTheDocument()
     expect(screen.queryByLabelText(/^add activity$/i, { selector: 'button' })).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: /^ideas$/i }))
+    const addIdea = await screen.findByLabelText(/^add idea$/i, { selector: 'button' })
+    expect(addIdea).toHaveAttribute('title', 'Add Idea')
+    expect(addIdea.querySelector('svg')).toBeInTheDocument()
+    await userEvent.click(addIdea)
+    await screen.findByRole('textbox', { name: /activity name/i })
+    expect(screen.queryByLabelText(/^add idea$/i, { selector: 'button' })).not.toBeInTheDocument()
+  })
+
+  it('uses the compact mobile timeline summary and guides empty trips into Plan', async () => {
+    mockViewport(true)
+    mockWorkspace()
+
+    renderWorkspace('/trips/abc234def567/d/2026-05-01')
+
+    await userEvent.click(await screen.findByRole('button', { name: /^timeline$/i }))
+
+    expect(screen.getByRole('heading', { level: 2, name: /^timeline$/i })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: /full trip timeline/i })).not.toBeInTheDocument()
+    expect(screen.getByText(/^0 activities · 0 days$/i)).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /no activities yet/i })).toBeInTheDocument()
+    expect(screen.getByText(/plan an activity or save an idea/i)).toBeInTheDocument()
+    expect(screen.getByText(/^0 days planned$/i)).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: /^add activity$/i }))
+    expect(screen.getByRole('button', { name: /^plan$/i })).toHaveAttribute('aria-current', 'page')
+    await waitFor(() => {
+      expect(screen.getByRole('textbox', { name: /activity name/i })).toHaveFocus()
+    })
+  })
+
+  it('keeps empty mobile timeline guidance read-only for viewers', async () => {
+    mockViewport(true)
+    mockWorkspace([], { ...SAMPLE_TRIP, role: 'VIEWER' })
+
+    renderWorkspace('/trips/abc234def567/d/2026-05-01')
+
+    await userEvent.click(await screen.findByRole('button', { name: /^timeline$/i }))
+    expect(screen.getByRole('heading', { name: /no activities yet/i })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^add activity$/i })).not.toBeInTheDocument()
   })
 
   it('keeps the desktop day heading and compact add action', async () => {
@@ -1000,6 +1042,27 @@ describe('<TripWorkspacePage>', () => {
     expect(within(shareDialog).getByRole('button', { name: /^revoke$/i })).toBeInTheDocument()
     expect(within(shareDialog).queryByRole('heading', { name: /^members$/i })).not.toBeInTheDocument()
     expect(apiMock.history.get.map(({ url }) => url)).not.toContain('/trips/abc234def567/members')
+  })
+
+  it('focuses, traps, closes, and restores focus for workspace dialogs', async () => {
+    mockWorkspace()
+
+    renderWorkspace('/trips/abc234def567/d/2026-05-01')
+
+    const settingsTrigger = await screen.findByRole('button', { name: /^settings$/i })
+    settingsTrigger.focus()
+    await userEvent.click(settingsTrigger)
+    const settingsDialog = await screen.findByRole('dialog', { name: /trip settings/i })
+    const closeButton = within(settingsDialog).getByRole('button', { name: /close trip settings/i })
+
+    await waitFor(() => expect(closeButton).toHaveFocus())
+    await userEvent.tab({ shift: true })
+    expect(within(settingsDialog).getByRole('button', { name: /save changes/i })).toHaveFocus()
+    await userEvent.keyboard('{Escape}')
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: /trip settings/i })).not.toBeInTheDocument()
+      expect(settingsTrigger).toHaveFocus()
+    })
   })
 
   it('edits and moves a mobile activity by selecting its card', async () => {
