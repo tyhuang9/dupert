@@ -81,7 +81,7 @@ npm run db:up
 npm run dev
 ```
 
-For detached, worktree-local services, use `npm run startdb` / `npm run stopdb` and `npm run startback` / `npm run stopback`. `startback` requires `backend/.env`, writes its PID state and preserved log to `.dupert/runtime/` in that worktree, and refuses to stop a state file that does not match its isolated backend process group.
+For detached services, use `npm run startdb` / `npm run stopdb` and `npm run startback` / `npm run stopback`. Backend state and logs are scoped to `.dupert/runtime/` in each worktree. The Compose database is intentionally shared across worktrees through its repository-local project and volume names, so `stopdb` stops that shared database service for every worktree using it. `startback` requires `backend/.env` and refuses to signal a process whose isolated group, start time, or exact command does not match its private state file.
 
 `db:up` waits for PostgreSQL's health check. PostgreSQL 16 data lives in the named `dupert_local_postgres_16_data` Docker volume, so it persists across `npm run db:down` and later `npm run db:up` runs. Each configured major gets a separate volume (`dupert_local_postgres_<major>_data`), preventing a PostgreSQL 16 data directory from being reused by PostgreSQL 17. `npm run dev` deliberately does not start Docker or rewrite `DATABASE_URL`; this keeps developers who have a custom external database URL in control.
 
